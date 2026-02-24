@@ -8,7 +8,7 @@ This enables:
   - Temporal queries ("what was the state at time T?")
 
 Events for a typical sale:
-  sale.initiated → item_added (×N) → discount_applied → payment_received → sale.completed
+  sale.initiated -> item_added (xN) -> discount_applied -> payment_received -> sale.completed
 
 Usage:
     from modules.sales.event_sourcing import SaleEventStore, SaleEventTypes
@@ -21,6 +21,7 @@ Usage:
     state = await store.rebuild_state(sale_id)
 """
 
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -99,6 +100,10 @@ class SaleEventStore:
         from src.infra.database import db_instance
         return db_instance
 
+    def _is_async_db(self, db) -> bool:
+        """Check if db is an async SQLAlchemy session."""
+        return hasattr(db, "execute") and hasattr(db, "commit")
+
     async def append(
         self,
         sale_id: int,
@@ -124,11 +129,9 @@ class SaleEventStore:
         event_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
 
-        # Get next sequence number
-        if hasattr(db, "execute"):
+        if self._is_async_db(db):
             # SQLAlchemy async session
             from sqlalchemy import text
-            import json
 
             seq_result = await db.execute(
                 text("SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id"),
@@ -156,18 +159,17 @@ class SaleEventStore:
                 },
             )
         else:
-            # Legacy DatabaseManager (sync)
-            import json
+            # Legacy sync DatabaseManager (psycopg2 uses %s)
             seq_rows = db.execute_query(
-                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = ?",
+                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = %s",
                 (sale_id,),
             )
             sequence = seq_rows[0][0] if seq_rows else 1
 
-            db.execute_update(
+            db.execute_write(
                 """INSERT INTO sale_events
                     (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
-                   VALUES (?, ?, ?, ?, ?::jsonb, ?, ?::jsonb, ?)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                 (
                     event_id, sale_id, sequence, event_type,
                     json.dumps(data, default=str),
@@ -202,9 +204,8 @@ class SaleEventStore:
         """
         db = self._get_db()
 
-        if hasattr(db, "execute"):
+        if self._is_async_db(db):
             from sqlalchemy import text
-            import json
 
             result = await db.execute(
                 text("""
@@ -217,10 +218,11 @@ class SaleEventStore:
             )
             rows = result.mappings().all()
         else:
+            # psycopg2 uses %s
             rows = db.execute_query(
                 """SELECT event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp
                    FROM sale_events
-                   WHERE sale_id = ? AND sequence > ?
+                   WHERE sale_id = %s AND sequence > %s
                    ORDER BY sequence ASC""",
                 (sale_id, after_sequence),
             )
@@ -228,19 +230,26 @@ class SaleEventStore:
         events = []
         for row in rows:
             r = dict(row)
-            import json
-            data = r["data"] if isinstance(r["data"], dict) else json.loads(r["data"])
-            meta = r.get("metadata", {})
+
+            raw_data = r["data"]
+            if isinstance(raw_data, str):
+                raw_data = json.loads(raw_data)
+
+            meta = r.get("metadata") or {}
             if isinstance(meta, str):
                 meta = json.loads(meta)
+
+            ts = r["timestamp"]
+            if isinstance(ts, str):
+                ts = datetime.fromisoformat(ts)
 
             events.append(SaleEvent(
                 sale_id=r["sale_id"],
                 event_type=r["event_type"],
-                data=data,
+                data=raw_data,
                 event_id=r["event_id"],
                 sequence=r["sequence"],
-                timestamp=r["timestamp"] if isinstance(r["timestamp"], datetime) else datetime.fromisoformat(str(r["timestamp"])),
+                timestamp=ts,
                 user_id=r.get("user_id"),
                 metadata=meta,
             ))
@@ -274,8 +283,8 @@ class SaleEventStore:
         for event in events:
             self._apply_event(state, event)
 
-        # Convert items dict to list
-        state["items"] = list(state["items"].values())
+        # Convert items dict to sorted list (by product_id for deterministic output)
+        state["items"] = sorted(state["items"].values(), key=lambda x: x.get("product_id", 0))
         # Convert Decimal to float for JSON serialization
         for key in ("subtotal", "discount_total", "tax_total", "total"):
             state[key] = float(state[key])

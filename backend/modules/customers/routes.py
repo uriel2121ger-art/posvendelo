@@ -9,13 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from db.connection import get_db
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _get_db():
-    from db.connection import get_db
-    return get_db
 
 
 @router.get("/")
@@ -24,7 +21,7 @@ async def list_customers(
     is_active: Optional[int] = Query(1, ge=0, le=1),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """List customers with search."""
     sql = "SELECT * FROM customers WHERE 1=1"
@@ -47,7 +44,7 @@ async def list_customers(
 
 
 @router.get("/{customer_id}")
-async def get_customer(customer_id: int, db: AsyncSession = Depends(_get_db())):
+async def get_customer(customer_id: int, db: AsyncSession = Depends(get_db)):
     """Get customer by ID with credit info."""
     result = await db.execute(
         text("SELECT * FROM customers WHERE id = :id"), {"id": customer_id}
@@ -62,7 +59,7 @@ async def get_customer(customer_id: int, db: AsyncSession = Depends(_get_db())):
 async def get_customer_sales(
     customer_id: int,
     limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get recent sales for a customer."""
     result = await db.execute(

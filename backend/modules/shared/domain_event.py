@@ -107,13 +107,12 @@ class DomainEventStore:
             Row ID of persisted event, or None on failure
         """
         try:
-            result = self.db.execute_write("""
+            self.db.execute_write("""
                 INSERT INTO domain_events
                     (event_id, event_type, aggregate_type, aggregate_id,
                      data, source_module, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (event_id) DO NOTHING
-                RETURNING id
             """, (
                 event.event_id,
                 event.event_type,
@@ -123,7 +122,7 @@ class DomainEventStore:
                 event.source_module,
                 event.timestamp.isoformat()
             ))
-            return result
+            return 1
         except Exception as e:
             logger.error(f"Failed to persist domain event {event.event_id}: {e}")
             return None
@@ -288,19 +287,12 @@ class EnhancedEventBus:
         # 3. Dispatch to async handlers
         if async_handlers:
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    for handler in async_handlers:
-                        asyncio.ensure_future(self._run_async_handler(handler, event))
-                else:
-                    loop.run_until_complete(
-                        asyncio.gather(
-                            *[self._run_async_handler(h, event) for h in async_handlers],
-                            return_exceptions=True
-                        )
-                    )
+                loop = asyncio.get_running_loop()
+                # We're inside an async context — schedule as tasks
+                for handler in async_handlers:
+                    loop.create_task(self._run_async_handler(handler, event))
             except RuntimeError:
-                # No event loop available, run in new loop
+                # No running event loop — create a new one
                 for handler in async_handlers:
                     try:
                         asyncio.run(self._run_async_handler(handler, event))
@@ -337,14 +329,24 @@ class EnhancedEventBus:
         count = 0
         for event_data in events:
             try:
+                ts = event_data.get('timestamp')
+                if isinstance(ts, str):
+                    ts = datetime.fromisoformat(ts)
+                elif ts is None:
+                    ts = datetime.now(timezone.utc)
+
+                raw_data = event_data.get('data', {})
+                if isinstance(raw_data, str):
+                    raw_data = json.loads(raw_data)
+
                 event = DomainEvent(
                     event_id=event_data['event_id'],
                     event_type=event_data['event_type'],
                     aggregate_type=event_data['aggregate_type'],
                     aggregate_id=event_data.get('aggregate_id'),
-                    data=event_data.get('data', {}),
+                    data=raw_data,
                     source_module=event_data['source_module'],
-                    timestamp=event_data.get('timestamp', datetime.now(timezone.utc)),
+                    timestamp=ts,
                 )
                 self.publish(event, persist=False)  # Don't re-persist
                 count += 1

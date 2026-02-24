@@ -9,17 +9,20 @@ persists it in the sale_events table for auditability and state rebuild.
 """
 
 import logging
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
 
-async def on_sale_completed(event_data: Dict[str, Any]):
+async def on_sale_completed(event):
     """
     Called when a sale.completed DomainEvent fires.
     Persists the event in sale_events for event sourcing.
+
+    Args:
+        event: DomainEvent instance with .data dict containing sale info
     """
-    sale_id = event_data.get("sale_id") or event_data.get("id")
+    data = event.data if hasattr(event, "data") else event
+    sale_id = data.get("sale_id") or data.get("id")
     if not sale_id:
         logger.warning("sale.completed event missing sale_id, skipping event store")
         return
@@ -30,18 +33,18 @@ async def on_sale_completed(event_data: Dict[str, Any]):
         await store.append(
             sale_id=int(sale_id),
             event_type=SaleEventTypes.COMPLETED,
-            data=event_data,
-            user_id=event_data.get("user_id") or event_data.get("cashier_id"),
+            data=data,
+            user_id=data.get("user_id") or data.get("cashier_id"),
         )
         logger.debug(f"Sale {sale_id} completion persisted to event store")
     except Exception as e:
-        # Non-fatal: event sourcing is supplementary
         logger.error(f"Failed to persist sale.completed event for sale {sale_id}: {e}")
 
 
-async def on_sale_cancelled(event_data: Dict[str, Any]):
+async def on_sale_cancelled(event):
     """Called when a sale.cancelled DomainEvent fires."""
-    sale_id = event_data.get("sale_id") or event_data.get("id")
+    data = event.data if hasattr(event, "data") else event
+    sale_id = data.get("sale_id") or data.get("id")
     if not sale_id:
         return
 
@@ -51,8 +54,8 @@ async def on_sale_cancelled(event_data: Dict[str, Any]):
         await store.append(
             sale_id=int(sale_id),
             event_type=SaleEventTypes.CANCELLED,
-            data=event_data,
-            user_id=event_data.get("user_id"),
+            data=data,
+            user_id=data.get("user_id"),
         )
     except Exception as e:
         logger.error(f"Failed to persist sale.cancelled event for sale {sale_id}: {e}")

@@ -15,8 +15,7 @@ import logging
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query, Request
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,12 @@ EMPLOYEES_SVC_URL = os.getenv("EMPLOYEES_SVC_URL", "http://localhost:8001")
 # Reusable async HTTP client (connection pooling)
 _http_client: Optional[httpx.AsyncClient] = None
 
+# Whitelist of columns allowed in employee UPDATE (prevents SQL injection)
+_EMPLOYEE_UPDATE_COLUMNS = frozenset({
+    "name", "position", "phone", "email", "base_salary",
+    "commission_rate", "loan_limit", "is_active",
+})
+
 
 def _get_http_client() -> httpx.AsyncClient:
     global _http_client
@@ -38,6 +43,14 @@ def _get_http_client() -> httpx.AsyncClient:
             timeout=httpx.Timeout(5.0, connect=2.0),
         )
     return _http_client
+
+
+async def close_http_client():
+    """Call at app shutdown to cleanly close the connection pool."""
+    global _http_client
+    if _http_client and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
 
 
 async def _proxy_to_microservice(
@@ -72,10 +85,13 @@ async def _proxy_to_microservice(
         )
         return None
     except httpx.HTTPStatusError as e:
-        # Propagate HTTP errors from microservice (404, 400, etc.)
+        try:
+            detail = e.response.json().get("detail", str(e))
+        except Exception:
+            detail = str(e)
         raise HTTPException(
             status_code=e.response.status_code,
-            detail=e.response.json().get("detail", str(e)),
+            detail=detail,
         )
 
 
@@ -118,19 +134,19 @@ async def list_employees(
     if result is not None:
         return result
 
-    # Local fallback
+    # Local fallback (psycopg2 uses %s placeholders)
     db = _get_local_db()
     sql = "SELECT * FROM employees WHERE 1=1"
     params_list = []
 
     if is_active is not None:
-        sql += " AND is_active = ?"
+        sql += " AND is_active = %s"
         params_list.append(is_active)
     if search:
-        sql += " AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)"
+        sql += " AND (name ILIKE %s OR phone ILIKE %s OR email ILIKE %s)"
         params_list.extend([f"%{search}%"] * 3)
 
-    sql += " ORDER BY name LIMIT ? OFFSET ?"
+    sql += " ORDER BY name LIMIT %s OFFSET %s"
     params_list.extend([limit, offset])
 
     rows = db.execute_query(sql, tuple(params_list))
@@ -145,7 +161,7 @@ async def get_employee(employee_id: int):
         return result
 
     db = _get_local_db()
-    rows = db.execute_query("SELECT * FROM employees WHERE id = ?", (employee_id,))
+    rows = db.execute_query("SELECT * FROM employees WHERE id = %s", (employee_id,))
     if not rows:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
     return {"success": True, "data": dict(rows[0])}
@@ -160,7 +176,6 @@ async def create_employee(request: Request):
     if result is not None:
         return result
 
-    # Local fallback via LoanEngine
     engine = _get_loan_engine()
     emp_id = engine.create_employee(
         name=body.get("name", ""),
@@ -181,17 +196,20 @@ async def update_employee(employee_id: int, request: Request):
     if result is not None:
         return result
 
-    # Local fallback
-    db = _get_local_db()
-    update_data = {k: v for k, v in body.items() if v is not None}
+    # Filter to whitelisted columns only (prevents SQL injection via column names)
+    update_data = {
+        k: v for k, v in body.items()
+        if v is not None and k in _EMPLOYEE_UPDATE_COLUMNS
+    }
     if not update_data:
-        raise HTTPException(status_code=400, detail="No hay datos para actualizar")
+        raise HTTPException(status_code=400, detail="No hay datos válidos para actualizar")
 
-    set_clause = ", ".join([f"{k} = ?" for k in update_data.keys()])
+    db = _get_local_db()
+    set_clause = ", ".join([f"{k} = %s" for k in update_data.keys()])
     values = list(update_data.values()) + [employee_id]
 
-    rowcount = db.execute_update(
-        f"UPDATE employees SET {set_clause} WHERE id = ?",
+    rowcount = db.execute_write(
+        f"UPDATE employees SET {set_clause} WHERE id = %s",
         tuple(values),
     )
     if rowcount == 0:
@@ -207,8 +225,8 @@ async def delete_employee(employee_id: int):
         return result
 
     db = _get_local_db()
-    rowcount = db.execute_update(
-        "UPDATE employees SET is_active = 0 WHERE id = ?",
+    rowcount = db.execute_write(
+        "UPDATE employees SET is_active = 0 WHERE id = %s",
         (employee_id,),
     )
     if rowcount == 0:
@@ -229,7 +247,6 @@ async def clock_action(request: Request):
     if result is not None:
         return result
 
-    # Local fallback
     engine = _get_time_clock_engine()
     action = body.get("action", "clock_in")
     employee_id = body.get("employee_id")
@@ -261,7 +278,6 @@ async def get_time_clock_entries(
     if result is not None:
         return result
 
-    # Local fallback
     engine = _get_time_clock_engine()
     entries = engine.get_attendance_history(employee_id, limit=limit)
     return {"success": True, "data": entries}
@@ -280,7 +296,6 @@ async def create_loan(request: Request):
     if result is not None:
         return result
 
-    # Local fallback
     engine = _get_loan_engine()
     loan_id = engine.create_loan(
         employee_id=body["employee_id"],
@@ -303,7 +318,6 @@ async def get_employee_loans(
     if result is not None:
         return result
 
-    # Local fallback
     engine = _get_loan_engine()
     loans = engine.get_employee_loans(employee_id)
     if status and status != "all":
@@ -320,7 +334,6 @@ async def make_loan_payment(request: Request):
     if result is not None:
         return result
 
-    # Local fallback
     engine = _get_loan_engine()
     payment = engine.make_payment(
         loan_id=body["loan_id"],

@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 
 from app.api.mobile_api import app
 
-from modules.employees.proxy import employees_proxy_router
+from modules.employees.proxy import employees_proxy_router, close_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,9 @@ async def lifespan(application):
             yield state
     else:
         yield
+
+    # Close employees proxy HTTP client
+    await close_http_client()
 
     # Stop Redis
     await _stop_redis()

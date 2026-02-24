@@ -6,20 +6,17 @@ These can be included in the monolith or extracted to a microservice.
 """
 
 import logging
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from db.connection import get_db
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _get_db():
-    """Lazy import to avoid circular deps."""
-    from db.connection import get_db
-    return get_db
 
 
 @router.get("/")
@@ -31,7 +28,7 @@ async def list_sales(
     end_date: Optional[str] = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """List sales with filters."""
     sql = "SELECT * FROM sales WHERE 1=1"
@@ -47,9 +44,17 @@ async def list_sales(
         sql += " AND customer_id = :customer_id"
         params["customer_id"] = customer_id
     if start_date:
+        try:
+            date.fromisoformat(start_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="start_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND timestamp >= :start_date"
         params["start_date"] = start_date
     if end_date:
+        try:
+            date.fromisoformat(end_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="end_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND timestamp <= :end_date"
         params["end_date"] = end_date
 
@@ -63,7 +68,7 @@ async def list_sales(
 
 
 @router.get("/{sale_id}")
-async def get_sale(sale_id: int, db: AsyncSession = Depends(_get_db())):
+async def get_sale(sale_id: int, db: AsyncSession = Depends(get_db)):
     """Get sale by ID with items."""
     sale = await db.execute(
         text("SELECT * FROM sales WHERE id = :id"), {"id": sale_id}
@@ -88,7 +93,7 @@ async def get_sale(sale_id: int, db: AsyncSession = Depends(_get_db())):
 
 
 @router.get("/{sale_id}/events")
-async def get_sale_events(sale_id: int, db: AsyncSession = Depends(_get_db())):
+async def get_sale_events(sale_id: int, db: AsyncSession = Depends(get_db)):
     """Get event sourcing events for a sale (Phase 5)."""
     result = await db.execute(
         text("""
@@ -107,7 +112,7 @@ async def get_sale_events(sale_id: int, db: AsyncSession = Depends(_get_db())):
 async def daily_sales_summary(
     branch_id: Optional[int] = None,
     limit: int = Query(30, ge=1, le=365),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get daily sales summary from CQRS materialized view."""
     sql = "SELECT * FROM mv_daily_sales_summary WHERE 1=1"
@@ -128,7 +133,7 @@ async def daily_sales_summary(
 @router.get("/reports/product-ranking")
 async def product_sales_ranking(
     limit: int = Query(50, ge=1, le=500),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get product sales ranking from CQRS materialized view."""
     result = await db.execute(
@@ -142,7 +147,7 @@ async def product_sales_ranking(
 @router.get("/reports/hourly-heatmap")
 async def hourly_heatmap(
     branch_id: Optional[int] = None,
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get hourly sales heatmap from CQRS materialized view."""
     sql = "SELECT * FROM mv_hourly_sales_heatmap WHERE 1=1"

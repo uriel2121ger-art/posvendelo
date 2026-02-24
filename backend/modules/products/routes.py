@@ -9,13 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from db.connection import get_db
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _get_db():
-    from db.connection import get_db
-    return get_db
 
 
 @router.get("/")
@@ -25,7 +22,7 @@ async def list_products(
     is_active: Optional[int] = Query(1, ge=0, le=1),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """List products with search and filters."""
     sql = "SELECT * FROM products WHERE 1=1"
@@ -50,35 +47,11 @@ async def list_products(
     return {"success": True, "data": [dict(r) for r in rows]}
 
 
-@router.get("/{product_id}")
-async def get_product(product_id: int, db: AsyncSession = Depends(_get_db())):
-    """Get product by ID."""
-    result = await db.execute(
-        text("SELECT * FROM products WHERE id = :id"), {"id": product_id}
-    )
-    row = result.mappings().first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    return {"success": True, "data": dict(row)}
-
-
-@router.get("/sku/{sku}")
-async def get_product_by_sku(sku: str, db: AsyncSession = Depends(_get_db())):
-    """Get product by SKU."""
-    result = await db.execute(
-        text("SELECT * FROM products WHERE sku = :sku"), {"sku": sku}
-    )
-    row = result.mappings().first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    return {"success": True, "data": dict(row)}
-
-
 @router.get("/low-stock")
 async def low_stock_products(
     threshold: Optional[float] = None,
     limit: int = Query(50, ge=1, le=500),
-    db: AsyncSession = Depends(_get_db()),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get products below minimum stock level."""
     result = await db.execute(
@@ -93,3 +66,27 @@ async def low_stock_products(
     )
     rows = result.mappings().all()
     return {"success": True, "data": [dict(r) for r in rows]}
+
+
+@router.get("/{product_id}")
+async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
+    """Get product by ID."""
+    result = await db.execute(
+        text("SELECT * FROM products WHERE id = :id"), {"id": product_id}
+    )
+    row = result.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    return {"success": True, "data": dict(row)}
+
+
+@router.get("/sku/{sku}")
+async def get_product_by_sku(sku: str, db: AsyncSession = Depends(get_db)):
+    """Get product by SKU."""
+    result = await db.execute(
+        text("SELECT * FROM products WHERE sku = :sku"), {"sku": sku}
+    )
+    row = result.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    return {"success": True, "data": dict(row)}
