@@ -73,13 +73,6 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
 }
 
 function Dashboard(): ReactElement {
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    const token = localStorage.getItem('titan.token')
-    if (!token) navigate('/login', { replace: true })
-  }, [navigate])
-
   const modules = [
     {
       title: 'Ventas (F1)',
@@ -223,6 +216,7 @@ function RoutedApp(): ReactElement {
 
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (!localStorage.getItem('titan.token')) return
       switch (event.key) {
         case 'F1':
           event.preventDefault()

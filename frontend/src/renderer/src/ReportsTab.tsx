@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, searchSales } from './posApi'
 
@@ -55,12 +55,17 @@ export default function ReportsTab(): ReactElement {
 
   const totals = useMemo(() => {
     const totalSales = sales.length
-    const gross = sales.reduce((acc, sale) => acc + sale.total, 0)
+    // Accumulate in cents to avoid float drift over many sales
+    const grossCents = sales.reduce((acc, sale) => acc + Math.round(sale.total * 100), 0)
+    const gross = grossCents / 100
     const average = totalSales > 0 ? gross / totalSales : 0
-    const byMethod = sales.reduce<Record<string, number>>((acc, sale) => {
-      acc[sale.paymentMethod] = (acc[sale.paymentMethod] ?? 0) + sale.total
+    const byMethodCents = sales.reduce<Record<string, number>>((acc, sale) => {
+      acc[sale.paymentMethod] = (acc[sale.paymentMethod] ?? 0) + Math.round(sale.total * 100)
       return acc
     }, {})
+    const byMethod = Object.fromEntries(
+      Object.entries(byMethodCents).map(([k, v]) => [k, v / 100])
+    )
     const productCounter = new Map<string, { qty: number; amount: number }>()
     for (const sale of sales) {
       for (const item of sale.items) {
@@ -81,11 +86,15 @@ export default function ReportsTab(): ReactElement {
     return { totalSales, gross, average, byMethod, topProducts }
   }, [sales])
 
+  const filtersRef = useRef({ dateFrom, dateTo })
+  filtersRef.current = { dateFrom, dateTo }
+
   const handleLoad = useCallback(async (): Promise<void> => {
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const rows = await searchSales(cfg, { dateFrom, dateTo, limit: 500 })
+      const { dateFrom: df, dateTo: dt } = filtersRef.current
+      const rows = await searchSales(cfg, { dateFrom: df, dateTo: dt, limit: 500 })
       const normalized = rows.map(normalizeSale)
       setSales(normalized)
       setMessage(`Reporte cargado con ${normalized.length} ventas.`)
@@ -94,7 +103,7 @@ export default function ReportsTab(): ReactElement {
     } finally {
       setBusy(false)
     }
-  }, [dateFrom, dateTo])
+  }, [])
 
   function exportSummaryCsv(): void {
     const rows: string[][] = [

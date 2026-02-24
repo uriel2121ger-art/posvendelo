@@ -16,30 +16,33 @@ export default function ExpensesTab(): ReactElement {
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [reason, setReason] = useState('')
-  const cancelledRef = useRef({ current: false })
+  const requestIdRef = useRef(0)
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchExpenses = async (cancelled: { current: boolean }): Promise<void> => {
+  const fetchExpenses = async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     try {
       setError('')
       const cfg = loadRuntimeConfig()
       const body = await getExpensesSummary(cfg)
-      if (cancelled.current) return
+      if (requestIdRef.current !== reqId) return
       const data = (body.data ?? body) as Record<string, unknown>
       setMonthTotal(Number(data.month ?? 0))
       setYearTotal(Number(data.year ?? 0))
     } catch (err) {
-      if (cancelled.current) return
+      if (requestIdRef.current !== reqId) return
       setError(err instanceof Error ? err.message : 'Error cargando gastos')
     } finally {
-      if (!cancelled.current) setLoading(false)
+      if (requestIdRef.current === reqId) setLoading(false)
     }
   }
 
   useEffect(() => {
-    const cancelled = { current: false }
-    cancelledRef.current = cancelled
-    fetchExpenses(cancelled)
-    return () => { cancelled.current = true }
+    fetchExpenses()
+    return () => {
+      requestIdRef.current++
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -70,8 +73,9 @@ export default function ExpensesTab(): ReactElement {
       setReason('')
       // Refresh list
       setLoading(true)
-      void fetchExpenses(cancelledRef.current)
-      setTimeout(() => setSuccess(''), 3000)
+      void fetchExpenses()
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+      successTimerRef.current = setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error registrando gasto')
     } finally {
@@ -89,7 +93,7 @@ export default function ExpensesTab(): ReactElement {
             <button
               onClick={() => {
                 setLoading(true)
-                void fetchExpenses(cancelledRef.current)
+                void fetchExpenses()
               }}
               disabled={loading}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm font-medium transition-colors disabled:opacity-50"

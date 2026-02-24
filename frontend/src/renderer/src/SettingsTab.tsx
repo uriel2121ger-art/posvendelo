@@ -105,7 +105,6 @@ export default function SettingsTab(): ReactElement {
   async function testConnection(): Promise<void> {
     setBusy(true)
     try {
-      saveRuntimeConfig(form)
       const info = await getSystemInfo(form)
       const syncStatus = await getSyncStatus(form)
       setSystemInfo(info)

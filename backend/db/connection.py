@@ -13,6 +13,7 @@ Usage in routes:
         rows = await db.fetch("SELECT * FROM items WHERE id = :id", {"id": 1})
 """
 
+import asyncio
 import os
 import re
 import logging
@@ -30,20 +31,24 @@ _raw_url = os.getenv(
 )
 DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 
-# Global connection pool
+# Global connection pool (with lock to prevent double-creation on concurrent startup)
 _pool: Optional[asyncpg.Pool] = None
+_pool_lock = asyncio.Lock()
 
 
 async def get_pool() -> asyncpg.Pool:
     """Get or create the global connection pool."""
     global _pool
-    if _pool is None:
-        _pool = await asyncpg.create_pool(
-            dsn=DATABASE_URL,
-            min_size=5,
-            max_size=20,
-        )
-        logger.info("asyncpg connection pool created")
+    if _pool is not None:
+        return _pool
+    async with _pool_lock:
+        if _pool is None:
+            _pool = await asyncpg.create_pool(
+                dsn=DATABASE_URL,
+                min_size=5,
+                max_size=20,
+            )
+            logger.info("asyncpg connection pool created")
     return _pool
 
 

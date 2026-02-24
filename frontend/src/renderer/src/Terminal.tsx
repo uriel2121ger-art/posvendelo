@@ -129,20 +129,23 @@ async function syncSale(
   _customerName: string,
   paymentMethod: PaymentMethod,
   globalDiscountPct: number,
-  amountReceived?: number
+  amountReceived?: number,
+  turnId?: number | null
 ): Promise<Record<string, unknown>> {
   const globalDisc = clampDiscount(globalDiscountPct) / 100
   const items: SaleItemPayload[] = cart.map((item) => {
-    const lineDiscount = item.subtotal > 0 && item.discountPct > 0
-      ? item.price * item.qty * (clampDiscount(item.discountPct) / 100)
-      : 0
-    const globalLineDiscount = item.price * item.qty * globalDisc
+    // Compound discount: matches how the frontend display calculates totals
+    // item.subtotal already has per-item discount applied (price * qty * (1 - itemDisc/100))
+    // Then global discount is applied on top: item.subtotal * (1 - globalDisc)
+    const fullPrice = item.price * item.qty
+    const compoundSubtotal = item.subtotal * (1 - globalDisc)
+    const discount = parseFloat(Math.max(0, fullPrice - compoundSubtotal).toFixed(2))
     return {
-      product_id: Number(item.id) || 0,
+      product_id: item.isCommon ? null : (Number(item.id) || null),
       name: item.name,
       qty: item.qty,
       price: item.price,
-      discount: parseFloat((lineDiscount + globalLineDiscount).toFixed(2)),
+      discount,
       is_wholesale: false,
       price_includes_tax: true
     }
@@ -151,7 +154,8 @@ async function syncSale(
     items,
     payment_method: paymentMethod,
     cash_received: paymentMethod === 'cash' ? (amountReceived ?? 0) : 0,
-    serie: 'A'
+    serie: 'A',
+    turn_id: turnId ?? undefined
   })
   const data = (res.data ?? res) as Record<string, unknown>
   return data
@@ -182,6 +186,7 @@ export default function Terminal(): ReactElement {
     }
   })
   const [selectedCartSku, setSelectedCartSku] = useState<string | null>(null)
+  const ticketCounterRef = useRef(1)
   const [ticketLabel, setTicketLabel] = useState('')
   const [query, setQuery] = useState('')
   const [qty, setQty] = useState(1)
@@ -238,9 +243,11 @@ export default function Terminal(): ReactElement {
   } => {
     const subtotalBeforeDiscount = cart.reduce((acc, item) => acc + item.subtotal, 0)
     const globalDiscountAmount = subtotalBeforeDiscount * (clampDiscount(globalDiscountPct) / 100)
-    const subtotal = subtotalBeforeDiscount - globalDiscountAmount
-    const tax = subtotal * TAX_RATE
-    const total = subtotal + tax
+    // Prices already include IVA — total is the sum minus discount (NOT plus tax)
+    const total = subtotalBeforeDiscount - globalDiscountAmount
+    // Extract IVA that's already baked into the prices (informational for display)
+    const tax = total - total / (1 + TAX_RATE)
+    const subtotal = total - tax
     return { subtotalBeforeDiscount, globalDiscountAmount, subtotal, tax, total }
   }, [cart, globalDiscountPct])
   const amountReceivedNum = toNumber(amountReceived)
@@ -304,7 +311,8 @@ export default function Terminal(): ReactElement {
       setMessage('Limite alcanzado: maximo 8 tickets activos.')
       return
     }
-    const nextNumber = activeTickets.length + 1
+    ticketCounterRef.current += 1
+    const nextNumber = ticketCounterRef.current
     const nextId = `active-${Date.now()}`
     const nextMeta: ActiveTicketMeta = { id: nextId, label: `Activa ${nextNumber}` }
 
@@ -472,7 +480,7 @@ export default function Terminal(): ReactElement {
     }
     const commonNote = window.prompt('Nota opcional del producto comun:', '') ?? ''
 
-    const sku = `COMUN-${Date.now().toString(36)}`
+    const sku = `COMUN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     const item: CartItem = {
       sku,
       name,
@@ -492,9 +500,9 @@ export default function Terminal(): ReactElement {
   const removeItem = useCallback(
     (sku: string): void => {
       setCart((prev) => prev.filter((item) => item.sku !== sku))
-      if (selectedCartSku === sku) setSelectedCartSku(null)
+      setSelectedCartSku((current) => (current === sku ? null : current))
     },
-    [selectedCartSku]
+    []
   )
 
   const increaseSelectedQty = useCallback((): void => {
@@ -559,16 +567,19 @@ export default function Terminal(): ReactElement {
     }
     setBusy(true)
     try {
+      const turnId = shift.id ? Number(shift.id) || null : null
       const saleData = await syncSale(
         config,
         cart,
         customerName,
         paymentMethod,
         globalDiscountPct,
-        paymentMethod === 'cash' ? amountReceivedNum : undefined
+        paymentMethod === 'cash' ? amountReceivedNum : undefined,
+        turnId
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
       const saleTotal = Number(saleData.total) || totals.total
+      const capturedChange = changeDue
       setCart([])
       setGlobalDiscountPct(0)
       setSelectedCartSku(null)
@@ -587,7 +598,7 @@ export default function Terminal(): ReactElement {
       setCurrentShift(updatedShift)
       setMessage(
         paymentMethod === 'cash'
-          ? `Venta ${folio} registrada. Cambio: $${changeDue.toFixed(2)}`
+          ? `Venta ${folio} registrada. Cambio: $${capturedChange.toFixed(2)}`
           : `Venta ${folio} registrada correctamente.`
       )
     } catch (error) {
@@ -633,6 +644,18 @@ export default function Terminal(): ReactElement {
   function loadPendingTicket(ticketId: string): void {
     const found = pendingTickets.find((item) => item.id === ticketId)
     if (!found) return
+    // Save current active ticket state before overwriting
+    setTicketSnapshots((prev) => ({
+      ...prev,
+      [activeTicketId]: {
+        customerName,
+        paymentMethod,
+        globalDiscountPct,
+        cart,
+        selectedCartSku,
+        amountReceived
+      }
+    }))
     setCart(found.cart)
     setCustomerName(found.customerName)
     setPaymentMethod(found.paymentMethod)
@@ -653,7 +676,7 @@ export default function Terminal(): ReactElement {
 
       if (key === 'f10') {
         event.preventDefault()
-        event.stopPropagation()
+        event.stopImmediatePropagation()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
         return
@@ -661,7 +684,8 @@ export default function Terminal(): ReactElement {
 
       if (key === 'f12') {
         event.preventDefault()
-        if (!busy) {
+        event.stopImmediatePropagation()
+        if (!busy && !isInputFocused) {
           void handleCharge()
         }
         return
@@ -726,8 +750,8 @@ export default function Terminal(): ReactElement {
       }
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [
     addCommonProduct,
     busy,
@@ -1014,24 +1038,22 @@ export default function Terminal(): ReactElement {
           </div>
           <div className="border-t border-zinc-800 px-4 py-3 text-sm">
             <div className="mb-1 flex justify-between">
-              <span>Subtotal bruto</span>
+              <span>Subtotal</span>
               <span>${totals.subtotalBeforeDiscount.toFixed(2)}</span>
             </div>
-            <div className="mb-1 flex justify-between">
-              <span>Desc. global ({clampDiscount(globalDiscountPct).toFixed(2)}%)</span>
-              <span>-${totals.globalDiscountAmount.toFixed(2)}</span>
-            </div>
-            <div className="mb-1 flex justify-between">
-              <span>Subtotal</span>
-              <span>${totals.subtotal.toFixed(2)}</span>
-            </div>
-            <div className="mb-1 flex justify-between">
-              <span>IVA (16%)</span>
-              <span>${totals.tax.toFixed(2)}</span>
-            </div>
+            {globalDiscountPct > 0 && (
+              <div className="mb-1 flex justify-between text-rose-400">
+                <span>Desc. global ({clampDiscount(globalDiscountPct).toFixed(0)}%)</span>
+                <span>-${totals.globalDiscountAmount.toFixed(2)}</span>
+              </div>
+            )}
             <div className="mb-3 flex justify-between text-lg font-bold text-emerald-400">
               <span>Total</span>
               <span>${totals.total.toFixed(2)}</span>
+            </div>
+            <div className="mb-1 flex justify-between text-xs text-zinc-500">
+              <span>IVA incluido</span>
+              <span>${totals.tax.toFixed(2)}</span>
             </div>
             {paymentMethod === 'cash' && (
               <>

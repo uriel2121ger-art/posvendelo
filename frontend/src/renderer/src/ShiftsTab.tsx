@@ -234,9 +234,11 @@ export default function ShiftsTab(): ReactElement {
         cashDifference: differenceFromBackend,
         notes: notes.trim()
       }
-      const nextHistory = [closed, ...history]
-      setHistory(nextHistory)
-      saveHistory(nextHistory)
+      setHistory((prev) => {
+        const next = [closed, ...prev]
+        saveHistory(next)
+        return next
+      })
       setCurrentShift(null)
       saveCurrentShift(null)
       setClosingCash('0')
@@ -263,24 +265,32 @@ export default function ShiftsTab(): ReactElement {
       const scoped = backendSales.filter((sale) => {
         const terminal = Number(sale.terminal_id ?? sale._terminal_id ?? 0)
         if (terminal !== shift.terminalId) return false
-        const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '')
+        const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '').replace(' ', 'T')
         const tsMs = new Date(tsRaw).getTime()
         return Number.isFinite(tsMs) && tsMs >= openedMs && tsMs <= closedMs
       })
 
-      const backend = scoped.reduce<BackendShiftTotals>(
+      // Accumulate in cents to avoid float drift over many sales
+      const backendCents = scoped.reduce(
         (acc, sale) => {
-          const total = Math.max(0, Number(sale.total ?? 0))
+          const totalCents = Math.round(Math.max(0, Number(sale.total ?? 0)) * 100)
           const method = String(sale.payment_method ?? '')
           acc.salesCount += 1
-          acc.totalSales += total
-          if (method === 'cash') acc.cashSales += total
-          else if (method === 'card') acc.cardSales += total
-          else if (method === 'transfer') acc.transferSales += total
+          acc.totalSales += totalCents
+          if (method === 'cash') acc.cashSales += totalCents
+          else if (method === 'card') acc.cardSales += totalCents
+          else if (method === 'transfer') acc.transferSales += totalCents
           return acc
         },
         { salesCount: 0, totalSales: 0, cashSales: 0, cardSales: 0, transferSales: 0 }
       )
+      const backend: BackendShiftTotals = {
+        salesCount: backendCents.salesCount,
+        totalSales: backendCents.totalSales / 100,
+        cashSales: backendCents.cashSales / 100,
+        cardSales: backendCents.cardSales / 100,
+        transferSales: backendCents.transferSales / 100,
+      }
 
       const localSalesCount = shift.salesCount ?? 0
       const localTotal = shift.totalSales ?? 0
@@ -333,7 +343,7 @@ export default function ShiftsTab(): ReactElement {
         ['backend_count', String(scopedReconciliation.salesCount)],
         ['backend_total', scopedReconciliation.totalSales.toFixed(2)],
         ['backend_efectivo', scopedReconciliation.cashSales.toFixed(2)],
-        ['diff_count_backend_vs_local', scopedReconciliation.diffCount.toFixed(2)],
+        ['diff_count_backend_vs_local', String(scopedReconciliation.diffCount)],
         ['diff_total_backend_vs_local', scopedReconciliation.diffTotal.toFixed(2)],
         ['diff_efectivo_backend_vs_local', scopedReconciliation.diffCash.toFixed(2)]
       )

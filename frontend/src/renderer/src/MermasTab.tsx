@@ -25,30 +25,29 @@ export default function MermasTab(): ReactElement {
   const [error, setError] = useState('')
   const [actionId, setActionId] = useState<number | null>(null)
   const [notesMap, setNotesMap] = useState<Record<number, string>>({})
-  const cancelledRef = useRef({ current: false })
+  const requestIdRef = useRef(0)
 
-  const fetchMermas = async (cancelled: { current: boolean }): Promise<void> => {
+  const fetchMermas = async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     try {
       setError('')
       const cfg = loadRuntimeConfig()
       const body = await getMermasPending(cfg)
-      if (cancelled.current) return
+      if (requestIdRef.current !== reqId) return
       const inner = (body.data ?? body) as Record<string, unknown>
       const data = (inner.mermas ?? []) as MermaRecord[]
       setMermas(data)
     } catch (err) {
-      if (cancelled.current) return
+      if (requestIdRef.current !== reqId) return
       setError(err instanceof Error ? err.message : 'Error cargando mermas')
     } finally {
-      if (!cancelled.current) setLoading(false)
+      if (requestIdRef.current === reqId) setLoading(false)
     }
   }
 
   useEffect(() => {
-    const cancelled = { current: false }
-    cancelledRef.current = cancelled
-    fetchMermas(cancelled)
-    return () => { cancelled.current = true }
+    fetchMermas()
+    return () => { requestIdRef.current++ }
   }, [])
 
   const handleAction = async (id: number, approved: boolean): Promise<void> => {
@@ -83,7 +82,7 @@ export default function MermasTab(): ReactElement {
             <button
               onClick={() => {
                 setLoading(true)
-                void fetchMermas(cancelledRef.current)
+                void fetchMermas()
               }}
               disabled={loading}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm font-medium transition-colors disabled:opacity-50"
@@ -155,7 +154,7 @@ export default function MermasTab(): ReactElement {
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleAction(m.id, true)}
-                            disabled={actionId === m.id}
+                            disabled={actionId !== null}
                             className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                             title="Aprobar"
                           >
@@ -163,7 +162,7 @@ export default function MermasTab(): ReactElement {
                           </button>
                           <button
                             onClick={() => handleAction(m.id, false)}
-                            disabled={actionId === m.id}
+                            disabled={actionId !== null}
                             className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
                             title="Rechazar"
                           >

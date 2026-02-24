@@ -46,6 +46,8 @@ function toTimestampMs(raw: unknown): number | null {
 }
 
 function inDateRange(row: Record<string, unknown>, dateFrom?: string, dateTo?: string): boolean {
+  if (!dateFrom && !dateTo) return true
+
   const tsRaw = row.timestamp ?? row.created_at ?? row._received_at
   const tsMs = toTimestampMs(tsRaw)
   if (tsMs === null) return false
@@ -58,12 +60,26 @@ function inDateRange(row: Record<string, unknown>, dateFrom?: string, dateTo?: s
   return true
 }
 
+function handleExpiredSession(): never {
+  localStorage.removeItem('titan.token')
+  localStorage.removeItem('titan.user')
+  window.location.hash = '#/login'
+  throw new Error('Sesión expirada. Inicia sesión de nuevo.')
+}
+
+async function apiFetch(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init)
+  if (res.status === 401) handleExpiredSession()
+  return res
+}
+
 async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Response> {
   let lastStatus = 0
   let lastDetail = ''
 
   for (const path of paths) {
     const res = await fetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
+    if (res.status === 401) handleExpiredSession()
     if (res.status === 404 || res.status === 405) {
       lastStatus = res.status
       continue
@@ -86,23 +102,22 @@ export async function pullTable(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>[]> {
   const primaryUrl = `${cfg.baseUrl}/api/v1/sync/${table}`
-  const primary = await fetch(primaryUrl, { headers: headers(cfg) })
+  const primary = await apiFetch(primaryUrl, { headers: headers(cfg) })
 
   if (primary.ok) {
     const body = (await primary.json()) as Record<string, unknown>
-    return (body.data ?? body[table] ?? []) as Record<string, unknown>[]
+    const candidate = body.data ?? body[table] ?? []
+    return Array.isArray(candidate) ? (candidate as Record<string, unknown>[]) : []
   }
 
   if (primary.status === 404 || primary.status === 405) {
     const fallbackPath = FALLBACKS[table]
     if (fallbackPath) {
-      const fallback = await fetch(`${cfg.baseUrl}${fallbackPath}`, { headers: headers(cfg) })
+      const fallback = await apiFetch(`${cfg.baseUrl}${fallbackPath}`, { headers: headers(cfg) })
       if (fallback.ok) {
         const body = (await fallback.json()) as Record<string, unknown>
-        return (body[table] ?? body.data ?? body.products ?? body.customers ?? []) as Record<
-          string,
-          unknown
-        >[]
+        const fallbackCandidate = body[table] ?? body.data ?? body.products ?? body.customers ?? []
+        return Array.isArray(fallbackCandidate) ? (fallbackCandidate as Record<string, unknown>[]) : []
       }
       const detail = await fallback.text()
       throw new Error(`Error ${fallback.status}: ${detail || 'fallo en fallback de carga'}`)
@@ -125,7 +140,7 @@ export async function syncTable(
     terminal_id: cfg.terminalId,
     request_id: `sync_${table}_${Date.now()}`
   }
-  const res = await fetch(`${cfg.baseUrl}/api/v1/sync/${table}`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sync/${table}`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(payload)
@@ -189,15 +204,19 @@ export async function getSaleDetail(
     '/api/v1/sync/sales?limit=2000'
   ])
   const body = (await res.json()) as Record<string, unknown>
-  const data = body.data as Record<string, unknown>[] | undefined
+  const data = body.data
   if (Array.isArray(data)) {
     const found =
-      data.find((row) => String(row.id ?? '') === saleId) ??
-      data.find((row) => String(row.folio ?? '') === saleId)
+      data.find((row) => String((row as Record<string, unknown>).id ?? '') === saleId) ??
+      data.find((row) => String((row as Record<string, unknown>).folio ?? '') === saleId)
     if (!found) {
       throw new Error(`Venta no encontrada: ${saleId}`)
     }
-    return found
+    return found as Record<string, unknown>
+  }
+  // Primary path: data is the single sale object (unwrap from {success, data} envelope)
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return data as Record<string, unknown>
   }
   return body
 }
@@ -224,7 +243,7 @@ export async function openTurn(
   cfg: RuntimeConfig,
   body: { initial_cash: number; branch_id?: number; notes?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/turns/open`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/open`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify({
@@ -242,7 +261,7 @@ export async function closeTurn(
   turnId: number,
   body: { final_cash: number; notes?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/close`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/close`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify({
@@ -257,7 +276,7 @@ export async function closeTurn(
 export async function getCurrentTurn(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown> | null> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   const body = (await res.json()) as Record<string, unknown>
   const data = body.data as Record<string, unknown> | null
@@ -270,7 +289,7 @@ export async function adjustStock(
   cfg: RuntimeConfig,
   body: { product_id: number; quantity: number; reason: string }
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/inventory/adjust`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/inventory/adjust`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)
@@ -282,7 +301,7 @@ export async function adjustStock(
 // ── Ventas ────────────────────────────────────────
 
 export type SaleItemPayload = {
-  product_id: number
+  product_id: number | null
   name?: string
   qty: number
   price: number
@@ -309,7 +328,7 @@ export async function createSale(
   cfg: RuntimeConfig,
   sale: CreateSalePayload
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/sales/`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(sale)
@@ -326,7 +345,7 @@ export async function createSale(
 export async function getDashboardQuick(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/dashboard/quick`, { headers: headers(cfg) })
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/dashboard/quick`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   return (await res.json()) as Record<string, unknown>
 }
@@ -336,7 +355,7 @@ export async function getDashboardQuick(
 export async function getMermasPending(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/mermas/pending`, { headers: headers(cfg) })
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/mermas/pending`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   return (await res.json()) as Record<string, unknown>
 }
@@ -347,7 +366,7 @@ export async function approveMerma(
   approved: boolean,
   notes?: string
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/mermas/approve`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/mermas/approve`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify({ merma_id: id, approved, notes: notes || undefined })
@@ -367,7 +386,7 @@ export async function getExpensesSummary(
   if (month) params.set('month', String(month))
   if (year) params.set('year', String(year))
   const qs = params.toString()
-  const res = await fetch(`${cfg.baseUrl}/api/v1/expenses/summary${qs ? `?${qs}` : ''}`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/expenses/summary${qs ? `?${qs}` : ''}`, {
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
@@ -378,7 +397,7 @@ export async function registerExpense(
   cfg: RuntimeConfig,
   expense: { amount: number; description: string; reason?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/expenses/`, {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/expenses/`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(expense)

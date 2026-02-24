@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, pullTable, syncTable } from './posApi'
 
@@ -32,6 +32,7 @@ export default function CustomersTab(): ReactElement {
   const [message, setMessage] = useState(
     'Clientes (F2): carga, alta, edicion y baja logica funcional.'
   )
+  const requestIdRef = useRef(0)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -45,24 +46,28 @@ export default function CustomersTab(): ReactElement {
   }, [customers, query])
 
   const handleLoad = useCallback(async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const rows = await pullTable('customers', cfg)
+      if (requestIdRef.current !== reqId) return
       const normalized = rows
         .map(normalizeCustomer)
         .filter((item): item is Customer => item !== null)
       setCustomers(normalized)
       setMessage(`Clientes cargados: ${normalized.length}`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }, [])
 
   useEffect(() => {
     void handleLoad()
+    return () => { requestIdRef.current++ }
   }, [handleLoad])
 
   async function handleCreate(): Promise<void> {

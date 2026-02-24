@@ -5,7 +5,7 @@ import { Lock, User, Terminal as TerminalIcon, LogIn } from 'lucide-react'
 import { loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 
 export default function Login(): ReactElement {
-  const [username, setUsername] = useState('admin') // Default for demo
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -116,33 +116,17 @@ export default function Login(): ReactElement {
                 </label>
                 <div className="relative group">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 z-10" />
-                  <select
+                  <input
+                    type="text"
                     value={username}
                     onChange={(e) => {
                       setUsername(e.target.value)
                       setError('')
                     }}
-                    className="w-full rounded-xl border-2 border-zinc-700 bg-zinc-900/90 py-3.5 pl-12 pr-10 text-lg font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white appearance-none cursor-pointer relative z-20 shadow-sm hover:border-zinc-600"
-                  >
-                    <option value="admin" className="bg-zinc-800">
-                      Administrador (admin)
-                    </option>
-                    <option value="cajero1" className="bg-zinc-800">
-                      Cajero Turno 1
-                    </option>
-                    <option value="cajero2" className="bg-zinc-800">
-                      Cajero Turno 2
-                    </option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-500 z-30">
-                    <svg
-                      className="fill-current h-4 w-4"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
-                  </div>
+                    placeholder="Nombre de usuario"
+                    autoComplete="username"
+                    className="w-full rounded-xl border-2 border-zinc-700 bg-zinc-900/90 py-3.5 pl-12 pr-4 text-lg font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white placeholder:text-zinc-600 shadow-sm hover:border-zinc-600"
+                  />
                 </div>
               </div>
 
@@ -172,7 +156,7 @@ export default function Login(): ReactElement {
 
               <button
                 type="submit"
-                disabled={loading || password.length === 0}
+                disabled={loading || password.length === 0 || username.trim().length === 0}
                 className="w-full flex justify-center items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-4 py-4 font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all hover:-translate-y-0.5 mt-8 relative z-10"
               >
                 {loading ? (

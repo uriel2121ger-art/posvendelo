@@ -77,11 +77,16 @@ export default function HistoryTab(): ReactElement {
     [rows, selectedId, visibleRows]
   )
 
+  // Use refs for current filter values to avoid re-creating the callback on every keystroke
+  const filtersRef = useRef({ folio, dateFrom, dateTo })
+  filtersRef.current = { folio, dateFrom, dateTo }
+
   const handleLoad = useCallback(async (): Promise<void> => {
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const sales = await searchSales(cfg, { folio, dateFrom, dateTo, limit: 200 })
+      const { folio: f, dateFrom: df, dateTo: dt } = filtersRef.current
+      const sales = await searchSales(cfg, { folio: f, dateFrom: df, dateTo: dt, limit: 200 })
       const normalized = sales.map(normalizeSale)
       setRows(normalized)
       setMessage(`Ventas encontradas: ${normalized.length}`)
@@ -90,7 +95,7 @@ export default function HistoryTab(): ReactElement {
     } finally {
       setBusy(false)
     }
-  }, [dateFrom, dateTo, folio])
+  }, [])
 
   async function loadDetail(saleId: string): Promise<void> {
     const reqId = ++detailRequestId.current

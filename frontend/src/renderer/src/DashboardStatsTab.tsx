@@ -15,14 +15,15 @@ export default function DashboardStatsTab(): ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdate, setLastUpdate] = useState('')
-  const cancelledRef = useRef({ current: false })
+  const requestIdRef = useRef(0)
 
-  const fetchStats = async (cancelled: { current: boolean }): Promise<void> => {
+  const fetchStats = async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     try {
       setError('')
       const cfg = loadRuntimeConfig()
       const raw = await getDashboardQuick(cfg)
-      if (cancelled.current) return
+      if (requestIdRef.current !== reqId) return
       const d = (raw.data ?? raw) as Record<string, unknown>
       setStats({
         ventas_hoy: Number(d.ventas_hoy ?? 0),
@@ -31,27 +32,25 @@ export default function DashboardStatsTab(): ReactElement {
       })
       setLastUpdate(new Date().toLocaleTimeString('es-MX'))
     } catch (err) {
-      if (cancelled.current) return
+      if (requestIdRef.current !== reqId) return
       setError(err instanceof Error ? err.message : 'Error cargando estadísticas')
     } finally {
-      if (!cancelled.current) setLoading(false)
+      if (requestIdRef.current === reqId) setLoading(false)
     }
   }
 
   useEffect(() => {
-    const cancelled = { current: false }
-    cancelledRef.current = cancelled
-    fetchStats(cancelled)
-    const interval = setInterval(() => fetchStats(cancelled), 30_000)
+    fetchStats()
+    const interval = setInterval(() => fetchStats(), 30_000)
     return () => {
-      cancelled.current = true
+      requestIdRef.current++
       clearInterval(interval)
     }
   }, [])
 
   const handleRefresh = (): void => {
     setLoading(true)
-    void fetchStats(cancelledRef.current)
+    void fetchStats()
   }
 
   const cards = stats
