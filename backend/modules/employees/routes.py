@@ -132,13 +132,28 @@ async def update_employee(
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
 
+    # Validate employee_code uniqueness if being changed
+    if "employee_code" in fields:
+        conflict = await db.fetchrow(
+            "SELECT id FROM employees WHERE employee_code = :code AND id != :id",
+            {"code": fields["employee_code"], "id": employee_id},
+        )
+        if conflict:
+            raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
+
+    fields["synced"] = 0
     set_parts = [f"{k} = :{k}" for k in fields]
     params = {**fields, "id": employee_id}
 
-    await db.execute(
-        f"UPDATE employees SET {', '.join(set_parts)} WHERE id = :id",
-        params,
-    )
+    try:
+        await db.execute(
+            f"UPDATE employees SET {', '.join(set_parts)} WHERE id = :id",
+            params,
+        )
+    except Exception as e:
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            raise HTTPException(status_code=400, detail="Codigo de empleado duplicado")
+        raise
 
     return {"success": True, "data": {"id": employee_id}}
 
@@ -160,7 +175,7 @@ async def delete_employee(
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
     await db.execute(
-        "UPDATE employees SET is_active = 0 WHERE id = :id",
+        "UPDATE employees SET is_active = 0, synced = 0 WHERE id = :id",
         {"id": employee_id},
     )
 

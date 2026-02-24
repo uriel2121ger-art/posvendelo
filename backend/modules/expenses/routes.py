@@ -50,6 +50,9 @@ async def register_expense(
     db=Depends(get_db),
 ):
     """Register a cash expense in cash_movements (linked to open turn if exists)."""
+    role = auth.get("role", "")
+    if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Solo gerentes pueden registrar gastos")
     user_id = int(auth["sub"])
     now = datetime.now(timezone.utc).isoformat()
 

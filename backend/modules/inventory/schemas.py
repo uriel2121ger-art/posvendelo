@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class StockAdjustment(BaseModel):
     product_id: int
-    quantity: float = Field(..., description="Positive to add, negative to subtract")
+    quantity: float = Field(..., ne=0, description="Positive to add, negative to subtract")
     reason: str = Field(..., min_length=1)
     reference_id: Optional[str] = None
     user_id: Optional[int] = None

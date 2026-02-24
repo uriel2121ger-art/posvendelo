@@ -8,9 +8,9 @@ FIXED: remote_notifications uses real DB columns (body, notification_type, sent)
 instead of legacy mobile_api.py columns (message, priority, read).
 """
 
-import asyncio
 import json
 import logging
+import subprocess
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,6 +23,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _send_drawer_pulse(printer: str, pulse_hex: str) -> None:
+    """Send ESC/POS cash drawer pulse via lp/CUPS."""
+    pulse_bytes = bytes.fromhex(pulse_hex.replace("\\x", "").replace(" ", ""))
+    if not pulse_bytes:
+        pulse_bytes = b"\x1B\x70\x00\x19\xFA"
+    subprocess.run(
+        ["lp", "-d", printer, "-o", "raw", "-"],
+        input=pulse_bytes, check=True, timeout=5,
+    )
+
+
 @router.post("/open-drawer")
 async def remote_open_drawer(
     auth: dict = Depends(verify_token),
@@ -33,22 +44,19 @@ async def remote_open_drawer(
         raise HTTPException(status_code=403, detail="Sin permisos para abrir cajon")
 
     try:
-        def _open():
-            from app.core import get_core_instance
-            core = get_core_instance()
-            cfg = core.get_app_config() or {}
-            if not cfg.get("cash_drawer_enabled"):
-                raise ValueError("Cajon no habilitado")
-            printer = cfg.get("printer_name", "")
-            if not printer:
-                raise ValueError("Impresora no configurada")
-            from app.utils import ticket_engine
-            pulse_str = cfg.get("cash_drawer_pulse_bytes", "\\x1B\\x70\\x00\\x19\\xFA")
-            ticket_engine.open_cash_drawer(printer, pulse_str)
+        cfg = await db.fetchrow("SELECT * FROM app_config LIMIT 1")
+        cfg = dict(cfg) if cfg else {}
 
-        await asyncio.to_thread(_open)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        if not cfg.get("cash_drawer_enabled"):
+            raise HTTPException(status_code=400, detail="Cajon no habilitado")
+        printer = cfg.get("printer_name", "")
+        if not printer:
+            raise HTTPException(status_code=400, detail="Impresora no configurada")
+
+        pulse_str = cfg.get("cash_drawer_pulse_bytes", "1B700019FA")
+        _send_drawer_pulse(printer, pulse_str)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Remote drawer open error: %s", e)
         raise HTTPException(status_code=500, detail="Error abriendo cajon")
@@ -85,8 +93,18 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
     # Get sales summary for this turn
     summary = await db.fetchrow(
         """SELECT
-               COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total ELSE 0 END), 0) as cash_sales,
-               COALESCE(SUM(CASE WHEN payment_method = 'card' THEN total ELSE 0 END), 0) as card_sales,
+               COALESCE(SUM(
+                   CASE WHEN payment_method = 'cash' THEN total
+                        WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
+                        ELSE 0
+                   END
+               ), 0) as cash_sales,
+               COALESCE(SUM(
+                   CASE WHEN payment_method = 'card' THEN total
+                        WHEN payment_method = 'mixed' THEN COALESCE(mixed_card, 0)
+                        ELSE 0
+                   END
+               ), 0) as card_sales,
                COALESCE(SUM(total), 0) as total_sales
            FROM sales WHERE turn_id = :tid AND status = 'completed'""",
         {"tid": turn["id"]},
@@ -233,7 +251,7 @@ async def remote_change_price(
         )
 
         # Price history
-        if body.new_price != old_price:
+        if round(body.new_price, 2) != round(old_price, 2):
             await db.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES (:pid, 'price', :old, :new, :uid, NOW())""",

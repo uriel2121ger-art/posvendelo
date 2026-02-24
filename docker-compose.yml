@@ -1,0 +1,58 @@
+# =============================================================================
+# TITAN POS — Docker Compose
+#
+# Usage:
+#   docker compose up -d          # Start services
+#   docker compose logs -f api    # Follow API logs
+#   docker compose ps             # Check status
+#
+# Architecture:
+#   api (port 8000) → FastAPI + asyncpg
+#   postgres (port 5432) → PostgreSQL 15
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: titan_pos
+      POSTGRES_USER: titan_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-POvBSlIvC9jB76ZtYBvaFw}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # TITAN POS API
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://titan_user:${POSTGRES_PASSWORD:-POvBSlIvC9jB76ZtYBvaFw}@postgres:5432/titan_pos"
+      CORS_ORIGINS: "*"              # Required: Electron sends from file:// origin
+      CORS_ALLOWED_ORIGINS: "*"       # LAN-only — do NOT expose to internet
+      ADMIN_API_USER: "${ADMIN_API_USER:-admin}"
+      ADMIN_API_PASSWORD: "${ADMIN_API_PASSWORD:-titanpos2026}"
+      JWT_SECRET: "${JWT_SECRET:-tP0s-S3cr3t-k3y-2026!xQm9vR4nBz}"
+      DEBUG: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

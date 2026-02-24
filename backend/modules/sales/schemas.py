@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 class SaleItemCreate(BaseModel):
-    product_id: int
+    product_id: Optional[int] = None  # None or 0 = common/misc product
     name: Optional[str] = None
     qty: float = Field(1.0, gt=0)
     price: float = Field(..., ge=0)

@@ -100,23 +100,20 @@ class SaleEventStore:
         now = datetime.now(timezone.utc)
 
         async with get_connection() as db:
-            sequence = await db.fetchval(
-                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id",
-                {"sale_id": sale_id},
-            )
-
-            await db.execute(
+            row = await db.fetchrow(
                 """
                 INSERT INTO sale_events
                     (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
                 VALUES
-                    (:event_id, :sale_id, :sequence, :event_type, :data::jsonb,
+                    (:event_id, :sale_id,
+                     (SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id),
+                     :event_type, :data::jsonb,
                      :user_id, :metadata::jsonb, :timestamp)
+                RETURNING sequence
                 """,
                 {
                     "event_id": event_id,
                     "sale_id": sale_id,
-                    "sequence": sequence,
                     "event_type": event_type,
                     "data": json.dumps(data, default=str),
                     "user_id": user_id,
@@ -124,6 +121,7 @@ class SaleEventStore:
                     "timestamp": now.isoformat(),
                 },
             )
+            sequence = row["sequence"]
 
         event = SaleEvent(
             sale_id=sale_id,

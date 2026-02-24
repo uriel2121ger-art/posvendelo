@@ -112,6 +112,10 @@ async def sync_pull_sales(
     params: dict = {}
 
     if since:
+        try:
+            datetime.fromisoformat(since.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Formato de fecha invalido para 'since'")
         sql += " AND timestamp >= :since"
         params["since"] = since
 
@@ -155,6 +159,7 @@ async def sync_pull_shifts(
 @router.get("/status")
 async def sync_status(
     db=Depends(get_db),
+    auth: dict = Depends(verify_token),
 ):
     """Health check / connection test for frontend."""
     try:
@@ -183,6 +188,10 @@ async def sync_push(
     auth: dict = Depends(verify_token),
 ):
     """Bulk upsert for products/customers. Sales are read-only from frontend."""
+    role = auth.get("role", "")
+    if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Solo gerentes pueden sincronizar datos")
+
     if table_name not in ALLOWED_TABLES:
         raise HTTPException(
             status_code=400,
@@ -245,15 +254,19 @@ async def sync_push(
                     continue
                 cid = row.get("id")
                 if cid:
+                    try:
+                        cid_int = int(cid)
+                    except (ValueError, TypeError):
+                        continue  # skip malformed record
                     existing = await db.fetchrow(
-                        "SELECT id FROM customers WHERE id = :id", {"id": int(cid)}
+                        "SELECT id FROM customers WHERE id = :id", {"id": cid_int}
                     )
                     if existing:
                         await db.execute(
                             """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc, updated_at = NOW()
                                WHERE id = :id""",
                             {
-                                "id": int(cid),
+                                "id": cid_int,
                                 "name": name,
                                 "phone": row.get("phone", ""),
                                 "email": row.get("email", ""),

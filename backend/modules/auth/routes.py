@@ -48,9 +48,15 @@ async def login(body: LoginRequest, db=Depends(get_db)):
             )
         except Exception as e:
             logger.error("Bcrypt verification error: %s", e)
+            # Simulate bcrypt work to prevent timing oracle
+            bcrypt.hashpw(b"dummy-timing-pad", bcrypt.gensalt(rounds=10))
     elif len(stored_hash) == 64:
         password_sha256 = hashlib.sha256(body.password.encode()).hexdigest()
         auth_success = secrets.compare_digest(stored_hash, password_sha256)
+    else:
+        # Unknown hash format — simulate bcrypt work to prevent timing leak
+        import bcrypt as _bc
+        _bc.hashpw(b"dummy-timing-pad", _bc.gensalt(rounds=10))
 
     if not auth_success:
         raise HTTPException(status_code=401, detail="Credenciales invalidas")

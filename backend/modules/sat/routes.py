@@ -35,7 +35,7 @@ async def search_sat_codes(
     """Search SAT catalog by code or description. No auth required."""
     try:
         def _search():
-            from app.fiscal.sat_catalog_full import search_sat_catalog
+            from modules.sat.sat_catalog import search_sat_catalog
             return search_sat_catalog(q, limit=limit)
 
         results = await asyncio.to_thread(_search)
@@ -66,7 +66,7 @@ async def get_sat_code_info(code: str):
     """Get SAT code description. No auth required."""
     try:
         def _get():
-            from app.fiscal.sat_catalog_full import get_sat_description
+            from modules.sat.sat_catalog import get_sat_description
             return get_sat_description(code)
 
         description = await asyncio.to_thread(_get)

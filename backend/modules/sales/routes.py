@@ -88,7 +88,7 @@ async def list_sales(
         except ValueError:
             raise HTTPException(status_code=400, detail="end_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND timestamp <= :end_date"
-        params["end_date"] = end_date
+        params["end_date"] = end_date + " 23:59:59"
 
     sql += " ORDER BY id DESC LIMIT :limit OFFSET :offset"
     params["limit"] = limit
@@ -136,30 +136,49 @@ async def create_sale(
         async with conn.transaction():
 
             # 1. Lock products + validate stock
-            product_ids = [item.product_id for item in body.items]
-            try:
-                locked_products = await conn.fetch(
-                    "SELECT id, name, stock, sku, sale_type, is_kit "
-                    "FROM products WHERE id = ANY($1) FOR UPDATE NOWAIT",
+            # Filter out common/misc items (product_id is None or 0)
+            product_ids = [item.product_id for item in body.items if item.product_id]
+
+            # Expand lock set with kit component IDs to prevent concurrent oversell
+            kit_comp_rows = []
+            if product_ids:
+                kit_comp_rows = await conn.fetch(
+                    "SELECT parent_product_id, child_product_id, qty FROM kit_components "
+                    "WHERE parent_product_id = ANY($1)",
                     product_ids,
                 )
-            except asyncpg.exceptions.LockNotAvailableError:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Productos bloqueados por otra venta en proceso. Intenta de nuevo.",
-                )
-            locked_map = {r["id"]: dict(r) for r in locked_products}
+            component_ids = [r["child_product_id"] for r in kit_comp_rows]
+            all_ids_to_lock = list(set(product_ids + component_ids))
 
-            # Validate all products exist
+            locked_map = {}
+            if all_ids_to_lock:
+                try:
+                    locked_products = await conn.fetch(
+                        "SELECT id, name, stock, sku, sale_type, is_kit "
+                        "FROM products WHERE id = ANY($1) FOR UPDATE NOWAIT",
+                        all_ids_to_lock,
+                    )
+                except asyncpg.exceptions.LockNotAvailableError:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Productos bloqueados por otra venta en proceso. Intenta de nuevo.",
+                    )
+                locked_map = {r["id"]: dict(r) for r in locked_products}
+
+            # Validate all real products exist (skip common items)
             for item in body.items:
-                if item.product_id not in locked_map:
+                if item.product_id and item.product_id not in locked_map:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Producto ID {item.product_id} no encontrado",
                     )
 
-            # Validate stock (skip COM-*, granel, kits)
+            # Validate stock — aggregate demand per product_id to prevent
+            # double-deduction when the same product appears in multiple items
+            demand_by_pid: dict = {}
             for item in body.items:
+                if not item.product_id:
+                    continue
                 prod = locked_map[item.product_id]
                 sku = prod.get("sku", "") or ""
                 sale_type = prod.get("sale_type", "unit") or "unit"
@@ -167,30 +186,68 @@ async def create_sale(
                 is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
 
                 if not is_common and sale_type not in ("granel", "weight") and not is_kit:
-                    current_stock = float(prod.get("stock", 0))
-                    if current_stock < item.qty:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Stock insuficiente para '{prod['name']}'. "
-                                   f"Disponible: {current_stock}, Solicitado: {item.qty}",
-                        )
+                    demand_by_pid[item.product_id] = demand_by_pid.get(item.product_id, 0.0) + item.qty
+
+            for pid, demanded in demand_by_pid.items():
+                prod = locked_map[pid]
+                current_stock = float(prod.get("stock", 0))
+                if current_stock < demanded:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Stock insuficiente para '{prod['name']}'. "
+                               f"Disponible: {current_stock}, Solicitado: {demanded}",
+                    )
+
+            # Validate kit component stock (components are now locked)
+            comp_demand: dict = {}  # child_product_id -> total qty needed
+            for item in body.items:
+                if not item.product_id:
+                    continue  # Common items are never kits
+                if not locked_map.get(item.product_id, {}).get("is_kit", False):
+                    continue
+                for cr in kit_comp_rows:
+                    if cr["parent_product_id"] == item.product_id:
+                        cid = cr["child_product_id"]
+                        comp_demand[cid] = comp_demand.get(cid, 0.0) + float(cr["qty"]) * item.qty
+
+            for cid, demand in comp_demand.items():
+                child_prod = locked_map.get(cid)
+                if not child_prod:
+                    continue
+                child_sku = child_prod.get("sku", "") or ""
+                if child_sku.startswith("COM-") or child_sku.startswith("COMUN-"):
+                    continue
+                current_stock = float(child_prod.get("stock", 0))
+                if current_stock < demand:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Stock insuficiente para componente '{child_prod['name']}'. "
+                               f"Disponible: {current_stock}, Necesario: {demand}",
+                    )
 
             # 2. Calculate totals (Decimal precision)
             subtotal = Decimal("0")
+            total_discount = Decimal("0")
             for item in body.items:
                 price = _dec(item.price)
                 if item.is_wholesale and item.price_wholesale is not None:
                     price = _dec(item.price_wholesale)
 
-                if item.price_includes_tax and price > 0:
+                includes_tax = item.price_includes_tax and price > 0
+                if includes_tax:
                     price = price / (1 + TAX_RATE)
 
                 raw_disc = _dec(item.discount)
                 if abs(raw_disc) < Decimal("0.001"):
                     line_discount = Decimal("0")
                 else:
+                    # Strip IVA from discount too when price_includes_tax
+                    # (frontend computes discount on IVA-inclusive price)
+                    if includes_tax:
+                        raw_disc = raw_disc / (1 + TAX_RATE)
                     line_discount = max(Decimal("0"), raw_disc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+                total_discount += line_discount
                 item_total = (_dec(item.qty) * price) - line_discount
                 subtotal += item_total
 
@@ -214,10 +271,11 @@ async def create_sale(
                                f"no coincide con total (${_f(total_val):.2f})",
                     )
 
-            # 4. Verify open turn
+            # 4. Verify open turn (FOR UPDATE re-checks status after lock acquisition)
             turn_row = await db.fetchrow(
                 "SELECT id, terminal_id FROM turns "
-                "WHERE user_id = :uid AND status = 'open' ORDER BY id DESC LIMIT 1",
+                "WHERE user_id = :uid AND status = 'open' "
+                "ORDER BY id DESC LIMIT 1 FOR UPDATE",
                 {"uid": user_id},
             )
             if not turn_row:
@@ -269,7 +327,7 @@ async def create_sale(
                     "subtotal": _f(subtotal_after_discount),
                     "tax": _f(tax_total),
                     "total": _f(total_val),
-                    "discount": 0.0,
+                    "discount": _f(total_discount),
                     "pm": pm,
                     "cid": body.customer_id,
                     "uid": user_id,
@@ -293,22 +351,27 @@ async def create_sale(
 
             # 7. Insert sale_items + deduct stock + inventory_movements
             for item in body.items:
-                prod = locked_map[item.product_id]
+                # Common/misc items have no product_id — skip lock/stock
+                is_common_item = not item.product_id
+                prod = locked_map.get(item.product_id, {}) if item.product_id else {}
                 sku = prod.get("sku", "") or ""
                 sale_type = prod.get("sale_type", "unit") or "unit"
                 is_kit = prod.get("is_kit", False)
-                is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
+                is_common = is_common_item or sku.startswith("COM-") or sku.startswith("COMUN-")
 
                 price = _dec(item.price)
                 if item.is_wholesale and item.price_wholesale is not None:
                     price = _dec(item.price_wholesale)
-                if item.price_includes_tax and price > 0:
+                includes_tax = item.price_includes_tax and price > 0
+                if includes_tax:
                     price = price / (1 + TAX_RATE)
 
                 raw_disc = _dec(item.discount)
                 if abs(raw_disc) < Decimal("0.001"):
                     line_discount = Decimal("0")
                 else:
+                    if includes_tax:
+                        raw_disc = raw_disc / (1 + TAX_RATE)
                     line_discount = max(Decimal("0"), raw_disc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
                 qty = _dec(item.qty)
@@ -316,7 +379,7 @@ async def create_sale(
 
                 product_name = item.name or prod.get("name", "Producto")
 
-                # Insert sale_item
+                # Insert sale_item (product_id can be NULL for common items)
                 await db.execute(
                     """INSERT INTO sale_items
                        (sale_id, product_id, qty, price, subtotal, total,
@@ -325,7 +388,7 @@ async def create_sale(
                                :sat, :disc, :name, 0)""",
                     {
                         "sid": sale_id,
-                        "pid": item.product_id,
+                        "pid": item.product_id if item.product_id else None,
                         "qty": _f(qty),
                         "price": _f(price),
                         "sub": _f(line_total),
@@ -338,11 +401,8 @@ async def create_sale(
 
                 # Stock deduction
                 if is_kit:
-                    # Deduct components
-                    components = await db.fetch(
-                        "SELECT child_product_id, qty FROM kit_components WHERE parent_product_id = :pid",
-                        {"pid": item.product_id},
-                    )
+                    # Use already-fetched & locked kit_comp_rows (no re-fetch race)
+                    components = [r for r in kit_comp_rows if r["parent_product_id"] == item.product_id]
                     for comp in components:
                         comp_qty = float(comp["qty"]) * item.qty
                         await db.execute(
@@ -428,7 +488,29 @@ async def create_sale(
                     },
                 )
 
-            # 9. Wallet deduction for mixed payments
+            # 9. Wallet deduction
+            # 9a. Pure wallet payment
+            if pm == "wallet":
+                if not body.customer_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Pago con monedero requiere customer_id",
+                    )
+                wallet_row = await db.fetchrow(
+                    "SELECT wallet_balance FROM customers WHERE id = :cid FOR UPDATE",
+                    {"cid": body.customer_id},
+                )
+                if not wallet_row or float(wallet_row.get("wallet_balance") or 0) < _f(total_val):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Saldo insuficiente en monedero",
+                    )
+                await db.execute(
+                    "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
+                    {"amount": _f(total_val), "cid": body.customer_id},
+                )
+
+            # 9b. Mixed payment with wallet component
             if pm == "mixed" and body.mixed_wallet and body.mixed_wallet > 0:
                 if not body.customer_id:
                     raise HTTPException(
@@ -445,7 +527,7 @@ async def create_sale(
                         detail="Saldo insuficiente en monedero",
                     )
                 await db.execute(
-                    "UPDATE customers SET wallet_balance = wallet_balance - :amount WHERE id = :cid",
+                    "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
                     {"amount": body.mixed_wallet, "cid": body.customer_id},
                 )
 
@@ -504,8 +586,8 @@ async def search_sales(
             date.fromisoformat(date_to)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_to debe ser formato ISO")
-        sql += " AND timestamp <= :date_to || ' 23:59:59'"
-        params["date_to"] = date_to
+        sql += " AND timestamp <= :date_to"
+        params["date_to"] = date_to + " 23:59:59"
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit
@@ -536,8 +618,11 @@ async def cancel_sale(
             )
             if not sale:
                 raise HTTPException(status_code=404, detail="Venta no encontrada")
-            if sale["status"] == "cancelled":
-                raise HTTPException(status_code=400, detail="Venta ya esta cancelada")
+            if sale["status"] != "completed":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Solo se pueden cancelar ventas completadas. Estado actual: '{sale['status']}'",
+                )
 
             # Get items
             items = await db.fetch(
@@ -545,9 +630,28 @@ async def cancel_sale(
                 {"id": sale_id},
             )
 
+            # Lock all products (including kit components) before restoring stock
+            revert_pids = [item["product_id"] for item in items if item["product_id"]]
+            # Also gather kit component IDs so they're locked too
+            comp_pids = []
+            if revert_pids:
+                comp_rows = await conn.fetch(
+                    "SELECT child_product_id FROM kit_components WHERE parent_product_id = ANY($1)",
+                    list(set(revert_pids)),
+                )
+                comp_pids = [r["child_product_id"] for r in comp_rows]
+            all_lock_pids = list(set(revert_pids + comp_pids))
+            if all_lock_pids:
+                await conn.fetch(
+                    "SELECT id FROM products WHERE id = ANY($1) FOR UPDATE",
+                    all_lock_pids,
+                )
+
             # Revert stock
             for item in items:
                 pid = item["product_id"]
+                if not pid:
+                    continue  # Common/misc item — no stock to revert
                 qty = float(item["qty"])
 
                 # Check if it's a kit
@@ -563,11 +667,12 @@ async def cancel_sale(
                 is_kit = prod.get("is_kit", False)
 
                 if is_kit:
-                    components = await db.fetch(
-                        "SELECT child_product_id, qty FROM kit_components WHERE parent_product_id = :pid",
-                        {"pid": pid},
+                    # Fetch kit components (already locked via products FOR UPDATE above)
+                    kit_comps = await conn.fetch(
+                        "SELECT child_product_id, qty FROM kit_components WHERE parent_product_id = $1",
+                        pid,
                     )
-                    for comp in components:
+                    for comp in kit_comps:
                         comp_qty = float(comp["qty"]) * qty
                         await db.execute(
                             "UPDATE products SET stock = stock + :qty, updated_at = NOW() WHERE id = :id",
@@ -612,10 +717,12 @@ async def cancel_sale(
             # Revert credit if applicable
             if sale["payment_method"] == "credit" and sale.get("customer_id"):
                 total = float(sale["total"])
-                await db.fetchrow(
-                    "SELECT id FROM customers WHERE id = :id FOR UPDATE",
+                cust_row = await db.fetchrow(
+                    "SELECT credit_balance FROM customers WHERE id = :id FOR UPDATE",
                     {"id": sale["customer_id"]},
                 )
+                balance_before = float(cust_row.get("credit_balance") or 0) if cust_row else 0.0
+                balance_after = balance_before - total
                 await db.execute(
                     "UPDATE customers SET credit_balance = credit_balance - :amount, updated_at = NOW() "
                     "WHERE id = :id",
@@ -623,14 +730,36 @@ async def cancel_sale(
                 )
                 await db.execute(
                     """INSERT INTO credit_history
-                       (customer_id, transaction_type, movement_type, amount, timestamp, notes, user_id)
-                       VALUES (:cid, 'REVERSAL', 'REVERSAL', :amount, NOW()::text, :notes, :uid)""",
+                       (customer_id, transaction_type, movement_type, amount,
+                        balance_before, balance_after, timestamp, notes, user_id)
+                       VALUES (:cid, 'REVERSAL', 'REVERSAL', :amount,
+                               :before, :after, NOW()::text, :notes, :uid)""",
                     {
                         "cid": sale["customer_id"],
                         "amount": total,
+                        "before": balance_before,
+                        "after": balance_after,
                         "notes": f"Cancelacion venta ID:{sale_id}",
                         "uid": user_id,
                     },
+                )
+
+            # Revert wallet if applicable (pure wallet or mixed with wallet component)
+            wallet_amount = 0.0
+            if sale["payment_method"] == "wallet" and sale.get("customer_id"):
+                wallet_amount = float(sale.get("total") or 0)
+            elif sale["payment_method"] == "mixed" and sale.get("customer_id"):
+                wallet_amount = float(sale.get("mixed_wallet") or 0)
+
+            if wallet_amount > 0 and sale.get("customer_id"):
+                await db.fetchrow(
+                    "SELECT id FROM customers WHERE id = :id FOR UPDATE",
+                    {"id": sale["customer_id"]},
+                )
+                await db.execute(
+                    "UPDATE customers SET wallet_balance = wallet_balance + :amount, synced = 0, updated_at = NOW() "
+                    "WHERE id = :id",
+                    {"amount": wallet_amount, "id": sale["customer_id"]},
                 )
 
             # Mark as cancelled

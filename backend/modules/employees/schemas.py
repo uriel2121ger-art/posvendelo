@@ -24,6 +24,7 @@ class EmployeeCreate(BaseModel):
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
+    employee_code: Optional[str] = Field(default=None, min_length=1, max_length=50)
     position: Optional[str] = None
     hire_date: Optional[str] = None
     base_salary: Optional[float] = Field(default=None, ge=0)

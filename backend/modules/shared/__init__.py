@@ -1,68 +1,10 @@
 """
 TITAN POS - Shared Module
 
-Base classes, utilities, and cross-cutting concerns shared across all domain modules.
-
-Public API:
-    - BaseService: Base class for all services
-    - BaseRepository: Base class for all repositories
-    - EventBus, DomainEvent, EventTypes: Event system
-    - get_event_bus, publish, subscribe: Event convenience functions
-    - get_cache: Cache access
-    - check_permission: Permission checking
+Cross-cutting concerns shared across all domain modules:
+- auth.py: JWT single source of truth
+- domain_event.py: DomainEvent system
+- event_bridge.py: Legacy EventBus → DomainEvent bridge
+- event_bus.py: Re-export of legacy EventBus
+- cache.py: Simple TTL cache
 """
-
-from modules.shared.base_service import BaseService, ALLOWED_TABLES, ALLOWED_ID_COLUMNS
-from modules.shared.base_repository import (
-    BaseRepository,
-    TABLE_COLUMNS,
-    VALID_TABLE_NAMES,
-)
-from modules.shared.event_bus import (
-    EventBus,
-    Event,
-    EventTypes,
-    get_event_bus,
-    publish,
-    subscribe,
-    unsubscribe,
-)
-from modules.shared.cache import SimpleCache, get_cache
-from modules.shared.permissions import PermissionEngine
-from modules.shared.domain_event import (
-    DomainEvent,
-    DomainEventStore,
-    EnhancedEventBus,
-    DomainEventTypes,
-    get_enhanced_event_bus,
-)
-
-__all__ = [
-    # Base classes
-    "BaseService",
-    "BaseRepository",
-    # Legacy event bus
-    "EventBus",
-    "Event",
-    "EventTypes",
-    "get_event_bus",
-    "publish",
-    "subscribe",
-    "unsubscribe",
-    # Enhanced event bus
-    "DomainEvent",
-    "DomainEventStore",
-    "EnhancedEventBus",
-    "DomainEventTypes",
-    "get_enhanced_event_bus",
-    # Cache
-    "SimpleCache",
-    "get_cache",
-    # Permissions
-    "PermissionEngine",
-    # Constants
-    "ALLOWED_TABLES",
-    "ALLOWED_ID_COLUMNS",
-    "TABLE_COLUMNS",
-    "VALID_TABLE_NAMES",
-]

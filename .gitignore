@@ -52,6 +52,8 @@ _archive/
 *.csv
 *.xlsx
 *.xls
+backend/*.csv
+backend/*.xlsx
 
 # Logs directories
 logs/
@@ -63,6 +65,8 @@ backups/
 pgdata/
 redisdata/
 
-# CLIENTE/SERVIDOR zips (prebuilt distributions)
+# Distribution packages (prebuilt)
 CLIENTE/
 SERVIDOR/
+titan-server/
+titan-client/

@@ -82,7 +82,11 @@ async def adjust_stock(
     Uses FOR UPDATE to prevent race conditions.
     Positive quantity = add stock, negative = subtract.
     Records an inventory_movement for audit trail.
+    RBAC: admin/manager/owner only.
     """
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ajustar inventario")
+
     conn = db.connection
 
     async with conn.transaction():
@@ -113,7 +117,7 @@ async def adjust_stock(
 
         # Record movement
         mov_type = "IN" if body.quantity >= 0 else "OUT"
-        user_id = body.user_id or int(auth["sub"])
+        user_id = int(auth["sub"])  # Always use authenticated caller for audit
 
         await conn.execute(
             """

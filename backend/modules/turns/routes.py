@@ -102,7 +102,7 @@ async def close_turn(
             turn_id,
         )
         movements_out = await conn.fetchval(
-            "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = $1 AND type = 'out'",
+            "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = $1 AND type IN ('out', 'expense')",
             turn_id,
         )
 
@@ -151,7 +151,12 @@ async def get_current_turn(
     db=Depends(get_db),
 ):
     """Get the active (open) turn for a user or branch."""
-    uid = user_id or int(auth["sub"])
+    uid = int(auth["sub"])
+    if user_id and user_id != uid:
+        role = auth.get("role", "")
+        if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+            raise HTTPException(status_code=403, detail="Sin permisos para ver turnos de otros usuarios")
+        uid = user_id
 
     sql = "SELECT * FROM turns WHERE user_id = :uid AND status = 'open'"
     params: dict = {"uid": uid}
@@ -180,6 +185,10 @@ async def get_turn(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
+    uid = int(auth.get("sub", 0))
+    role = auth.get("role", "")
+    if row["user_id"] != uid and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
     return {"success": True, "data": row}
 
 
@@ -195,6 +204,10 @@ async def get_turn_summary(
     )
     if not turn:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
+    uid = int(auth.get("sub", 0))
+    role = auth.get("role", "")
+    if turn["user_id"] != uid and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
 
     sales_by_method = await db.fetch(
         """
@@ -220,7 +233,21 @@ async def get_turn_summary(
     movements_dict = {m["type"]: float(m["total"]) for m in movements}
 
     initial = float(turn["initial_cash"] or 0)
-    cash_sales = sum(float(s["total"]) for s in sales_by_method if s["payment_method"] == "cash")
+
+    # Cash in register = pure cash sales + mixed_cash component (must match close_turn logic)
+    cash_from_sales = await db.fetchval(
+        """
+        SELECT COALESCE(SUM(
+            CASE WHEN payment_method = 'cash' THEN total
+                 WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
+                 ELSE 0
+            END
+        ), 0) FROM sales
+        WHERE turn_id = :tid AND status = 'completed'
+        """,
+        {"tid": turn_id},
+    )
+    cash_sales = float(cash_from_sales)
 
     return {
         "success": True,
@@ -231,8 +258,9 @@ async def get_turn_summary(
             "sales_by_method": sales_by_method,
             "total_sales": total_sales,
             "cash_in": movements_dict.get("in", 0),
-            "cash_out": movements_dict.get("out", 0),
-            "expected_cash": initial + cash_sales + movements_dict.get("in", 0) - movements_dict.get("out", 0),
+            "cash_out": movements_dict.get("out", 0) + movements_dict.get("expense", 0),
+            "expenses": movements_dict.get("expense", 0),
+            "expected_cash": initial + cash_sales + movements_dict.get("in", 0) - movements_dict.get("out", 0) - movements_dict.get("expense", 0),
         },
     }
 
@@ -244,33 +272,53 @@ async def create_cash_movement(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Register a cash movement (in/out) for a turn."""
-    turn = await db.fetchrow(
-        "SELECT id, status FROM turns WHERE id = :id",
-        {"id": turn_id},
-    )
-    if not turn:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
-    if turn["status"] != "open":
-        raise HTTPException(status_code=400, detail="El turno esta cerrado")
+    """Register a cash movement (in/out) for a turn. Requires manager PIN for non-managers."""
+    user_id = int(auth["sub"])
+    role = auth.get("role", "")
+    is_manager = role in ("admin", "manager", "owner", "gerente", "dueño")
 
-    now = datetime.now(timezone.utc).isoformat()
+    # Verify manager PIN for non-manager roles
+    if not is_manager:
+        if not body.manager_pin:
+            raise HTTPException(
+                status_code=403,
+                detail="Se requiere PIN de gerente para movimientos de caja",
+            )
+        import hashlib
+        pin_hash = hashlib.sha256(body.manager_pin.encode()).hexdigest()
+        conn = db.connection
+        # Verify PIN belongs to an active manager-level employee
+        mgr_check = await conn.fetchrow(
+            "SELECT id FROM employees WHERE pin_hash = $1 AND is_active = 1 "
+            "AND position IN ('gerente', 'dueño', 'admin', 'manager', 'owner')",
+            pin_hash,
+        )
+        if not mgr_check:
+            raise HTTPException(status_code=403, detail="PIN de gerente invalido")
 
-    row = await db.fetchrow(
-        """
-        INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
-        VALUES (:turn_id, :type, :amount, :desc, :reason, :user_id, :now)
-        RETURNING id
-        """,
-        {
-            "turn_id": turn_id,
-            "type": body.movement_type,
-            "amount": body.amount,
-            "desc": f"Movimiento {body.movement_type}: {body.reason}",
-            "reason": body.reason,
-            "user_id": int(auth["sub"]),
-            "now": now,
-        },
-    )
+    # Atomic: lock turn row to prevent race with close_turn
+    conn = db.connection
+    async with conn.transaction():
+        turn = await conn.fetchrow(
+            "SELECT id, status FROM turns WHERE id = $1 FOR UPDATE",
+            turn_id,
+        )
+        if not turn:
+            raise HTTPException(status_code=404, detail="Turno no encontrado")
+        if turn["status"] != "open":
+            raise HTTPException(status_code=400, detail="El turno esta cerrado")
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+            """,
+            turn_id, body.movement_type, body.amount,
+            f"Movimiento {body.movement_type}: {body.reason}",
+            body.reason, user_id, now,
+        )
 
     return {"success": True, "data": {"id": row["id"]}}

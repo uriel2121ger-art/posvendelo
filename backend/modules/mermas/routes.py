@@ -22,7 +22,10 @@ async def get_pending_mermas(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get pending loss records for approval."""
+    """Get pending loss records for approval. RBAC: manager/admin/owner."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver mermas")
+
     rows = await db.fetch(
         """SELECT id, product_name, product_sku, quantity, unit_cost, total_value,
                   loss_type, reason, category, witness_name, photo_path, status, created_at

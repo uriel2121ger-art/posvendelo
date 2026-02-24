@@ -71,7 +71,7 @@ async def get_customer_sales(
     """Get recent sales for a customer."""
     rows = await db.fetch(
         """
-        SELECT id, folio, total, payment_method, status, timestamp
+        SELECT id, COALESCE(folio_visible, folio) AS folio, total, payment_method, status, timestamp
         FROM sales
         WHERE customer_id = :cid AND status = 'completed'
         ORDER BY id DESC LIMIT :limit
@@ -142,6 +142,12 @@ async def update_customer(
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
 
+    # Only managers can modify credit_limit or is_active
+    _MANAGER_FIELDS = {"credit_limit", "is_active"}
+    role = auth.get("role", "")
+    if _MANAGER_FIELDS & fields.keys() and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
+
     now = datetime.now(timezone.utc).isoformat()
     fields["updated_at"] = now
 
@@ -162,7 +168,11 @@ async def delete_customer(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Soft-delete a customer (set is_active = 0)."""
+    """Soft-delete a customer (set is_active = 0). Requires manager role."""
+    role = auth.get("role", "")
+    if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Solo gerentes pueden desactivar clientes")
+
     existing = await db.fetchrow(
         "SELECT id FROM customers WHERE id = :id AND is_active = 1",
         {"id": customer_id},
@@ -195,7 +205,7 @@ async def get_customer_credit(
 
     pending_sales = await db.fetch(
         """
-        SELECT id, folio, total, timestamp
+        SELECT id, COALESCE(folio_visible, folio) AS folio, total, timestamp
         FROM sales
         WHERE customer_id = :cid AND payment_method = 'credit' AND status = 'completed'
         ORDER BY id DESC LIMIT 20
@@ -210,7 +220,7 @@ async def get_customer_credit(
             "name": customer["name"],
             "credit_limit": float(customer["credit_limit"] or 0),
             "credit_balance": float(customer["credit_balance"] or 0),
-            "available_credit": float((customer["credit_limit"] or 0) - (customer["credit_balance"] or 0)),
+            "available_credit": max(0.0, float(customer["credit_limit"] or 0) - float(customer["credit_balance"] or 0)),
             "pending_sales": pending_sales,
         },
     }

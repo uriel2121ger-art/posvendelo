@@ -76,22 +76,22 @@ async def low_stock_products(
     return {"success": True, "data": rows}
 
 
-@router.get("/{product_id}")
-async def get_product(product_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get product by ID."""
+@router.get("/sku/{sku}")
+async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=Depends(get_db)):
+    """Get product by SKU."""
     row = await db.fetchrow(
-        "SELECT * FROM products WHERE id = :id", {"id": product_id}
+        "SELECT * FROM products WHERE sku = :sku", {"sku": sku}
     )
     if not row:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return {"success": True, "data": row}
 
 
-@router.get("/sku/{sku}")
-async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get product by SKU."""
+@router.get("/{product_id}")
+async def get_product(product_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
+    """Get product by ID."""
     row = await db.fetchrow(
-        "SELECT * FROM products WHERE sku = :sku", {"sku": sku}
+        "SELECT * FROM products WHERE id = :id", {"id": product_id}
     )
     if not row:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -108,50 +108,51 @@ async def create_product(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Create a new product. Requires auth."""
-    # Validate unique SKU
-    existing = await db.fetchrow(
-        "SELECT id FROM products WHERE sku = :sku", {"sku": body.sku}
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail="SKU ya existe")
-
+    """Create a new product. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar productos")
     now = datetime.now(timezone.utc).isoformat()
 
-    row = await db.fetchrow(
-        """
-        INSERT INTO products (
-            sku, name, price, price_wholesale, cost, stock,
-            category, department, provider, min_stock, max_stock,
-            tax_rate, sale_type, barcode, description,
-            is_active, created_at, updated_at
-        ) VALUES (
-            :sku, :name, :price, :price_wholesale, :cost, :stock,
-            :category, :department, :provider, :min_stock, :max_stock,
-            :tax_rate, :sale_type, :barcode, :description,
-            1, :now, :now
+    try:
+        row = await db.fetchrow(
+            """
+            INSERT INTO products (
+                sku, name, price, price_wholesale, cost, stock,
+                category, department, provider, min_stock, max_stock,
+                tax_rate, sale_type, barcode, description,
+                is_active, created_at, updated_at
+            ) VALUES (
+                :sku, :name, :price, :price_wholesale, :cost, :stock,
+                :category, :department, :provider, :min_stock, :max_stock,
+                :tax_rate, :sale_type, :barcode, :description,
+                1, :now, :now
+            )
+            RETURNING id
+            """,
+            {
+                "sku": body.sku,
+                "name": body.name,
+                "price": body.price,
+                "price_wholesale": body.price_wholesale or 0.0,
+                "cost": body.cost or 0.0,
+                "stock": body.stock or 0.0,
+                "category": body.category,
+                "department": body.department,
+                "provider": body.provider,
+                "min_stock": body.min_stock or 5.0,
+                "max_stock": body.max_stock or 1000.0,
+                "tax_rate": body.tax_rate or 0.16,
+                "sale_type": body.sale_type or "unit",
+                "barcode": body.barcode,
+                "description": body.description,
+                "now": now,
+            },
         )
-        RETURNING id
-        """,
-        {
-            "sku": body.sku,
-            "name": body.name,
-            "price": body.price,
-            "price_wholesale": body.price_wholesale or 0.0,
-            "cost": body.cost or 0.0,
-            "stock": body.stock or 0.0,
-            "category": body.category,
-            "department": body.department,
-            "provider": body.provider,
-            "min_stock": body.min_stock or 5.0,
-            "max_stock": body.max_stock or 1000.0,
-            "tax_rate": body.tax_rate or 0.16,
-            "sale_type": body.sale_type or "unit",
-            "barcode": body.barcode,
-            "description": body.description,
-            "now": now,
-        },
-    )
+    except Exception as e:
+        err_str = str(e).lower()
+        if "unique" in err_str or "duplicate" in err_str:
+            raise HTTPException(status_code=400, detail="SKU ya existe")
+        raise
 
     return {"success": True, "data": {"id": row["id"]}}
 
@@ -163,7 +164,14 @@ async def update_product(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Update a product. Only non-null fields are updated."""
+    """Update a product. Only non-null fields are updated. Price changes require manager+ role."""
+    # RBAC: price/cost fields require manager+ role
+    _PRICE_FIELDS = {"price", "price_wholesale", "cost", "tax_rate"}
+    submitted = body.model_dump(exclude_none=True)
+    if _PRICE_FIELDS & submitted.keys():
+        if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+            raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
+
     existing = await db.fetchrow(
         "SELECT id, price FROM products WHERE id = :id", {"id": product_id}
     )
@@ -192,7 +200,7 @@ async def update_product(
     )
 
     # Record price change in price_history if price changed
-    if "price" in fields and float(fields["price"]) != float(existing["price"]):
+    if "price" in fields and round(float(fields["price"]), 2) != round(float(existing["price"]), 2):
         await db.execute(
             """
             INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
@@ -215,7 +223,10 @@ async def delete_product(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Soft-delete a product (set is_active = 0)."""
+    """Soft-delete a product (set is_active = 0). Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar productos")
+
     existing = await db.fetchrow(
         "SELECT id FROM products WHERE id = :id AND is_active = 1",
         {"id": product_id},
@@ -267,7 +278,9 @@ async def update_stock_remote(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Update product stock remotely with FOR UPDATE + inventory_movement."""
+    """Update product stock remotely with FOR UPDATE + inventory_movement. RBAC: manager+."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para modificar stock")
     if body.operation not in ("add", "subtract", "set"):
         raise HTTPException(status_code=400, detail="operation debe ser add, subtract o set")
 
@@ -356,7 +369,7 @@ async def update_price_remote(
             body.new_price, now, product["id"],
         )
 
-        if body.new_price != old_price:
+        if round(body.new_price, 2) != round(old_price, 2):
             await conn.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES ($1, 'price', $2, $3, $4, NOW())""",

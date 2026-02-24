@@ -254,17 +254,19 @@ async def _reserve_source_stock(context: Dict[str, Any]):
     async with get_connection() as db:
         async with db.connection.transaction():
             row = await db.fetchrow(
-                "SELECT stock FROM products WHERE id = :pid FOR UPDATE",
+                "SELECT stock, shadow_stock FROM products WHERE id = :pid FOR UPDATE",
                 {"pid": product_id},
             )
             if not row:
                 raise ValueError(f"Producto {product_id} no encontrado")
 
             current_stock = float(row["stock"])
-            if current_stock < qty:
+            reserved = float(row.get("shadow_stock") or 0)
+            available = current_stock - reserved
+            if available < qty:
                 raise ValueError(
                     f"Stock insuficiente para producto {product_id}: "
-                    f"tiene {current_stock}, necesita {qty}"
+                    f"disponible {available} (stock={current_stock}, reservado={reserved}), necesita {qty}"
                 )
 
             await db.execute(
@@ -382,15 +384,16 @@ async def _confirm_source_deduction(context: Dict[str, Any]):
     from db.connection import get_connection
 
     async with get_connection() as db:
-        await db.execute(
-            """
-            UPDATE products
-            SET stock = stock - :qty,
-                shadow_stock = shadow_stock - :qty
-            WHERE id = :pid
-            """,
-            {"qty": context["qty"], "pid": context["product_id"]},
-        )
+        async with db.connection.transaction():
+            await db.execute(
+                """
+                UPDATE products
+                SET stock = stock - :qty,
+                    shadow_stock = shadow_stock - :qty
+                WHERE id = :pid
+                """,
+                {"qty": context["qty"], "pid": context["product_id"]},
+            )
 
     logger.info(f"Source stock deduction confirmed for product {context['product_id']}")
     return {"confirmed": True}

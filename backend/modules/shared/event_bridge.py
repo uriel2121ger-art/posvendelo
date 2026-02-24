@@ -132,7 +132,7 @@ async def setup_event_bridge():
         _enhanced_bus = get_enhanced_event_bus()
 
         # Subscribe to ALL legacy events
-        from app.utils.event_bus import get_event_bus
+        from modules.shared.event_bus import get_event_bus
         legacy_bus = get_event_bus()
 
         for legacy_type in _LEGACY_TO_DOMAIN:
