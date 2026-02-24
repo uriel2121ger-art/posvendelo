@@ -253,43 +253,173 @@ class SagaOrchestrator:
 # Pre-built Saga: Inventory Transfer
 # ============================================================================
 
+def _get_db_session():
+    """Get an async DB session for saga steps."""
+    from db.connection import AsyncSessionLocal
+    return AsyncSessionLocal()
+
+
 async def _reserve_source_stock(context: Dict[str, Any]):
-    """Reserve stock at source branch (FOR UPDATE)."""
-    # This would call the inventory service
-    logger.info(f"Reserving {context['qty']} units of product {context['product_id']} at branch {context['source_branch_id']}")
-    return {"reserved": True, "qty": context["qty"]}
+    """Reserve stock at source branch (FOR UPDATE to prevent race conditions)."""
+    from sqlalchemy import text
+    async with _get_db_session() as db:
+        product_id = context["product_id"]
+        qty = context["qty"]
+
+        # Lock the product row and check stock
+        result = await db.execute(
+            text("SELECT stock FROM products WHERE id = :pid FOR UPDATE"),
+            {"pid": product_id},
+        )
+        row = result.first()
+        if not row:
+            raise ValueError(f"Producto {product_id} no encontrado")
+
+        current_stock = float(row[0])
+        if current_stock < qty:
+            raise ValueError(
+                f"Stock insuficiente para producto {product_id}: "
+                f"tiene {current_stock}, necesita {qty}"
+            )
+
+        # Reserve by reducing shadow_stock (logical reservation)
+        await db.execute(
+            text("UPDATE products SET shadow_stock = shadow_stock + :qty WHERE id = :pid"),
+            {"qty": qty, "pid": product_id},
+        )
+        await db.commit()
+
+    logger.info(f"Reserved {qty} units of product {product_id}")
+    return {"reserved": True, "qty": qty, "previous_stock": current_stock}
 
 
 async def _release_source_reservation(context: Dict[str, Any], step_result: Any):
     """Compensate: release the reservation at source."""
-    logger.info(f"Releasing reservation for product {context['product_id']} at branch {context['source_branch_id']}")
+    from sqlalchemy import text
+    async with _get_db_session() as db:
+        await db.execute(
+            text("UPDATE products SET shadow_stock = shadow_stock - :qty WHERE id = :pid"),
+            {"qty": context["qty"], "pid": context["product_id"]},
+        )
+        await db.commit()
+    logger.info(f"Released reservation for product {context['product_id']}")
 
 
 async def _create_transfer_record(context: Dict[str, Any]):
-    """Create the transfer record in DB."""
-    logger.info(f"Creating transfer record: {context['source_branch_id']} → {context['dest_branch_id']}")
-    return {"transfer_id": "TRF-001"}
+    """Create the inventory transfer record in DB."""
+    from sqlalchemy import text
+    from datetime import datetime, timezone
+    import uuid
+
+    now = datetime.now(timezone.utc).isoformat()
+    transfer_id = f"TRF-{uuid.uuid4().hex[:8].upper()}"
+
+    async with _get_db_session() as db:
+        # Record as inventory_movement at source (outgoing)
+        await db.execute(
+            text("""
+                INSERT INTO inventory_movements
+                    (product_id, quantity, movement_type, reason, reference_id, created_at)
+                VALUES
+                    (:pid, :qty, 'transfer_out', :reason, :ref, :ts)
+            """),
+            {
+                "pid": context["product_id"],
+                "qty": -context["qty"],
+                "reason": f"Transfer to branch {context['dest_branch_id']}",
+                "ref": transfer_id,
+                "ts": now,
+            },
+        )
+        await db.commit()
+
+    logger.info(f"Transfer record created: {transfer_id}")
+    return {"transfer_id": transfer_id, "timestamp": now}
 
 
 async def _cancel_transfer_record(context: Dict[str, Any], step_result: Any):
-    """Compensate: cancel the transfer record."""
-    logger.info(f"Cancelling transfer {step_result.get('transfer_id')}")
+    """Compensate: delete the transfer movement record."""
+    from sqlalchemy import text
+
+    transfer_id = step_result.get("transfer_id") if step_result else None
+    if not transfer_id:
+        return
+
+    async with _get_db_session() as db:
+        await db.execute(
+            text("DELETE FROM inventory_movements WHERE reference_id = :ref"),
+            {"ref": transfer_id},
+        )
+        await db.commit()
+    logger.info(f"Transfer record {transfer_id} cancelled")
 
 
 async def _receive_at_destination(context: Dict[str, Any]):
-    """Add stock at destination branch."""
-    logger.info(f"Receiving {context['qty']} units at branch {context['dest_branch_id']}")
-    return {"received": True}
+    """Add stock at destination branch and record incoming movement."""
+    from sqlalchemy import text
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc).isoformat()
+    transfer_id = context.get("_step_create_transfer_result", {}).get("transfer_id", "")
+
+    async with _get_db_session() as db:
+        # Record incoming movement
+        await db.execute(
+            text("""
+                INSERT INTO inventory_movements
+                    (product_id, quantity, movement_type, reason, reference_id, created_at)
+                VALUES
+                    (:pid, :qty, 'transfer_in', :reason, :ref, :ts)
+            """),
+            {
+                "pid": context["product_id"],
+                "qty": context["qty"],
+                "reason": f"Transfer from branch {context['source_branch_id']}",
+                "ref": transfer_id,
+                "ts": now,
+            },
+        )
+        await db.commit()
+
+    logger.info(f"Received {context['qty']} units at destination")
+    return {"received": True, "transfer_id": transfer_id}
 
 
 async def _return_from_destination(context: Dict[str, Any], step_result: Any):
-    """Compensate: remove stock from destination."""
-    logger.info(f"Returning stock from branch {context['dest_branch_id']}")
+    """Compensate: remove the incoming movement record."""
+    from sqlalchemy import text
+
+    transfer_id = step_result.get("transfer_id") if step_result else None
+    if not transfer_id:
+        return
+
+    async with _get_db_session() as db:
+        await db.execute(
+            text("DELETE FROM inventory_movements WHERE reference_id = :ref AND movement_type = 'transfer_in'"),
+            {"ref": transfer_id},
+        )
+        await db.commit()
+    logger.info(f"Returned stock from destination (transfer {transfer_id})")
 
 
 async def _confirm_source_deduction(context: Dict[str, Any]):
-    """Finalize: deduct stock from source (reservation → real deduction)."""
-    logger.info(f"Confirming stock deduction at branch {context['source_branch_id']}")
+    """Finalize: deduct real stock from source (convert reservation to actual deduction)."""
+    from sqlalchemy import text
+
+    async with _get_db_session() as db:
+        # Deduct actual stock and clear shadow reservation
+        await db.execute(
+            text("""
+                UPDATE products
+                SET stock = stock - :qty,
+                    shadow_stock = shadow_stock - :qty
+                WHERE id = :pid
+            """),
+            {"qty": context["qty"], "pid": context["product_id"]},
+        )
+        await db.commit()
+
+    logger.info(f"Source stock deduction confirmed for product {context['product_id']}")
     return {"confirmed": True}
 
 

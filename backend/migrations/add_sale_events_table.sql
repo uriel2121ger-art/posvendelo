@@ -66,9 +66,10 @@ CREATE INDEX IF NOT EXISTS idx_saga_steps_saga ON saga_steps (saga_id);
 -- =============================================================================
 
 -- Daily sales summary (refreshed periodically)
+-- Note: sales.timestamp is TEXT (ISO format), cast to TIMESTAMP for date ops
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_sales_summary AS
 SELECT
-    DATE(s.timestamp) AS sale_date,
+    DATE(s.timestamp::TIMESTAMP) AS sale_date,
     s.branch_id,
     COUNT(*) AS total_transactions,
     SUM(s.total) AS total_revenue,
@@ -80,19 +81,20 @@ SELECT
     COUNT(DISTINCT s.user_id) AS unique_cashiers
 FROM sales s
 WHERE s.status = 'completed'
-GROUP BY DATE(s.timestamp), s.branch_id;
+GROUP BY DATE(s.timestamp::TIMESTAMP), s.branch_id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_daily_sales_date_branch
 ON mv_daily_sales_summary (sale_date, branch_id);
 
 -- Product sales ranking (for reports)
+-- Note: sale_items uses 'qty' (not 'quantity'), subtotal exists as column
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_product_sales_ranking AS
 SELECT
     si.product_id,
     p.name AS product_name,
     p.sku,
     p.category,
-    SUM(si.quantity) AS total_qty_sold,
+    SUM(si.qty) AS total_qty_sold,
     SUM(si.subtotal) AS total_revenue,
     COUNT(DISTINCT si.sale_id) AS num_transactions,
     AVG(si.price) AS avg_price
@@ -106,16 +108,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_product_ranking_id
 ON mv_product_sales_ranking (product_id);
 
 -- Hourly heatmap (for staffing decisions)
+-- Note: cast TEXT timestamp to TIMESTAMP for EXTRACT
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_hourly_sales_heatmap AS
 SELECT
-    EXTRACT(DOW FROM s.timestamp)::INTEGER AS day_of_week,
-    EXTRACT(HOUR FROM s.timestamp)::INTEGER AS hour_of_day,
+    EXTRACT(DOW FROM s.timestamp::TIMESTAMP)::INTEGER AS day_of_week,
+    EXTRACT(HOUR FROM s.timestamp::TIMESTAMP)::INTEGER AS hour_of_day,
     s.branch_id,
     COUNT(*) AS transaction_count,
     SUM(s.total) AS revenue
 FROM sales s
 WHERE s.status = 'completed'
-  AND s.timestamp >= NOW() - INTERVAL '90 days'
+  AND s.timestamp::TIMESTAMP >= NOW() - INTERVAL '90 days'
 GROUP BY day_of_week, hour_of_day, s.branch_id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_heatmap_dow_hour_branch
