@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Banknote, Plus, Search as SearchIcon } from 'lucide-react'
 import {
   type RuntimeConfig,
+  type SaleItemPayload,
   loadRuntimeConfig,
   saveRuntimeConfig,
   pullTable,
-  syncTable
+  createSale
 } from './posApi'
 
 type Product = {
@@ -125,47 +126,35 @@ async function fetchProducts(cfg: RuntimeConfig): Promise<Product[]> {
 async function syncSale(
   cfg: RuntimeConfig,
   cart: CartItem[],
-  customerName: string,
+  _customerName: string,
   paymentMethod: PaymentMethod,
   globalDiscountPct: number,
-  amountReceived?: number,
-  changeDue?: number
-): Promise<void> {
-  const subtotalBeforeDiscount = cart.reduce((acc, item) => acc + item.subtotal, 0)
-  const globalDiscountAmount = subtotalBeforeDiscount * (clampDiscount(globalDiscountPct) / 100)
-  const subtotal = subtotalBeforeDiscount - globalDiscountAmount
-  const tax = subtotal * TAX_RATE
-  const total = subtotal + tax
-  const now = new Date().toISOString()
-  const sale = {
-    id: `sale-${Date.now()}`,
-    timestamp: now,
-    created_at: now,
-    terminal_id: cfg.terminalId,
-    subtotal,
-    subtotal_before_discount: subtotalBeforeDiscount,
-    global_discount_pct: clampDiscount(globalDiscountPct),
-    global_discount_amount: globalDiscountAmount,
-    tax,
-    total,
-    payment_method: paymentMethod,
-    customer_name: customerName || 'Publico General',
-    status: 'paid',
-    amount_received: amountReceived ?? null,
-    change_due: changeDue ?? null,
-    items: cart.map((item) => ({
-      product_id: item.isCommon ? null : item.id,
-      sku: item.sku,
+  amountReceived?: number
+): Promise<Record<string, unknown>> {
+  const globalDisc = clampDiscount(globalDiscountPct) / 100
+  const items: SaleItemPayload[] = cart.map((item) => {
+    const lineDiscount = item.subtotal > 0 && item.discountPct > 0
+      ? item.price * item.qty * (clampDiscount(item.discountPct) / 100)
+      : 0
+    const globalLineDiscount = item.price * item.qty * globalDisc
+    return {
+      product_id: Number(item.id) || 0,
       name: item.name,
-      price: item.price,
       qty: item.qty,
-      discount_pct: item.discountPct,
-      is_common: Boolean(item.isCommon),
-      common_note: item.commonNote ?? '',
-      subtotal: item.subtotal
-    }))
-  }
-  await syncTable('sales', [sale], cfg)
+      price: item.price,
+      discount: parseFloat((lineDiscount + globalLineDiscount).toFixed(2)),
+      is_wholesale: false,
+      price_includes_tax: true
+    }
+  })
+  const res = await createSale(cfg, {
+    items,
+    payment_method: paymentMethod,
+    cash_received: paymentMethod === 'cash' ? (amountReceived ?? 0) : 0,
+    serie: 'A'
+  })
+  const data = (res.data ?? res) as Record<string, unknown>
+  return data
 }
 
 export default function Terminal(): ReactElement {
@@ -570,15 +559,16 @@ export default function Terminal(): ReactElement {
     }
     setBusy(true)
     try {
-      await syncSale(
+      const saleData = await syncSale(
         config,
         cart,
         customerName,
         paymentMethod,
         globalDiscountPct,
-        paymentMethod === 'cash' ? amountReceivedNum : undefined,
-        paymentMethod === 'cash' ? changeDue : undefined
+        paymentMethod === 'cash' ? amountReceivedNum : undefined
       )
+      const folio = saleData.folio ?? saleData.folio_visible ?? ''
+      const saleTotal = Number(saleData.total) || totals.total
       setCart([])
       setGlobalDiscountPct(0)
       setSelectedCartSku(null)
@@ -586,19 +576,19 @@ export default function Terminal(): ReactElement {
       const updatedShift: ShiftState = {
         ...shift,
         salesCount: (shift.salesCount ?? 0) + 1,
-        totalSales: (shift.totalSales ?? 0) + totals.total,
-        cashSales: (shift.cashSales ?? 0) + (paymentMethod === 'cash' ? totals.total : 0),
-        cardSales: (shift.cardSales ?? 0) + (paymentMethod === 'card' ? totals.total : 0),
+        totalSales: (shift.totalSales ?? 0) + saleTotal,
+        cashSales: (shift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0),
+        cardSales: (shift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0),
         transferSales:
-          (shift.transferSales ?? 0) + (paymentMethod === 'transfer' ? totals.total : 0),
+          (shift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0),
         lastSaleAt: new Date().toISOString()
       }
       localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
       setCurrentShift(updatedShift)
       setMessage(
         paymentMethod === 'cash'
-          ? `Venta sincronizada. Cambio: $${changeDue.toFixed(2)}`
-          : 'Venta sincronizada correctamente.'
+          ? `Venta ${folio} registrada. Cambio: $${changeDue.toFixed(2)}`
+          : `Venta ${folio} registrada correctamente.`
       )
     } catch (error) {
       setMessage((error as Error).message)
@@ -768,6 +758,7 @@ export default function Terminal(): ReactElement {
             placeholder="Base URL"
           />
           <input
+            type="password"
             className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
             value={config.token}
             onChange={(e) => setConfig((prev) => ({ ...prev, token: e.target.value }))}

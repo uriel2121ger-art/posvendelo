@@ -279,6 +279,48 @@ export async function adjustStock(
   return (await res.json()) as Record<string, unknown>
 }
 
+// ── Ventas ────────────────────────────────────────
+
+export type SaleItemPayload = {
+  product_id: number
+  name?: string
+  qty: number
+  price: number
+  discount: number
+  is_wholesale: boolean
+  price_includes_tax: boolean
+}
+
+export type CreateSalePayload = {
+  items: SaleItemPayload[]
+  payment_method: string
+  customer_id?: number | null
+  turn_id?: number | null
+  branch_id?: number
+  serie?: string
+  cash_received?: number
+  notes?: string
+  mixed_cash?: number
+  mixed_card?: number
+  mixed_transfer?: number
+}
+
+export async function createSale(
+  cfg: RuntimeConfig,
+  sale: CreateSalePayload
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/sales/`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(sale)
+  })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(`Error ${res.status}: ${detail || 'Error creando venta'}`)
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
 // ── Dashboard ──────────────────────────────────────
 
 export async function getDashboardQuick(

@@ -76,13 +76,24 @@ async def close_turn(
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno ya esta cerrado")
 
+        # Ownership check: only the turn owner or manager+ can close
+        user_id = int(auth.get("sub", 0))
+        role = auth.get("role", "")
+        if turn["user_id"] != user_id and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+            raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
+
         now = datetime.now(timezone.utc).isoformat()
 
-        # Calculate expected: initial + cash sales + cash_in - cash_out
+        # Calculate expected: initial + cash sales (pure + mixed component) + cash_in - cash_out
         cash_sales = await conn.fetchval(
             """
-            SELECT COALESCE(SUM(total), 0) FROM sales
-            WHERE turn_id = $1 AND payment_method = 'cash' AND status = 'completed'
+            SELECT COALESCE(SUM(
+                CASE WHEN payment_method = 'cash' THEN total
+                     WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
+                     ELSE 0
+                END
+            ), 0) FROM sales
+            WHERE turn_id = $1 AND status = 'completed'
             """,
             turn_id,
         )

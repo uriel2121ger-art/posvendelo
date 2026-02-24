@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Plus, Receipt } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getExpensesSummary, registerExpense } from './posApi'
@@ -16,6 +16,7 @@ export default function ExpensesTab(): ReactElement {
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [reason, setReason] = useState('')
+  const cancelledRef = useRef({ current: false })
 
   const fetchExpenses = async (cancelled: { current: boolean }): Promise<void> => {
     try {
@@ -36,6 +37,7 @@ export default function ExpensesTab(): ReactElement {
 
   useEffect(() => {
     const cancelled = { current: false }
+    cancelledRef.current = cancelled
     fetchExpenses(cancelled)
     return () => { cancelled.current = true }
   }, [])
@@ -68,7 +70,7 @@ export default function ExpensesTab(): ReactElement {
       setReason('')
       // Refresh list
       setLoading(true)
-      fetchExpenses({ current: false })
+      void fetchExpenses(cancelledRef.current)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error registrando gasto')
@@ -87,7 +89,7 @@ export default function ExpensesTab(): ReactElement {
             <button
               onClick={() => {
                 setLoading(true)
-                fetchExpenses({ current: false })
+                void fetchExpenses(cancelledRef.current)
               }}
               disabled={loading}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm font-medium transition-colors disabled:opacity-50"

@@ -211,70 +211,68 @@ async def sync_push(
 
     upserted = 0
 
-    if table_name == "products":
-        for row in payload.data:
-            pid = row.get("id")
-            sku = row.get("sku")
-            if not sku:
-                continue
-            await db.execute(
-                """INSERT INTO products (sku, name, price, price_wholesale, cost, stock, min_stock, is_active, created_at, updated_at)
-                   VALUES (:sku, :name, :price, :pw, :cost, :stock, :min_stock, 1, NOW(), NOW())
-                   ON CONFLICT (sku) DO UPDATE SET
-                     name = EXCLUDED.name,
-                     price = EXCLUDED.price,
-                     price_wholesale = EXCLUDED.price_wholesale,
-                     cost = EXCLUDED.cost,
-                     updated_at = NOW()""",
-                {
-                    "sku": sku,
-                    "name": row.get("name", ""),
-                    "price": float(row.get("price", 0)),
-                    "pw": float(row.get("price_wholesale", 0)),
-                    "cost": float(row.get("cost", 0)),
-                    "stock": float(row.get("stock", 0)),
-                    "min_stock": float(row.get("min_stock", 0)),
-                },
-            )
-            upserted += 1
-
-    elif table_name == "customers":
-        for row in payload.data:
-            name = row.get("name")
-            if not name:
-                continue
-            cid = row.get("id")
-            if cid:
-                # Update existing by ID
-                existing = await db.fetchrow(
-                    "SELECT id FROM customers WHERE id = :id", {"id": int(cid)}
-                )
-                if existing:
-                    await db.execute(
-                        """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc, updated_at = NOW()
-                           WHERE id = :id""",
-                        {
-                            "id": int(cid),
-                            "name": name,
-                            "phone": row.get("phone", ""),
-                            "email": row.get("email", ""),
-                            "rfc": row.get("rfc", ""),
-                        },
-                    )
-                    upserted += 1
+    async with db.connection.transaction():
+        if table_name == "products":
+            for row in payload.data:
+                sku = row.get("sku")
+                if not sku:
                     continue
-            # Insert new
-            await db.execute(
-                """INSERT INTO customers (name, phone, email, rfc, is_active, created_at, updated_at)
-                   VALUES (:name, :phone, :email, :rfc, 1, NOW(), NOW())""",
-                {
-                    "name": name,
-                    "phone": row.get("phone", ""),
-                    "email": row.get("email", ""),
-                    "rfc": row.get("rfc", ""),
-                },
-            )
-            upserted += 1
+                await db.execute(
+                    """INSERT INTO products (sku, name, price, price_wholesale, cost, stock, min_stock, is_active, created_at, updated_at)
+                       VALUES (:sku, :name, :price, :pw, :cost, :stock, :min_stock, 1, NOW(), NOW())
+                       ON CONFLICT (sku) DO UPDATE SET
+                         name = EXCLUDED.name,
+                         price = EXCLUDED.price,
+                         price_wholesale = EXCLUDED.price_wholesale,
+                         cost = EXCLUDED.cost,
+                         updated_at = NOW()""",
+                    {
+                        "sku": sku,
+                        "name": row.get("name", ""),
+                        "price": float(row.get("price", 0)),
+                        "pw": float(row.get("price_wholesale", 0)),
+                        "cost": float(row.get("cost", 0)),
+                        "stock": float(row.get("stock", 0)),
+                        "min_stock": float(row.get("min_stock", 0)),
+                    },
+                )
+                upserted += 1
+
+        elif table_name == "customers":
+            for row in payload.data:
+                name = row.get("name")
+                if not name:
+                    continue
+                cid = row.get("id")
+                if cid:
+                    existing = await db.fetchrow(
+                        "SELECT id FROM customers WHERE id = :id", {"id": int(cid)}
+                    )
+                    if existing:
+                        await db.execute(
+                            """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc, updated_at = NOW()
+                               WHERE id = :id""",
+                            {
+                                "id": int(cid),
+                                "name": name,
+                                "phone": row.get("phone", ""),
+                                "email": row.get("email", ""),
+                                "rfc": row.get("rfc", ""),
+                            },
+                        )
+                        upserted += 1
+                        continue
+                await db.execute(
+                    """INSERT INTO customers (name, phone, email, rfc, is_active, created_at, updated_at)
+                       VALUES (:name, :phone, :email, :rfc, 1, NOW(), NOW())""",
+                    {
+                        "name": name,
+                        "phone": row.get("phone", ""),
+                        "email": row.get("email", ""),
+                        "rfc": row.get("rfc", ""),
+                    },
+                )
+                upserted += 1
 
     return {
         "success": True,

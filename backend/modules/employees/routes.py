@@ -71,7 +71,9 @@ async def create_employee(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Create a new employee. Requires auth."""
+    """Create a new employee. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     # Check unique employee_code
     existing = await db.fetchrow(
         "SELECT id FROM employees WHERE employee_code = :code",
@@ -113,7 +115,9 @@ async def update_employee(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Update an employee. Only non-null fields are updated."""
+    """Update an employee. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     existing = await db.fetchrow(
         "SELECT id FROM employees WHERE id = :id", {"id": employee_id}
     )
@@ -145,7 +149,9 @@ async def delete_employee(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Soft-delete an employee (set is_active = 0)."""
+    """Soft-delete an employee. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     existing = await db.fetchrow(
         "SELECT id FROM employees WHERE id = :id AND is_active = 1",
         {"id": employee_id},

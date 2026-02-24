@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getDashboardQuick } from './posApi'
@@ -15,6 +15,7 @@ export default function DashboardStatsTab(): ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdate, setLastUpdate] = useState('')
+  const cancelledRef = useRef({ current: false })
 
   const fetchStats = async (cancelled: { current: boolean }): Promise<void> => {
     try {
@@ -39,6 +40,7 @@ export default function DashboardStatsTab(): ReactElement {
 
   useEffect(() => {
     const cancelled = { current: false }
+    cancelledRef.current = cancelled
     fetchStats(cancelled)
     const interval = setInterval(() => fetchStats(cancelled), 30_000)
     return () => {
@@ -49,7 +51,7 @@ export default function DashboardStatsTab(): ReactElement {
 
   const handleRefresh = (): void => {
     setLoading(true)
-    fetchStats({ current: false })
+    void fetchStats(cancelledRef.current)
   }
 
   const cards = stats

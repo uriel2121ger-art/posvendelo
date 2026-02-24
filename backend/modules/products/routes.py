@@ -30,6 +30,7 @@ async def list_products(
     is_active: Optional[int] = Query(1, ge=0, le=1),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """List products with search and filters."""
@@ -58,6 +59,7 @@ async def list_products(
 async def low_stock_products(
     threshold: Optional[float] = None,
     limit: int = Query(50, ge=1, le=500),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Get products below minimum stock level."""
@@ -75,7 +77,7 @@ async def low_stock_products(
 
 
 @router.get("/{product_id}")
-async def get_product(product_id: int, db=Depends(get_db)):
+async def get_product(product_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get product by ID."""
     row = await db.fetchrow(
         "SELECT * FROM products WHERE id = :id", {"id": product_id}
@@ -86,7 +88,7 @@ async def get_product(product_id: int, db=Depends(get_db)):
 
 
 @router.get("/sku/{sku}")
-async def get_product_by_sku(sku: str, db=Depends(get_db)):
+async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get product by SKU."""
     row = await db.fetchrow(
         "SELECT * FROM products WHERE sku = :sku", {"sku": sku}
@@ -372,7 +374,7 @@ async def update_price_remote(
 
 
 @router.get("/categories/list")
-async def list_categories(db=Depends(get_db)):
+async def list_categories(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """List unique product categories."""
     rows = await db.fetch(
         """SELECT DISTINCT category FROM products
@@ -386,7 +388,7 @@ async def list_categories(db=Depends(get_db)):
 
 
 @router.get("/{product_id}/stock-by-branch")
-async def get_stock_by_branch(product_id: int, db=Depends(get_db)):
+async def get_stock_by_branch(product_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get stock per branch for a product."""
     product = await db.fetchrow(
         "SELECT id, name, stock, price FROM products WHERE id = :id AND is_active = 1",

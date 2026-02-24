@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Check, X, AlertTriangle } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getMermasPending, approveMerma } from './posApi'
@@ -25,6 +25,7 @@ export default function MermasTab(): ReactElement {
   const [error, setError] = useState('')
   const [actionId, setActionId] = useState<number | null>(null)
   const [notesMap, setNotesMap] = useState<Record<number, string>>({})
+  const cancelledRef = useRef({ current: false })
 
   const fetchMermas = async (cancelled: { current: boolean }): Promise<void> => {
     try {
@@ -45,6 +46,7 @@ export default function MermasTab(): ReactElement {
 
   useEffect(() => {
     const cancelled = { current: false }
+    cancelledRef.current = cancelled
     fetchMermas(cancelled)
     return () => { cancelled.current = true }
   }, [])
@@ -81,7 +83,7 @@ export default function MermasTab(): ReactElement {
             <button
               onClick={() => {
                 setLoading(true)
-                fetchMermas({ current: false })
+                void fetchMermas(cancelledRef.current)
               }}
               disabled={loading}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm font-medium transition-colors disabled:opacity-50"

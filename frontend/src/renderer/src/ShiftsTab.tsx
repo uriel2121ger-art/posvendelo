@@ -361,6 +361,8 @@ export default function ShiftsTab(): ReactElement {
   }
 
   function printShiftCut(shift: ShiftRecord): void {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     const scopedReconciliation =
       reconciliation && reconciliation.shiftId === shift.id ? reconciliation : null
     const backendCash = scopedReconciliation?.cashSales ?? 0
@@ -388,7 +390,7 @@ export default function ShiftsTab(): ReactElement {
     const rowsHtml = detail
       .map(
         ([label, value]) =>
-          `<tr><td style="padding:6px 8px;border:1px solid #ddd;">${label}</td><td style="padding:6px 8px;border:1px solid #ddd;">${value}</td></tr>`
+          `<tr><td style="padding:6px 8px;border:1px solid #ddd;">${esc(String(label))}</td><td style="padding:6px 8px;border:1px solid #ddd;">${esc(String(value))}</td></tr>`
       )
       .join('')
     const html = `

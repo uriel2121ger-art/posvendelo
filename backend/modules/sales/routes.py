@@ -18,6 +18,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, get_connection
@@ -136,11 +137,17 @@ async def create_sale(
 
             # 1. Lock products + validate stock
             product_ids = [item.product_id for item in body.items]
-            locked_products = await conn.fetch(
-                "SELECT id, name, stock, sku, sale_type, is_kit "
-                "FROM products WHERE id = ANY($1) FOR UPDATE NOWAIT",
-                product_ids,
-            )
+            try:
+                locked_products = await conn.fetch(
+                    "SELECT id, name, stock, sku, sale_type, is_kit "
+                    "FROM products WHERE id = ANY($1) FOR UPDATE NOWAIT",
+                    product_ids,
+                )
+            except asyncpg.exceptions.LockNotAvailableError:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Productos bloqueados por otra venta en proceso. Intenta de nuevo.",
+                )
             locked_map = {r["id"]: dict(r) for r in locked_products}
 
             # Validate all products exist
@@ -187,8 +194,7 @@ async def create_sale(
                 item_total = (_dec(item.qty) * price) - line_discount
                 subtotal += item_total
 
-            discount_amount = _dec(body.notes and 0) if body.notes is None else Decimal("0")
-            # Discount comes as part of per-item discounts already calculated above
+            # Per-item discounts already subtracted above
             subtotal_after_discount = max(subtotal, Decimal("0"))
             tax_total = subtotal_after_discount * TAX_RATE
             total_val = subtotal_after_discount + tax_total
@@ -606,6 +612,10 @@ async def cancel_sale(
             # Revert credit if applicable
             if sale["payment_method"] == "credit" and sale.get("customer_id"):
                 total = float(sale["total"])
+                await db.fetchrow(
+                    "SELECT id FROM customers WHERE id = :id FOR UPDATE",
+                    {"id": sale["customer_id"]},
+                )
                 await db.execute(
                     "UPDATE customers SET credit_balance = credit_balance - :amount, updated_at = NOW() "
                     "WHERE id = :id",

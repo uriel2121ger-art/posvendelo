@@ -136,7 +136,7 @@ async def update_customer(
 
     _ALLOWED_COLUMNS = {
         "name", "phone", "email", "rfc", "address", "credit_limit",
-        "credit_balance", "wallet_balance", "is_active", "notes",
+        "is_active", "notes",
     }
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:
