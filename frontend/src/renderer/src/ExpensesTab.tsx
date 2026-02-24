@@ -4,16 +4,7 @@ import { RefreshCw, Plus, Receipt } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getExpensesSummary, registerExpense } from './posApi'
 
-interface ExpenseRecord {
-  id: number
-  amount: number
-  reason: string
-  description: string
-  created_at: string
-}
-
 export default function ExpensesTab(): ReactElement {
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [monthTotal, setMonthTotal] = useState(0)
   const [yearTotal, setYearTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -23,8 +14,8 @@ export default function ExpensesTab(): ReactElement {
 
   // Form
   const [amount, setAmount] = useState('')
-  const [reason, setReason] = useState('')
   const [description, setDescription] = useState('')
+  const [reason, setReason] = useState('')
 
   const fetchExpenses = async (cancelled: { current: boolean }): Promise<void> => {
     try {
@@ -32,11 +23,9 @@ export default function ExpensesTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       const body = await getExpensesSummary(cfg)
       if (cancelled.current) return
-      const data = body.data as Record<string, unknown> | undefined
-      const src = data ?? body
-      setMonthTotal(Number(src.month_total ?? 0))
-      setYearTotal(Number(src.year_total ?? 0))
-      setExpenses((src.expenses ?? []) as ExpenseRecord[])
+      const data = (body.data ?? body) as Record<string, unknown>
+      setMonthTotal(Number(data.month ?? 0))
+      setYearTotal(Number(data.year ?? 0))
     } catch (err) {
       if (cancelled.current) return
       setError(err instanceof Error ? err.message : 'Error cargando gastos')
@@ -58,8 +47,8 @@ export default function ExpensesTab(): ReactElement {
       setError('Ingresa un monto válido mayor a 0')
       return
     }
-    if (!reason.trim()) {
-      setError('La razón es obligatoria')
+    if (!description.trim()) {
+      setError('La descripción es obligatoria')
       return
     }
 
@@ -70,13 +59,13 @@ export default function ExpensesTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       await registerExpense(cfg, {
         amount: numAmount,
-        reason: reason.trim(),
-        description: description.trim() || undefined
+        description: description.trim(),
+        reason: reason.trim() || undefined
       })
       setSuccess('Gasto registrado correctamente')
       setAmount('')
-      setReason('')
       setDescription('')
+      setReason('')
       // Refresh list
       setLoading(true)
       fetchExpenses({ current: false })
@@ -160,12 +149,12 @@ export default function ExpensesTab(): ReactElement {
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
-                  Razon
+                  Descripcion
                 </label>
                 <input
                   type="text"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Ej: Luz, Agua, Insumos..."
                   className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
                   required
@@ -173,12 +162,12 @@ export default function ExpensesTab(): ReactElement {
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
-                  Descripcion (opcional)
+                  Razon (opcional)
                 </label>
                 <input
                   type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
                   placeholder="Detalles adicionales..."
                   className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
                 />
@@ -210,46 +199,9 @@ export default function ExpensesTab(): ReactElement {
             </div>
           )}
 
-          {/* Expenses table */}
-          {loading ? (
+          {loading && (
             <div className="flex items-center justify-center h-32">
               <RefreshCw className="w-6 h-6 animate-spin text-zinc-500" />
-            </div>
-          ) : expenses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-zinc-500">
-              <Receipt className="w-10 h-10 mb-3 opacity-50" />
-              <p className="text-sm font-medium">Sin gastos registrados este mes</p>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-zinc-800 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-zinc-900/80 text-zinc-400 text-left">
-                    <th className="px-4 py-3 font-medium">Fecha</th>
-                    <th className="px-4 py-3 font-medium">Razon</th>
-                    <th className="px-4 py-3 font-medium">Descripcion</th>
-                    <th className="px-4 py-3 font-medium text-right">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map((exp) => (
-                    <tr key={exp.id} className="border-t border-zinc-800/60 hover:bg-zinc-900/40">
-                      <td className="px-4 py-3 text-zinc-500 text-xs">
-                        {exp.created_at
-                          ? new Date(exp.created_at).toLocaleDateString('es-MX')
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-zinc-200">{exp.reason}</td>
-                      <td className="px-4 py-3 text-zinc-400 max-w-[300px] truncate">
-                        {exp.description || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-rose-400">
-                        -${Number(exp.amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           )}
         </div>

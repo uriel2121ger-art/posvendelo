@@ -6,13 +6,17 @@ import { loadRuntimeConfig, getMermasPending, approveMerma } from './posApi'
 
 interface MermaRecord {
   id: number
-  product_name: string
+  product: string
+  sku: string | null
   quantity: number
-  value: number
-  type: string
+  unit_cost: number
+  total_value: number
+  loss_type: string
   reason: string
-  created_at: string
-  status: string
+  category: string
+  has_photo: boolean
+  witness: string
+  created_at: string | null
 }
 
 export default function MermasTab(): ReactElement {
@@ -28,7 +32,8 @@ export default function MermasTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       const body = await getMermasPending(cfg)
       if (cancelled.current) return
-      const data = (body.data ?? body.mermas ?? []) as MermaRecord[]
+      const inner = (body.data ?? body) as Record<string, unknown>
+      const data = (inner.mermas ?? []) as MermaRecord[]
       setMermas(data)
     } catch (err) {
       if (cancelled.current) return
@@ -44,11 +49,11 @@ export default function MermasTab(): ReactElement {
     return () => { cancelled.current = true }
   }, [])
 
-  const handleAction = async (id: number, status: 'approved' | 'rejected'): Promise<void> => {
+  const handleAction = async (id: number, approved: boolean): Promise<void> => {
     setActionId(id)
     try {
       const cfg = loadRuntimeConfig()
-      await approveMerma(cfg, id, status, notesMap[id])
+      await approveMerma(cfg, id, approved, notesMap[id])
       setMermas((prev) => prev.filter((m) => m.id !== id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error procesando merma')
@@ -57,7 +62,7 @@ export default function MermasTab(): ReactElement {
     }
   }
 
-  const pendingCount = mermas.filter((m) => m.status === 'pending').length
+  const pendingCount = mermas.length
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-slate-200">
@@ -120,12 +125,15 @@ export default function MermasTab(): ReactElement {
                 <tbody>
                   {mermas.map((m) => (
                     <tr key={m.id} className="border-t border-zinc-800/60 hover:bg-zinc-900/40">
-                      <td className="px-4 py-3 font-medium text-zinc-200">{m.product_name}</td>
+                      <td className="px-4 py-3 font-medium text-zinc-200">
+                        {m.product}
+                        {m.sku && <span className="ml-2 text-xs text-zinc-500">{m.sku}</span>}
+                      </td>
                       <td className="px-4 py-3 text-right text-zinc-300">{m.quantity}</td>
                       <td className="px-4 py-3 text-right text-zinc-300">
-                        ${Number(m.value).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        ${Number(m.total_value).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">{m.type}</td>
+                      <td className="px-4 py-3 text-zinc-400">{m.loss_type}</td>
                       <td className="px-4 py-3 text-zinc-400 max-w-[200px] truncate">{m.reason}</td>
                       <td className="px-4 py-3 text-zinc-500 text-xs">
                         {m.created_at ? new Date(m.created_at).toLocaleDateString('es-MX') : '—'}
@@ -144,7 +152,7 @@ export default function MermasTab(): ReactElement {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => handleAction(m.id, 'approved')}
+                            onClick={() => handleAction(m.id, true)}
                             disabled={actionId === m.id}
                             className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                             title="Aprobar"
@@ -152,7 +160,7 @@ export default function MermasTab(): ReactElement {
                             <Check className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleAction(m.id, 'rejected')}
+                            onClick={() => handleAction(m.id, false)}
                             disabled={actionId === m.id}
                             className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
                             title="Rechazar"

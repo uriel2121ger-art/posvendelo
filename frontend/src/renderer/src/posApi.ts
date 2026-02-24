@@ -249,13 +249,13 @@ export async function getMermasPending(
 export async function approveMerma(
   cfg: RuntimeConfig,
   id: number,
-  status: 'approved' | 'rejected',
+  approved: boolean,
   notes?: string
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/mermas/${id}/approve`, {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/mermas/approve`, {
     method: 'POST',
     headers: headers(cfg),
-    body: JSON.stringify({ status, notes: notes || '' })
+    body: JSON.stringify({ merma_id: id, approved, notes: notes || undefined })
   })
   if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   return (await res.json()) as Record<string, unknown>
@@ -281,7 +281,7 @@ export async function getExpensesSummary(
 
 export async function registerExpense(
   cfg: RuntimeConfig,
-  expense: { amount: number; reason: string; description?: string }
+  expense: { amount: number; description: string; reason?: string }
 ): Promise<Record<string, unknown>> {
   const res = await fetch(`${cfg.baseUrl}/api/v1/expenses/`, {
     method: 'POST',

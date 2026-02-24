@@ -1,14 +1,13 @@
 import type { ReactElement } from 'react'
 import { useState, useEffect } from 'react'
-import { RefreshCw, TrendingUp, DollarSign, AlertTriangle, Clock } from 'lucide-react'
+import { RefreshCw, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getDashboardQuick } from './posApi'
 
 interface QuickStats {
-  sales_today: number
-  revenue_today: number
-  pending_mermas: number
-  active_turn: string | null
+  ventas_hoy: number
+  total_hoy: number
+  mermas_pendientes: number
 }
 
 export default function DashboardStatsTab(): ReactElement {
@@ -21,13 +20,13 @@ export default function DashboardStatsTab(): ReactElement {
     try {
       setError('')
       const cfg = loadRuntimeConfig()
-      const data = await getDashboardQuick(cfg)
+      const raw = await getDashboardQuick(cfg)
       if (cancelled.current) return
+      const d = (raw.data ?? raw) as Record<string, unknown>
       setStats({
-        sales_today: Number(data.sales_today ?? 0),
-        revenue_today: Number(data.revenue_today ?? 0),
-        pending_mermas: Number(data.pending_mermas ?? 0),
-        active_turn: (data.active_turn as string) || null
+        ventas_hoy: Number(d.ventas_hoy ?? 0),
+        total_hoy: Number(d.total_hoy ?? 0),
+        mermas_pendientes: Number(d.mermas_pendientes ?? 0)
       })
       setLastUpdate(new Date().toLocaleTimeString('es-MX'))
     } catch (err) {
@@ -57,31 +56,24 @@ export default function DashboardStatsTab(): ReactElement {
     ? [
         {
           label: 'Ventas Hoy',
-          value: String(stats.sales_today),
+          value: String(stats.ventas_hoy),
           icon: TrendingUp,
           color: 'text-emerald-400',
           bg: 'bg-emerald-400/10'
         },
         {
           label: 'Ingreso Hoy',
-          value: `$${stats.revenue_today.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+          value: `$${stats.total_hoy.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
           icon: DollarSign,
           color: 'text-blue-400',
           bg: 'bg-blue-400/10'
         },
         {
           label: 'Mermas Pendientes',
-          value: String(stats.pending_mermas),
+          value: String(stats.mermas_pendientes),
           icon: AlertTriangle,
-          color: stats.pending_mermas > 0 ? 'text-amber-400' : 'text-zinc-400',
-          bg: stats.pending_mermas > 0 ? 'bg-amber-400/10' : 'bg-zinc-400/10'
-        },
-        {
-          label: 'Turno Activo',
-          value: stats.active_turn || 'Sin turno',
-          icon: Clock,
-          color: stats.active_turn ? 'text-purple-400' : 'text-zinc-500',
-          bg: stats.active_turn ? 'bg-purple-400/10' : 'bg-zinc-500/10'
+          color: stats.mermas_pendientes > 0 ? 'text-amber-400' : 'text-zinc-400',
+          bg: stats.mermas_pendientes > 0 ? 'bg-amber-400/10' : 'bg-zinc-400/10'
         }
       ]
     : []
