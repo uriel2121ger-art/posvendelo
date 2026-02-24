@@ -107,12 +107,10 @@ async def adjust_stock(
                 detail=f"Stock insuficiente. Actual: {current_stock}, ajuste: {body.quantity}",
             )
 
-        now = datetime.now(timezone.utc).isoformat()
-
         # Update stock
         await conn.execute(
-            "UPDATE products SET stock = $1, updated_at = $2 WHERE id = $3",
-            new_stock, now, body.product_id,
+            "UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2",
+            new_stock, body.product_id,
         )
 
         # Record movement
@@ -123,7 +121,7 @@ async def adjust_stock(
             """
             INSERT INTO inventory_movements
                 (product_id, movement_type, type, quantity, reason, reference_type, user_id, timestamp)
-            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, $7)
+            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, NOW())
             """,
             body.product_id,
             mov_type,
@@ -131,7 +129,6 @@ async def adjust_stock(
             body.reason,
             body.reference_id or "manual_adjust",
             user_id,
-            now,
         )
 
     return {

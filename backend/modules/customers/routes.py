@@ -92,8 +92,6 @@ async def create_customer(
     db=Depends(get_db),
 ):
     """Create a new customer. Requires auth."""
-    now = datetime.now(timezone.utc).isoformat()
-
     row = await db.fetchrow(
         """
         INSERT INTO customers (
@@ -101,7 +99,7 @@ async def create_customer(
             credit_balance, is_active, created_at, updated_at
         ) VALUES (
             :name, :phone, :email, :rfc, :address, :notes, :credit_limit,
-            0, 1, :now, :now
+            0, 1, NOW(), NOW()
         )
         RETURNING id
         """,
@@ -113,7 +111,6 @@ async def create_customer(
             "address": body.address,
             "notes": body.notes,
             "credit_limit": body.credit_limit or 0.0,
-            "now": now,
         },
     )
 
@@ -148,10 +145,8 @@ async def update_customer(
     if _MANAGER_FIELDS & fields.keys() and role not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
 
-    now = datetime.now(timezone.utc).isoformat()
-    fields["updated_at"] = now
-
     set_parts = [f"{k} = :{k}" for k in fields]
+    set_parts.append("updated_at = NOW()")
     params = {**fields, "id": customer_id}
 
     await db.execute(
@@ -180,10 +175,9 @@ async def delete_customer(
     if not existing:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    now = datetime.now(timezone.utc).isoformat()
     await db.execute(
-        "UPDATE customers SET is_active = 0, updated_at = :now WHERE id = :id",
-        {"id": customer_id, "now": now},
+        "UPDATE customers SET is_active = 0, updated_at = NOW() WHERE id = :id",
+        {"id": customer_id},
     )
 
     return {"success": True, "data": {"id": customer_id}}

@@ -61,14 +61,12 @@ async def remote_open_drawer(
         logger.error("Remote drawer open error: %s", e)
         raise HTTPException(status_code=500, detail="Error abriendo cajon")
 
-    now = datetime.now(timezone.utc).isoformat()
     await db.execute(
         """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
-           VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, :now)""",
+           VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, NOW())""",
         {
             "uid": int(auth["sub"]),
             "details": '{"source": "PWA Remote Command v2"}',
-            "now": now,
         },
     )
 
@@ -243,11 +241,10 @@ async def remote_change_price(
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
         old_price = float(product["price"])
-        now = datetime.now(timezone.utc).isoformat()
 
         await db.execute(
-            "UPDATE products SET price = :price, updated_at = :now WHERE id = :id",
-            {"price": body.new_price, "now": now, "id": product["id"]},
+            "UPDATE products SET price = :price, updated_at = NOW() WHERE id = :id",
+            {"price": body.new_price, "id": product["id"]},
         )
 
         # Price history
@@ -266,8 +263,8 @@ async def remote_change_price(
         })
         await db.execute(
             """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
-               VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, :now)""",
-            {"pid": product["id"], "uid": int(auth["sub"]), "details": details, "now": now},
+               VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, NOW())""",
+            {"pid": product["id"], "uid": int(auth["sub"]), "details": details},
         )
 
     return {

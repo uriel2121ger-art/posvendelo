@@ -143,11 +143,11 @@ async def create_sale(
             kit_comp_rows = []
             if product_ids:
                 kit_comp_rows = await conn.fetch(
-                    "SELECT parent_product_id, child_product_id, qty FROM kit_components "
-                    "WHERE parent_product_id = ANY($1)",
+                    "SELECT kit_product_id, component_product_id, quantity FROM kit_components "
+                    "WHERE kit_product_id = ANY($1)",
                     product_ids,
                 )
-            component_ids = [r["child_product_id"] for r in kit_comp_rows]
+            component_ids = [r["component_product_id"] for r in kit_comp_rows]
             all_ids_to_lock = list(set(product_ids + component_ids))
 
             locked_map = {}
@@ -199,16 +199,16 @@ async def create_sale(
                     )
 
             # Validate kit component stock (components are now locked)
-            comp_demand: dict = {}  # child_product_id -> total qty needed
+            comp_demand: dict = {}  # component_product_id -> total qty needed
             for item in body.items:
                 if not item.product_id:
                     continue  # Common items are never kits
                 if not locked_map.get(item.product_id, {}).get("is_kit", False):
                     continue
                 for cr in kit_comp_rows:
-                    if cr["parent_product_id"] == item.product_id:
-                        cid = cr["child_product_id"]
-                        comp_demand[cid] = comp_demand.get(cid, 0.0) + float(cr["qty"]) * item.qty
+                    if cr["kit_product_id"] == item.product_id:
+                        cid = cr["component_product_id"]
+                        comp_demand[cid] = comp_demand.get(cid, 0.0) + float(cr["quantity"]) * item.qty
 
             for cid, demand in comp_demand.items():
                 child_prod = locked_map.get(cid)
@@ -402,12 +402,12 @@ async def create_sale(
                 # Stock deduction
                 if is_kit:
                     # Use already-fetched & locked kit_comp_rows (no re-fetch race)
-                    components = [r for r in kit_comp_rows if r["parent_product_id"] == item.product_id]
+                    components = [r for r in kit_comp_rows if r["kit_product_id"] == item.product_id]
                     for comp in components:
-                        comp_qty = float(comp["qty"]) * item.qty
+                        comp_qty = float(comp["quantity"]) * item.qty
                         await db.execute(
                             "UPDATE products SET stock = stock - :qty, synced = 0, updated_at = NOW() WHERE id = :id",
-                            {"qty": comp_qty, "id": comp["child_product_id"]},
+                            {"qty": comp_qty, "id": comp["component_product_id"]},
                         )
                         await db.execute(
                             """INSERT INTO inventory_movements
@@ -416,7 +416,7 @@ async def create_sale(
                                VALUES (:pid, 'OUT', 'sale', :qty, :reason,
                                        'sale', :sale_id, :uid, :bid, NOW(), 0)""",
                             {
-                                "pid": comp["child_product_id"],
+                                "pid": comp["component_product_id"],
                                 "qty": comp_qty,
                                 "reason": f"Venta Kit folio:{folio_visible}",
                                 "sale_id": sale_id,
@@ -636,10 +636,10 @@ async def cancel_sale(
             comp_pids = []
             if revert_pids:
                 comp_rows = await conn.fetch(
-                    "SELECT child_product_id FROM kit_components WHERE parent_product_id = ANY($1)",
+                    "SELECT component_product_id FROM kit_components WHERE kit_product_id = ANY($1)",
                     list(set(revert_pids)),
                 )
-                comp_pids = [r["child_product_id"] for r in comp_rows]
+                comp_pids = [r["component_product_id"] for r in comp_rows]
             all_lock_pids = list(set(revert_pids + comp_pids))
             if all_lock_pids:
                 await conn.fetch(
@@ -669,14 +669,14 @@ async def cancel_sale(
                 if is_kit:
                     # Fetch kit components (already locked via products FOR UPDATE above)
                     kit_comps = await conn.fetch(
-                        "SELECT child_product_id, qty FROM kit_components WHERE parent_product_id = $1",
+                        "SELECT component_product_id, quantity FROM kit_components WHERE kit_product_id = $1",
                         pid,
                     )
                     for comp in kit_comps:
-                        comp_qty = float(comp["qty"]) * qty
+                        comp_qty = float(comp["quantity"]) * qty
                         await db.execute(
                             "UPDATE products SET stock = stock + :qty, updated_at = NOW() WHERE id = :id",
-                            {"qty": comp_qty, "id": comp["child_product_id"]},
+                            {"qty": comp_qty, "id": comp["component_product_id"]},
                         )
                         await db.execute(
                             """INSERT INTO inventory_movements
@@ -685,7 +685,7 @@ async def cancel_sale(
                                VALUES (:pid, 'IN', 'cancellation', :qty, :reason,
                                        'sale', :sale_id, :uid, :bid, NOW(), 0)""",
                             {
-                                "pid": comp["child_product_id"],
+                                "pid": comp["component_product_id"],
                                 "qty": comp_qty,
                                 "reason": f"Cancelacion venta ID:{sale_id}",
                                 "sale_id": sale_id,

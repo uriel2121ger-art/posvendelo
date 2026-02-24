@@ -111,8 +111,6 @@ async def create_product(
     """Create a new product. Requires manager+ role."""
     if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar productos")
-    now = datetime.now(timezone.utc).isoformat()
-
     try:
         row = await db.fetchrow(
             """
@@ -125,7 +123,7 @@ async def create_product(
                 :sku, :name, :price, :price_wholesale, :cost, :stock,
                 :category, :department, :provider, :min_stock, :max_stock,
                 :tax_rate, :sale_type, :barcode, :description,
-                1, :now, :now
+                1, NOW(), NOW()
             )
             RETURNING id
             """,
@@ -145,7 +143,6 @@ async def create_product(
                 "sale_type": body.sale_type or "unit",
                 "barcode": body.barcode,
                 "description": body.description,
-                "now": now,
             },
         )
     except Exception as e:
@@ -188,10 +185,8 @@ async def update_product(
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
 
-    now = datetime.now(timezone.utc).isoformat()
-    fields["updated_at"] = now
-
     set_parts = [f"{k} = :{k}" for k in fields]
+    set_parts.append("updated_at = NOW()")
     params = {**fields, "id": product_id}
 
     await db.execute(
@@ -234,10 +229,9 @@ async def delete_product(
     if not existing:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    now = datetime.now(timezone.utc).isoformat()
     await db.execute(
-        "UPDATE products SET is_active = 0, updated_at = :now WHERE id = :id",
-        {"id": product_id, "now": now},
+        "UPDATE products SET is_active = 0, updated_at = NOW() WHERE id = :id",
+        {"id": product_id},
     )
 
     return {"success": True, "data": {"id": product_id}}
@@ -306,11 +300,9 @@ async def update_stock_remote(
                 detail=f"Stock insuficiente. Actual: {current}, operacion: {body.operation} {body.quantity}",
             )
 
-        now = datetime.now(timezone.utc).isoformat()
-
         await db.execute(
-            "UPDATE products SET stock = :stock, updated_at = :now WHERE id = :id",
-            {"stock": new_stock, "now": now, "id": product["id"]},
+            "UPDATE products SET stock = :stock, updated_at = NOW() WHERE id = :id",
+            {"stock": new_stock, "id": product["id"]},
         )
 
         qty_signed = body.quantity if body.operation == "add" else (
@@ -321,14 +313,13 @@ async def update_stock_remote(
         await db.execute(
             """INSERT INTO inventory_movements
                (product_id, movement_type, type, quantity, reason, reference_type, user_id, timestamp, synced)
-               VALUES (:pid, :mov, 'api_stock', :qty, :reason, 'api_stock', :uid, :now, 0)""",
+               VALUES (:pid, :mov, 'api_stock', :qty, :reason, 'api_stock', :uid, NOW(), 0)""",
             {
                 "pid": product["id"],
                 "mov": mov_type,
                 "qty": abs(float(qty_signed)),
                 "reason": body.reason or "Actualizacion remota",
                 "uid": int(auth["sub"]),
-                "now": now,
             },
         )
 
@@ -362,11 +353,10 @@ async def update_price_remote(
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
         old_price = float(product["price"])
-        now = datetime.now(timezone.utc).isoformat()
 
         await conn.execute(
-            "UPDATE products SET price = $1, updated_at = $2 WHERE id = $3",
-            body.new_price, now, product["id"],
+            "UPDATE products SET price = $1, updated_at = NOW() WHERE id = $2",
+            body.new_price, product["id"],
         )
 
         if round(body.new_price, 2) != round(old_price, 2):
