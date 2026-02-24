@@ -1,0 +1,289 @@
+"""
+TITAN POS - Remote Commands Module Routes
+
+Remote POS control endpoints: open drawer, turn status, live sales,
+notifications, price changes, system status.
+
+FIXED: remote_notifications uses real DB columns (body, notification_type, sent)
+instead of legacy mobile_api.py columns (message, priority, read).
+"""
+
+import asyncio
+import json
+import logging
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from db.connection import get_db
+from modules.shared.auth import verify_token
+from modules.remote.schemas import NotificationCreate, PriceChangeRemote
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+@router.post("/open-drawer")
+async def remote_open_drawer(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Open cash drawer remotely. RBAC: admin/manager/owner."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para abrir cajon")
+
+    try:
+        def _open():
+            from app.core import get_core_instance
+            core = get_core_instance()
+            cfg = core.get_app_config() or {}
+            if not cfg.get("cash_drawer_enabled"):
+                raise ValueError("Cajon no habilitado")
+            printer = cfg.get("printer_name", "")
+            if not printer:
+                raise ValueError("Impresora no configurada")
+            from app.utils import ticket_engine
+            pulse_str = cfg.get("cash_drawer_pulse_bytes", "\\x1B\\x70\\x00\\x19\\xFA")
+            ticket_engine.open_cash_drawer(printer, pulse_str)
+
+        await asyncio.to_thread(_open)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Remote drawer open error: %s", e)
+        raise HTTPException(status_code=500, detail="Error abriendo cajon")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
+           VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, :now)""",
+        {
+            "uid": int(auth["sub"]),
+            "details": '{"source": "PWA Remote Command v2"}',
+            "now": now,
+        },
+    )
+
+    return {"success": True, "data": {"message": "Cajon abierto remotamente"}}
+
+
+@router.get("/turn-status")
+async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)):
+    """Get current turn status."""
+    turn = await db.fetchrow(
+        """SELECT t.id, t.user_id, t.initial_cash, t.start_timestamp, u.username
+           FROM turns t
+           LEFT JOIN users u ON t.user_id = u.id
+           WHERE t.status = 'open'
+           ORDER BY t.start_timestamp DESC
+           LIMIT 1"""
+    )
+
+    if not turn:
+        return {"success": True, "data": {"active": False, "message": "Sin turno activo"}}
+
+    # Get sales summary for this turn
+    summary = await db.fetchrow(
+        """SELECT
+               COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total ELSE 0 END), 0) as cash_sales,
+               COALESCE(SUM(CASE WHEN payment_method = 'card' THEN total ELSE 0 END), 0) as card_sales,
+               COALESCE(SUM(total), 0) as total_sales
+           FROM sales WHERE turn_id = :tid AND status = 'completed'""",
+        {"tid": turn["id"]},
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "active": True,
+            "turn_id": turn["id"],
+            "user": turn["username"] or f"Usuario #{turn['user_id']}",
+            "started_at": turn["start_timestamp"],
+            "initial_cash": float(turn["initial_cash"] or 0),
+            "cash_sales": float(summary["cash_sales"]) if summary else 0,
+            "card_sales": float(summary["card_sales"]) if summary else 0,
+            "total_sales": float(summary["total_sales"]) if summary else 0,
+        },
+    }
+
+
+@router.get("/live-sales")
+async def get_live_sales(
+    auth: dict = Depends(verify_token),
+    limit: int = Query(10, ge=1, le=100),
+    db=Depends(get_db),
+):
+    """Get latest completed sales in real time."""
+    sales = await db.fetch(
+        """SELECT s.id, s.folio_visible, s.total, s.payment_method, s.serie,
+                  s.timestamp, c.name as customer_name
+           FROM sales s
+           LEFT JOIN customers c ON s.customer_id = c.id
+           WHERE s.status = 'completed'
+           ORDER BY s.timestamp DESC
+           LIMIT :limit""",
+        {"limit": limit},
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "count": len(sales),
+            "sales": [{
+                "id": s["id"],
+                "folio": s["folio_visible"] or f"#{s['id']}",
+                "total": float(s["total"] or 0),
+                "payment": s["payment_method"],
+                "serie": s["serie"],
+                "customer": s["customer_name"] or "Publico General",
+                "timestamp": s["timestamp"],
+            } for s in sales],
+        },
+    }
+
+
+@router.post("/notification")
+async def send_notification(
+    body: NotificationCreate,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Send notification to POS. Uses real DB columns (body, notification_type, sent)."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos")
+
+    row = await db.fetchrow(
+        """INSERT INTO remote_notifications (title, body, notification_type, user_id, sent, created_at)
+           VALUES (:title, :body, :ntype, :uid, 0, NOW())
+           RETURNING id""",
+        {
+            "title": body.title,
+            "body": body.body,
+            "ntype": body.notification_type,
+            "uid": int(auth["sub"]),
+        },
+    )
+
+    return {"success": True, "data": {"id": row["id"], "message": "Notificacion enviada"}}
+
+
+@router.get("/notifications/pending")
+async def get_pending_notifications(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Get unsent notifications for the POS."""
+    notifications = await db.fetch(
+        """SELECT id, title, body, notification_type, created_at
+           FROM remote_notifications
+           WHERE sent = 0
+           ORDER BY created_at DESC"""
+    )
+
+    # Mark as sent
+    if notifications:
+        await db.execute(
+            "UPDATE remote_notifications SET sent = 1, sent_at = NOW()::text WHERE sent = 0"
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "count": len(notifications),
+            "notifications": [{
+                "id": n["id"],
+                "title": n["title"],
+                "body": n["body"],
+                "type": n["notification_type"],
+                "timestamp": str(n["created_at"]) if n["created_at"] else None,
+            } for n in notifications],
+        },
+    }
+
+
+@router.post("/change-price")
+async def remote_change_price(
+    body: PriceChangeRemote,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Change product price remotely with audit trail. RBAC: admin/manager/owner."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
+
+    async with db.connection.transaction():
+        product = await db.fetchrow(
+            "SELECT id, name, price FROM products WHERE sku = :sku AND is_active = 1 FOR UPDATE",
+            {"sku": body.sku},
+        )
+        if not product:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+        old_price = float(product["price"])
+        now = datetime.now(timezone.utc).isoformat()
+
+        await db.execute(
+            "UPDATE products SET price = :price, updated_at = :now WHERE id = :id",
+            {"price": body.new_price, "now": now, "id": product["id"]},
+        )
+
+        # Price history
+        if body.new_price != old_price:
+            await db.execute(
+                """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
+                   VALUES (:pid, 'price', :old, :new, :uid, NOW())""",
+                {"pid": product["id"], "old": old_price, "new": body.new_price, "uid": int(auth["sub"])},
+            )
+
+        # Audit log
+        details = json.dumps({
+            "old_price": old_price,
+            "new_price": body.new_price,
+            "reason": body.reason or "PWA Remote v2",
+        })
+        await db.execute(
+            """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
+               VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, :now)""",
+            {"pid": product["id"], "uid": int(auth["sub"]), "details": details, "now": now},
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "product_id": product["id"],
+            "product_name": product["name"],
+            "old_price": old_price,
+            "new_price": body.new_price,
+        },
+    }
+
+
+@router.get("/system-status")
+async def get_system_status(auth: dict = Depends(verify_token), db=Depends(get_db)):
+    """Get complete system status — read-only queries."""
+    turn_row = await db.fetchrow(
+        "SELECT COUNT(*) as c FROM turns WHERE status = 'open'"
+    )
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    sales_row = await db.fetchrow(
+        """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
+           FROM sales WHERE CAST(timestamp AS DATE) = CAST(:today AS DATE) AND status = 'completed'""",
+        {"today": today},
+    )
+
+    low_stock_row = await db.fetchrow(
+        "SELECT COUNT(*) as c FROM products WHERE stock <= min_stock AND stock >= 0 AND is_active = 1"
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "pos_online": True,
+            "turn_active": (turn_row["c"] > 0) if turn_row else False,
+            "sales_today": sales_row["count"] if sales_row else 0,
+            "total_today": float(sales_row["total"]) if sales_row else 0.0,
+            "low_stock_alerts": low_stock_row["c"] if low_stock_row else 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    }

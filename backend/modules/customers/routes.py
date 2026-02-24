@@ -132,7 +132,11 @@ async def update_customer(
     if not existing:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    fields = body.model_dump(exclude_none=True)
+    _ALLOWED_COLUMNS = {
+        "name", "phone", "email", "rfc", "address", "credit_limit",
+        "credit_balance", "wallet_balance", "is_active", "notes",
+    }
+    fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
 

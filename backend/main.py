@@ -23,12 +23,21 @@ from modules.turns.routes import router as turns_router
 from modules.employees.routes import router as employees_router
 from modules.sync.routes import router as sync_router
 
+# Module routers (Fase 2 — mobile_api migration)
+from modules.auth.routes import router as auth_router
+from modules.dashboard.routes import router as dashboard_router
+from modules.mermas.routes import router as mermas_router
+from modules.expenses.routes import router as expenses_router
+from modules.remote.routes import router as remote_router
+from modules.sat.routes import router as sat_router
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Register module routers under /api/v1/
 # ---------------------------------------------------------------------------
 
+# Fase 1 — CRUD modules
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(customers_router, prefix="/api/v1/customers", tags=["customers"])
 app.include_router(sales_router, prefix="/api/v1/sales", tags=["sales"])
@@ -36,6 +45,14 @@ app.include_router(inventory_router, prefix="/api/v1/inventory", tags=["inventor
 app.include_router(turns_router, prefix="/api/v1/turns", tags=["turns"])
 app.include_router(employees_router, prefix="/api/v1/employees", tags=["employees"])
 app.include_router(sync_router, prefix="/api/v1/sync", tags=["sync"])
+
+# Fase 2 — mobile_api migration
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
+app.include_router(mermas_router, prefix="/api/v1/mermas", tags=["mermas"])
+app.include_router(expenses_router, prefix="/api/v1/expenses", tags=["expenses"])
+app.include_router(remote_router, prefix="/api/v1/remote", tags=["remote"])
+app.include_router(sat_router, prefix="/api/v1/sat", tags=["sat"])
 
 
 # ---------------------------------------------------------------------------

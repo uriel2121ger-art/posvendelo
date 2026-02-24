@@ -154,14 +154,16 @@ def get_core():
 # ENDPOINTS DE AUTENTICACIÓN
 # ==============================================================================
 
-@app.post("/api/auth/login", response_model=TokenResponse)
+@app.post("/api/auth/login", response_model=TokenResponse, deprecated=True)
 @_limiter.limit("5/minute")
 async def login(body: LoginRequest, request: Request):
     """
+    DEPRECATED: Use POST /api/v1/auth/login instead.
     Login con credenciales + opcional YubiKey OTP.
 
     SECURITY: Rate limited to 5 attempts per minute per IP to prevent brute force.
     """
+    logger.warning("DEPRECATED: /api/auth/login — use /api/v1/auth/login")
     core = get_core()
 
     # Try to verify user from employees table
@@ -178,18 +180,20 @@ async def login(body: LoginRequest, request: Request):
 
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
-@app.get("/api/auth/verify")
+@app.get("/api/auth/verify", deprecated=True)
 async def verify_auth(user: Dict = Depends(verify_token)):
-    """Verifica que el token sea válido."""
+    """DEPRECATED: Use GET /api/v1/auth/verify instead."""
+    logger.warning("DEPRECATED: /api/auth/verify — use /api/v1/auth/verify")
     return {"valid": True, "user": user["sub"], "role": user["role"]}
 
 # ==============================================================================
 # ENDPOINTS DE PRODUCTOS Y ESCÁNER
 # ==============================================================================
 
-@app.get("/api/products/scan/{sku}", response_model=ProductScanResponse)
+@app.get("/api/products/scan/{sku}", response_model=ProductScanResponse, deprecated=True)
 async def scan_product(sku: str, user: Dict = Depends(verify_token)):
-    """Busca producto por SKU/código de barras."""
+    """DEPRECATED: Use GET /api/v1/products/scan/{sku} instead."""
+    logger.warning("DEPRECATED: /api/products/scan — use /api/v1/products/scan")
     core = get_core()
     
     # Buscar por SKU exacto
@@ -222,9 +226,10 @@ async def scan_product(sku: str, user: Dict = Depends(verify_token)):
         } for p in similar]
     )
 
-@app.post("/api/products/stock")
+@app.post("/api/products/stock", deprecated=True)
 async def update_stock(request: StockUpdateRequest, user: Dict = Depends(verify_token)):
-    """Actualiza stock de producto remotamente."""
+    """DEPRECATED: Use POST /api/v1/products/stock instead."""
+    logger.warning("DEPRECATED: /api/products/stock — use /api/v1/products/stock")
     core = get_core()
     
     product = core.get_product_by_sku(request.sku)
@@ -298,9 +303,10 @@ async def update_stock(request: StockUpdateRequest, user: Dict = Depends(verify_
 # ENDPOINTS DE MERMAS
 # ==============================================================================
 
-@app.get("/api/mermas/pending")
+@app.get("/api/mermas/pending", deprecated=True)
 async def get_pending_mermas(user: Dict = Depends(verify_token)):
-    """Obtiene mermas pendientes de aprobación."""
+    """DEPRECATED: Use GET /api/v1/mermas/pending instead."""
+    logger.warning("DEPRECATED: /api/mermas/pending — use /api/v1/mermas/pending")
     core = get_core()
     
     sql = """
@@ -328,9 +334,10 @@ async def get_pending_mermas(user: Dict = Depends(verify_token)):
         } for m in mermas]
     }
 
-@app.post("/api/mermas/approve")
+@app.post("/api/mermas/approve", deprecated=True)
 async def approve_merma(request: MermaApprovalRequest, user: Dict = Depends(verify_token)):
-    """Aprueba o rechaza una merma remotamente."""
+    """DEPRECATED: Use POST /api/v1/mermas/approve instead."""
+    logger.warning("DEPRECATED: /api/mermas/approve — use /api/v1/mermas/approve")
     core = get_core()
     
     new_status = 'approved' if request.approved else 'rejected'
@@ -350,9 +357,10 @@ async def approve_merma(request: MermaApprovalRequest, user: Dict = Depends(veri
 # ENDPOINTS DE DASHBOARD RESICO
 # ==============================================================================
 
-@app.get("/api/dashboard/resico")
+@app.get("/api/dashboard/resico", deprecated=True)
 async def get_resico_dashboard(user: Dict = Depends(verify_token)):
-    """Dashboard de monitoreo RESICO."""
+    """DEPRECATED: Use GET /api/v1/dashboard/resico instead."""
+    logger.warning("DEPRECATED: /api/dashboard/resico — use /api/v1/dashboard/resico")
     core = get_core()
     year = datetime.now().year
     
@@ -398,9 +406,10 @@ async def get_resico_dashboard(user: Dict = Depends(verify_token)):
         "dias_restantes": 365 - dias
     }
 
-@app.get("/api/dashboard/wealth")
+@app.get("/api/dashboard/wealth", deprecated=True)
 async def get_wealth_dashboard(user: Dict = Depends(verify_token)):
-    """Dashboard de riqueza real (stealth)."""
+    """DEPRECATED: Use GET /api/v1/dashboard/wealth instead."""
+    logger.warning("DEPRECATED: /api/dashboard/wealth — use /api/v1/dashboard/wealth")
     if user['role'] not in ['admin', 'owner']:
         raise HTTPException(status_code=403, detail="Solo admin/owner")
     
@@ -423,9 +432,10 @@ async def get_wealth_dashboard(user: Dict = Depends(verify_token)):
         "ratio": data['ratio_utilidad']
     }
 
-@app.get("/api/dashboard/quick")
+@app.get("/api/dashboard/quick", deprecated=True)
 async def get_quick_status(user: Dict = Depends(verify_token)):
-    """Status rápido para widget."""
+    """DEPRECATED: Use GET /api/v1/dashboard/quick instead."""
+    logger.warning("DEPRECATED: /api/dashboard/quick — use /api/v1/dashboard/quick")
     core = get_core()
     
     # Ventas de hoy
@@ -467,12 +477,13 @@ class SimplePriceUpdateRequest(BaseModel):
             raise ValueError('new_price exceeds maximum allowed value')
         return round(v, 2)
 
-@app.post("/api/products/price")
+@app.post("/api/products/price", deprecated=True)
 async def update_price(
     request: SimplePriceUpdateRequest,
     user: Dict = Depends(verify_token)
 ):
-    """Actualiza precio de producto remotamente."""
+    """DEPRECATED: Use POST /api/v1/products/price instead."""
+    logger.warning("DEPRECATED: /api/products/price — use /api/v1/products/price")
     if user['role'] not in ['admin', 'manager', 'owner']:
         raise HTTPException(status_code=403, detail="Sin permisos")
 
@@ -513,9 +524,10 @@ async def health_check():
 # AI DASHBOARD
 # ==============================================================================
 
-@app.get("/api/dashboard/ai")
+@app.get("/api/dashboard/ai", deprecated=True)
 async def get_ai_dashboard(user: Dict = Depends(verify_token)):
-    """Dashboard de IA - alertas de stock inteligentes y top productos."""
+    """DEPRECATED: Use GET /api/v1/dashboard/ai instead."""
+    logger.warning("DEPRECATED: /api/dashboard/ai — use /api/v1/dashboard/ai")
     core = get_core()
     
     try:
@@ -574,9 +586,10 @@ async def get_ai_dashboard(user: Dict = Depends(verify_token)):
             "anomalies": []
         }
 
-@app.get("/api/dashboard/executive")
+@app.get("/api/dashboard/executive", deprecated=True)
 async def get_executive_dashboard(user: Dict = Depends(verify_token)):
-    """Dashboard ejecutivo completo con métricas, gráficas y predicciones."""
+    """DEPRECATED: Use GET /api/v1/dashboard/executive instead."""
+    logger.warning("DEPRECATED: /api/dashboard/executive — use /api/v1/dashboard/executive")
     if user['role'] not in ['admin', 'manager', 'owner']:
         raise HTTPException(status_code=403, detail="Solo admin/manager")
     
@@ -602,9 +615,10 @@ async def get_executive_dashboard(user: Dict = Depends(verify_token)):
 # EXPENSES
 # ==============================================================================
 
-@app.get("/api/dashboard/expenses")
+@app.get("/api/dashboard/expenses", deprecated=True)
 async def get_expenses_dashboard(user: Dict = Depends(verify_token)):
-    """Dashboard de gastos en efectivo."""
+    """DEPRECATED: Use GET /api/v1/dashboard/expenses (or /api/v1/expenses/summary)."""
+    logger.warning("DEPRECATED: /api/dashboard/expenses — use /api/v1/expenses/summary")
     core = get_core()
     
     # Gastos del mes
@@ -653,9 +667,10 @@ class ExpenseRequest(BaseModel):
             raise ValueError('amount exceeds maximum allowed value')
         return round(v, 2)  # Round to 2 decimal places
 
-@app.post("/api/expenses/register")
+@app.post("/api/expenses/register", deprecated=True)
 async def register_expense(request: ExpenseRequest, user: Dict = Depends(verify_token)):
-    """Registra un gasto en efectivo."""
+    """DEPRECATED: Use POST /api/v1/expenses/ instead."""
+    logger.warning("DEPRECATED: /api/expenses/register — use POST /api/v1/expenses/")
     core = get_core()
     
     try:
@@ -690,9 +705,10 @@ async def register_expense(request: ExpenseRequest, user: Dict = Depends(verify_
 # COMANDOS REMOTOS - Control del POS desde PWA
 # ==============================================================================
 
-@app.post("/api/commands/open-drawer")
+@app.post("/api/commands/open-drawer", deprecated=True)
 async def remote_open_drawer(user: Dict = Depends(verify_token)):
-    """Abre el cajón de dinero remotamente."""
+    """DEPRECATED: Use POST /api/v1/remote/open-drawer instead."""
+    logger.warning("DEPRECATED: /api/commands/open-drawer — use /api/v1/remote/open-drawer")
     if user['role'] not in ['admin', 'manager', 'owner']:
         raise HTTPException(status_code=403, detail="Sin permisos para abrir cajón remotamente")
     
@@ -724,9 +740,10 @@ async def remote_open_drawer(user: Dict = Depends(verify_token)):
         logger.error(f"Error en endpoint remote_open_drawer: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-@app.get("/api/commands/turn-status")
+@app.get("/api/commands/turn-status", deprecated=True)
 async def get_turn_status(user: Dict = Depends(verify_token)):
-    """Obtiene el estado del turno actual."""
+    """DEPRECATED: Use GET /api/v1/remote/turn-status instead."""
+    logger.warning("DEPRECATED: /api/commands/turn-status — use /api/v1/remote/turn-status")
     core = get_core()
     
     try:
@@ -762,9 +779,10 @@ async def get_turn_status(user: Dict = Depends(verify_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/commands/live-sales")
+@app.get("/api/commands/live-sales", deprecated=True)
 async def get_live_sales(user: Dict = Depends(verify_token), limit: int = 10):
-    """Obtiene las últimas ventas en tiempo real."""
+    """DEPRECATED: Use GET /api/v1/remote/live-sales instead."""
+    logger.warning("DEPRECATED: /api/commands/live-sales — use /api/v1/remote/live-sales")
     # Validar limite maximo para evitar queries excesivas
     limit = min(max(1, limit), 100)
     core = get_core()
@@ -799,9 +817,10 @@ class NotificationRequest(BaseModel):
     message: str
     priority: str = "normal"  # low, normal, high, urgent
 
-@app.post("/api/commands/send-notification")
+@app.post("/api/commands/send-notification", deprecated=True)
 async def send_notification_to_pos(request: NotificationRequest, user: Dict = Depends(verify_token)):
-    """Envía una notificación al POS (se mostrará en la interfaz)."""
+    """DEPRECATED: Use POST /api/v1/remote/notification instead (with corrected DB schema)."""
+    logger.warning("DEPRECATED: /api/commands/send-notification — use /api/v1/remote/notification")
     if user['role'] not in ['admin', 'manager', 'owner']:
         raise HTTPException(status_code=403, detail="Sin permisos")
     
@@ -842,9 +861,10 @@ async def send_notification_to_pos(request: NotificationRequest, user: Dict = De
         except Exception as e2:
             raise HTTPException(status_code=500, detail=str(e2))
 
-@app.get("/api/commands/pending-notifications")
+@app.get("/api/commands/pending-notifications", deprecated=True)
 async def get_pending_notifications(user: Dict = Depends(verify_token)):
-    """Obtiene notificaciones pendientes (para el POS)."""
+    """DEPRECATED: Use GET /api/v1/remote/notifications/pending instead."""
+    logger.warning("DEPRECATED: /api/commands/pending-notifications — use /api/v1/remote/notifications/pending")
     core = get_core()
     
     try:
@@ -888,9 +908,10 @@ class PriceChangeRequest(BaseModel):
             raise ValueError('new_price exceeds maximum allowed value')
         return round(v, 2)  # Round to 2 decimal places
 
-@app.post("/api/commands/change-price")
+@app.post("/api/commands/change-price", deprecated=True)
 async def remote_change_price(request: PriceChangeRequest, user: Dict = Depends(verify_token)):
-    """Cambia el precio de un producto remotamente."""
+    """DEPRECATED: Use POST /api/v1/remote/change-price instead."""
+    logger.warning("DEPRECATED: /api/commands/change-price — use /api/v1/remote/change-price")
     if user['role'] not in ['admin', 'manager', 'owner']:
         raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
     
@@ -925,9 +946,10 @@ async def remote_change_price(request: PriceChangeRequest, user: Dict = Depends(
         "new_price": request.new_price
     }
 
-@app.get("/api/commands/system-status")
+@app.get("/api/commands/system-status", deprecated=True)
 async def get_system_status(user: Dict = Depends(verify_token)):
-    """Obtiene el estado completo del sistema."""
+    """DEPRECATED: Use GET /api/v1/remote/system-status instead."""
+    logger.warning("DEPRECATED: /api/commands/system-status — use /api/v1/remote/system-status")
     core = get_core()
     
     try:
@@ -1332,9 +1354,10 @@ async def delete_product(product_id: int, branch_id: Optional[int] = None, user:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/products/{product_id}/stock-by-branch")
+@app.get("/api/products/{product_id}/stock-by-branch", deprecated=True)
 async def get_product_stock_by_branch(product_id: int, user: Dict = Depends(verify_token)):
-    """Obtiene stock y precio del producto por sucursal."""
+    """DEPRECATED: Use GET /api/v1/products/{product_id}/stock-by-branch instead."""
+    logger.warning("DEPRECATED: /api/products/{id}/stock-by-branch — use /api/v1/products/{id}/stock-by-branch")
     if product_id <= 0:
         raise HTTPException(status_code=400, detail="product_id debe ser positivo")
     core = get_core()
@@ -1380,9 +1403,10 @@ async def get_product_stock_by_branch(product_id: int, user: Dict = Depends(veri
         "branches": branch_data
     }
 
-@app.get("/api/products/categories")
+@app.get("/api/products/categories", deprecated=True)
 async def get_product_categories(user: Dict = Depends(verify_token)):
-    """Obtiene lista de categorías de productos."""
+    """DEPRECATED: Use GET /api/v1/products/categories/list instead."""
+    logger.warning("DEPRECATED: /api/products/categories — use /api/v1/products/categories/list")
     core = get_core()
     
     try:
@@ -1444,13 +1468,14 @@ async def get_terminals(user: Dict = Depends(verify_token)):
 # ENDPOINTS CATÁLOGO SAT (Para PWA)
 # ==============================================================================
 
-@app.get("/api/sat/search")
+@app.get("/api/sat/search", deprecated=True)
 async def search_sat_codes(
     query: str,
     limit: int = 20,
     user: Dict = Depends(verify_token)
 ):
-    """Busca claves SAT por código o descripción para autocompletado."""
+    """DEPRECATED: Use GET /api/v1/sat/search instead."""
+    logger.warning("DEPRECATED: /api/sat/search — use /api/v1/sat/search")
     # Validar limite maximo
     limit = min(max(1, limit), 100)
     if not query or len(query) < 2:
@@ -1510,9 +1535,10 @@ async def search_sat_codes(
             "fallback": True
         }
 
-@app.get("/api/sat/code/{code}")
+@app.get("/api/sat/code/{code}", deprecated=True)
 async def get_sat_code_info(code: str, user: Dict = Depends(verify_token)):
-    """Obtiene información de una clave SAT específica."""
+    """DEPRECATED: Use GET /api/v1/sat/{code} instead."""
+    logger.warning("DEPRECATED: /api/sat/code — use /api/v1/sat/{code}")
     try:
         from app.fiscal.sat_catalog_full import get_sat_description
         

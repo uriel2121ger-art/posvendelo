@@ -120,7 +120,11 @@ async def update_employee(
     if not existing:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-    fields = body.model_dump(exclude_none=True)
+    _ALLOWED_COLUMNS = {
+        "name", "position", "employee_code", "phone", "email",
+        "salary", "is_active", "branch_id",
+    }
+    fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
 

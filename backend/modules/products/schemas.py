@@ -56,3 +56,15 @@ class ProductResponse(BaseModel):
     is_active: int = 1
     tax_rate: float = 0.16
     barcode: Optional[str] = None
+
+
+class StockUpdateRemote(BaseModel):
+    sku: str
+    quantity: float = Field(..., ge=0)
+    operation: str  # 'add', 'subtract', 'set'
+    reason: Optional[str] = None
+
+
+class SimplePriceUpdate(BaseModel):
+    sku: str
+    new_price: float = Field(..., gt=0)
