@@ -604,7 +604,7 @@ export default function Terminal(): ReactElement {
     globalDiscountPct,
     paymentMethod,
     pendingAmount,
-    totals.total
+    totals
   ])
 
   function saveCurrentAsPending(): void {
@@ -729,14 +729,12 @@ export default function Terminal(): ReactElement {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
-    addProduct,
     addCommonProduct,
     busy,
     cart,
     createNewActiveTicket,
     decreaseSelectedQty,
     deleteSelectedItem,
-    firstMatch,
     globalDiscountPct,
     handleCharge,
     increaseSelectedQty,

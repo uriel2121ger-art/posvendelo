@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { getSaleDetail, loadRuntimeConfig, searchSales } from './posApi'
 
@@ -59,6 +59,7 @@ export default function HistoryTab(): ReactElement {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Historial operativo: busca y revisa detalle de ventas.')
+  const detailRequestId = useRef(0)
 
   const visibleRows = useMemo(() => {
     const min = toNumber(minTotal)
@@ -92,13 +93,17 @@ export default function HistoryTab(): ReactElement {
   }, [dateFrom, dateTo, folio])
 
   async function loadDetail(saleId: string): Promise<void> {
+    const reqId = ++detailRequestId.current
     setSelectedId(saleId)
+    setDetail(null)
     try {
       const cfg = loadRuntimeConfig()
       const payload = await getSaleDetail(cfg, saleId)
+      if (detailRequestId.current !== reqId) return
       setDetail(payload)
       setMessage(`Detalle cargado: ${saleId}`)
     } catch {
+      if (detailRequestId.current !== reqId) return
       setDetail(null)
       setMessage('No se pudo cargar detalle completo, mostrando resumen.')
     }

@@ -80,6 +80,7 @@ export default function CustomersTab(): ReactElement {
         email: email.trim(),
         deleted: false
       }
+      const isUpdate = Boolean(selectedId)
       await syncTable('customers', [customer], cfg)
       setCustomers((prev) => {
         const idKey = String(customer.id)
@@ -94,7 +95,7 @@ export default function CustomersTab(): ReactElement {
       setPhone('')
       setEmail('')
       setMessage(
-        selectedId ? `Cliente actualizado: ${customer.name}` : `Cliente guardado: ${customer.name}`
+        isUpdate ? `Cliente actualizado: ${customer.name}` : `Cliente guardado: ${customer.name}`
       )
     } catch (error) {
       setMessage((error as Error).message)

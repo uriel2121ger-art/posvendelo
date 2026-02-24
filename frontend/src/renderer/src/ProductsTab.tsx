@@ -87,6 +87,7 @@ export default function ProductsTab(): ReactElement {
         stock: Math.max(0, Math.floor(toNumber(stock))),
         deleted: false
       }
+      const isUpdate = Boolean(selectedSku)
       await syncTable('products', [product], cfg)
       setProducts((prev) => [product, ...prev.filter((p) => p.sku !== product.sku)])
       setSelectedSku(null)
@@ -95,7 +96,7 @@ export default function ProductsTab(): ReactElement {
       setPrice('0')
       setStock('0')
       setMessage(
-        selectedSku ? `Producto actualizado: ${product.sku}` : `Producto guardado: ${product.sku}`
+        isUpdate ? `Producto actualizado: ${product.sku}` : `Producto guardado: ${product.sku}`
       )
     } catch (error) {
       setMessage((error as Error).message)
