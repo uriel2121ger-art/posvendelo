@@ -81,7 +81,7 @@ class POSLayawaysMixin:
                 logger.warning(f"No se pudo actualizar reason en inventory_log: {e}")
 
         if initial_payment > 0:
-            turn_rows = self.db.execute_query("SELECT id FROM turns WHERE user_id = %s AND status = 'OPEN' ORDER BY id DESC LIMIT 1", (user_id,))
+            turn_rows = self.db.execute_query("SELECT id FROM turns WHERE user_id = %s AND status = 'open' ORDER BY id DESC LIMIT 1", (user_id,))
             if turn_rows:
                 turn_id = turn_rows[0]['id']
                 has_user_id_cm = self._ensure_column_exists("cash_movements", "user_id", "INTEGER")
@@ -156,7 +156,7 @@ class POSLayawaysMixin:
             )
 
         if cash_portion > 0:
-            turn_rows = self.db.execute_query("SELECT id FROM turns WHERE user_id = %s AND status = 'OPEN' ORDER BY id DESC LIMIT 1", (user_id,))
+            turn_rows = self.db.execute_query("SELECT id FROM turns WHERE user_id = %s AND status = 'open' ORDER BY id DESC LIMIT 1", (user_id,))
             if turn_rows:
                 turn_id = turn_rows[0]['id']
                 has_user_id_cm = self._ensure_column_exists("cash_movements", "user_id", "INTEGER")

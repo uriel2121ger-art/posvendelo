@@ -114,7 +114,7 @@ export async function pullTable(
 }
 
 export async function syncTable(
-  table: 'products' | 'customers' | 'inventory' | 'shifts',
+  table: 'products' | 'customers' | 'inventory' | 'shifts' | 'sales',
   rows: Record<string, unknown>[],
   cfg: RuntimeConfig
 ): Promise<void> {
@@ -224,14 +224,6 @@ export async function getDashboardQuick(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
   const res = await fetch(`${cfg.baseUrl}/api/v1/dashboard/quick`, { headers: headers(cfg) })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
-  return (await res.json()) as Record<string, unknown>
-}
-
-export async function getDashboardExpenses(
-  cfg: RuntimeConfig
-): Promise<Record<string, unknown>> {
-  const res = await fetch(`${cfg.baseUrl}/api/v1/dashboard/expenses`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   return (await res.json()) as Record<string, unknown>
 }

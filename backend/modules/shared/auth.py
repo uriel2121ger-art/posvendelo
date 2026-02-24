@@ -42,7 +42,7 @@ if not _env_secret:
 
 SECRET_KEY = _env_secret
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = 30
+TOKEN_EXPIRE_MINUTES = 480  # 8 hours — full cashier shift
 
 security = HTTPBearer()
 

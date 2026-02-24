@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Clock,
   BarChart3,
+  TrendingUp,
   AlertTriangle,
   Receipt
 } from 'lucide-react'
@@ -28,7 +29,7 @@ export default function TopNavbar(): ReactElement {
     { path: '/reportes', label: 'Reportes', icon: BarChart3 },
     { path: '/historial', label: 'Historial', icon: FileText },
     { path: '/configuraciones', label: 'Ajustes', icon: Settings },
-    { path: '/estadisticas', label: 'Stats', icon: BarChart3 },
+    { path: '/estadisticas', label: 'Stats', icon: TrendingUp },
     { path: '/mermas', label: 'Mermas', icon: AlertTriangle },
     { path: '/gastos', label: 'Gastos', icon: Receipt }
   ]

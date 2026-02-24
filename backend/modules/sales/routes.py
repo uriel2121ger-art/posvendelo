@@ -210,7 +210,7 @@ async def create_sale(
             # 4. Verify open turn
             turn_row = await db.fetchrow(
                 "SELECT id, terminal_id FROM turns "
-                "WHERE user_id = :uid AND status = 'OPEN' ORDER BY id DESC LIMIT 1",
+                "WHERE user_id = :uid AND status = 'open' ORDER BY id DESC LIMIT 1",
                 {"uid": user_id},
             )
             if not turn_row:

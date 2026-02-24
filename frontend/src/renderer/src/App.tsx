@@ -23,7 +23,7 @@ import {
   FileText,
   History,
   Clock,
-  BarChart3,
+  TrendingUp,
   AlertTriangle,
   Receipt
 } from 'lucide-react'
@@ -97,7 +97,7 @@ function Dashboard(): ReactElement {
     {
       title: 'Estadísticas (F9)',
       subtitle: 'Dashboard',
-      icon: BarChart3,
+      icon: TrendingUp,
       color: 'text-teal-400',
       bg: 'bg-teal-400/10',
       path: '/estadisticas'

@@ -139,7 +139,7 @@ async def sync_pull_shifts(
         """SELECT id, user_id, terminal_id, status, initial_cash,
                   start_timestamp, end_timestamp
            FROM turns
-           WHERE status = 'OPEN'
+           WHERE status = 'open'
            ORDER BY id DESC"""
     )
     data = _serialize_rows(rows)

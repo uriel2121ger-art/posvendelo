@@ -210,7 +210,7 @@ class POSSalesMixin:
 
         if not self.current_turn_id:
             turn_rows = self.db.execute_query(
-                "SELECT id FROM turns WHERE status = 'OPEN' ORDER BY id DESC LIMIT 1"
+                "SELECT id FROM turns WHERE status = 'open' ORDER BY id DESC LIMIT 1"
             )
             if turn_rows:
                 self.current_turn_id = turn_rows[0]['id']

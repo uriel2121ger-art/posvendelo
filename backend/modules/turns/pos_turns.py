@@ -59,14 +59,14 @@ class POSTurnsMixin:
         except (TypeError, ValueError) as e:
             raise ValueError(f"initial_cash inválido: {e}")
 
-        rows = self.db.execute_query("SELECT id FROM turns WHERE user_id=%s AND status='OPEN'", (uid,))
+        rows = self.db.execute_query("SELECT id FROM turns WHERE user_id=%s AND status='open'", (uid,))
         if rows:
             self.current_turn_id = rows[0]['id']
             return self.current_turn_id
 
         sql = """
             INSERT INTO turns (user_id, start_timestamp, initial_cash, status)
-            VALUES (%s, %s, %s, 'OPEN')
+            VALUES (%s, %s, %s, 'open')
         """
         self.current_turn_id = self.db.execute_write(sql, (uid, datetime.now().isoformat(), cash))
 
@@ -79,7 +79,7 @@ class POSTurnsMixin:
     def close_turn(self, user_id, final_cash, notes=None):
         """Cierra el turno actual y calcula diferencias."""
         if not self.current_turn_id:
-            rows = self.db.execute_query("SELECT id, initial_cash FROM turns WHERE user_id=%s AND status='OPEN'", (user_id,))
+            rows = self.db.execute_query("SELECT id, initial_cash FROM turns WHERE user_id=%s AND status='open'", (user_id,))
             if rows:
                 self.current_turn_id = rows[0]['id']
                 initial_cash = rows[0]['initial_cash']
@@ -130,7 +130,7 @@ class POSTurnsMixin:
 
         sql = """
             UPDATE turns
-            SET end_timestamp=%s, final_cash=%s, system_sales=%s, difference=%s, status='CLOSED', notes=%s
+            SET end_timestamp=%s, final_cash=%s, system_sales=%s, difference=%s, status='closed', notes=%s
             WHERE id=%s
         """
         self.db.execute_write(sql, (

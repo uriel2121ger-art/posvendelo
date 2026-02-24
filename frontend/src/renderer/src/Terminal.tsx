@@ -2,6 +2,13 @@ import type { ReactElement } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Banknote, Plus, Search as SearchIcon } from 'lucide-react'
+import {
+  type RuntimeConfig,
+  loadRuntimeConfig,
+  saveRuntimeConfig,
+  pullTable,
+  syncTable
+} from './posApi'
 
 type Product = {
   id?: number | string
@@ -47,12 +54,6 @@ type ActiveTicketSnapshot = {
   cart: CartItem[]
   selectedCartSku: string | null
   amountReceived: string
-}
-
-type ApiConfig = {
-  baseUrl: string
-  token: string
-  terminalId: number
 }
 
 const TAX_RATE = 0.16
@@ -116,36 +117,13 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
   }
 }
 
-function getHeaders(cfg: ApiConfig): HeadersInit {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${cfg.token}`,
-    'X-Terminal-Id': String(cfg.terminalId)
-  }
-}
-
-async function pullProducts(cfg: ApiConfig): Promise<Product[]> {
-  const urls = [`${cfg.baseUrl}/api/v1/sync/products`, `${cfg.baseUrl}/api/sync/products`]
-  let lastError = 'No se pudo obtener productos'
-
-  for (const url of urls) {
-    const res = await fetch(url, { headers: getHeaders(cfg) })
-    if (res.status === 404 || res.status === 405) continue
-    if (!res.ok) {
-      const detail = await res.text()
-      lastError = `Error ${res.status}: ${detail || 'respuesta invalida'}`
-      continue
-    }
-    const body = (await res.json()) as Record<string, unknown>
-    const data = (body.products ?? body.data ?? []) as Array<Record<string, unknown>>
-    return data.map(normalizeProduct).filter((item): item is Product => item !== null)
-  }
-
-  throw new Error(lastError)
+async function fetchProducts(cfg: RuntimeConfig): Promise<Product[]> {
+  const raw = await pullTable('products', cfg)
+  return raw.map(normalizeProduct).filter((item): item is Product => item !== null)
 }
 
 async function syncSale(
-  cfg: ApiConfig,
+  cfg: RuntimeConfig,
   cart: CartItem[],
   customerName: string,
   paymentMethod: PaymentMethod,
@@ -187,33 +165,12 @@ async function syncSale(
       subtotal: item.subtotal
     }))
   }
-
-  const payload = {
-    data: [sale],
-    timestamp: now,
-    terminal_id: cfg.terminalId,
-    request_id: `sync_sales_${Date.now()}`
-  }
-
-  const res = await fetch(`${cfg.baseUrl}/api/v1/sync/sales`, {
-    method: 'POST',
-    headers: getHeaders(cfg),
-    body: JSON.stringify(payload)
-  })
-
-  if (!res.ok) {
-    const detail = await res.text()
-    throw new Error(`Error ${res.status}: ${detail || 'no se pudo sincronizar la venta'}`)
-  }
+  await syncTable('sales', [sale], cfg)
 }
 
 export default function Terminal(): ReactElement {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
-  const [config, setConfig] = useState<ApiConfig>({
-    baseUrl: localStorage.getItem('titan.baseUrl') || 'http://127.0.0.1:8000',
-    token: localStorage.getItem('titan.token') || '',
-    terminalId: Number(localStorage.getItem('titan.terminalId') || '1')
-  })
+  const [config, setConfig] = useState<RuntimeConfig>(() => loadRuntimeConfig())
   const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerName, setCustomerName] = useState('Publico General')
@@ -244,9 +201,7 @@ export default function Terminal(): ReactElement {
   const [message, setMessage] = useState('Configura URL/token y carga productos para comenzar.')
 
   useEffect((): void => {
-    localStorage.setItem('titan.baseUrl', config.baseUrl)
-    localStorage.setItem('titan.token', config.token)
-    localStorage.setItem('titan.terminalId', String(config.terminalId))
+    saveRuntimeConfig(config)
   }, [config])
 
   useEffect((): void => {
@@ -588,7 +543,7 @@ export default function Terminal(): ReactElement {
     }
     setBusy(true)
     try {
-      const data = await pullProducts(config)
+      const data = await fetchProducts(config)
       setProducts(data)
       setMessage(`Productos cargados: ${data.length}`)
     } catch (error) {

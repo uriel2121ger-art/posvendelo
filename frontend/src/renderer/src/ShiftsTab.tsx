@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, searchSales, syncTable } from './posApi'
 
 type ShiftRecord = {
@@ -397,6 +398,7 @@ export default function ShiftsTab(): ReactElement {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
+      <TopNavbar />
       <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[1fr_200px_200px_200px]">
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
