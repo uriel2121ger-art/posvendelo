@@ -186,7 +186,6 @@ export async function getSaleDetail(
   const safeSaleId = encodeURIComponent(saleId)
   const res = await getWithFallback(cfg, [
     `/api/v1/sales/${safeSaleId}`,
-    `/api/sales/${safeSaleId}`,
     '/api/v1/sync/sales?limit=2000'
   ])
   const body = (await res.json()) as Record<string, unknown>
@@ -204,7 +203,7 @@ export async function getSaleDetail(
 }
 
 export async function getSyncStatus(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
-  const res = await getWithFallback(cfg, ['/api/v1/sync/status', '/api/auth/test'])
+  const res = await getWithFallback(cfg, ['/api/v1/sync/status', '/api/v1/auth/verify'])
   const body = (await res.json()) as Record<string, unknown>
   if (typeof body.status === 'string') return body
   return {
@@ -215,6 +214,80 @@ export async function getSyncStatus(cfg: RuntimeConfig): Promise<Record<string, 
 }
 
 export async function getSystemInfo(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
-  const res = await getWithFallback(cfg, ['/api/info', '/api/auth/test'])
+  const res = await getWithFallback(cfg, ['/api/v1/remote/system-status', '/api/info'])
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Dashboard ──────────────────────────────────────
+
+export async function getDashboardQuick(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/dashboard/quick`, { headers: headers(cfg) })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getDashboardExpenses(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/dashboard/expenses`, { headers: headers(cfg) })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Mermas ─────────────────────────────────────────
+
+export async function getMermasPending(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/mermas/pending`, { headers: headers(cfg) })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function approveMerma(
+  cfg: RuntimeConfig,
+  id: number,
+  status: 'approved' | 'rejected',
+  notes?: string
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/mermas/${id}/approve`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ status, notes: notes || '' })
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Gastos ─────────────────────────────────────────
+
+export async function getExpensesSummary(
+  cfg: RuntimeConfig,
+  month?: number,
+  year?: number
+): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams()
+  if (month) params.set('month', String(month))
+  if (year) params.set('year', String(year))
+  const qs = params.toString()
+  const res = await fetch(`${cfg.baseUrl}/api/v1/expenses/summary${qs ? `?${qs}` : ''}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function registerExpense(
+  cfg: RuntimeConfig,
+  expense: { amount: number; reason: string; description?: string }
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/expenses/`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(expense)
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   return (await res.json()) as Record<string, unknown>
 }

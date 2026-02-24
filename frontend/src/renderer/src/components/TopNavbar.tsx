@@ -10,7 +10,9 @@ import {
   LogOut,
   LayoutDashboard,
   Clock,
-  BarChart3
+  BarChart3,
+  AlertTriangle,
+  Receipt
 } from 'lucide-react'
 
 export default function TopNavbar(): ReactElement {
@@ -25,7 +27,10 @@ export default function TopNavbar(): ReactElement {
     { path: '/turnos', label: 'Turnos', icon: Clock },
     { path: '/reportes', label: 'Reportes', icon: BarChart3 },
     { path: '/historial', label: 'Historial', icon: FileText },
-    { path: '/configuraciones', label: 'Ajustes', icon: Settings }
+    { path: '/configuraciones', label: 'Ajustes', icon: Settings },
+    { path: '/estadisticas', label: 'Stats', icon: BarChart3 },
+    { path: '/mermas', label: 'Mermas', icon: AlertTriangle },
+    { path: '/gastos', label: 'Gastos', icon: Receipt }
   ]
 
   return (
@@ -59,15 +64,19 @@ export default function TopNavbar(): ReactElement {
       <div className="ml-auto flex items-center gap-4 bg-zinc-950 px-4 py-1.5 rounded-full border border-zinc-800">
         <div className="text-xs text-zinc-500 text-right">
           <div>Le atiende:</div>
-          <div className="font-bold text-zinc-300">Admin</div>
+          <div className="font-bold text-zinc-300">{localStorage.getItem('titan.user') || 'Usuario'}</div>
         </div>
-        <Link
-          to="/"
+        <button
+          onClick={() => {
+            localStorage.removeItem('titan.token')
+            localStorage.removeItem('titan.user')
+            navigate('/login')
+          }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"
           title="Cerrar Sesion"
         >
           <LogOut className="w-5 h-5" />
-        </Link>
+        </button>
       </div>
     </div>
   )

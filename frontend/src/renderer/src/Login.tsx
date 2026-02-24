@@ -24,7 +24,7 @@ export default function Login(): ReactElement {
 
     try {
       const cfg = loadRuntimeConfig()
-      const res = await fetch(`${cfg.baseUrl}/api/auth/login`, {
+      const res = await fetch(`${cfg.baseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password: password.trim() })
@@ -45,6 +45,7 @@ export default function Login(): ReactElement {
       }
 
       saveRuntimeConfig({ ...cfg, token })
+      localStorage.setItem('titan.user', username.trim())
       navigate('/terminal')
     } catch (err) {
       setError(

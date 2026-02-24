@@ -2,8 +2,12 @@ import type { ReactElement } from 'react'
 import { useEffect } from 'react'
 import { HashRouter, Link, Route, Routes, useNavigate } from 'react-router-dom'
 import CustomersTab from './CustomersTab'
+import DashboardStatsTab from './DashboardStatsTab'
+import ExpensesTab from './ExpensesTab'
 import HistoryTab from './HistoryTab'
 import InventoryTab from './InventoryTab'
+import Login from './Login'
+import MermasTab from './MermasTab'
 import ProductsTab from './ProductsTab'
 import ReportsTab from './ReportsTab'
 import SettingsTab from './SettingsTab'
@@ -18,7 +22,10 @@ import {
   Settings,
   FileText,
   History,
-  Clock
+  Clock,
+  BarChart3,
+  AlertTriangle,
+  Receipt
 } from 'lucide-react'
 
 function Dashboard(): ReactElement {
@@ -86,6 +93,30 @@ function Dashboard(): ReactElement {
       color: 'text-zinc-400',
       bg: 'bg-zinc-400/10',
       path: '/configuraciones'
+    },
+    {
+      title: 'Estadísticas (F9)',
+      subtitle: 'Dashboard',
+      icon: BarChart3,
+      color: 'text-teal-400',
+      bg: 'bg-teal-400/10',
+      path: '/estadisticas'
+    },
+    {
+      title: 'Mermas (F10)',
+      subtitle: 'Control',
+      icon: AlertTriangle,
+      color: 'text-orange-400',
+      bg: 'bg-orange-400/10',
+      path: '/mermas'
+    },
+    {
+      title: 'Gastos (F11)',
+      subtitle: 'Egresos',
+      icon: Receipt,
+      color: 'text-pink-400',
+      bg: 'bg-pink-400/10',
+      path: '/gastos'
     }
   ]
 
@@ -174,6 +205,18 @@ function RoutedApp(): ReactElement {
           event.preventDefault()
           navigate('/configuraciones')
           break
+        case 'F9':
+          event.preventDefault()
+          navigate('/estadisticas')
+          break
+        case 'F10':
+          event.preventDefault()
+          navigate('/mermas')
+          break
+        case 'F11':
+          event.preventDefault()
+          navigate('/gastos')
+          break
         default:
           break
       }
@@ -185,6 +228,7 @@ function RoutedApp(): ReactElement {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/terminal" element={<Terminal />} />
       <Route path="/clientes" element={<CustomersTab />} />
       <Route path="/productos" element={<ProductsTab />} />
@@ -193,6 +237,9 @@ function RoutedApp(): ReactElement {
       <Route path="/reportes" element={<ReportsTab />} />
       <Route path="/historial" element={<HistoryTab />} />
       <Route path="/configuraciones" element={<SettingsTab />} />
+      <Route path="/estadisticas" element={<DashboardStatsTab />} />
+      <Route path="/mermas" element={<MermasTab />} />
+      <Route path="/gastos" element={<ExpensesTab />} />
     </Routes>
   )
 }
