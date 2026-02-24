@@ -15,7 +15,7 @@ Usage:
 import os
 import secrets
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 import jwt
@@ -53,7 +53,7 @@ security = HTTPBearer()
 
 def create_token(user_id: str, role: str) -> str:
     """Create a JWT with short TTL and security claims."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
     jti = secrets.token_hex(16)
     payload = {

@@ -60,7 +60,10 @@ async def approve_merma(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Approve or reject a loss record. Uses FOR UPDATE to prevent TOCTOU."""
+    """Approve or reject a loss record. RBAC: manager/admin/owner. Uses FOR UPDATE."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para aprobar mermas")
+
     async with db.connection.transaction():
         existing = await db.fetchrow(
             "SELECT id, status FROM loss_records WHERE id = :id FOR UPDATE",

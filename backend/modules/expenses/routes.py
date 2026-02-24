@@ -49,18 +49,27 @@ async def register_expense(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Register a cash expense in cash_movements."""
+    """Register a cash expense in cash_movements (linked to open turn if exists)."""
+    user_id = int(auth["sub"])
     now = datetime.now(timezone.utc).isoformat()
 
+    # Find open turn for this user
+    turn = await db.fetchrow(
+        "SELECT id FROM turns WHERE user_id = :uid AND status = 'open' LIMIT 1",
+        {"uid": user_id},
+    )
+    turn_id = turn["id"] if turn else None
+
     row = await db.fetchrow(
-        """INSERT INTO cash_movements (type, amount, description, reason, user_id, timestamp)
-           VALUES ('expense', :amount, :desc, :reason, :uid, :now)
+        """INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
+           VALUES (:turn_id, 'expense', :amount, :desc, :reason, :uid, :now)
            RETURNING id""",
         {
+            "turn_id": turn_id,
             "amount": body.amount,
             "desc": body.description,
             "reason": body.reason,
-            "uid": int(auth["sub"]),
+            "uid": user_id,
             "now": now,
         },
     )

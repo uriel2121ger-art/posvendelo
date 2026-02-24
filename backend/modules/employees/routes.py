@@ -122,7 +122,7 @@ async def update_employee(
 
     _ALLOWED_COLUMNS = {
         "name", "position", "employee_code", "phone", "email",
-        "salary", "is_active", "branch_id",
+        "base_salary", "commission_rate", "hire_date", "notes", "is_active",
     }
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:

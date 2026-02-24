@@ -172,19 +172,24 @@ async def get_pending_notifications(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get unsent notifications for the POS."""
-    notifications = await db.fetch(
-        """SELECT id, title, body, notification_type, created_at
-           FROM remote_notifications
-           WHERE sent = 0
-           ORDER BY created_at DESC"""
-    )
+    """Get unsent notifications for the POS (atomic fetch+mark)."""
+    conn = db.connection
 
-    # Mark as sent
-    if notifications:
-        await db.execute(
-            "UPDATE remote_notifications SET sent = 1, sent_at = NOW()::text WHERE sent = 0"
+    async with conn.transaction():
+        notifications = await conn.fetch(
+            """SELECT id, title, body, notification_type, created_at
+               FROM remote_notifications
+               WHERE sent = 0
+               ORDER BY created_at DESC
+               FOR UPDATE"""
         )
+
+        if notifications:
+            ids = [n["id"] for n in notifications]
+            await conn.execute(
+                "UPDATE remote_notifications SET sent = 1, sent_at = NOW()::text WHERE id = ANY($1::int[])",
+                ids,
+            )
 
     return {
         "success": True,

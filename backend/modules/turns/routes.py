@@ -27,35 +27,31 @@ async def open_turn(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Open a new turn. Validates no open turn exists for the user."""
+    """Open a new turn. Validates no open turn exists for the user (atomic)."""
     user_id = int(auth["sub"])
+    conn = db.connection
 
-    existing = await db.fetchrow(
-        "SELECT id FROM turns WHERE user_id = :uid AND status = 'open'",
-        {"uid": user_id},
-    )
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
+    async with conn.transaction():
+        existing = await conn.fetchrow(
+            "SELECT id FROM turns WHERE user_id = $1 AND status = 'open' FOR UPDATE",
+            user_id,
         )
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
+            )
 
-    now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
-    row = await db.fetchrow(
-        """
-        INSERT INTO turns (user_id, branch_id, initial_cash, status, notes, start_timestamp)
-        VALUES (:user_id, :branch_id, :initial_cash, 'open', :notes, :now)
-        RETURNING id
-        """,
-        {
-            "user_id": user_id,
-            "branch_id": body.branch_id,
-            "initial_cash": body.initial_cash,
-            "notes": body.notes,
-            "now": now,
-        },
-    )
+        row = await conn.fetchrow(
+            """
+            INSERT INTO turns (user_id, branch_id, initial_cash, status, notes, start_timestamp)
+            VALUES ($1, $2, $3, 'open', $4, $5)
+            RETURNING id
+            """,
+            user_id, body.branch_id, body.initial_cash, body.notes, now,
+        )
 
     return {"success": True, "data": {"id": row["id"], "status": "open"}}
 
@@ -67,66 +63,62 @@ async def close_turn(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Close a turn. Calculates expected vs actual cash difference."""
-    turn = await db.fetchrow(
-        "SELECT id, user_id, initial_cash, status FROM turns WHERE id = :id FOR UPDATE",
-        {"id": turn_id},
-    )
-    if not turn:
-        raise HTTPException(status_code=404, detail="Turno no encontrado")
-    if turn["status"] != "open":
-        raise HTTPException(status_code=400, detail="El turno ya esta cerrado")
+    """Close a turn. Calculates expected vs actual cash difference (atomic)."""
+    conn = db.connection
 
-    now = datetime.now(timezone.utc).isoformat()
+    async with conn.transaction():
+        turn = await conn.fetchrow(
+            "SELECT id, user_id, initial_cash, status FROM turns WHERE id = $1 FOR UPDATE",
+            turn_id,
+        )
+        if not turn:
+            raise HTTPException(status_code=404, detail="Turno no encontrado")
+        if turn["status"] != "open":
+            raise HTTPException(status_code=400, detail="El turno ya esta cerrado")
 
-    # Calculate expected: initial + cash sales + cash_in - cash_out
-    cash_sales = await db.fetchval(
-        """
-        SELECT COALESCE(SUM(total), 0) FROM sales
-        WHERE turn_id = :tid AND payment_method = 'cash' AND status = 'completed'
-        """,
-        {"tid": turn_id},
-    )
-    movements_in = await db.fetchval(
-        "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = :tid AND type = 'in'",
-        {"tid": turn_id},
-    )
-    movements_out = await db.fetchval(
-        "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = :tid AND type = 'out'",
-        {"tid": turn_id},
-    )
+        now = datetime.now(timezone.utc).isoformat()
 
-    initial = float(turn["initial_cash"] or 0)
-    system_sales_total = float(cash_sales)
-    expected_cash = initial + system_sales_total + float(movements_in) - float(movements_out)
-    difference = body.final_cash - expected_cash
+        # Calculate expected: initial + cash sales + cash_in - cash_out
+        cash_sales = await conn.fetchval(
+            """
+            SELECT COALESCE(SUM(total), 0) FROM sales
+            WHERE turn_id = $1 AND payment_method = 'cash' AND status = 'completed'
+            """,
+            turn_id,
+        )
+        movements_in = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = $1 AND type = 'in'",
+            turn_id,
+        )
+        movements_out = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = $1 AND type = 'out'",
+            turn_id,
+        )
 
-    denominations_json = None
-    if body.denominations:
-        denominations_json = json.dumps([d.model_dump() for d in body.denominations])
+        initial = float(turn["initial_cash"] or 0)
+        system_sales_total = float(cash_sales)
+        expected_cash = initial + system_sales_total + float(movements_in) - float(movements_out)
+        difference = body.final_cash - expected_cash
 
-    await db.execute(
-        """
-        UPDATE turns SET
-            status = 'closed',
-            final_cash = :final_cash,
-            system_sales = :system_sales,
-            difference = :difference,
-            denominations = :denominations::jsonb,
-            notes = COALESCE(:notes, notes),
-            end_timestamp = :now
-        WHERE id = :id
-        """,
-        {
-            "id": turn_id,
-            "final_cash": body.final_cash,
-            "system_sales": system_sales_total,
-            "difference": difference,
-            "denominations": denominations_json,
-            "notes": body.notes,
-            "now": now,
-        },
-    )
+        denominations_json = None
+        if body.denominations:
+            denominations_json = json.dumps([d.model_dump() for d in body.denominations])
+
+        await conn.execute(
+            """
+            UPDATE turns SET
+                status = 'closed',
+                final_cash = $1,
+                system_sales = $2,
+                difference = $3,
+                denominations = $4::jsonb,
+                notes = COALESCE($5, notes),
+                end_timestamp = $6
+            WHERE id = $7
+            """,
+            body.final_cash, system_sales_total, difference,
+            denominations_json, body.notes, now, turn_id,
+        )
 
     return {
         "success": True,
@@ -256,13 +248,14 @@ async def create_cash_movement(
     row = await db.fetchrow(
         """
         INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
-        VALUES (:turn_id, :type, :amount, :reason, :reason, :user_id, :now)
+        VALUES (:turn_id, :type, :amount, :desc, :reason, :user_id, :now)
         RETURNING id
         """,
         {
             "turn_id": turn_id,
             "type": body.movement_type,
             "amount": body.amount,
+            "desc": f"Movimiento {body.movement_type}: {body.reason}",
             "reason": body.reason,
             "user_id": int(auth["sub"]),
             "now": now,

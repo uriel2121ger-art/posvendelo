@@ -67,7 +67,7 @@ export default function Login(): ReactElement {
       <div className="z-10 w-full max-w-4xl flex flex-col md:flex-row bg-zinc-900/60 border border-zinc-800/80 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-md">
         {/* Left Side: Branding / Info */}
         <div className="hidden md:flex flex-col flex-1 p-12 bg-gradient-to-br from-zinc-900 to-zinc-950 border-r border-zinc-800/80 justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+          <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.02)_10px,rgba(255,255,255,0.02)_20px)]"></div>
 
           <div className="relative z-10">
             <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 shadow-inner mb-8">

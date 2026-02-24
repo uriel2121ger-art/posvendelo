@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, pullTable, syncTable } from './posApi'
+import { loadRuntimeConfig, pullTable, adjustStock } from './posApi'
 
 type InventoryRow = {
+  id: number
   sku: string
   name: string
   stock: number
@@ -15,10 +16,12 @@ function toNumber(value: unknown): number {
 }
 
 function normalizeProduct(raw: Record<string, unknown>): InventoryRow | null {
+  const id = toNumber(raw.id)
   const sku = String(raw.sku ?? raw.code ?? '').trim()
   const name = String(raw.name ?? raw.nombre ?? '').trim()
-  if (!sku || !name) return null
+  if (!id || !sku || !name) return null
   return {
+    id,
     sku,
     name,
     stock: Math.max(0, Math.floor(toNumber(raw.stock)))
@@ -76,36 +79,25 @@ export default function InventoryTab(): ReactElement {
       return
     }
     const signed = movementType === 'in' ? qty : -qty
-    const stockValue = current.stock + signed
-    if (stockValue < 0) {
-      setMessage(`Stock insuficiente. Existencia actual de ${targetSku}: ${current.stock}`)
-      return
-    }
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      await syncTable(
-        'inventory',
-        [
-          {
-            sku: targetSku,
-            movement_type: movementType,
-            movement_qty: qty,
-            stock: stockValue,
-            timestamp: new Date().toISOString()
-          }
-        ],
-        cfg
-      )
+      const result = await adjustStock(cfg, {
+        product_id: current.id,
+        quantity: signed,
+        reason: `Ajuste manual ${movementType === 'in' ? 'entrada' : 'salida'}`
+      })
+      const data = result.data as Record<string, unknown>
+      const newStock = Number(data?.new_stock ?? current.stock + signed)
       setRows((prev) => {
         const idx = prev.findIndex((r) => r.sku === targetSku)
         if (idx < 0) return prev
         const copy = [...prev]
-        copy[idx] = { ...copy[idx], stock: stockValue }
+        copy[idx] = { ...copy[idx], stock: newStock }
         return copy
       })
       setMessage(
-        `Movimiento ${movementType === 'in' ? 'entrada' : 'salida'} aplicado a ${targetSku}. Nuevo stock: ${stockValue}`
+        `Movimiento ${movementType === 'in' ? 'entrada' : 'salida'} aplicado a ${targetSku}. Nuevo stock: ${newStock}`
       )
     } catch (error) {
       setMessage((error as Error).message)

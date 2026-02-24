@@ -11,7 +11,7 @@ Endpoints that posApi.ts expects for pullTable() and syncTable():
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -67,7 +67,7 @@ async def sync_pull_products(
         "table": "products",
         "data": data,
         "count": len(data),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -91,7 +91,7 @@ async def sync_pull_customers(
         "table": "customers",
         "data": data,
         "count": len(data),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -125,7 +125,7 @@ async def sync_pull_sales(
         "table": "sales",
         "data": data,
         "count": len(data),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -148,7 +148,7 @@ async def sync_pull_shifts(
         "table": "shifts",
         "data": data,
         "count": len(data),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -162,15 +162,14 @@ async def sync_status(
         return {
             "status": "ok",
             "database": "connected",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
-        logger.error(f"Sync status check failed: {e}")
+        logger.error("Sync status check failed: %s", e)
         return {
             "status": "error",
             "database": "disconnected",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -281,5 +280,5 @@ async def sync_push(
         "success": True,
         "table": table_name,
         "upserted": upserted,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

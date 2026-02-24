@@ -28,6 +28,7 @@ async def list_customers(
     is_active: Optional[int] = Query(1, ge=0, le=1),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """List customers with search."""
@@ -50,7 +51,7 @@ async def list_customers(
 
 
 @router.get("/{customer_id}")
-async def get_customer(customer_id: int, db=Depends(get_db)):
+async def get_customer(customer_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get customer by ID."""
     row = await db.fetchrow(
         "SELECT * FROM customers WHERE id = :id", {"id": customer_id}
@@ -64,6 +65,7 @@ async def get_customer(customer_id: int, db=Depends(get_db)):
 async def get_customer_sales(
     customer_id: int,
     limit: int = Query(20, ge=1, le=100),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Get recent sales for a customer."""

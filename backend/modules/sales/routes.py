@@ -55,6 +55,7 @@ async def list_sales(
     folio: Optional[str] = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """List sales with filters."""
@@ -475,6 +476,7 @@ async def search_sales(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     limit: int = Query(100, ge=1, le=1000),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Search sales by folio and/or date range."""
@@ -513,7 +515,9 @@ async def cancel_sale(
     sale_id: int,
     auth: dict = Depends(verify_token),
 ):
-    """Cancel a sale: revert stock and credit."""
+    """Cancel a sale: revert stock and credit. RBAC: manager/admin/owner."""
+    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+        raise HTTPException(status_code=403, detail="Sin permisos para cancelar ventas")
     user_id = int(auth.get("sub", 0))
 
     async with get_connection() as db:
@@ -634,7 +638,7 @@ async def cancel_sale(
 # ── GET /{sale_id} — Get sale detail ──────────────────────────────
 
 @router.get("/{sale_id}")
-async def get_sale(sale_id: int, db=Depends(get_db)):
+async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get sale by ID with items."""
     sale_row = await db.fetchrow(
         "SELECT * FROM sales WHERE id = :id", {"id": sale_id}
@@ -659,7 +663,7 @@ async def get_sale(sale_id: int, db=Depends(get_db)):
 # ── GET /{sale_id}/events — Event sourcing ────────────────────────
 
 @router.get("/{sale_id}/events")
-async def get_sale_events(sale_id: int, db=Depends(get_db)):
+async def get_sale_events(sale_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get event sourcing events for a sale."""
     rows = await db.fetch(
         """
@@ -679,6 +683,7 @@ async def get_sale_events(sale_id: int, db=Depends(get_db)):
 async def daily_sales_summary(
     branch_id: Optional[int] = None,
     limit: int = Query(30, ge=1, le=365),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Get daily sales summary from CQRS materialized view."""
@@ -699,6 +704,7 @@ async def daily_sales_summary(
 @router.get("/reports/product-ranking")
 async def product_sales_ranking(
     limit: int = Query(50, ge=1, le=500),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Get product sales ranking from CQRS materialized view."""
@@ -712,6 +718,7 @@ async def product_sales_ranking(
 @router.get("/reports/hourly-heatmap")
 async def hourly_heatmap(
     branch_id: Optional[int] = None,
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Get hourly sales heatmap from CQRS materialized view."""

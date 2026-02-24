@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, searchSales, syncTable } from './posApi'
+import { loadRuntimeConfig, searchSales, openTurn, closeTurn } from './posApi'
 
 type ShiftRecord = {
   id: string
+  backendTurnId?: number
   terminalId: number
   openedAt: string
   openedBy: string
@@ -133,6 +134,14 @@ export default function ShiftsTab(): ReactElement {
     }
   }, [])
 
+  const [durationTick, setDurationTick] = useState(0)
+
+  useEffect(() => {
+    if (!currentShift) return
+    const timer = setInterval(() => setDurationTick((t) => t + 1), 60_000)
+    return () => clearInterval(timer)
+  }, [currentShift])
+
   const shiftDuration = useMemo(() => {
     if (!currentShift) return '-'
     const opened = new Date(currentShift.openedAt).getTime()
@@ -141,7 +150,8 @@ export default function ShiftsTab(): ReactElement {
     const hh = String(Math.floor(diffMin / 60)).padStart(2, '0')
     const mm = String(diffMin % 60).padStart(2, '0')
     return `${hh}:${mm}`
-  }, [currentShift])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentShift, durationTick])
 
   const selectedShift = useMemo(() => {
     if (selectedShiftId) {
@@ -163,12 +173,20 @@ export default function ShiftsTab(): ReactElement {
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
+      const initialCash = Math.max(0, toNumber(openingCash))
+      const result = await openTurn(cfg, {
+        initial_cash: initialCash,
+        notes: notes.trim() || undefined
+      })
+      const data = result.data as Record<string, unknown>
+      const backendId = Number(data?.id ?? 0)
       const shift: ShiftRecord = {
         id: `shift-${Date.now()}`,
+        backendTurnId: backendId,
         terminalId: cfg.terminalId,
         openedAt: new Date().toISOString(),
         openedBy: operator.trim() || 'Sin nombre',
-        openingCash: Math.max(0, toNumber(openingCash)),
+        openingCash: initialCash,
         status: 'open',
         salesCount: 0,
         totalSales: 0,
@@ -177,10 +195,9 @@ export default function ShiftsTab(): ReactElement {
         transferSales: 0,
         notes: notes.trim()
       }
-      await syncTable('shifts', [shift], cfg)
       setCurrentShift(shift)
       saveCurrentShift(shift)
-      setMessage(`Turno abierto: ${shift.openedBy}`)
+      setMessage(`Turno abierto en backend (ID: ${backendId}): ${shift.openedBy}`)
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
@@ -193,25 +210,30 @@ export default function ShiftsTab(): ReactElement {
       setMessage('No hay turno abierto.')
       return
     }
+    if (!currentShift.backendTurnId) {
+      setMessage('Error: turno sin ID de backend. Abre un turno nuevo.')
+      return
+    }
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const closing = Math.max(0, toNumber(closingCash))
-      const expectedBase =
-        expectedCash.trim().length > 0
-          ? Math.max(0, toNumber(expectedCash))
-          : currentShift.openingCash + (currentShift.cashSales ?? 0)
-      const expected = expectedBase
+      const result = await closeTurn(cfg, currentShift.backendTurnId, {
+        final_cash: closing,
+        notes: notes.trim() || undefined
+      })
+      const data = result.data as Record<string, unknown>
+      const expectedFromBackend = Number(data?.expected_cash ?? 0)
+      const differenceFromBackend = Number(data?.difference ?? 0)
       const closed: ShiftRecord = {
         ...currentShift,
         status: 'closed',
         closedAt: new Date().toISOString(),
         closingCash: closing,
-        expectedCash: expected,
-        cashDifference: closing - expected,
+        expectedCash: expectedFromBackend,
+        cashDifference: differenceFromBackend,
         notes: notes.trim()
       }
-      await syncTable('shifts', [closed], cfg)
       const nextHistory = [closed, ...history]
       setHistory(nextHistory)
       saveHistory(nextHistory)
@@ -221,7 +243,7 @@ export default function ShiftsTab(): ReactElement {
       setExpectedCash('0')
       setNotes('')
       setSelectedShiftId(closed.id)
-      setMessage(`Turno cerrado. Diferencia: $${(closed.cashDifference ?? 0).toFixed(2)}`)
+      setMessage(`Turno cerrado en backend. Diferencia: $${differenceFromBackend.toFixed(2)}`)
     } catch (error) {
       setMessage((error as Error).message)
     } finally {

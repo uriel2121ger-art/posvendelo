@@ -19,9 +19,9 @@ const FALLBACKS: Record<string, string> = {
 
 export function loadRuntimeConfig(): RuntimeConfig {
   return {
-    baseUrl: localStorage.getItem('titan.baseUrl') || 'http://127.0.0.1:8000',
-    token: localStorage.getItem('titan.token') || '',
-    terminalId: Number(localStorage.getItem('titan.terminalId') || '1')
+    baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://127.0.0.1:8000',
+    token: localStorage.getItem('titan.token') ?? '',
+    terminalId: Number(localStorage.getItem('titan.terminalId') ?? '1')
   }
 }
 
@@ -215,6 +215,67 @@ export async function getSyncStatus(cfg: RuntimeConfig): Promise<Record<string, 
 
 export async function getSystemInfo(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
   const res = await getWithFallback(cfg, ['/api/v1/remote/system-status', '/api/info'])
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Turnos ────────────────────────────────────────
+
+export async function openTurn(
+  cfg: RuntimeConfig,
+  body: { initial_cash: number; branch_id?: number; notes?: string }
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/turns/open`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({
+      initial_cash: body.initial_cash,
+      branch_id: body.branch_id ?? 1,
+      notes: body.notes || undefined
+    })
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function closeTurn(
+  cfg: RuntimeConfig,
+  turnId: number,
+  body: { final_cash: number; notes?: string }
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/close`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({
+      final_cash: body.final_cash,
+      notes: body.notes || undefined
+    })
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getCurrentTurn(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  const body = (await res.json()) as Record<string, unknown>
+  const data = body.data as Record<string, unknown> | null
+  return data
+}
+
+// ── Inventario ────────────────────────────────────
+
+export async function adjustStock(
+  cfg: RuntimeConfig,
+  body: { product_id: number; quantity: number; reason: string }
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${cfg.baseUrl}/api/v1/inventory/adjust`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
   return (await res.json()) as Record<string, unknown>
 }
 

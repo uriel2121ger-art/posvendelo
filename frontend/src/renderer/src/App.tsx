@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
-import { useEffect } from 'react'
-import { HashRouter, Link, Route, Routes, useNavigate } from 'react-router-dom'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
+import { HashRouter, Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import CustomersTab from './CustomersTab'
 import DashboardStatsTab from './DashboardStatsTab'
 import ExpensesTab from './ExpensesTab'
@@ -28,7 +28,58 @@ import {
   Receipt
 } from 'lucide-react'
 
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('ErrorBoundary caught:', error, info)
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-slate-200 p-8">
+          <div className="max-w-md text-center">
+            <h1 className="text-2xl font-bold text-rose-400 mb-4">Error inesperado</h1>
+            <p className="text-zinc-400 mb-6">{this.state.error.message}</p>
+            <button
+              onClick={() => {
+                this.setState({ error: null })
+                window.location.hash = '#/'
+              }}
+              className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all"
+            >
+              Volver al inicio
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function RequireAuth({ children }: { children: ReactElement }): ReactElement {
+  const token = localStorage.getItem('titan.token')
+  if (!token) return <Navigate to="/login" replace />
+  return children
+}
+
 function Dashboard(): ReactElement {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const token = localStorage.getItem('titan.token')
+    if (!token) navigate('/login', { replace: true })
+  }, [navigate])
+
   const modules = [
     {
       title: 'Ventas (F1)',
@@ -227,28 +278,31 @@ function RoutedApp(): ReactElement {
 
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
+      <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
       <Route path="/login" element={<Login />} />
-      <Route path="/terminal" element={<Terminal />} />
-      <Route path="/clientes" element={<CustomersTab />} />
-      <Route path="/productos" element={<ProductsTab />} />
-      <Route path="/inventario" element={<InventoryTab />} />
-      <Route path="/turnos" element={<ShiftsTab />} />
-      <Route path="/reportes" element={<ReportsTab />} />
-      <Route path="/historial" element={<HistoryTab />} />
-      <Route path="/configuraciones" element={<SettingsTab />} />
-      <Route path="/estadisticas" element={<DashboardStatsTab />} />
-      <Route path="/mermas" element={<MermasTab />} />
-      <Route path="/gastos" element={<ExpensesTab />} />
+      <Route path="/terminal" element={<RequireAuth><Terminal /></RequireAuth>} />
+      <Route path="/clientes" element={<RequireAuth><CustomersTab /></RequireAuth>} />
+      <Route path="/productos" element={<RequireAuth><ProductsTab /></RequireAuth>} />
+      <Route path="/inventario" element={<RequireAuth><InventoryTab /></RequireAuth>} />
+      <Route path="/turnos" element={<RequireAuth><ShiftsTab /></RequireAuth>} />
+      <Route path="/reportes" element={<RequireAuth><ReportsTab /></RequireAuth>} />
+      <Route path="/historial" element={<RequireAuth><HistoryTab /></RequireAuth>} />
+      <Route path="/configuraciones" element={<RequireAuth><SettingsTab /></RequireAuth>} />
+      <Route path="/estadisticas" element={<RequireAuth><DashboardStatsTab /></RequireAuth>} />
+      <Route path="/mermas" element={<RequireAuth><MermasTab /></RequireAuth>} />
+      <Route path="/gastos" element={<RequireAuth><ExpensesTab /></RequireAuth>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
 function App(): ReactElement {
   return (
-    <HashRouter>
-      <RoutedApp />
-    </HashRouter>
+    <ErrorBoundary>
+      <HashRouter>
+        <RoutedApp />
+      </HashRouter>
+    </ErrorBoundary>
   )
 }
 

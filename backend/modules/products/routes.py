@@ -285,6 +285,12 @@ async def update_stock_remote(
         else:
             new_stock = body.quantity
 
+        if new_stock < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Stock insuficiente. Actual: {current}, operacion: {body.operation} {body.quantity}",
+            )
+
         now = datetime.now(timezone.utc).isoformat()
 
         await db.execute(
@@ -331,32 +337,29 @@ async def update_price_remote(
     if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
 
-    product = await db.fetchrow(
-        "SELECT id, price FROM products WHERE sku = :sku AND is_active = 1",
-        {"sku": body.sku},
-    )
-    if not product:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-    old_price = float(product["price"])
-    now = datetime.now(timezone.utc).isoformat()
-
-    await db.execute(
-        "UPDATE products SET price = :price, updated_at = :now WHERE id = :id",
-        {"price": body.new_price, "now": now, "id": product["id"]},
-    )
-
-    if body.new_price != old_price:
-        await db.execute(
-            """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
-               VALUES (:pid, 'price', :old, :new, :uid, NOW())""",
-            {
-                "pid": product["id"],
-                "old": old_price,
-                "new": body.new_price,
-                "uid": int(auth["sub"]),
-            },
+    conn = db.connection
+    async with conn.transaction():
+        product = await conn.fetchrow(
+            "SELECT id, price FROM products WHERE sku = $1 AND is_active = 1 FOR UPDATE",
+            body.sku,
         )
+        if not product:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+        old_price = float(product["price"])
+        now = datetime.now(timezone.utc).isoformat()
+
+        await conn.execute(
+            "UPDATE products SET price = $1, updated_at = $2 WHERE id = $3",
+            body.new_price, now, product["id"],
+        )
+
+        if body.new_price != old_price:
+            await conn.execute(
+                """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
+                   VALUES ($1, 'price', $2, $3, $4, NOW())""",
+                product["id"], old_price, body.new_price, int(auth["sub"]),
+            )
 
     return {
         "success": True,

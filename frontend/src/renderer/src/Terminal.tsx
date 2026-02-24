@@ -658,9 +658,12 @@ export default function Terminal(): ReactElement {
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const key = event.key.toLowerCase()
+      const tag = (document.activeElement?.tagName ?? '').toUpperCase()
+      const isInputFocused = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
 
       if (key === 'f10') {
         event.preventDefault()
+        event.stopPropagation()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
         return
@@ -674,22 +677,24 @@ export default function Terminal(): ReactElement {
         return
       }
 
-      if (key === '+' || key === '=' || key === 'add') {
-        event.preventDefault()
-        increaseSelectedQty()
-        return
-      }
+      if (!isInputFocused) {
+        if (key === '+' || key === '=' || key === 'add') {
+          event.preventDefault()
+          increaseSelectedQty()
+          return
+        }
 
-      if (key === '-' || key === 'subtract') {
-        event.preventDefault()
-        decreaseSelectedQty()
-        return
-      }
+        if (key === '-' || key === 'subtract') {
+          event.preventDefault()
+          decreaseSelectedQty()
+          return
+        }
 
-      if (key === 'delete' || key === 'backspace') {
-        event.preventDefault()
-        deleteSelectedItem()
-        return
+        if (key === 'delete' || key === 'backspace') {
+          event.preventDefault()
+          deleteSelectedItem()
+          return
+        }
       }
 
       if (!event.ctrlKey) return

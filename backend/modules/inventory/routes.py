@@ -28,6 +28,7 @@ async def list_movements(
     movement_type: Optional[str] = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """List inventory movements."""
@@ -50,7 +51,7 @@ async def list_movements(
 
 
 @router.get("/alerts")
-async def stock_alerts(db=Depends(get_db)):
+async def stock_alerts(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get products below minimum stock (low stock alerts)."""
     rows = await db.fetch("""
         SELECT id, sku, name, stock, min_stock, category,

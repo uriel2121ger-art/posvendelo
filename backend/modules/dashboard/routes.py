@@ -228,10 +228,11 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token)):
         data = await asyncio.to_thread(_run)
         return {"success": True, "data": data}
     except Exception as e:
+        logger.error("Executive dashboard error: %s", e)
         return {
-            "success": True,
+            "success": False,
+            "error": "Dashboard ejecutivo no disponible",
             "data": {
-                "error": str(e),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "kpis": {"transactions": 0, "revenue": 0, "avg_ticket": 0},
                 "hourly_sales": [],
