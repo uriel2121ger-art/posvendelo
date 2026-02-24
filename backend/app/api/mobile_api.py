@@ -511,9 +511,10 @@ async def update_price(
 # HEALTH CHECK
 # ==============================================================================
 
-@app.get("/api/health")
+@app.get("/api/health", deprecated=True)
 async def health_check():
-    """Health check (sin autenticación)."""
+    """DEPRECATED: Use GET /health instead."""
+    logger.warning("DEPRECATED: /api/health — use /health")
     return {
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
@@ -1043,7 +1044,7 @@ class ProductUpdateRequest(BaseModel):
             raise ValueError(f'{info.field_name} exceeds maximum allowed value')
         return round(v, 2) if info.field_name in ('price', 'cost') else v
 
-@app.get("/api/products")
+@app.get("/api/products", deprecated=True)
 async def list_products(
     branch_id: Optional[int] = None,
     search: Optional[str] = None,
@@ -1052,7 +1053,8 @@ async def list_products(
     offset: int = 0,
     user: Dict = Depends(verify_token)
 ):
-    """Lista productos con filtros opcionales."""
+    """DEPRECATED: Use GET /api/v1/products/ instead."""
+    logger.warning("DEPRECATED: /api/products — use /api/v1/products/")
     # Validar limites para evitar queries excesivas
     limit = min(max(1, limit), 500)
     offset = max(0, offset)
@@ -1121,9 +1123,10 @@ async def list_products(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/products/{product_id}")
+@app.get("/api/products/{product_id}", deprecated=True)
 async def get_product(product_id: int, user: Dict = Depends(verify_token)):
-    """Obtiene un producto por ID."""
+    """DEPRECATED: Use GET /api/v1/products/{product_id} instead."""
+    logger.warning("DEPRECATED: /api/products/{id} — use /api/v1/products/{id}")
     if product_id <= 0:
         raise HTTPException(status_code=400, detail="product_id debe ser positivo")
     core = get_core()
@@ -1163,9 +1166,10 @@ async def get_product(product_id: int, user: Dict = Depends(verify_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/products")
+@app.post("/api/products", deprecated=True)
 async def create_product(request: ProductCreateRequest, user: Dict = Depends(verify_token)):
-    """Crea un nuevo producto."""
+    """DEPRECATED: Use POST /api/v1/products/ instead."""
+    logger.warning("DEPRECATED: POST /api/products — use POST /api/v1/products/")
     if user['role'] not in ['admin', 'manager', 'owner']:
         raise HTTPException(status_code=403, detail="Sin permisos para crear productos")
     
@@ -1239,9 +1243,10 @@ async def create_product(request: ProductCreateRequest, user: Dict = Depends(ver
         logger.error(f"Error en endpoint create_product: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-@app.put("/api/products/{product_id}")
+@app.put("/api/products/{product_id}", deprecated=True)
 async def update_product(product_id: int, request: ProductUpdateRequest, user: Dict = Depends(verify_token)):
-    """Actualiza un producto existente."""
+    """DEPRECATED: Use PUT /api/v1/products/{product_id} instead."""
+    logger.warning("DEPRECATED: PUT /api/products/{id} — use PUT /api/v1/products/{id}")
     if product_id <= 0:
         raise HTTPException(status_code=400, detail="product_id debe ser positivo")
     if user['role'] not in ['admin', 'manager', 'owner']:
@@ -1317,9 +1322,10 @@ async def update_product(product_id: int, request: ProductUpdateRequest, user: D
         logger.error(f"Error en endpoint update_product: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-@app.delete("/api/products/{product_id}")
+@app.delete("/api/products/{product_id}", deprecated=True)
 async def delete_product(product_id: int, branch_id: Optional[int] = None, user: Dict = Depends(verify_token)):
-    """Elimina (desactiva) un producto."""
+    """DEPRECATED: Use DELETE /api/v1/products/{product_id} instead."""
+    logger.warning("DEPRECATED: DELETE /api/products/{id} — use DELETE /api/v1/products/{id}")
     if product_id <= 0:
         raise HTTPException(status_code=400, detail="product_id debe ser positivo")
     if user['role'] not in ['admin', 'manager', 'owner']:
