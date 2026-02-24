@@ -1,0 +1,529 @@
+{
+  "total_files": 33025,
+  "frontend_files": 16509,
+  "backend_files": 16508,
+  "common_relative_paths": 16491,
+  "identical_common_paths": 11671,
+  "different_common_paths": 4820,
+  "identical_common_size_bytes": 618726581,
+  "identical_common_size_gb": 0.576,
+  "code_files_scanned": 946,
+  "python_files_scanned": 833,
+  "top_python_files_by_loc": [
+    [
+      "backend/app/ui/sales_tab.py",
+      4480,
+      3939
+    ],
+    [
+      "frontend/app/ui/sales_tab.py",
+      4480,
+      3939
+    ],
+    [
+      "backend/app/core.py",
+      3812,
+      3360
+    ],
+    [
+      "frontend/app/core.py",
+      3812,
+      3360
+    ],
+    [
+      "backend/app/ui/settings_tab.py",
+      3461,
+      2977
+    ],
+    [
+      "frontend/app/ui/settings_tab.py",
+      3461,
+      2977
+    ],
+    [
+      "backend/src/services/pos_engine.py",
+      2490,
+      2146
+    ],
+    [
+      "frontend/src/services/pos_engine.py",
+      2490,
+      2146
+    ],
+    [
+      "backend/server/titan_gateway.py",
+      2447,
+      2057
+    ],
+    [
+      "frontend/server/titan_gateway.py",
+      2447,
+      2057
+    ],
+    [
+      "backend/app/wizards/import_wizard.py",
+      2390,
+      2070
+    ],
+    [
+      "frontend/app/wizards/import_wizard.py",
+      2390,
+      2070
+    ],
+    [
+      "backend/app/services/http_server.py",
+      2157,
+      1914
+    ],
+    [
+      "frontend/app/services/http_server.py",
+      2157,
+      1914
+    ],
+    [
+      "backend/app/ui/welcome_wizard.py",
+      1967,
+      1730
+    ],
+    [
+      "frontend/app/ui/welcome_wizard.py",
+      1967,
+      1730
+    ],
+    [
+      "backend/src/infra/database.py",
+      1920,
+      1694
+    ],
+    [
+      "frontend/src/infra/database.py",
+      1920,
+      1694
+    ],
+    [
+      "backend/app/utils/sync_config.py",
+      1828,
+      1820
+    ],
+    [
+      "frontend/app/utils/sync_config.py",
+      1828,
+      1820
+    ],
+    [
+      "backend/app/ui/customers_tab.py",
+      1774,
+      1493
+    ],
+    [
+      "frontend/app/ui/customers_tab.py",
+      1774,
+      1493
+    ],
+    [
+      "backend/app/ui/history_tab.py",
+      1769,
+      1476
+    ],
+    [
+      "frontend/app/ui/history_tab.py",
+      1769,
+      1476
+    ],
+    [
+      "backend/app/ui/inventory_tab.py",
+      1717,
+      1493
+    ],
+    [
+      "frontend/app/ui/inventory_tab.py",
+      1717,
+      1493
+    ],
+    [
+      "backend/app/api/mobile_api.py",
+      1573,
+      1355
+    ],
+    [
+      "frontend/app/api/mobile_api.py",
+      1573,
+      1355
+    ],
+    [
+      "backend/app/ui/reports_tab.py",
+      1431,
+      1216
+    ],
+    [
+      "frontend/app/ui/reports_tab.py",
+      1431,
+      1216
+    ]
+  ],
+  "top_files_by_loc_any": [
+    [
+      "backend/app/ui/sales_tab.py",
+      4480,
+      3939
+    ],
+    [
+      "frontend/app/ui/sales_tab.py",
+      4480,
+      3939
+    ],
+    [
+      "backend/app/core.py",
+      3812,
+      3360
+    ],
+    [
+      "frontend/app/core.py",
+      3812,
+      3360
+    ],
+    [
+      "backend/app/ui/settings_tab.py",
+      3461,
+      2977
+    ],
+    [
+      "frontend/app/ui/settings_tab.py",
+      3461,
+      2977
+    ],
+    [
+      "backend/src/services/pos_engine.py",
+      2490,
+      2146
+    ],
+    [
+      "frontend/src/services/pos_engine.py",
+      2490,
+      2146
+    ],
+    [
+      "backend/server/titan_gateway.py",
+      2447,
+      2057
+    ],
+    [
+      "frontend/server/titan_gateway.py",
+      2447,
+      2057
+    ],
+    [
+      "backend/app/wizards/import_wizard.py",
+      2390,
+      2070
+    ],
+    [
+      "frontend/app/wizards/import_wizard.py",
+      2390,
+      2070
+    ],
+    [
+      "backend/src/infra/schema_postgresql.sql",
+      2167,
+      1993
+    ],
+    [
+      "frontend/src/infra/schema_postgresql.sql",
+      2167,
+      1993
+    ],
+    [
+      "backend/app/services/http_server.py",
+      2157,
+      1914
+    ],
+    [
+      "frontend/app/services/http_server.py",
+      2157,
+      1914
+    ],
+    [
+      "backend/src/infra/schema.sql",
+      2004,
+      1862
+    ],
+    [
+      "frontend/src/infra/schema.sql",
+      2004,
+      1862
+    ],
+    [
+      "backend/app/ui/welcome_wizard.py",
+      1967,
+      1730
+    ],
+    [
+      "frontend/app/ui/welcome_wizard.py",
+      1967,
+      1730
+    ],
+    [
+      "backend/src/infra/database.py",
+      1920,
+      1694
+    ],
+    [
+      "frontend/src/infra/database.py",
+      1920,
+      1694
+    ],
+    [
+      "backend/src/infra/schema_sqlite_reverse_engineered.sql",
+      1879,
+      1733
+    ],
+    [
+      "frontend/src/infra/schema_sqlite_reverse_engineered.sql",
+      1879,
+      1733
+    ],
+    [
+      "backend/app/utils/sync_config.py",
+      1828,
+      1820
+    ],
+    [
+      "frontend/app/utils/sync_config.py",
+      1828,
+      1820
+    ],
+    [
+      "backend/app/ui/customers_tab.py",
+      1774,
+      1493
+    ],
+    [
+      "frontend/app/ui/customers_tab.py",
+      1774,
+      1493
+    ],
+    [
+      "backend/app/ui/history_tab.py",
+      1769,
+      1476
+    ],
+    [
+      "frontend/app/ui/history_tab.py",
+      1769,
+      1476
+    ]
+  ],
+  "artifact_counts": {
+    "zip_backups": 4,
+    "logs": 14,
+    "virtualenv": 31074,
+    "cache_pyc": 10442,
+    "exports_csv_xlsx": 78
+  },
+  "artifact_sizes_bytes": {
+    "zip_backups": 503217506,
+    "logs": 172428556,
+    "virtualenv": 1366030842,
+    "cache_pyc": 183922618,
+    "exports_csv_xlsx": 27625827
+  },
+  "requirements_files": [
+    "frontend/requirements.txt",
+    "backend/requirements.txt"
+  ],
+  "requirements_summary": {
+    "frontend/requirements.txt": 27,
+    "backend/requirements.txt": 27
+  },
+  "secret_hits_count": 6,
+  "secret_hits_top": [
+    {
+      "pattern": "password_assignment",
+      "path": "backend/scripts/backup_postgresql.sh",
+      "line": 42,
+      "snippet": "export PGPASSWORD=\"$PASSWORD\""
+    },
+    {
+      "pattern": "password_assignment",
+      "path": "backend/scripts/restore_postgresql.sh",
+      "line": 52,
+      "snippet": "export PGPASSWORD=\"$PASSWORD\""
+    },
+    {
+      "pattern": "api_key_assignment",
+      "path": "backend/server/instalar_sucursal.sh",
+      "line": 31,
+      "snippet": "ADMIN_TOKEN=\"sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y\""
+    },
+    {
+      "pattern": "password_assignment",
+      "path": "frontend/scripts/backup_postgresql.sh",
+      "line": 42,
+      "snippet": "export PGPASSWORD=\"$PASSWORD\""
+    },
+    {
+      "pattern": "password_assignment",
+      "path": "frontend/scripts/restore_postgresql.sh",
+      "line": 52,
+      "snippet": "export PGPASSWORD=\"$PASSWORD\""
+    },
+    {
+      "pattern": "api_key_assignment",
+      "path": "frontend/server/instalar_sucursal.sh",
+      "line": 31,
+      "snippet": "ADMIN_TOKEN=\"sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y\""
+    }
+  ],
+  "top_risk_files": [
+    [
+      "backend/src/services/pos_engine.py",
+      2490,
+      8
+    ],
+    [
+      "frontend/src/services/pos_engine.py",
+      2490,
+      8
+    ],
+    [
+      "backend/app/services/http_server.py",
+      2157,
+      8
+    ],
+    [
+      "frontend/app/services/http_server.py",
+      2157,
+      8
+    ],
+    [
+      "backend/app/core.py",
+      3812,
+      7
+    ],
+    [
+      "frontend/app/core.py",
+      3812,
+      7
+    ],
+    [
+      "backend/src/services/fiscal/facturapi_connector.py",
+      1017,
+      7
+    ],
+    [
+      "frontend/src/services/fiscal/facturapi_connector.py",
+      1017,
+      7
+    ],
+    [
+      "backend/app/services/http_server_MERGED.py",
+      905,
+      7
+    ],
+    [
+      "frontend/app/services/http_server_MERGED.py",
+      905,
+      7
+    ],
+    [
+      "backend/src/services/fiscal/cfdi_service.py",
+      858,
+      7
+    ],
+    [
+      "frontend/src/services/fiscal/cfdi_service.py",
+      858,
+      7
+    ],
+    [
+      "backend/app/utils/sync_config.py",
+      1828,
+      6
+    ],
+    [
+      "frontend/app/utils/sync_config.py",
+      1828,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/global_invoicing.py",
+      697,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/global_invoicing.py",
+      697,
+      6
+    ],
+    [
+      "backend/app/services/sync_engine.py",
+      598,
+      6
+    ],
+    [
+      "frontend/app/services/sync_engine.py",
+      598,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/rfc_validator.py",
+      497,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/rfc_validator.py",
+      497,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/cfdi_builder.py",
+      485,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/cfdi_builder.py",
+      485,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/sat_catalog_full.py",
+      481,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/sat_catalog_full.py",
+      481,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/csd_vault.py",
+      411,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/csd_vault.py",
+      411,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/cash_extraction.py",
+      407,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/cash_extraction.py",
+      407,
+      6
+    ],
+    [
+      "backend/src/services/fiscal/auto_proxy.py",
+      401,
+      6
+    ],
+    [
+      "frontend/src/services/fiscal/auto_proxy.py",
+      401,
+      6
+    ]
+  ]
+}

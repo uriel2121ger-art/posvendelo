@@ -1,0 +1,28 @@
+[Unit]
+Description=TITAN Gateway - Servidor Central Multi-Sucursal
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# IMPORTANTE: Cambiar USER y paths según tu instalación
+User=CAMBIAR_USUARIO
+Group=CAMBIAR_USUARIO
+WorkingDirectory=/ruta/a/titan-pos/server
+ExecStart=/usr/bin/python3 /ruta/a/titan-pos/server/titan_gateway.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+# Descomentar y ajustar si necesitas escribir logs:
+# ReadWritePaths=/ruta/a/titan-pos/server
+
+[Install]
+WantedBy=multi-user.target

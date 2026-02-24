@@ -48,9 +48,21 @@ _archive/
 # Zip files
 *.zip
 
-# Large files
+# Large/generated files
 *.csv
+*.xlsx
+*.xls
+
+# Logs directories
+logs/
+
+# Backups
+backups/
 
 # Docker volumes
 pgdata/
 redisdata/
+
+# CLIENTE/SERVIDOR zips (prebuilt distributions)
+CLIENTE/
+SERVIDOR/

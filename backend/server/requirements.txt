@@ -1,0 +1,30 @@
+# ============================================
+# TITAN Gateway - Servidor Central
+# Dependencias para el servidor multi-sucursal
+# ============================================
+#
+# INSTALACIÓN:
+# python3 -m venv venv
+# source venv/bin/activate  (Linux)
+# venv\Scripts\activate     (Windows)
+# pip install -r requirements.txt
+# python titan_gateway.py
+# ============================================
+
+# Framework Web
+# NOTA: Usar las mismas versiones que requirements.txt principal
+fastapi>=0.103.0
+
+# Servidor ASGI
+uvicorn[standard]>=0.23.0
+
+# Upload de archivos
+python-multipart>=0.0.6
+
+# Validación de datos
+# NOTA: pydantic 2.x es compatible con FastAPI 0.103+
+pydantic>=2.0.0
+
+# Utilidades opcionales
+python-dateutil>=2.8.0
+pytz>=2023.3

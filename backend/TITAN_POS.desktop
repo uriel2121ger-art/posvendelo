@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=TITAN POS
+GenericName=Punto de Venta
+Comment=Sistema de Punto de Venta TITAN
+Exec=sh -c 'cd "$(dirname "$(readlink -f "%k")")" && if command -v konsole >/dev/null 2>&1; then konsole -e ./titan_pos.sh; elif command -v gnome-terminal >/dev/null 2>&1; then gnome-terminal -- ./titan_pos.sh; elif command -v xfce4-terminal >/dev/null 2>&1; then xfce4-terminal -e ./titan_pos.sh; elif command -v xterm >/dev/null 2>&1; then xterm -e ./titan_pos.sh; else ./titan_pos.sh; fi'
+Path=
+Icon=utilities-terminal
+Terminal=false
+Categories=Office;Finance;Qt;
+Keywords=pos;ventas;punto;venta;tienda;
+StartupNotify=true
+StartupWMClass=titan-pos

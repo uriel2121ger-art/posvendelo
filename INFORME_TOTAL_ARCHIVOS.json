@@ -1,0 +1,613 @@
+{
+  "root": "/home/uriel/Documentos/PUNTO DE VENTA",
+  "total_files": 33025,
+  "total_size_bytes": 2132866335,
+  "total_size_gb": 1.986,
+  "text_files": 11501,
+  "binary_files": 21524,
+  "symlinks": 0,
+  "scan_elapsed_seconds_for_hashing": 5.23,
+  "top_extensions": [
+    [
+      ".py",
+      10449
+    ],
+    [
+      ".pyc",
+      10442
+    ],
+    [
+      ".png",
+      2320
+    ],
+    [
+      "(sin_ext)",
+      2184
+    ],
+    [
+      ".qml",
+      1528
+    ],
+    [
+      ".sip",
+      1486
+    ],
+    [
+      ".pyi",
+      766
+    ],
+    [
+      ".so",
+      574
+    ],
+    [
+      ".qm",
+      434
+    ],
+    [
+      ".h",
+      274
+    ],
+    [
+      ".txt",
+      261
+    ],
+    [
+      ".xsd",
+      226
+    ],
+    [
+      ".6",
+      192
+    ],
+    [
+      ".xslt",
+      158
+    ],
+    [
+      ".qmltypes",
+      122
+    ],
+    [
+      ".f90",
+      122
+    ],
+    [
+      ".typed",
+      104
+    ],
+    [
+      ".pxd",
+      102
+    ],
+    [
+      ".dic",
+      100
+    ],
+    [
+      ".csv",
+      76
+    ],
+    [
+      ".pyx",
+      72
+    ],
+    [
+      ".toml",
+      70
+    ],
+    [
+      ".pxi",
+      56
+    ],
+    [
+      ".svg",
+      56
+    ],
+    [
+      ".md",
+      51
+    ],
+    [
+      ".f",
+      48
+    ],
+    [
+      ".html",
+      48
+    ],
+    [
+      ".json",
+      40
+    ],
+    [
+      ".pfb",
+      36
+    ],
+    [
+      ".dat",
+      36
+    ],
+    [
+      ".sql",
+      36
+    ],
+    [
+      ".gz",
+      34
+    ],
+    [
+      ".cpp",
+      32
+    ],
+    [
+      ".c",
+      30
+    ],
+    [
+      ".0",
+      28
+    ],
+    [
+      ".hpp",
+      26
+    ],
+    [
+      ".xml",
+      26
+    ],
+    [
+      ".sh",
+      24
+    ],
+    [
+      ".metainfo",
+      16
+    ],
+    [
+      ".tpl",
+      16
+    ]
+  ],
+  "top_folders_by_count": [
+    [
+      "frontend",
+      16509
+    ],
+    [
+      "backend",
+      16508
+    ],
+    [
+      "(root)",
+      5
+    ],
+    [
+      ".cursor",
+      1
+    ],
+    [
+      "CLIENTE",
+      1
+    ],
+    [
+      "SERVIDOR",
+      1
+    ]
+  ],
+  "top_folders_by_size": [
+    [
+      "frontend",
+      835103699
+    ],
+    [
+      "backend",
+      794552898
+    ],
+    [
+      "CLIENTE",
+      253086140
+    ],
+    [
+      "SERVIDOR",
+      250089206
+    ],
+    [
+      "(root)",
+      33434
+    ],
+    [
+      ".cursor",
+      958
+    ]
+  ],
+  "largest_files_top30": [
+    {
+      "ruta": "CLIENTE/titan_pos_client.zip",
+      "tamano_bytes": 253086140,
+      "tipo": "binary",
+      "sha256": "7856884114faeab3b5c395110b352ccaa9f6e4db8f786c4ec1d0bbc1b312c4f0"
+    },
+    {
+      "ruta": "SERVIDOR/titan_dist_server.zip",
+      "tamano_bytes": 250089206,
+      "tipo": "binary",
+      "sha256": "56f66ede84369ceef7d65f1eb3767fd7756f326648997d409a28a49effc14d21"
+    },
+    {
+      "ruta": "frontend/.cursor/debug.log",
+      "tamano_bytes": 83467783,
+      "tipo": "text",
+      "sha256": "2a79fc94a10db4e2c04d329ef94f9f75bc77e977d8294e17d6cb9b937c0d572c"
+    },
+    {
+      "ruta": "backend/.cursor/debug.log",
+      "tamano_bytes": 63723610,
+      "tipo": "text",
+      "sha256": "36183279dfcd1f4a0e55647c00f7a1110b8faa7eb37345057d192170653b1e19"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/satcfdi/catalogs/catalogs.db",
+      "tamano_bytes": 45367296,
+      "tipo": "binary",
+      "sha256": "9f257048a3fdd9b9306728c518073b34297c50a368eb4ffa7d35d158b749728b"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/satcfdi/catalogs/catalogs.db",
+      "tamano_bytes": 45367296,
+      "tipo": "binary",
+      "sha256": "9f257048a3fdd9b9306728c518073b34297c50a368eb4ffa7d35d158b749728b"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libicudata.so.73",
+      "tamano_bytes": 32035888,
+      "tipo": "binary",
+      "sha256": "4f182a855296cf96d39f75c9028b12765a78fe6afff3d3781d633110525b7a8b"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libicudata.so.73",
+      "tamano_bytes": 32035888,
+      "tipo": "binary",
+      "sha256": "4f182a855296cf96d39f75c9028b12765a78fe6afff3d3781d633110525b7a8b"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-096271d3.so",
+      "tamano_bytes": 25364017,
+      "tipo": "binary",
+      "sha256": "c0f0784c075afdeb2d57cb78e6225221f7c97ef8d03e512b3c98e105054e73c2"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-096271d3.so",
+      "tamano_bytes": 25364017,
+      "tipo": "binary",
+      "sha256": "c0f0784c075afdeb2d57cb78e6225221f7c97ef8d03e512b3c98e105054e73c2"
+    },
+    {
+      "ruta": "frontend/logs/crash_debug.log",
+      "tamano_bytes": 22659552,
+      "tipo": "text",
+      "sha256": "36ab8e16944c6506663a84ce0d92d19982837aabf390e2ca743f3edfa7137902"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/uvloop/loop.cpython-313-x86_64-linux-gnu.so",
+      "tamano_bytes": 15743800,
+      "tipo": "binary",
+      "sha256": "27132b45cb5dd0d9eee70d74d5cb7df7e5c19e92fc38b0a0b6a463ea9ab517aa"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/uvloop/loop.cpython-313-x86_64-linux-gnu.so",
+      "tamano_bytes": 15743800,
+      "tipo": "binary",
+      "sha256": "27132b45cb5dd0d9eee70d74d5cb7df7e5c19e92fc38b0a0b6a463ea9ab517aa"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libavcodec.so.61",
+      "tamano_bytes": 14858921,
+      "tipo": "binary",
+      "sha256": "e1776c6ca88a5ac5f440872a1af0d64e13f421eb8061ca9fc3c9c7574f2f4c5b"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libavcodec.so.61",
+      "tamano_bytes": 14858921,
+      "tipo": "binary",
+      "sha256": "e1776c6ca88a5ac5f440872a1af0d64e13f421eb8061ca9fc3c9c7574f2f4c5b"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/cryptography/hazmat/bindings/_rust.abi3.so",
+      "tamano_bytes": 12817480,
+      "tipo": "binary",
+      "sha256": "48bac368ad246a2ca53a49c0c83e33633bd25c42e8db77af8802951382427f99"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/cryptography/hazmat/bindings/_rust.abi3.so",
+      "tamano_bytes": 12817480,
+      "tipo": "binary",
+      "sha256": "48bac368ad246a2ca53a49c0c83e33633bd25c42e8db77af8802951382427f99"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Gui.so.6",
+      "tamano_bytes": 11373416,
+      "tipo": "binary",
+      "sha256": "df3ca9dce07bcc1b57ff82f6e8df605d01c7691e6585a1271b1f55f441cf43fd"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Gui.so.6",
+      "tamano_bytes": 11373416,
+      "tipo": "binary",
+      "sha256": "df3ca9dce07bcc1b57ff82f6e8df605d01c7691e6585a1271b1f55f441cf43fd"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so",
+      "tamano_bytes": 10452721,
+      "tipo": "binary",
+      "sha256": "85b8816f43f04afa5700072a6df18e39cd423e9efa5a5fb9f5a562b261ffd69b"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so",
+      "tamano_bytes": 10452721,
+      "tipo": "binary",
+      "sha256": "85b8816f43f04afa5700072a6df18e39cd423e9efa5a5fb9f5a562b261ffd69b"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Quick.so.6",
+      "tamano_bytes": 8187984,
+      "tipo": "binary",
+      "sha256": "7a99c3fdefa5c9e59ec213928e5401081b0284c4de2e7f2515400b3e2427932d"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Quick.so.6",
+      "tamano_bytes": 8187984,
+      "tipo": "binary",
+      "sha256": "7a99c3fdefa5c9e59ec213928e5401081b0284c4de2e7f2515400b3e2427932d"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Widgets.so.6",
+      "tamano_bytes": 8110184,
+      "tipo": "binary",
+      "sha256": "c0dc77dffbf15d730eaab8221e5efa14852b5145eaad4923ca73041241c96d81"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Widgets.so.6",
+      "tamano_bytes": 8110184,
+      "tipo": "binary",
+      "sha256": "c0dc77dffbf15d730eaab8221e5efa14852b5145eaad4923ca73041241c96d81"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Core.so.6",
+      "tamano_bytes": 7420712,
+      "tipo": "binary",
+      "sha256": "7a274be902876655fe58e01c3e7d53961f63b8899c0d6d698e71a3494afb03a4"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Core.so.6",
+      "tamano_bytes": 7420712,
+      "tipo": "binary",
+      "sha256": "7a274be902876655fe58e01c3e7d53961f63b8899c0d6d698e71a3494afb03a4"
+    },
+    {
+      "ruta": "backend/.venv/lib/python3.13/site-packages/PyQt6/QtWidgets.abi3.so",
+      "tamano_bytes": 7281920,
+      "tipo": "binary",
+      "sha256": "78700064edf0be7b2b3c7876b82f1d4e3dd494307042aa5b1c687a19271265ca"
+    },
+    {
+      "ruta": "frontend/.venv/lib/python3.13/site-packages/PyQt6/QtWidgets.abi3.so",
+      "tamano_bytes": 7281920,
+      "tipo": "binary",
+      "sha256": "78700064edf0be7b2b3c7876b82f1d4e3dd494307042aa5b1c687a19271265ca"
+    },
+    {
+      "ruta": "backend/.venv/bin/python",
+      "tamano_bytes": 6906704,
+      "tipo": "binary",
+      "sha256": "35585df6e5e9bcd63defe6918ec66f01253f76251deb8e6029515c6385d0478c"
+    }
+  ],
+  "duplicate_groups_top20": [
+    {
+      "sha256": "9f257048a3fdd9b9306728c518073b34297c50a368eb4ffa7d35d158b749728b",
+      "count": 2,
+      "size_each": 45367296,
+      "wasted_if_one_copy": 45367296,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/satcfdi/catalogs/catalogs.db",
+        "frontend/.venv/lib/python3.13/site-packages/satcfdi/catalogs/catalogs.db"
+      ]
+    },
+    {
+      "sha256": "35585df6e5e9bcd63defe6918ec66f01253f76251deb8e6029515c6385d0478c",
+      "count": 6,
+      "size_each": 6906704,
+      "wasted_if_one_copy": 34533520,
+      "sample_paths": [
+        "backend/.venv/bin/python",
+        "backend/.venv/bin/python3",
+        "backend/.venv/bin/python3.13",
+        "frontend/.venv/bin/python",
+        "frontend/.venv/bin/python3",
+        "frontend/.venv/bin/python3.13"
+      ]
+    },
+    {
+      "sha256": "4f182a855296cf96d39f75c9028b12765a78fe6afff3d3781d633110525b7a8b",
+      "count": 2,
+      "size_each": 32035888,
+      "wasted_if_one_copy": 32035888,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libicudata.so.73",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libicudata.so.73"
+      ]
+    },
+    {
+      "sha256": "c0f0784c075afdeb2d57cb78e6225221f7c97ef8d03e512b3c98e105054e73c2",
+      "count": 2,
+      "size_each": 25364017,
+      "wasted_if_one_copy": 25364017,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-096271d3.so",
+        "frontend/.venv/lib/python3.13/site-packages/numpy.libs/libscipy_openblas64_-096271d3.so"
+      ]
+    },
+    {
+      "sha256": "27132b45cb5dd0d9eee70d74d5cb7df7e5c19e92fc38b0a0b6a463ea9ab517aa",
+      "count": 2,
+      "size_each": 15743800,
+      "wasted_if_one_copy": 15743800,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/uvloop/loop.cpython-313-x86_64-linux-gnu.so",
+        "frontend/.venv/lib/python3.13/site-packages/uvloop/loop.cpython-313-x86_64-linux-gnu.so"
+      ]
+    },
+    {
+      "sha256": "e1776c6ca88a5ac5f440872a1af0d64e13f421eb8061ca9fc3c9c7574f2f4c5b",
+      "count": 2,
+      "size_each": 14858921,
+      "wasted_if_one_copy": 14858921,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libavcodec.so.61",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libavcodec.so.61"
+      ]
+    },
+    {
+      "sha256": "48bac368ad246a2ca53a49c0c83e33633bd25c42e8db77af8802951382427f99",
+      "count": 2,
+      "size_each": 12817480,
+      "wasted_if_one_copy": 12817480,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/cryptography/hazmat/bindings/_rust.abi3.so",
+        "frontend/.venv/lib/python3.13/site-packages/cryptography/hazmat/bindings/_rust.abi3.so"
+      ]
+    },
+    {
+      "sha256": "df3ca9dce07bcc1b57ff82f6e8df605d01c7691e6585a1271b1f55f441cf43fd",
+      "count": 2,
+      "size_each": 11373416,
+      "wasted_if_one_copy": 11373416,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Gui.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Gui.so.6"
+      ]
+    },
+    {
+      "sha256": "85b8816f43f04afa5700072a6df18e39cd423e9efa5a5fb9f5a562b261ffd69b",
+      "count": 2,
+      "size_each": 10452721,
+      "wasted_if_one_copy": 10452721,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so",
+        "frontend/.venv/lib/python3.13/site-packages/numpy/_core/_multiarray_umath.cpython-313-x86_64-linux-gnu.so"
+      ]
+    },
+    {
+      "sha256": "7a99c3fdefa5c9e59ec213928e5401081b0284c4de2e7f2515400b3e2427932d",
+      "count": 2,
+      "size_each": 8187984,
+      "wasted_if_one_copy": 8187984,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Quick.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Quick.so.6"
+      ]
+    },
+    {
+      "sha256": "c0dc77dffbf15d730eaab8221e5efa14852b5145eaad4923ca73041241c96d81",
+      "count": 2,
+      "size_each": 8110184,
+      "wasted_if_one_copy": 8110184,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Widgets.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Widgets.so.6"
+      ]
+    },
+    {
+      "sha256": "7a274be902876655fe58e01c3e7d53961f63b8899c0d6d698e71a3494afb03a4",
+      "count": 2,
+      "size_each": 7420712,
+      "wasted_if_one_copy": 7420712,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Core.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Core.so.6"
+      ]
+    },
+    {
+      "sha256": "78700064edf0be7b2b3c7876b82f1d4e3dd494307042aa5b1c687a19271265ca",
+      "count": 2,
+      "size_each": 7281920,
+      "wasted_if_one_copy": 7281920,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/QtWidgets.abi3.so",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/QtWidgets.abi3.so"
+      ]
+    },
+    {
+      "sha256": "8bc845f9b796da453a8728097d3723c65163b784cb0383084019543f3e0e2626",
+      "count": 2,
+      "size_each": 6706544,
+      "wasted_if_one_copy": 6706544,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Qml.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Qml.so.6"
+      ]
+    },
+    {
+      "sha256": "61c3d32de6c90f5b1fb846b8628c6dc37d2aeb9fe946be1780d7dcd63afbbe85",
+      "count": 2,
+      "size_each": 6489873,
+      "wasted_if_one_copy": 6489873,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/psycopg2_binary.libs/libcrypto-2e26a48f.so.3",
+        "frontend/.venv/lib/python3.13/site-packages/psycopg2_binary.libs/libcrypto-2e26a48f.so.3"
+      ]
+    },
+    {
+      "sha256": "e28651568ec82661124afc195e1c7c1363e7122e077574ede470d0a3d6174a4f",
+      "count": 2,
+      "size_each": 6019928,
+      "wasted_if_one_copy": 6019928,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Designer.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Designer.so.6"
+      ]
+    },
+    {
+      "sha256": "6c58936cb77576f839a4d7915953ceaf252b9eb9319f9458fe5bb67ae2bb0bb1",
+      "count": 2,
+      "size_each": 5984046,
+      "wasted_if_one_copy": 5984046,
+      "sample_paths": [
+        "backend/data/sat_catalog/catCFDI.xsd",
+        "frontend/data/sat_catalog/catCFDI.xsd"
+      ]
+    },
+    {
+      "sha256": "3113e7c172b2b31a1b3ebddf1cc22d98a3cdc26b6200c70bf6326903ec2960bb",
+      "count": 2,
+      "size_each": 5579000,
+      "wasted_if_one_copy": 5579000,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Pdf.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6Pdf.so.6"
+      ]
+    },
+    {
+      "sha256": "bc6a3cdc5d7768b5a7a6b75890ad88612ed8646ed4df49fa4289517a81f427bc",
+      "count": 2,
+      "size_each": 5362288,
+      "wasted_if_one_copy": 5362288,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/lxml/etree.cpython-313-x86_64-linux-gnu.so",
+        "frontend/.venv/lib/python3.13/site-packages/lxml/etree.cpython-313-x86_64-linux-gnu.so"
+      ]
+    },
+    {
+      "sha256": "f9650419897787600ab75c9450aeca94689f93d4a9dd82d029f2b781b89b2461",
+      "count": 2,
+      "size_each": 5300488,
+      "wasted_if_one_copy": 5300488,
+      "sample_paths": [
+        "backend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6ShaderTools.so.6",
+        "frontend/.venv/lib/python3.13/site-packages/PyQt6/Qt6/lib/libQt6ShaderTools.so.6"
+      ]
+    }
+  ],
+  "manifest_csv": "INVENTARIO_TOTAL_ARCHIVOS.csv"
+}

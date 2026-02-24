@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TITAN Gateway - Dashboard</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
+        color: #fff;
+      }
+
+      .header {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .header h1 {
+        font-size: 1.5rem;
+        background: linear-gradient(90deg, #00d9ff, #00ff88);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .status-online {
+        background: #00ff88;
+        color: #000;
+      }
+      .status-offline {
+        background: #ff4757;
+        color: #fff;
+      }
+
+      .dashboard {
+        padding: 2rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        max-width: 1600px;
+        margin: 0 auto;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .card-title {
+        font-size: 1rem;
+        color: #00d9ff;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .card-body {
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+      }
+
+      .stat-box {
+        text-align: center;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #00ff88;
+      }
+
+      .stat-value.warning {
+        color: #ffa502;
+      }
+      .stat-value.error {
+        color: #ff4757;
+      }
+
+      .stat-label {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 0.25rem;
+      }
+
+      .terminal-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .terminal-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        border-left: 3px solid #00ff88;
+      }
+
+      .terminal-item.offline {
+        border-left-color: #ff4757;
+        opacity: 0.7;
+      }
+
+      .terminal-info {
+        flex: 1;
+      }
+
+      .terminal-name {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .terminal-meta {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.5);
+      }
+
+      .terminal-stats {
+        text-align: right;
+      }
+
+      .terminal-sales {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #00ff88;
+      }
+
+      .log-list {
+        max-height: 350px;
+        overflow-y: auto;
+        font-family: "Consolas", monospace;
+        font-size: 0.8rem;
+      }
+
+      .log-item {
+        padding: 0.5rem;
+        margin-bottom: 0.25rem;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+        border-left: 3px solid #666;
+      }
+
+      .log-item.error {
+        border-left-color: #ff4757;
+        background: rgba(255, 71, 87, 0.1);
+      }
+      .log-item.warning {
+        border-left-color: #ffa502;
+        background: rgba(255, 165, 2, 0.1);
+      }
+      .log-item.critical {
+        border-left-color: #ff0000;
+        background: rgba(255, 0, 0, 0.15);
+      }
+
+      .log-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+      }
+
+      .log-level {
+        text-transform: uppercase;
+        font-weight: 600;
+        font-size: 0.7rem;
+      }
+
+      .log-time {
+        color: rgba(255, 255, 255, 0.4);
+      }
+
+      .alert-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .alert-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+      }
+
+      .alert-icon {
+        font-size: 1.5rem;
+      }
+
+      .alert-info {
+        flex: 1;
+      }
+
+      .alert-name {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .alert-stock {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.6);
+      }
+
+      .severity-out_of_stock {
+        color: #ff4757;
+      }
+      .severity-critical {
+        color: #ffa502;
+      }
+      .severity-warning {
+        color: #ffeaa7;
+      }
+
+      .refresh-info {
+        text-align: center;
+        padding: 1rem;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.8rem;
+      }
+
+      .wide-card {
+        grid-column: span 2;
+      }
+
+      @media (max-width: 768px) {
+        .wide-card {
+          grid-column: span 1;
+        }
+        .stat-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🚀 TITAN Gateway Dashboard</h1>
+      <div id="gateway-status" class="status-badge status-offline">
+        Conectando...
+      </div>
+    </div>
+
+    <div class="dashboard">
+      <!-- Stats Overview -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📊 Resumen General</span>
+        </div>
+        <div class="card-body">
+          <div class="stat-grid">
+            <div class="stat-box">
+              <div class="stat-value" id="total-terminals">-</div>
+              <div class="stat-label">Terminales</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" id="online-terminals">-</div>
+              <div class="stat-label">Online</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value warning" id="total-alerts">-</div>
+              <div class="stat-label">Alertas Stock</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" id="total-logs">-</div>
+              <div class="stat-label">Logs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminales -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💻 Terminales</span>
+        </div>
+        <div class="card-body">
+          <div class="terminal-list" id="terminal-list">
+            <p style="color: rgba(255, 255, 255, 0.5); text-align: center">
+              Cargando...
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alertas de Stock -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚠️ Alertas de Stock</span>
+        </div>
+        <div class="card-body">
+          <div class="alert-list" id="alert-list">
+            <p style="color: rgba(255, 255, 255, 0.5); text-align: center">
+              Cargando...
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div class="card wide-card">
+        <div class="card-header">
+          <span class="card-title">📋 Logs Centralizados</span>
+        </div>
+        <div class="card-body">
+          <div class="log-list" id="log-list">
+            <p style="color: rgba(255, 255, 255, 0.5); text-align: center">
+              Cargando...
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="refresh-info">
+      Última actualización: <span id="last-update">-</span> | Auto-refresh cada
+      5 segundos
+    </div>
+
+    <script>
+      const GATEWAY_URL = window.location.origin;
+      const TOKEN = sessionStorage.getItem('gateway_token') || (() => {
+        const t = prompt('Token de acceso al Gateway:');
+        if (t) sessionStorage.setItem('gateway_token', t);
+        return t || '';
+      })();
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      async function fetchData(endpoint) {
+        try {
+          const response = await fetch(`${GATEWAY_URL}${endpoint}`, {
+            headers: { Authorization: `Bearer ${TOKEN}` },
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json();
+        } catch (e) {
+          console.error(`Error fetching ${endpoint}:`, e);
+          return null;
+        }
+      }
+
+      async function updateHealth() {
+        try {
+          const response = await fetch(`${GATEWAY_URL}/health`);
+          const data = await response.json();
+          const status = document.getElementById("gateway-status");
+          status.textContent =
+            data.status === "healthy" ? "🟢 Online" : "🔴 Offline";
+          status.className =
+            "status-badge " +
+            (data.status === "healthy" ? "status-online" : "status-offline");
+        } catch (e) {
+          document.getElementById("gateway-status").textContent =
+            "🔴 Desconectado";
+          document.getElementById("gateway-status").className =
+            "status-badge status-offline";
+        }
+      }
+
+      async function updateTerminals() {
+        const data = await fetchData("/api/v1/terminals");
+        if (!data) return;
+
+        document.getElementById("total-terminals").textContent =
+          data.total || 0;
+        document.getElementById("online-terminals").textContent =
+          data.online || 0;
+
+        const list = document.getElementById("terminal-list");
+        if (!data.terminals || data.terminals.length === 0) {
+          list.innerHTML =
+            '<p style="color: rgba(255,255,255,0.5); text-align: center;">Sin terminales registradas</p>';
+          return;
+        }
+
+        list.innerHTML = data.terminals
+          .map(
+            (t) => `
+                <div class="terminal-item ${
+                  t.status === "offline" ? "offline" : ""
+                }">
+                    <div class="terminal-info">
+                        <div class="terminal-name">${
+                          escapeHtml(t.terminal_name) || `Terminal ${escapeHtml(String(t.terminal_id))}`
+                        }</div>
+                        <div class="terminal-meta">Suc. ${escapeHtml(String(t.branch_id))} | ${
+              escapeHtml(t.status)
+            } | ${escapeHtml(t.last_seen?.split("T")[1]?.split(".")[0] || "-")}</div>
+                    </div>
+                    <div class="terminal-stats">
+                        <div class="terminal-sales">$${(
+                          t.today_total || 0
+                        ).toLocaleString()}</div>
+                        <div class="terminal-meta">${
+                          t.today_sales || 0
+                        } ventas</div>
+                    </div>
+                </div>
+            `
+          )
+          .join("");
+      }
+
+      async function updateAlerts() {
+        const data = await fetchData("/api/v1/alerts/stock");
+        if (!data) return;
+
+        document.getElementById("total-alerts").textContent = data.total || 0;
+
+        const list = document.getElementById("alert-list");
+        if (!data.alerts || data.alerts.length === 0) {
+          list.innerHTML =
+            '<p style="color: #00ff88; text-align: center;">✅ Sin alertas de stock</p>';
+          return;
+        }
+
+        const icons = { out_of_stock: "🔴", critical: "🟠", warning: "🟡" };
+        const allowedSeverities = ['out_of_stock', 'critical', 'warning'];
+        list.innerHTML = data.alerts
+          .slice(0, 10)
+          .map(
+            (a) => {
+              const safeSeverity = allowedSeverities.includes(a.severity) ? a.severity : 'warning';
+              return `
+                <div class="alert-item">
+                    <span class="alert-icon">${icons[a.severity] || "⚠️"}</span>
+                    <div class="alert-info">
+                        <div class="alert-name severity-${safeSeverity}">${
+              escapeHtml(a.name)
+            }</div>
+                        <div class="alert-stock">SKU: ${escapeHtml(a.sku)} | Stock: ${
+              Number(a.current_stock) || 0
+            }/${Number(a.min_stock) || 0}</div>
+                    </div>
+                </div>
+            `;
+            }
+          )
+          .join("");
+      }
+
+      async function updateLogs() {
+        const data = await fetchData("/api/v1/logs?limit=20");
+        if (!data) return;
+
+        document.getElementById("total-logs").textContent =
+          data.total_stored || 0;
+
+        const list = document.getElementById("log-list");
+        if (!data.logs || data.logs.length === 0) {
+          list.innerHTML =
+            '<p style="color: rgba(255,255,255,0.5); text-align: center;">Sin logs recientes</p>';
+          return;
+        }
+
+        const allowedLogLevels = ['info', 'warning', 'error', 'critical', 'debug'];
+        list.innerHTML = data.logs
+          .map(
+            (l) => {
+              const safeLevel = allowedLogLevels.includes(l.level) ? l.level : 'info';
+              return `
+                <div class="log-item ${safeLevel}">
+                    <div class="log-header">
+                        <span class="log-level">[${escapeHtml(l.level)}] ${escapeHtml(l.module)}</span>
+                        <span class="log-time">${
+                          l.timestamp?.split("T")[1]?.split(".")[0] || "-"
+                        }</span>
+                    </div>
+                    <div class="log-message">${escapeHtml(l.message)}</div>
+                </div>
+            `;
+            }
+          )
+          .join("");
+      }
+
+      async function refreshAll() {
+        await Promise.all([
+          updateHealth(),
+          updateTerminals(),
+          updateAlerts(),
+          updateLogs(),
+        ]);
+        document.getElementById("last-update").textContent =
+          new Date().toLocaleTimeString();
+      }
+
+      // Initial load
+      refreshAll();
+
+      // Auto-refresh every 5 seconds
+      setInterval(refreshAll, 5000);
+    </script>
+  </body>
+</html>

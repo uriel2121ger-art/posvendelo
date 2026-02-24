@@ -1,0 +1,229 @@
+import type { ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import TopNavbar from './components/TopNavbar'
+import { loadRuntimeConfig, searchSales } from './posApi'
+
+type SaleReportRow = {
+  paymentMethod: string
+  total: number
+  items: Array<Record<string, unknown>>
+}
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getIsoDateDaysAgo(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toISOString().slice(0, 10)
+}
+
+function normalizeSale(raw: Record<string, unknown>): SaleReportRow {
+  return {
+    paymentMethod: String(raw.payment_method ?? 'cash'),
+    total: toNumber(raw.total),
+    items: Array.isArray(raw.items) ? (raw.items as Array<Record<string, unknown>>) : []
+  }
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function toCsvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function buildCsv(headers: string[], rows: string[][]): string {
+  return [headers.join(','), ...rows.map((row) => row.map(toCsvCell).join(','))].join('\n')
+}
+
+export default function ReportsTab(): ReactElement {
+  const [sales, setSales] = useState<SaleReportRow[]>([])
+  const [dateFrom, setDateFrom] = useState(getIsoDateDaysAgo(7))
+  const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('Reportes operativos listos para analisis diario.')
+
+  const totals = useMemo(() => {
+    const totalSales = sales.length
+    const gross = sales.reduce((acc, sale) => acc + sale.total, 0)
+    const average = totalSales > 0 ? gross / totalSales : 0
+    const byMethod = sales.reduce<Record<string, number>>((acc, sale) => {
+      acc[sale.paymentMethod] = (acc[sale.paymentMethod] ?? 0) + sale.total
+      return acc
+    }, {})
+    const productCounter = new Map<string, { qty: number; amount: number }>()
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        const key = String(item.sku ?? item.name ?? 'SIN_SKU')
+        const qty = Math.max(0, Math.floor(toNumber(item.qty)))
+        const subtotal = toNumber(item.subtotal)
+        const current = productCounter.get(key) ?? { qty: 0, amount: 0 }
+        current.qty += qty
+        current.amount += subtotal
+        productCounter.set(key, current)
+      }
+    }
+    const topProducts = [...productCounter.entries()]
+      .map(([sku, data]) => ({ sku, qty: data.qty, amount: data.amount }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10)
+
+    return { totalSales, gross, average, byMethod, topProducts }
+  }, [sales])
+
+  const handleLoad = useCallback(async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const rows = await searchSales(cfg, { dateFrom, dateTo, limit: 500 })
+      const normalized = rows.map(normalizeSale)
+      setSales(normalized)
+      setMessage(`Reporte cargado con ${normalized.length} ventas.`)
+    } catch (error) {
+      setMessage((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }, [dateFrom, dateTo])
+
+  function exportSummaryCsv(): void {
+    const rows: string[][] = [
+      ['ventas', String(totals.totalSales)],
+      ['monto_total', totals.gross.toFixed(2)],
+      ['ticket_promedio', totals.average.toFixed(2)]
+    ]
+    for (const [method, amount] of Object.entries(totals.byMethod)) {
+      rows.push([`metodo_${method}`, amount.toFixed(2)])
+    }
+    downloadTextFile(
+      `reporte_resumen_${dateFrom}_${dateTo}.csv`,
+      `${buildCsv(['metrica', 'valor'], rows)}\n`,
+      'text/csv;charset=utf-8'
+    )
+    setMessage('CSV de resumen exportado.')
+  }
+
+  function exportTopProductsCsv(): void {
+    const rows = totals.topProducts.map((row) => [row.sku, String(row.qty), row.amount.toFixed(2)])
+    downloadTextFile(
+      `reporte_top_productos_${dateFrom}_${dateTo}.csv`,
+      `${buildCsv(['sku', 'cantidad', 'importe'], rows)}\n`,
+      'text/csv;charset=utf-8'
+    )
+    setMessage('CSV de top productos exportado.')
+  }
+
+  useEffect(() => {
+    void handleLoad()
+  }, [handleLoad])
+
+  return (
+    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
+      <TopNavbar />
+
+      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[180px_180px_auto_auto_auto]">
+        <input
+          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+        />
+        <input
+          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+        />
+        <button
+          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+          onClick={() => void handleLoad()}
+          disabled={busy}
+        >
+          Recalcular
+        </button>
+        <button
+          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
+          onClick={exportSummaryCsv}
+          disabled={busy || totals.totalSales === 0}
+        >
+          Exportar resumen CSV
+        </button>
+        <button
+          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
+          onClick={exportTopProductsCsv}
+          disabled={busy || totals.topProducts.length === 0}
+        >
+          Exportar top CSV
+        </button>
+      </div>
+
+      <div className="grid flex-1 grid-cols-1 gap-4 overflow-auto p-4 md:grid-cols-2">
+        <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
+          <h3 className="mb-3 font-semibold">KPIs</h3>
+          <div className="space-y-2 text-sm">
+            <p>Ventas: {totals.totalSales}</p>
+            <p>Monto total: ${totals.gross.toFixed(2)}</p>
+            <p>Ticket promedio: ${totals.average.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
+          <h3 className="mb-3 font-semibold">Metodo de pago</h3>
+          <div className="space-y-2 text-sm">
+            {Object.entries(totals.byMethod).map(([method, amount]) => (
+              <p key={method}>
+                {method}: ${amount.toFixed(2)}
+              </p>
+            ))}
+            {Object.keys(totals.byMethod).length === 0 && (
+              <p className="text-zinc-400">Sin datos.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded border border-zinc-800 bg-zinc-900 p-4 md:col-span-2">
+          <h3 className="mb-3 font-semibold">Top productos</h3>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 bg-zinc-900/80 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 shadow-sm">
+                <th className="py-4 px-6">SKU/Nombre</th>
+                <th className="py-4 px-6">Cantidad</th>
+                <th className="py-4 px-6">Importe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {totals.topProducts.map((p) => (
+                <tr key={p.sku} className="border-b border-zinc-900">
+                  <td className="py-4 px-6 font-medium">{p.sku}</td>
+                  <td className="py-4 px-6 font-medium">{p.qty}</td>
+                  <td className="py-4 px-6 font-medium">${p.amount.toFixed(2)}</td>
+                </tr>
+              ))}
+              {totals.topProducts.length === 0 && (
+                <tr>
+                  <td className="py-2 text-zinc-400" colSpan={3}>
+                    Sin informacion para este rango.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
+        {message}
+      </div>
+    </div>
+  )
+}

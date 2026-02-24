@@ -1,0 +1,6 @@
+{
+  "server_ip": "SERVIDOR_IP_AQUI",
+  "server_port": 8000,
+  "terminal_id": 2,
+  "branch_name": "Nombre de Sucursal"
+}

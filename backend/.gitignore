@@ -1,0 +1,18 @@
+# Machine-specific config
+data/config/config.json
+data/config/database.json
+data/temp/
+server/gateway_data/config.json
+server/gateway_data/tokens.json
+server/gateway_data/branches/
+
+# Runtime
+logs/
+backups/*.tar.gz
+*.pyc
+__pycache__/
+.venv/
+*.db-shm
+*.db-wal
+.cursor/
+.pytest_cache/
