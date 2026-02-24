@@ -16,14 +16,15 @@ from pydantic import BaseModel, field_validator, Field
 
 logger = logging.getLogger(__name__)
 
-# SECURITY: Load admin credentials from environment variables (required)
+# SECURITY: Load admin credentials from environment variables
 _ADMIN_API_USER = os.environ.get('ADMIN_API_USER')
 _ADMIN_API_PASSWORD = os.environ.get('ADMIN_API_PASSWORD')
 
-if not _ADMIN_API_USER or not _ADMIN_API_PASSWORD:
-    raise RuntimeError(
-        "SECURITY ERROR: ADMIN_API_USER and ADMIN_API_PASSWORD environment variables are required. "
-        "Set these variables before starting the Admin API."
+_ADMIN_ENABLED = bool(_ADMIN_API_USER and _ADMIN_API_PASSWORD)
+if not _ADMIN_ENABLED:
+    logger.warning(
+        "ADMIN_API_USER/ADMIN_API_PASSWORD not set — Admin API disabled. "
+        "Set these environment variables to enable it."
     )
 
 # FastAPI app
@@ -51,6 +52,8 @@ def get_core():
 
 def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
     """Verify admin credentials using environment variables."""
+    if not _ADMIN_ENABLED:
+        raise HTTPException(status_code=503, detail="Admin API not configured")
     if not secrets.compare_digest(credentials.username, _ADMIN_API_USER):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not secrets.compare_digest(credentials.password, _ADMIN_API_PASSWORD):
