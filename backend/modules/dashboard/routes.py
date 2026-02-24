@@ -76,12 +76,9 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/quick")
 async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Quick status widget — ventas hoy, mermas pendientes."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
     sales = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE CAST(timestamp AS DATE) = CAST(:today AS DATE) AND status = 'completed'""",
-        {"today": today},
+           FROM sales WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'"""
     )
 
     mermas = await db.fetchrow(
@@ -231,24 +228,20 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
     if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Solo admin/manager")
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
     kpis = await db.fetchrow(
         """SELECT COUNT(*) as transactions,
                   COALESCE(SUM(total), 0) as revenue,
                   CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(total), 0) / COUNT(*) ELSE 0 END as avg_ticket
            FROM sales
-           WHERE CAST(timestamp AS DATE) = CAST(:today AS DATE) AND status = 'completed'""",
-        {"today": today},
+           WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'"""
     )
 
     hourly = await db.fetch(
         """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
-           WHERE CAST(timestamp AS DATE) = CAST(:today AS DATE) AND status = 'completed'
-           GROUP BY hour ORDER BY hour""",
-        {"today": today},
+           WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'
+           GROUP BY hour ORDER BY hour"""
     )
 
     top = await db.fetch(
@@ -256,9 +249,8 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
            FROM sale_items si
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
-           WHERE CAST(s.timestamp AS DATE) = CAST(:today AS DATE) AND s.status = 'completed'
-           GROUP BY p.name ORDER BY qty DESC LIMIT 5""",
-        {"today": today},
+           WHERE CAST(s.timestamp AS DATE) = CURRENT_DATE AND s.status = 'completed'
+           GROUP BY p.name ORDER BY qty DESC LIMIT 5"""
     )
 
     return {
