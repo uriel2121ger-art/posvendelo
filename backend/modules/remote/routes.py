@@ -288,11 +288,9 @@ async def get_system_status(auth: dict = Depends(verify_token), db=Depends(get_d
         "SELECT COUNT(*) as c FROM turns WHERE status = 'open'"
     )
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     sales_row = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE CAST(timestamp AS DATE) = CAST(:today AS DATE) AND status = 'completed'""",
-        {"today": today},
+           FROM sales WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'"""
     )
 
     low_stock_row = await db.fetchrow(
