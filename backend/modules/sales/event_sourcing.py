@@ -13,7 +13,7 @@ Events for a typical sale:
 Usage:
     from modules.sales.event_sourcing import SaleEventStore, SaleEventTypes
 
-    store = SaleEventStore(db_session)
+    store = SaleEventStore()
     await store.append(sale_id, SaleEventTypes.INITIATED, {"cashier_id": 1, "turn_id": 5})
     await store.append(sale_id, SaleEventTypes.ITEM_ADDED, {"product_id": 42, "qty": 2, "price": 25.50})
     ...
@@ -80,29 +80,10 @@ class SaleEventStore:
     """
     Append-only event store for sale events.
 
-    Uses the sale_events table (outbox pattern):
+    Uses the sale_events table:
     - Events are appended in sequence per sale_id
     - State can be rebuilt by replaying events in order
-    - Snapshots are optional for performance
     """
-
-    def __init__(self, db_session=None):
-        """
-        Args:
-            db_session: AsyncSession (SQLAlchemy) or DatabaseManager.
-                        If None, uses the monolith's db_instance.
-        """
-        self._db = db_session
-
-    def _get_db(self):
-        if self._db is not None:
-            return self._db
-        from src.infra.database import db_instance
-        return db_instance
-
-    def _is_async_db(self, db) -> bool:
-        """Check if db is an async SQLAlchemy session."""
-        return hasattr(db, "execute") and hasattr(db, "commit")
 
     async def append(
         self,
@@ -112,41 +93,26 @@ class SaleEventStore:
         user_id: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> SaleEvent:
-        """
-        Append an event to the sale's event stream.
+        """Append an event to the sale's event stream."""
+        from db.connection import get_connection
 
-        Args:
-            sale_id: The sale aggregate ID
-            event_type: One of SaleEventTypes
-            data: Event payload
-            user_id: Who triggered this event
-            metadata: Additional context (device, IP, etc.)
-
-        Returns:
-            The created SaleEvent
-        """
-        db = self._get_db()
         event_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
 
-        if self._is_async_db(db):
-            # SQLAlchemy async session
-            from sqlalchemy import text
-
-            seq_result = await db.execute(
-                text("SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id"),
+        async with get_connection() as db:
+            sequence = await db.fetchval(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id",
                 {"sale_id": sale_id},
             )
-            sequence = seq_result.scalar()
 
             await db.execute(
-                text("""
-                    INSERT INTO sale_events
-                        (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
-                    VALUES
-                        (:event_id, :sale_id, :sequence, :event_type, :data::jsonb,
-                         :user_id, :metadata::jsonb, :timestamp)
-                """),
+                """
+                INSERT INTO sale_events
+                    (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
+                VALUES
+                    (:event_id, :sale_id, :sequence, :event_type, :data::jsonb,
+                     :user_id, :metadata::jsonb, :timestamp)
+                """,
                 {
                     "event_id": event_id,
                     "sale_id": sale_id,
@@ -157,26 +123,6 @@ class SaleEventStore:
                     "metadata": json.dumps(metadata or {}, default=str),
                     "timestamp": now.isoformat(),
                 },
-            )
-        else:
-            # Legacy sync DatabaseManager (psycopg2 uses %s)
-            seq_rows = db.execute_query(
-                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = %s",
-                (sale_id,),
-            )
-            sequence = seq_rows[0][0] if seq_rows else 1
-
-            db.execute_write(
-                """INSERT INTO sale_events
-                    (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (
-                    event_id, sale_id, sequence, event_type,
-                    json.dumps(data, default=str),
-                    user_id,
-                    json.dumps(metadata or {}, default=str),
-                    now.isoformat(),
-                ),
             )
 
         event = SaleEvent(
@@ -197,40 +143,22 @@ class SaleEventStore:
         sale_id: int,
         after_sequence: int = 0,
     ) -> List[SaleEvent]:
-        """
-        Get all events for a sale, optionally after a given sequence number.
+        """Get all events for a sale, optionally after a given sequence number."""
+        from db.connection import get_connection
 
-        Returns events ordered by sequence.
-        """
-        db = self._get_db()
-
-        if self._is_async_db(db):
-            from sqlalchemy import text
-
-            result = await db.execute(
-                text("""
-                    SELECT event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp
-                    FROM sale_events
-                    WHERE sale_id = :sale_id AND sequence > :after_seq
-                    ORDER BY sequence ASC
-                """),
+        async with get_connection() as db:
+            rows = await db.fetch(
+                """
+                SELECT event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp
+                FROM sale_events
+                WHERE sale_id = :sale_id AND sequence > :after_seq
+                ORDER BY sequence ASC
+                """,
                 {"sale_id": sale_id, "after_seq": after_sequence},
-            )
-            rows = result.mappings().all()
-        else:
-            # psycopg2 uses %s
-            rows = db.execute_query(
-                """SELECT event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp
-                   FROM sale_events
-                   WHERE sale_id = %s AND sequence > %s
-                   ORDER BY sequence ASC""",
-                (sale_id, after_sequence),
             )
 
         events = []
-        for row in rows:
-            r = dict(row)
-
+        for r in rows:
             raw_data = r["data"]
             if isinstance(raw_data, str):
                 raw_data = json.loads(raw_data)
@@ -257,12 +185,7 @@ class SaleEventStore:
         return events
 
     async def rebuild_state(self, sale_id: int) -> Dict[str, Any]:
-        """
-        Rebuild the sale state by replaying all events.
-
-        Returns a dict representing the current state of the sale,
-        as if we had applied each event in sequence.
-        """
+        """Rebuild the sale state by replaying all events."""
         events = await self.get_events(sale_id)
         if not events:
             return {}
@@ -283,7 +206,7 @@ class SaleEventStore:
         for event in events:
             self._apply_event(state, event)
 
-        # Convert items dict to sorted list (by product_id for deterministic output)
+        # Convert items dict to sorted list for deterministic output
         state["items"] = sorted(state["items"].values(), key=lambda x: x.get("product_id", 0))
         # Convert Decimal to float for JSON serialization
         for key in ("subtotal", "discount_total", "tax_total", "total"):

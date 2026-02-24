@@ -9,10 +9,10 @@ A saga defines:
   - Compensation steps: how to undo each forward step if a later step fails
 
 Example: Inventory Transfer Saga
-  Step 1: reserve_source      → compensate: release_source
-  Step 2: confirm_transport    → compensate: cancel_transport
-  Step 3: receive_destination  → compensate: return_to_source
-  Step 4: release_source       → (no compensation needed, already done)
+  Step 1: reserve_source      -> compensate: release_source
+  Step 2: confirm_transport    -> compensate: cancel_transport
+  Step 3: receive_destination  -> compensate: return_to_source
+  Step 4: release_source       -> (no compensation needed, already done)
 
 Usage:
     from modules.sales.saga import SagaOrchestrator, SagaDefinition, SagaStep
@@ -26,10 +26,11 @@ Usage:
         ]
     )
 
-    orchestrator = SagaOrchestrator(db_session)
+    orchestrator = SagaOrchestrator()
     result = await orchestrator.execute(transfer_saga, {"product_id": 42, "qty": 10, ...})
 """
 
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -74,14 +75,8 @@ class SagaOrchestrator:
     for crash recovery and auditing.
     """
 
-    def __init__(self, db_session=None):
-        self._db = db_session
-
-    def _get_db(self):
-        if self._db is not None:
-            return self._db
-        from src.infra.database import db_instance
-        return db_instance
+    def __init__(self, db=None):
+        self._db = db
 
     async def execute(
         self,
@@ -113,7 +108,7 @@ class SagaOrchestrator:
         # Execute steps in order
         for i, step in enumerate(definition.steps):
             try:
-                logger.info(f"Saga {saga_id}: executing step {i+1}/{len(definition.steps)} — {step.name}")
+                logger.info(f"Saga {saga_id}: executing step {i+1}/{len(definition.steps)} -- {step.name}")
                 step_result = await step.action(context)
                 completed_results.append({"step": step.name, "result": step_result})
                 context[f"_step_{step.name}_result"] = step_result
@@ -122,7 +117,7 @@ class SagaOrchestrator:
                 await self._persist_step(saga_id, i, step.name, "completed", step_result)
 
             except Exception as e:
-                logger.error(f"Saga {saga_id}: step {step.name} failed — {e}")
+                logger.error(f"Saga {saga_id}: step {step.name} failed -- {e}")
                 result.error = f"Step '{step.name}' failed: {str(e)}"
                 await self._persist_step(saga_id, i, step.name, "failed", error=str(e))
 
@@ -165,7 +160,7 @@ class SagaOrchestrator:
                 await self._persist_step(saga_id, i, step.name, "compensated")
             except Exception as e:
                 logger.error(
-                    f"Saga {saga_id}: compensation failed for {step.name} — {e}. "
+                    f"Saga {saga_id}: compensation failed for {step.name} -- {e}. "
                     f"MANUAL INTERVENTION REQUIRED."
                 )
                 await self._persist_step(
@@ -176,29 +171,23 @@ class SagaOrchestrator:
         self, saga_id: str, definition: SagaDefinition, context: Dict[str, Any]
     ):
         """Persist initial saga state."""
-        db = self._get_db()
-        import json
-
-        if hasattr(db, "execute"):
-            from sqlalchemy import text
-            await db.execute(
-                text("""
+        try:
+            from db.connection import get_connection
+            async with get_connection() as db:
+                await db.execute(
+                    """
                     INSERT INTO saga_instances (saga_id, saga_type, state, data, total_steps, created_at)
                     VALUES (:saga_id, :saga_type, 'started', :data::jsonb, :total_steps, NOW())
-                """),
-                {
-                    "saga_id": saga_id,
-                    "saga_type": definition.saga_type,
-                    "data": json.dumps(context, default=str),
-                    "total_steps": len(definition.steps),
-                },
-            )
-        else:
-            db.execute_update(
-                """INSERT INTO saga_instances (saga_id, saga_type, state, data, total_steps, created_at)
-                   VALUES (?, ?, 'started', ?::jsonb, ?, NOW())""",
-                (saga_id, definition.saga_type, json.dumps(context, default=str), len(definition.steps)),
-            )
+                    """,
+                    {
+                        "saga_id": saga_id,
+                        "saga_type": definition.saga_type,
+                        "data": json.dumps(context, default=str),
+                        "total_steps": len(definition.steps),
+                    },
+                )
+        except Exception as e:
+            logger.warning(f"Failed to persist saga {saga_id}: {e}")
 
     async def _persist_step(
         self,
@@ -210,84 +199,78 @@ class SagaOrchestrator:
         error: Optional[str] = None,
     ):
         """Persist a step execution result."""
-        db = self._get_db()
-        import json
-
-        if hasattr(db, "execute"):
-            from sqlalchemy import text
-            await db.execute(
-                text("""
+        try:
+            from db.connection import get_connection
+            async with get_connection() as db:
+                await db.execute(
+                    """
                     INSERT INTO saga_steps (saga_id, step_number, step_name, status, result, error_message, executed_at)
                     VALUES (:saga_id, :step_number, :step_name, :status, :result::jsonb, :error, NOW())
                     ON CONFLICT DO NOTHING
-                """),
-                {
-                    "saga_id": saga_id,
-                    "step_number": step_number,
-                    "step_name": step_name,
-                    "status": status,
-                    "result": json.dumps(result, default=str) if result else "{}",
-                    "error": error,
-                },
-            )
+                    """,
+                    {
+                        "saga_id": saga_id,
+                        "step_number": step_number,
+                        "step_name": step_name,
+                        "status": status,
+                        "result": json.dumps(result, default=str) if result else "{}",
+                        "error": error,
+                    },
+                )
+        except Exception as e:
+            logger.warning(f"Failed to persist saga step {saga_id}/{step_name}: {e}")
 
     async def _update_saga_state(
         self, saga_id: str, state: str, error: Optional[str] = None
     ):
         """Update saga instance state."""
-        db = self._get_db()
-        if hasattr(db, "execute"):
-            from sqlalchemy import text
-            await db.execute(
-                text("""
+        try:
+            from db.connection import get_connection
+            async with get_connection() as db:
+                await db.execute(
+                    """
                     UPDATE saga_instances
                     SET state = :state, error_message = :error, updated_at = NOW(),
                         completed_at = CASE WHEN :state IN ('completed', 'failed') THEN NOW() ELSE NULL END
                     WHERE saga_id = :saga_id
-                """),
-                {"saga_id": saga_id, "state": state, "error": error},
-            )
+                    """,
+                    {"saga_id": saga_id, "state": state, "error": error},
+                )
+        except Exception as e:
+            logger.warning(f"Failed to update saga state {saga_id}: {e}")
 
 
 # ============================================================================
 # Pre-built Saga: Inventory Transfer
 # ============================================================================
 
-def _get_db_session():
-    """Get an async DB session for saga steps."""
-    from db.connection import AsyncSessionLocal
-    return AsyncSessionLocal()
-
-
 async def _reserve_source_stock(context: Dict[str, Any]):
     """Reserve stock at source branch (FOR UPDATE to prevent race conditions)."""
-    from sqlalchemy import text
-    async with _get_db_session() as db:
-        product_id = context["product_id"]
-        qty = context["qty"]
+    from db.connection import get_connection
 
-        # Lock the product row and check stock
-        result = await db.execute(
-            text("SELECT stock FROM products WHERE id = :pid FOR UPDATE"),
-            {"pid": product_id},
-        )
-        row = result.first()
-        if not row:
-            raise ValueError(f"Producto {product_id} no encontrado")
+    product_id = context["product_id"]
+    qty = context["qty"]
 
-        current_stock = float(row[0])
-        if current_stock < qty:
-            raise ValueError(
-                f"Stock insuficiente para producto {product_id}: "
-                f"tiene {current_stock}, necesita {qty}"
+    async with get_connection() as db:
+        async with db.connection.transaction():
+            row = await db.fetchrow(
+                "SELECT stock FROM products WHERE id = :pid FOR UPDATE",
+                {"pid": product_id},
             )
+            if not row:
+                raise ValueError(f"Producto {product_id} no encontrado")
 
-        # Reserve by reducing shadow_stock (logical reservation)
-        await db.execute(
-            text("UPDATE products SET shadow_stock = shadow_stock + :qty WHERE id = :pid"),
-            {"qty": qty, "pid": product_id},
-        )
-        await db.commit()
+            current_stock = float(row["stock"])
+            if current_stock < qty:
+                raise ValueError(
+                    f"Stock insuficiente para producto {product_id}: "
+                    f"tiene {current_stock}, necesita {qty}"
+                )
+
+            await db.execute(
+                "UPDATE products SET shadow_stock = shadow_stock + :qty WHERE id = :pid",
+                {"qty": qty, "pid": product_id},
+            )
 
     logger.info(f"Reserved {qty} units of product {product_id}")
     return {"reserved": True, "qty": qty, "previous_stock": current_stock}
@@ -295,34 +278,31 @@ async def _reserve_source_stock(context: Dict[str, Any]):
 
 async def _release_source_reservation(context: Dict[str, Any], step_result: Any):
     """Compensate: release the reservation at source."""
-    from sqlalchemy import text
-    async with _get_db_session() as db:
+    from db.connection import get_connection
+    async with get_connection() as db:
         await db.execute(
-            text("UPDATE products SET shadow_stock = shadow_stock - :qty WHERE id = :pid"),
+            "UPDATE products SET shadow_stock = shadow_stock - :qty WHERE id = :pid",
             {"qty": context["qty"], "pid": context["product_id"]},
         )
-        await db.commit()
     logger.info(f"Released reservation for product {context['product_id']}")
 
 
 async def _create_transfer_record(context: Dict[str, Any]):
     """Create the inventory transfer record in DB."""
-    from sqlalchemy import text
+    from db.connection import get_connection
     from datetime import datetime, timezone
-    import uuid
 
     now = datetime.now(timezone.utc).isoformat()
     transfer_id = f"TRF-{uuid.uuid4().hex[:8].upper()}"
 
-    async with _get_db_session() as db:
-        # Record as inventory_movement at source (outgoing)
+    async with get_connection() as db:
         await db.execute(
-            text("""
-                INSERT INTO inventory_movements
-                    (product_id, quantity, movement_type, reason, reference_id, created_at)
-                VALUES
-                    (:pid, :qty, 'transfer_out', :reason, :ref, :ts)
-            """),
+            """
+            INSERT INTO inventory_movements
+                (product_id, quantity, movement_type, reason, reference_id, created_at)
+            VALUES
+                (:pid, :qty, 'transfer_out', :reason, :ref, :ts)
+            """,
             {
                 "pid": context["product_id"],
                 "qty": -context["qty"],
@@ -331,7 +311,6 @@ async def _create_transfer_record(context: Dict[str, Any]):
                 "ts": now,
             },
         )
-        await db.commit()
 
     logger.info(f"Transfer record created: {transfer_id}")
     return {"transfer_id": transfer_id, "timestamp": now}
@@ -339,38 +318,36 @@ async def _create_transfer_record(context: Dict[str, Any]):
 
 async def _cancel_transfer_record(context: Dict[str, Any], step_result: Any):
     """Compensate: delete the transfer movement record."""
-    from sqlalchemy import text
+    from db.connection import get_connection
 
     transfer_id = step_result.get("transfer_id") if step_result else None
     if not transfer_id:
         return
 
-    async with _get_db_session() as db:
+    async with get_connection() as db:
         await db.execute(
-            text("DELETE FROM inventory_movements WHERE reference_id = :ref"),
+            "DELETE FROM inventory_movements WHERE reference_id = :ref",
             {"ref": transfer_id},
         )
-        await db.commit()
     logger.info(f"Transfer record {transfer_id} cancelled")
 
 
 async def _receive_at_destination(context: Dict[str, Any]):
     """Add stock at destination branch and record incoming movement."""
-    from sqlalchemy import text
+    from db.connection import get_connection
     from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc).isoformat()
     transfer_id = context.get("_step_create_transfer_result", {}).get("transfer_id", "")
 
-    async with _get_db_session() as db:
-        # Record incoming movement
+    async with get_connection() as db:
         await db.execute(
-            text("""
-                INSERT INTO inventory_movements
-                    (product_id, quantity, movement_type, reason, reference_id, created_at)
-                VALUES
-                    (:pid, :qty, 'transfer_in', :reason, :ref, :ts)
-            """),
+            """
+            INSERT INTO inventory_movements
+                (product_id, quantity, movement_type, reason, reference_id, created_at)
+            VALUES
+                (:pid, :qty, 'transfer_in', :reason, :ref, :ts)
+            """,
             {
                 "pid": context["product_id"],
                 "qty": context["qty"],
@@ -379,7 +356,6 @@ async def _receive_at_destination(context: Dict[str, Any]):
                 "ts": now,
             },
         )
-        await db.commit()
 
     logger.info(f"Received {context['qty']} units at destination")
     return {"received": True, "transfer_id": transfer_id}
@@ -387,37 +363,34 @@ async def _receive_at_destination(context: Dict[str, Any]):
 
 async def _return_from_destination(context: Dict[str, Any], step_result: Any):
     """Compensate: remove the incoming movement record."""
-    from sqlalchemy import text
+    from db.connection import get_connection
 
     transfer_id = step_result.get("transfer_id") if step_result else None
     if not transfer_id:
         return
 
-    async with _get_db_session() as db:
+    async with get_connection() as db:
         await db.execute(
-            text("DELETE FROM inventory_movements WHERE reference_id = :ref AND movement_type = 'transfer_in'"),
+            "DELETE FROM inventory_movements WHERE reference_id = :ref AND movement_type = 'transfer_in'",
             {"ref": transfer_id},
         )
-        await db.commit()
     logger.info(f"Returned stock from destination (transfer {transfer_id})")
 
 
 async def _confirm_source_deduction(context: Dict[str, Any]):
     """Finalize: deduct real stock from source (convert reservation to actual deduction)."""
-    from sqlalchemy import text
+    from db.connection import get_connection
 
-    async with _get_db_session() as db:
-        # Deduct actual stock and clear shadow reservation
+    async with get_connection() as db:
         await db.execute(
-            text("""
-                UPDATE products
-                SET stock = stock - :qty,
-                    shadow_stock = shadow_stock - :qty
-                WHERE id = :pid
-            """),
+            """
+            UPDATE products
+            SET stock = stock - :qty,
+                shadow_stock = shadow_stock - :qty
+            WHERE id = :pid
+            """,
             {"qty": context["qty"], "pid": context["product_id"]},
         )
-        await db.commit()
 
     logger.info(f"Source stock deduction confirmed for product {context['product_id']}")
     return {"confirmed": True}
@@ -430,6 +403,6 @@ INVENTORY_TRANSFER_SAGA = SagaDefinition(
         SagaStep("reserve_source", _reserve_source_stock, _release_source_reservation),
         SagaStep("create_transfer", _create_transfer_record, _cancel_transfer_record),
         SagaStep("receive_destination", _receive_at_destination, _return_from_destination),
-        SagaStep("confirm_deduction", _confirm_source_deduction, None),  # No compensation — already received
+        SagaStep("confirm_deduction", _confirm_source_deduction, None),  # No compensation -- already received
     ],
 )

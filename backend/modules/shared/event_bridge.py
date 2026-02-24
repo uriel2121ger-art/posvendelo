@@ -1,14 +1,13 @@
 """
 TITAN POS - Event Bridge
 
-Bridges the legacy EventBus (app/utils/event_bus.py) with the new
-DomainEvent system (Phase 2) and Redis Streams (Phase 4).
+Bridges the legacy EventBus (app/utils/event_bus.py) with the
+DomainEvent system.
 
 When the monolith publishes legacy events (e.g., EventTypes.SALE_COMPLETED),
 this bridge:
   1. Converts them to DomainEvent instances
   2. Persists them via DomainEventStore (outbox pattern)
-  3. Publishes to Redis Streams (if connected)
 
 This avoids modifying pos_engine.py or any existing code.
 
@@ -85,9 +84,8 @@ _LEGACY_TO_DOMAIN = {
     },
 }
 
-# References to initialized components (set by setup_event_bridge)
+# Reference to initialized event bus (set by setup_event_bridge)
 _enhanced_bus = None
-_redis_bridge = None
 
 
 def _on_legacy_event(event):
@@ -122,16 +120,12 @@ def _on_legacy_event(event):
         logger.error(f"Event bridge error for {event_type}: {e}")
 
 
-async def setup_event_bridge(redis_bridge=None):
+async def setup_event_bridge():
     """
     Set up the bridge between legacy EventBus and DomainEvent system.
     Call once at application startup.
-
-    Args:
-        redis_bridge: Optional RedisEventBridge instance for cross-service events
     """
-    global _enhanced_bus, _redis_bridge
-    _redis_bridge = redis_bridge
+    global _enhanced_bus
 
     try:
         from modules.shared.domain_event import get_enhanced_event_bus

@@ -1,31 +1,28 @@
 """
 TITAN POS - Test Configuration
 
-Provides async database fixtures and test utilities for the modules/ tests.
+Provides async database fixtures using asyncpg direct.
 """
 
 import os
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+import asyncpg
+
+from db.connection import DB
 
 # Use test database URL
-TEST_DATABASE_URL = os.getenv(
+_raw_url = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos",
+    "postgresql://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos",
 )
+TEST_DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 
 
 @pytest.fixture
 async def db_session():
-    """Provide a fresh async database session per test.
-
-    Creates a new engine connection per test to avoid asyncpg
-    'another operation in progress' errors between tests.
-    """
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    session = AsyncSession(bind=engine, expire_on_commit=False)
+    """Provide a DB wrapper around a fresh asyncpg connection per test."""
+    conn = await asyncpg.connect(dsn=TEST_DATABASE_URL)
     try:
-        yield session
+        yield DB(conn)
     finally:
-        await session.close()
-        await engine.dispose()
+        await conn.close()

@@ -1,60 +1,160 @@
 """
-TITAN POS - Async Database Connection
+TITAN POS - Async Database Connection (asyncpg direct)
 
-Provides SQLAlchemy async engine and session factory for the
-modular routes (modules/). Coexists with the legacy sync
-DatabaseManager in src/infra/database.py.
+Provides a connection pool and a thin DB wrapper that:
+- Converts named params (:name) to positional ($N) for asyncpg
+- Returns plain dicts instead of asyncpg Records
+- Handles PostgreSQL :: casts correctly
 
-Both connect to the same PostgreSQL instance.
+Usage in routes:
+    from db.connection import get_db
+    @router.get("/")
+    async def list_items(db=Depends(get_db)):
+        rows = await db.fetch("SELECT * FROM items WHERE id = :id", {"id": 1})
 """
 
 import os
+import re
 import logging
-from typing import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    AsyncSession,
-    async_sessionmaker,
-)
+import asyncpg
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv(
+# Parse DATABASE_URL — strip +asyncpg suffix if present (from SQLAlchemy format)
+_raw_url = os.getenv(
     "DATABASE_URL",
-    "postgresql+asyncpg://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos",
+    "postgresql://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos",
 )
+DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-)
-
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+# Global connection pool
+_pool: Optional[asyncpg.Pool] = None
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency for async database sessions."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+async def get_pool() -> asyncpg.Pool:
+    """Get or create the global connection pool."""
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(
+            dsn=DATABASE_URL,
+            min_size=5,
+            max_size=20,
+        )
+        logger.info("asyncpg connection pool created")
+    return _pool
+
+
+async def close_pool():
+    """Close the connection pool (call at app shutdown)."""
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+        logger.info("asyncpg connection pool closed")
+
+
+def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
+    """Convert :name params to $N positional params for asyncpg.
+
+    Handles PostgreSQL :: casts (e.g., :data::jsonb) correctly by
+    temporarily replacing :: before processing named params.
+    """
+    # Temporarily replace :: casts to avoid confusing them with params
+    sql = sql.replace("::", "\x00CAST\x00")
+
+    param_order: list = []
+
+    def replacer(match):
+        name = match.group(1)
+        if name not in param_order:
+            param_order.append(name)
+        idx = param_order.index(name) + 1
+        return f"${idx}"
+
+    converted = re.sub(r":(\w+)", replacer, sql)
+
+    # Restore :: casts
+    converted = converted.replace("\x00CAST\x00", "::")
+
+    args = [params[name] for name in param_order]
+    return converted, args
+
+
+class DB:
+    """Thin wrapper around asyncpg connection for named parameters."""
+
+    __slots__ = ("_conn",)
+
+    def __init__(self, conn: asyncpg.Connection):
+        self._conn = conn
+
+    async def fetch(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Execute query with named params, return list of dicts."""
+        if params:
+            sql, args = _named_to_positional(sql, params)
+            rows = await self._conn.fetch(sql, *args)
+        else:
+            rows = await self._conn.fetch(sql)
+        return [dict(r) for r in rows]
+
+    async def fetchrow(self, sql: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Execute query with named params, return single dict or None."""
+        if params:
+            sql, args = _named_to_positional(sql, params)
+            row = await self._conn.fetchrow(sql, *args)
+        else:
+            row = await self._conn.fetchrow(sql)
+        return dict(row) if row else None
+
+    async def fetchval(self, sql: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """Execute query with named params, return single value."""
+        if params:
+            sql, args = _named_to_positional(sql, params)
+            return await self._conn.fetchval(sql, *args)
+        return await self._conn.fetchval(sql)
+
+    async def execute(self, sql: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """Execute a write query with named params. Returns status string."""
+        if params:
+            sql, args = _named_to_positional(sql, params)
+            return await self._conn.execute(sql, *args)
+        return await self._conn.execute(sql)
+
+    @property
+    def connection(self) -> asyncpg.Connection:
+        """Access the underlying asyncpg connection for transactions etc."""
+        return self._conn
+
+
+async def get_db() -> AsyncGenerator:
+    """FastAPI dependency — yields a DB wrapper around an asyncpg connection."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        yield DB(conn)
+
+
+@asynccontextmanager
+async def get_connection():
+    """Context manager for direct connection access (for saga steps, etc.).
+
+    Usage:
+        async with get_connection() as db:
+            await db.execute("UPDATE ...")
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        yield DB(conn)
 
 
 async def check_db_health() -> bool:
     """Check database connectivity."""
-    from sqlalchemy import text
     try:
-        async with AsyncSessionLocal() as session:
-            await session.execute(text("SELECT 1"))
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
         return True
     except Exception as e:
         logger.error(f"Database health check failed: {e}")

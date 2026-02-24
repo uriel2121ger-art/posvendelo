@@ -7,7 +7,6 @@ Public API:
     - BaseService: Base class for all services
     - BaseRepository: Base class for all repositories
     - EventBus, DomainEvent, EventTypes: Event system
-    - Money: Currency handling
     - get_event_bus, publish, subscribe: Event convenience functions
     - get_cache: Cache access
     - check_permission: Permission checking
@@ -50,7 +49,7 @@ __all__ = [
     "publish",
     "subscribe",
     "unsubscribe",
-    # Enhanced event bus (Phase 2)
+    # Enhanced event bus
     "DomainEvent",
     "DomainEventStore",
     "EnhancedEventBus",
@@ -66,17 +65,4 @@ __all__ = [
     "ALLOWED_ID_COLUMNS",
     "TABLE_COLUMNS",
     "VALID_TABLE_NAMES",
-    # Redis (Phase 4) — lazy imports
-    "RedisEventBridge",
-    "RedisCache",
 ]
-
-# Lazy imports for Redis (requires redis package)
-def __getattr__(name):
-    if name == "RedisEventBridge":
-        from modules.shared.redis_events import RedisEventBridge
-        return RedisEventBridge
-    if name == "RedisCache":
-        from modules.shared.redis_events import RedisCache
-        return RedisCache
-    raise AttributeError(f"module 'modules.shared' has no attribute {name!r}")
