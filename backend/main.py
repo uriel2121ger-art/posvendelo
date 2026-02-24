@@ -21,6 +21,7 @@ from modules.sales.routes import router as sales_router
 from modules.inventory.routes import router as inventory_router
 from modules.turns.routes import router as turns_router
 from modules.employees.routes import router as employees_router
+from modules.sync.routes import router as sync_router
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ app.include_router(sales_router, prefix="/api/v1/sales", tags=["sales"])
 app.include_router(inventory_router, prefix="/api/v1/inventory", tags=["inventory"])
 app.include_router(turns_router, prefix="/api/v1/turns", tags=["turns"])
 app.include_router(employees_router, prefix="/api/v1/employees", tags=["employees"])
+app.include_router(sync_router, prefix="/api/v1/sync", tags=["sync"])
 
 
 # ---------------------------------------------------------------------------

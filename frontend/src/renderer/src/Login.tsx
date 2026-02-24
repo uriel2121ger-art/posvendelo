@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, Terminal as TerminalIcon, LogIn } from 'lucide-react'
+import { loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 
 export default function Login(): ReactElement {
   const [username, setUsername] = useState('admin') // Default for demo
@@ -21,16 +22,39 @@ export default function Login(): ReactElement {
 
     setLoading(true)
 
-    // TODO: Connect to backend auth endpoint instead of this mock
-    setTimeout(() => {
-      setLoading(false)
-      if (username === 'admin' && password === '1234') {
-        // Success: Redirect directly to Terminal (Ventas)
-        navigate('/terminal')
-      } else {
-        setError('Credenciales incorrectas. Intenta de nuevo.')
+    try {
+      const cfg = loadRuntimeConfig()
+      const res = await fetch(`${cfg.baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password: password.trim() })
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ detail: 'Error de conexión' }))
+        setError(body.detail || body.error || 'Credenciales incorrectas. Intenta de nuevo.')
+        return
       }
-    }, 800)
+
+      const body = await res.json()
+      const token = body.token || body.access_token || ''
+
+      if (!token) {
+        setError('Respuesta del servidor sin token. Contacta al administrador.')
+        return
+      }
+
+      saveRuntimeConfig({ ...cfg, token })
+      navigate('/terminal')
+    } catch (err) {
+      setError(
+        err instanceof TypeError
+          ? 'No se puede conectar al servidor. Verifica que esté encendido.'
+          : 'Error inesperado. Intenta de nuevo.'
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -15,6 +15,9 @@ class SaleItemCreate(BaseModel):
     price: float = Field(..., ge=0)
     discount: float = 0.0
     sat_clave_prod_serv: Optional[str] = "01010101"
+    is_wholesale: bool = False
+    price_wholesale: Optional[float] = None
+    price_includes_tax: bool = True
 
 
 class SaleCreate(BaseModel):
@@ -26,10 +29,13 @@ class SaleCreate(BaseModel):
     serie: str = "A"
     cash_received: Optional[float] = 0.0
     notes: Optional[str] = None
+    requiere_factura: bool = False
     # Mixed payment
     mixed_cash: Optional[float] = 0.0
     mixed_card: Optional[float] = 0.0
     mixed_transfer: Optional[float] = 0.0
+    mixed_wallet: Optional[float] = 0.0
+    mixed_gift_card: Optional[float] = 0.0
 
 
 class SaleResponse(BaseModel):

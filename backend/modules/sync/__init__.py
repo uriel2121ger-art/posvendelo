@@ -2,18 +2,21 @@
 TITAN POS - Sync Module
 
 Bounded context for data synchronization:
-- Multi-branch sync engine
-- Conflict resolution
-- JSONL-based data transfer
-- Auto-sync scheduling
-
-Public API:
-    - SyncEngine: Sync orchestration
-    - AutoSync: Automatic sync scheduling
+- HTTP sync endpoints (routes.py) — used by frontend posApi.ts
+- Multi-branch sync engine (service.py) — DEPRECATED legacy
+- Auto-sync scheduling (auto_sync.py) — DEPRECATED legacy
 """
 
-from modules.sync.service import SyncEngine
-from modules.sync.auto_sync import AutoSync
+# Legacy re-exports with safe fallback
+try:
+    from modules.sync.service import SyncEngine
+except Exception:
+    SyncEngine = None  # type: ignore[assignment,misc]
+
+try:
+    from modules.sync.auto_sync import AutoSync
+except Exception:
+    AutoSync = None  # type: ignore[assignment,misc]
 
 __all__ = [
     "SyncEngine",

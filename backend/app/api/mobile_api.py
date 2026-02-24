@@ -156,17 +156,17 @@ def get_core():
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 @_limiter.limit("5/minute")
-async def login(request: LoginRequest, req: Request):
+async def login(body: LoginRequest, request: Request):
     """
     Login con credenciales + opcional YubiKey OTP.
 
     SECURITY: Rate limited to 5 attempts per minute per IP to prevent brute force.
     """
     core = get_core()
-    
+
     # Try to verify user from employees table
     try:
-        user = core.verify_user(request.username, request.password)
+        user = core.verify_user(body.username, body.password)
         if user:
             token = create_token(str(user.get('id', 1)), user.get('role', 'admin'))
             return TokenResponse(
@@ -175,7 +175,7 @@ async def login(request: LoginRequest, req: Request):
             )
     except Exception as e:
         logger.debug("Login failed: %s", e)
-    
+
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 @app.get("/api/auth/verify")

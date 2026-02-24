@@ -12,9 +12,9 @@ export type SaleSearchFilters = {
 }
 
 const FALLBACKS: Record<string, string> = {
-  products: '/api/sync/products',
-  customers: '/api/customers',
-  inventory: '/api/sync/products'
+  products: '/api/v1/products/',
+  customers: '/api/v1/customers/',
+  inventory: '/api/v1/inventory/'
 }
 
 export function loadRuntimeConfig(): RuntimeConfig {
@@ -154,7 +154,8 @@ export async function searchSales(
   const syncSuffix = `?${syncParams.toString()}`
 
   const res = await getWithFallback(cfg, [
-    `/api/sales/search${suffix}`,
+    `/api/v1/sales/search${suffix}`,
+    `/api/v1/sales/${suffix}`,
     `/api/v1/sync/sales${syncSuffix}`
   ])
   const body = (await res.json()) as Record<string, unknown>
@@ -184,6 +185,7 @@ export async function getSaleDetail(
 ): Promise<Record<string, unknown>> {
   const safeSaleId = encodeURIComponent(saleId)
   const res = await getWithFallback(cfg, [
+    `/api/v1/sales/${safeSaleId}`,
     `/api/sales/${safeSaleId}`,
     '/api/v1/sync/sales?limit=2000'
   ])
