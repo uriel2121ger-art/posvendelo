@@ -9,6 +9,7 @@ Bounded context for employee management:
 - Commissions
 
 Public API:
+    - router: FastAPI router with employee endpoints
     - TimeClockEngine: Time clock/attendance engine
     - LoanEngine: Employee loan engine
 """

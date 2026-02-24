@@ -1,9 +1,13 @@
 """
-TITAN POS - Sales Service (Modular)
+TITAN POS - Sales Service (DEPRECATED)
 
-Re-exports SalesService from its original location.
+Legacy re-export. Sales queries now live in modules/sales/routes.py
+using asyncpg direct. Sale creation remains in mobile_api/core.py for now.
 """
 
-from app.services.sales_service import SalesService
+try:
+    from app.services.sales_service import SalesService
+except ImportError:
+    SalesService = None  # type: ignore
 
 __all__ = ["SalesService"]

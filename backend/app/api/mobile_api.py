@@ -19,6 +19,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from pydantic import BaseModel, field_validator, Field
 
+# Auth: import from shared module (single source of truth)
+from modules.shared.auth import (
+    verify_token as _shared_verify_token,
+    create_token as _shared_create_token,
+    SECRET_KEY as _shared_secret,
+    ALGORITHM as _shared_algorithm,
+    TOKEN_EXPIRE_MINUTES as _shared_token_expire,
+    security as _shared_security,
+)
+
 # SECURITY: Rate limiting to prevent brute force attacks
 try:
     from slowapi import Limiter
@@ -34,24 +44,10 @@ except ImportError:
 # CONFIGURACIÓN
 # ==============================================================================
 
-# SECURITY: JWT secret MUST be loaded from environment, not regenerated on each startup
-# Regenerating would invalidate all existing tokens on server restart
-_env_secret = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY")
-if not _env_secret:
-    # DEVELOPMENT ONLY: Generate a secret but warn loudly
-    import warnings
-    _env_secret = secrets.token_hex(32)
-    warnings.warn(
-        "⚠️  JWT_SECRET not set in environment! Using random key. "
-        "All tokens will be invalidated on restart. "
-        "Set JWT_SECRET environment variable for production.",
-        RuntimeWarning
-    )
-    logger.warning("JWT_SECRET not configured - tokens will not persist across restarts")
-
-SECRET_KEY = _env_secret
-ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = 30
+# Auth config: delegated to modules/shared/auth.py (single source of truth)
+SECRET_KEY = _shared_secret
+ALGORITHM = _shared_algorithm
+TOKEN_EXPIRE_MINUTES = _shared_token_expire
 
 # SECURITY: CORS origins from environment (restrict in production)
 # Default includes common Tailscale ranges and localhost for development
@@ -93,7 +89,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-security = HTTPBearer()
+security = _shared_security
 
 # ==============================================================================
 # MODELOS
@@ -145,36 +141,9 @@ class MermaApprovalRequest(BaseModel):
 # AUTENTICACIÓN
 # ==============================================================================
 
-def create_token(user_id: str, role: str) -> str:
-    """Crea JWT con tiempo de vida corto y claims de seguridad."""
-    now = datetime.utcnow()
-    expire = now + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
-    # SECURITY: Add jti (JWT ID) for potential token revocation
-    # and nbf (not before) to prevent token use before issuance
-    jti = secrets.token_hex(16)
-    payload = {
-        "sub": user_id,
-        "role": role,
-        "exp": expire,
-        "iat": now,
-        "nbf": now,  # Token not valid before this time
-        "jti": jti   # Unique token ID for revocation tracking
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
-    """Verifica y decodifica el JWT."""
-    try:
-        payload = jwt.decode(
-            credentials.credentials, 
-            SECRET_KEY, 
-            algorithms=[ALGORITHM]
-        )
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expirado")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+# Auth functions: delegated to modules/shared/auth.py
+create_token = _shared_create_token
+verify_token = _shared_verify_token
 
 def get_core():
     """Lazy load del POSCore (singleton). Evita crear una instancia por request."""

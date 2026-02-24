@@ -14,7 +14,26 @@ from contextlib import asynccontextmanager
 
 from app.api.mobile_api import app
 
+# Module routers (Fase 1 — Modular Monolith)
+from modules.products.routes import router as products_router
+from modules.customers.routes import router as customers_router
+from modules.sales.routes import router as sales_router
+from modules.inventory.routes import router as inventory_router
+from modules.turns.routes import router as turns_router
+from modules.employees.routes import router as employees_router
+
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Register module routers under /api/v1/
+# ---------------------------------------------------------------------------
+
+app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
+app.include_router(customers_router, prefix="/api/v1/customers", tags=["customers"])
+app.include_router(sales_router, prefix="/api/v1/sales", tags=["sales"])
+app.include_router(inventory_router, prefix="/api/v1/inventory", tags=["inventory"])
+app.include_router(turns_router, prefix="/api/v1/turns", tags=["turns"])
+app.include_router(employees_router, prefix="/api/v1/employees", tags=["employees"])
 
 
 # ---------------------------------------------------------------------------

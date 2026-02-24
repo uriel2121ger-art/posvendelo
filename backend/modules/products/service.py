@@ -1,9 +1,16 @@
 """
-TITAN POS - Product Service (Modular)
+TITAN POS - Product Service (DEPRECATED)
 
-Re-exports ProductService from its original location.
+Legacy re-export. Product logic now lives in modules/products/routes.py
+using asyncpg direct queries. This file is kept for backward compatibility.
+
+Do NOT add new logic here. Use routes.py instead.
 """
 
-from app.services.product_service import ProductService
+# Legacy import kept for any transitive consumers
+try:
+    from app.services.product_service import ProductService
+except ImportError:
+    ProductService = None  # type: ignore
 
 __all__ = ["ProductService"]

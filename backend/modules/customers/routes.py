@@ -1,17 +1,26 @@
 """
 TITAN POS - Customers Module Routes
+
+CRUD completo para clientes con asyncpg directo.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
+from modules.shared.auth import verify_token
+from modules.customers.schemas import CustomerCreate, CustomerUpdate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+# ============================================================================
+# READ endpoints (existentes)
+# ============================================================================
 
 @router.get("/")
 async def list_customers(
@@ -42,7 +51,7 @@ async def list_customers(
 
 @router.get("/{customer_id}")
 async def get_customer(customer_id: int, db=Depends(get_db)):
-    """Get customer by ID with credit info."""
+    """Get customer by ID."""
     row = await db.fetchrow(
         "SELECT * FROM customers WHERE id = :id", {"id": customer_id}
     )
@@ -65,6 +74,137 @@ async def get_customer_sales(
         WHERE customer_id = :cid AND status = 'completed'
         ORDER BY id DESC LIMIT :limit
         """,
-        {"cid": customer_id, "limit": limit}
+        {"cid": customer_id, "limit": limit},
     )
     return {"success": True, "data": rows}
+
+
+# ============================================================================
+# WRITE endpoints (nuevos — Fase 1)
+# ============================================================================
+
+@router.post("/")
+async def create_customer(
+    body: CustomerCreate,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Create a new customer. Requires auth."""
+    now = datetime.now(timezone.utc).isoformat()
+
+    row = await db.fetchrow(
+        """
+        INSERT INTO customers (
+            name, phone, email, rfc, address, notes, credit_limit,
+            credit_balance, is_active, created_at, updated_at
+        ) VALUES (
+            :name, :phone, :email, :rfc, :address, :notes, :credit_limit,
+            0, 1, :now, :now
+        )
+        RETURNING id
+        """,
+        {
+            "name": body.name,
+            "phone": body.phone,
+            "email": body.email,
+            "rfc": body.rfc,
+            "address": body.address,
+            "notes": body.notes,
+            "credit_limit": body.credit_limit or 0.0,
+            "now": now,
+        },
+    )
+
+    return {"success": True, "data": {"id": row["id"]}}
+
+
+@router.put("/{customer_id}")
+async def update_customer(
+    customer_id: int,
+    body: CustomerUpdate,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Update a customer. Only non-null fields are updated."""
+    existing = await db.fetchrow(
+        "SELECT id FROM customers WHERE id = :id", {"id": customer_id}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    fields = body.model_dump(exclude_none=True)
+    if not fields:
+        return {"success": True, "data": {"message": "Sin cambios"}}
+
+    now = datetime.now(timezone.utc).isoformat()
+    fields["updated_at"] = now
+
+    set_parts = [f"{k} = :{k}" for k in fields]
+    params = {**fields, "id": customer_id}
+
+    await db.execute(
+        f"UPDATE customers SET {', '.join(set_parts)} WHERE id = :id",
+        params,
+    )
+
+    return {"success": True, "data": {"id": customer_id}}
+
+
+@router.delete("/{customer_id}")
+async def delete_customer(
+    customer_id: int,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Soft-delete a customer (set is_active = 0)."""
+    existing = await db.fetchrow(
+        "SELECT id FROM customers WHERE id = :id AND is_active = 1",
+        {"id": customer_id},
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "UPDATE customers SET is_active = 0, updated_at = :now WHERE id = :id",
+        {"id": customer_id, "now": now},
+    )
+
+    return {"success": True, "data": {"id": customer_id}}
+
+
+@router.get("/{customer_id}/credit")
+async def get_customer_credit(
+    customer_id: int,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Get credit info for a customer: limit, balance, pending credit sales."""
+    customer = await db.fetchrow(
+        "SELECT id, name, credit_limit, credit_balance FROM customers WHERE id = :id",
+        {"id": customer_id},
+    )
+    if not customer:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    pending_sales = await db.fetch(
+        """
+        SELECT id, folio, total, timestamp
+        FROM sales
+        WHERE customer_id = :cid AND payment_method = 'credit' AND status = 'completed'
+        ORDER BY id DESC LIMIT 20
+        """,
+        {"cid": customer_id},
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "customer_id": customer["id"],
+            "name": customer["name"],
+            "credit_limit": float(customer["credit_limit"] or 0),
+            "credit_balance": float(customer["credit_balance"] or 0),
+            "available_credit": float((customer["credit_limit"] or 0) - (customer["credit_balance"] or 0)),
+            "pending_sales": pending_sales,
+        },
+    }

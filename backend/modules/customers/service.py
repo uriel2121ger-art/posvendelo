@@ -1,9 +1,13 @@
 """
-TITAN POS - Customer Service (Modular)
+TITAN POS - Customer Service (DEPRECATED)
 
-Re-exports CustomerService from its original location.
+Legacy re-export. Customer logic now lives in modules/customers/routes.py
+using asyncpg direct queries. This file is kept for backward compatibility.
 """
 
-from app.services.customer_service import CustomerService
+try:
+    from app.services.customer_service import CustomerService
+except ImportError:
+    CustomerService = None  # type: ignore
 
 __all__ = ["CustomerService"]

@@ -8,7 +8,8 @@ Bounded context for cash register turn/shift management:
 - Turn reconciliation
 
 Public API:
-    - TurnRepository: Turn data access
+    - router: FastAPI router with turn endpoints
+    - TurnRepository: Turn data access (legacy)
 """
 
 from modules.turns.repository import TurnRepository

@@ -1,16 +1,21 @@
 """
-TITAN POS - Base Service (Modular)
+TITAN POS - Base Service (DEPRECATED)
 
-Base class for all service classes providing common functionality.
-Re-exports from original location for backward compatibility.
+Legacy re-export. Module routes now use asyncpg direct queries
+instead of the BaseService pattern. Kept for backward compatibility.
 """
 
-# Re-export from original location — single source of truth
-from app.services.base_service import (
-    BaseService,
-    ALLOWED_TABLES,
-    ALLOWED_ID_COLUMNS,
-    _validate_identifier,
-)
+try:
+    from app.services.base_service import (
+        BaseService,
+        ALLOWED_TABLES,
+        ALLOWED_ID_COLUMNS,
+        _validate_identifier,
+    )
+except ImportError:
+    BaseService = None  # type: ignore
+    ALLOWED_TABLES = set()
+    ALLOWED_ID_COLUMNS = set()
+    _validate_identifier = None  # type: ignore
 
 __all__ = ["BaseService", "ALLOWED_TABLES", "ALLOWED_ID_COLUMNS", "_validate_identifier"]

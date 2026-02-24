@@ -1,9 +1,13 @@
 """
-TITAN POS - Customer Repository (Modular)
+TITAN POS - Customer Repository (DEPRECATED)
 
-Re-exports CustomerRepository from its original location.
+Legacy re-export. Customer data access now lives in modules/customers/routes.py
+using asyncpg direct queries. This file is kept for backward compatibility.
 """
 
-from app.repositories.customer_repository import CustomerRepository
+try:
+    from app.repositories.customer_repository import CustomerRepository
+except ImportError:
+    CustomerRepository = None  # type: ignore
 
 __all__ = ["CustomerRepository"]

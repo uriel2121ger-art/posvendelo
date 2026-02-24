@@ -1,17 +1,26 @@
 """
 TITAN POS - Inventory Module Routes
+
+Stock movements + adjust endpoint with transactional safety.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
+from modules.shared.auth import verify_token
+from modules.inventory.schemas import StockAdjustment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+# ============================================================================
+# READ endpoints (existentes)
+# ============================================================================
 
 @router.get("/movements")
 async def list_movements(
@@ -55,3 +64,77 @@ async def stock_alerts(db=Depends(get_db)):
         ORDER BY stock ASC
     """)
     return {"success": True, "data": rows}
+
+
+# ============================================================================
+# WRITE endpoints (nuevos — Fase 1)
+# ============================================================================
+
+@router.post("/adjust")
+async def adjust_stock(
+    body: StockAdjustment,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Adjust stock for a product.
+
+    Uses FOR UPDATE to prevent race conditions.
+    Positive quantity = add stock, negative = subtract.
+    Records an inventory_movement for audit trail.
+    """
+    conn = db.connection
+
+    async with conn.transaction():
+        # Lock the product row
+        product = await conn.fetchrow(
+            "SELECT id, sku, name, stock FROM products WHERE id = $1 AND is_active = 1 FOR UPDATE",
+            body.product_id,
+        )
+        if not product:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+        current_stock = float(product["stock"] or 0)
+        new_stock = current_stock + body.quantity
+
+        if new_stock < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Stock insuficiente. Actual: {current_stock}, ajuste: {body.quantity}",
+            )
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Update stock
+        await conn.execute(
+            "UPDATE products SET stock = $1, updated_at = $2 WHERE id = $3",
+            new_stock, now, body.product_id,
+        )
+
+        # Record movement
+        mov_type = "IN" if body.quantity >= 0 else "OUT"
+        user_id = body.user_id or int(auth["sub"])
+
+        await conn.execute(
+            """
+            INSERT INTO inventory_movements
+                (product_id, movement_type, type, quantity, reason, reference_type, user_id, timestamp)
+            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, $7)
+            """,
+            body.product_id,
+            mov_type,
+            abs(body.quantity),
+            body.reason,
+            body.reference_id or "manual_adjust",
+            user_id,
+            now,
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "product_id": body.product_id,
+            "previous_stock": current_stock,
+            "adjustment": body.quantity,
+            "new_stock": new_stock,
+        },
+    }
