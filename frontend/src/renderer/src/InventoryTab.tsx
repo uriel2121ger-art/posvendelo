@@ -83,7 +83,7 @@ export default function InventoryTab(): ReactElement {
       setMessage('Captura un SKU para ajustar inventario.')
       return
     }
-    const qty = Math.max(1, Math.floor(toNumber(movementQty)))
+    const qty = Math.max(1, Math.floor(Math.abs(toNumber(movementQty))))
     const current = rows.find((r) => r.sku === targetSku)
     if (!current) {
       setMessage(`SKU no encontrado en inventario: ${targetSku}`)
@@ -181,7 +181,7 @@ export default function InventoryTab(): ReactElement {
           <tbody>
             {paginated.map((r) => (
               <tr
-                key={r.sku}
+                key={r.id}
                 className={`border-b border-zinc-800/50 cursor-pointer transition-colors text-sm ${
                   sku === r.sku
                     ? 'bg-blue-900/20 border-l-4 border-blue-500'

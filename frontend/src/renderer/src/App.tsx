@@ -217,6 +217,8 @@ function RoutedApp(): ReactElement {
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!localStorage.getItem('titan.token')) return
+      const tag = (document.activeElement?.tagName ?? '').toUpperCase()
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
       switch (event.key) {
         case 'F1':
           event.preventDefault()

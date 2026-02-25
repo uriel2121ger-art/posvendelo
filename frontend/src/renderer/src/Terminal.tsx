@@ -563,44 +563,48 @@ export default function Terminal(): ReactElement {
     const shift = readCurrentShift()
     if (!shift) {
       setCurrentShift(null)
-      setMessage('No hay turno abierto. Abre turno en F5 antes de cobrar.')
-      return
     }
-    if (paymentMethod === 'cash' && amountReceivedNum < totals.total) {
-      setMessage(`Monto insuficiente. Falta: $${pendingAmount.toFixed(2)}`)
+    // For cash: if no amount entered, assume exact payment
+    const effectiveReceived = paymentMethod === 'cash' && amountReceivedNum === 0
+      ? totals.total
+      : amountReceivedNum
+    if (paymentMethod === 'cash' && effectiveReceived < totals.total) {
+      setMessage(`Monto insuficiente. Falta: $${(totals.total - effectiveReceived).toFixed(2)}`)
       return
     }
     setBusy(true)
     try {
-      const turnId = shift.id ? Number(shift.id) || null : null
+      const turnId = shift?.id ? Number(shift.id) || null : null
       const saleData = await syncSale(
         config,
         cart,
         customerName,
         paymentMethod,
         globalDiscountPct,
-        paymentMethod === 'cash' ? amountReceivedNum : undefined,
+        paymentMethod === 'cash' ? effectiveReceived : undefined,
         turnId
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
       const saleTotal = Number(saleData.total) || totals.total
-      const capturedChange = changeDue
+      const capturedChange = Math.max(0, effectiveReceived - totals.total)
       setCart([])
       setGlobalDiscountPct(0)
       setSelectedCartSku(null)
       setAmountReceived('')
-      const updatedShift: ShiftState = {
-        ...shift,
-        salesCount: (shift.salesCount ?? 0) + 1,
-        totalSales: (shift.totalSales ?? 0) + saleTotal,
-        cashSales: (shift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0),
-        cardSales: (shift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0),
-        transferSales:
-          (shift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0),
-        lastSaleAt: new Date().toISOString()
+      if (shift) {
+        const updatedShift: ShiftState = {
+          ...shift,
+          salesCount: (shift.salesCount ?? 0) + 1,
+          totalSales: (shift.totalSales ?? 0) + saleTotal,
+          cashSales: (shift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0),
+          cardSales: (shift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0),
+          transferSales:
+            (shift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0),
+          lastSaleAt: new Date().toISOString()
+        }
+        localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
+        setCurrentShift(updatedShift)
       }
-      localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
-      setCurrentShift(updatedShift)
       setMessage(
         paymentMethod === 'cash'
           ? `Venta ${folio} registrada. Cambio: $${capturedChange.toFixed(2)}`
@@ -971,7 +975,7 @@ export default function Terminal(): ReactElement {
                   <select
                     className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none w-36"
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                    onChange={(e) => { setPaymentMethod(e.target.value as PaymentMethod); setAmountReceived('') }}
                   >
                     <option value="cash">Efectivo</option>
                     <option value="card">Tarjeta</option>

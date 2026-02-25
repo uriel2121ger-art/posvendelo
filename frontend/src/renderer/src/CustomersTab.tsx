@@ -218,7 +218,7 @@ export default function CustomersTab(): ReactElement {
         <button
           className="flex items-center justify-center gap-2 rounded-xl bg-rose-500/20 border border-rose-500/30 px-5 py-2.5 font-bold text-rose-400 shadow-[0_0_15px_rgba(243,66,102,0.1)] hover:bg-rose-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
           onClick={() => void handleDelete()}
-          disabled={busy}
+          disabled={busy || !selectedId}
         >
           Eliminar
         </button>

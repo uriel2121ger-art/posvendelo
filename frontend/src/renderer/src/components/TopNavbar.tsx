@@ -59,8 +59,8 @@ export default function TopNavbar(): ReactElement {
         </div>
         <button
           onClick={() => {
-            localStorage.removeItem('titan.token')
-            localStorage.removeItem('titan.user')
+            const keys = Object.keys(localStorage).filter((k) => k.startsWith('titan.'))
+            keys.forEach((k) => localStorage.removeItem(k))
             navigate('/login')
           }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"

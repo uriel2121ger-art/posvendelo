@@ -48,7 +48,7 @@ export default function ExpensesTab(): ReactElement {
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     const numAmount = parseFloat(amount)
-    if (!numAmount || numAmount <= 0) {
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
       setError('Ingresa un monto válido mayor a 0')
       return
     }

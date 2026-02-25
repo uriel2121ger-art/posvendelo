@@ -179,7 +179,12 @@ export default function ShiftsTab(): ReactElement {
         notes: notes.trim() || undefined
       })
       const data = result.data as Record<string, unknown>
-      const backendId = Number(data?.id ?? 0)
+      const backendId = Number(data?.id ?? data?.turn_id ?? 0)
+      if (!backendId) {
+        setMessage('Turno abierto pero sin ID de backend. Revisa la conexion.')
+        setBusy(false)
+        return
+      }
       const shift: ShiftRecord = {
         id: `shift-${Date.now()}`,
         backendTurnId: backendId,
