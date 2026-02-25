@@ -65,7 +65,7 @@ export default function ExpensesTab(): ReactElement {
     try {
       const cfg = loadRuntimeConfig()
       await registerExpense(cfg, {
-        amount: numAmount,
+        amount: Math.round(numAmount * 100) / 100,
         description: description.trim(),
         reason: reason.trim() || undefined
       })

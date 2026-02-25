@@ -34,9 +34,9 @@ export default function SettingsTab(): ReactElement {
   const [profileName, setProfileName] = useState('')
   const [selectedProfileId, setSelectedProfileId] = useState('')
   const [profiles, setProfiles] = useState<ConfigProfile[]>(() => {
-    const raw = localStorage.getItem(CONFIG_PROFILES_KEY)
-    if (!raw) return []
     try {
+      const raw = localStorage.getItem(CONFIG_PROFILES_KEY)
+      if (!raw) return []
       const parsed = JSON.parse(raw) as ConfigProfile[]
       return Array.isArray(parsed) ? parsed : []
     } catch {

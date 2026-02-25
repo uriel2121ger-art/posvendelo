@@ -57,10 +57,13 @@ if not origins:
         "http://127.0.0.1:8080",
     ]
 
+# Wildcard "*" + credentials=True is a browser spec violation — reject it
+_use_credentials = "*" not in origins
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=_use_credentials,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Terminal-Id"],
 )

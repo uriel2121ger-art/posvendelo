@@ -101,10 +101,10 @@ async def create_customer(
         """
         INSERT INTO customers (
             name, phone, email, rfc, address, notes, credit_limit,
-            credit_balance, is_active, created_at, updated_at
+            credit_balance, is_active, created_at, updated_at, synced
         ) VALUES (
             :name, :phone, :email, :rfc, :address, :notes, :credit_limit,
-            0, 1, NOW(), NOW()
+            0, 1, NOW(), NOW(), 0
         )
         RETURNING id
         """,
@@ -155,6 +155,7 @@ async def update_customer(
 
         set_parts = [f"{k} = :{k}" for k in fields]
         set_parts.append("updated_at = NOW()")
+        set_parts.append("synced = 0")
         params = {**fields, "id": customer_id}
 
         await db.execute(

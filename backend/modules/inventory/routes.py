@@ -113,7 +113,7 @@ async def adjust_stock(
 
         # Update stock
         await conn.execute(
-            "UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2",
+            "UPDATE products SET stock = $1, updated_at = NOW(), synced = 0 WHERE id = $2",
             float(new_stock), body.product_id,
         )
 

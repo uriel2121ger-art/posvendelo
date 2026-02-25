@@ -1080,7 +1080,7 @@ export default function Terminal(): ReactElement {
                 {/* Items count */}
                 <div className="text-right">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Articulos</div>
-                  <div className="text-lg font-bold text-zinc-300">{cart.reduce((a, i) => a + i.qty, 0)}</div>
+                  <div className="text-lg font-bold text-zinc-300">{cart.reduce((a, i) => a + (Number.isFinite(i.qty) ? i.qty : 0), 0)}</div>
                 </div>
 
                 {/* Change / pending */}

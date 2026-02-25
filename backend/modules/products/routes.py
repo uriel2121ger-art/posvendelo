@@ -123,12 +123,12 @@ async def create_product(
                 sku, name, price, price_wholesale, cost, stock,
                 category, department, provider, min_stock, max_stock,
                 tax_rate, sale_type, barcode, description,
-                is_active, created_at, updated_at
+                is_active, created_at, updated_at, synced
             ) VALUES (
                 :sku, :name, :price, :price_wholesale, :cost, :stock,
                 :category, :department, :provider, :min_stock, :max_stock,
                 :tax_rate, :sale_type, :barcode, :description,
-                1, NOW(), NOW()
+                1, NOW(), NOW(), 0
             )
             RETURNING id
             """,

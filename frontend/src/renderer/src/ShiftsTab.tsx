@@ -229,8 +229,7 @@ export default function ShiftsTab(): ReactElement {
       return
     }
     const closing = Math.max(0, toNumber(closingCash))
-    if (closing === 0 && !window.confirm('El efectivo de cierre es $0.00. ¿Cerrar turno asi?')) return
-    if (!window.confirm('¿Cerrar turno? Esta accion no se puede deshacer.')) return
+    if (!window.confirm((closing === 0 ? 'El efectivo de cierre es $0.00. ' : '') + '¿Cerrar turno? Esta accion no se puede deshacer.')) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()

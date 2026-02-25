@@ -123,7 +123,7 @@ async def create_sale(
         raise HTTPException(status_code=401, detail="Token sin user ID")
 
     # ── Validate payment method ──
-    pm = body.payment_method.lower()
+    pm = body.payment_method.strip().lower()
     if pm not in VALID_PAYMENT_METHODS:
         raise HTTPException(status_code=400, detail=f"Metodo de pago invalido: '{pm}'")
 
@@ -139,6 +139,8 @@ async def create_sale(
             raise HTTPException(status_code=400, detail=f"Cantidad invalida en item {idx+1}")
         if math.isnan(item.price) or math.isinf(item.price):
             raise HTTPException(status_code=400, detail=f"Precio invalido en item {idx+1}")
+        if math.isnan(item.discount) or math.isinf(item.discount):
+            raise HTTPException(status_code=400, detail=f"Descuento invalido en item {idx+1}")
 
     # ── Start atomic transaction ──
     sale_uuid = str(uuid_mod.uuid4())
@@ -473,7 +475,7 @@ async def create_sale(
                 )
                 if not cust:
                     raise HTTPException(status_code=400, detail="Cliente no encontrado para venta a credito")
-                if cust.get("credit_authorized") in (False, 0):
+                if not cust.get("credit_authorized"):
                     raise HTTPException(status_code=400, detail="Cliente no tiene credito habilitado")
 
                 balance = _dec(cust.get("credit_balance") or 0)
@@ -777,10 +779,12 @@ async def cancel_sale(
                 wallet_amount = sale.get("mixed_wallet") or Decimal("0")
 
             if wallet_amount > 0 and sale.get("customer_id"):
-                await db.fetchrow(
+                wallet_row = await db.fetchrow(
                     "SELECT id FROM customers WHERE id = :id FOR UPDATE",
                     {"id": sale["customer_id"]},
                 )
+                if not wallet_row:
+                    raise HTTPException(status_code=404, detail="Cliente no encontrado para reversion de monedero")
                 await db.execute(
                     "UPDATE customers SET wallet_balance = wallet_balance + :amount, synced = 0, updated_at = NOW() "
                     "WHERE id = :id",

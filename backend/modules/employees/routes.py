@@ -93,8 +93,8 @@ async def create_employee(
         row = await db.fetchrow(
             """
             INSERT INTO employees (employee_code, name, position, hire_date, base_salary,
-                                   commission_rate, phone, email, notes, is_active, created_at)
-            VALUES (:code, :name, :position, :hire_date, :salary, :commission, :phone, :email, :notes, 1, :now)
+                                   commission_rate, phone, email, notes, is_active, created_at, synced)
+            VALUES (:code, :name, :position, :hire_date, :salary, :commission, :phone, :email, :notes, 1, :now, 0)
             RETURNING id
             """,
             {
