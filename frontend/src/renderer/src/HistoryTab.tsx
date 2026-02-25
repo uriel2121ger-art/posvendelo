@@ -29,8 +29,13 @@ function normalizeSale(raw: Record<string, unknown>): SaleRow {
   }
 }
 
+function sanitizeCsvValue(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) return `'${value}`
+  return value
+}
+
 function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  const toCsvCell = (value: string): string => `"${value.replace(/"/g, '""')}"`
+  const toCsvCell = (value: string): string => `"${sanitizeCsvValue(value).replace(/"/g, '""')}"`
   const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
   const blob = new Blob([`${csv}\n`], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -149,12 +154,14 @@ export default function HistoryTab(): ReactElement {
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           type="date"
           value={dateFrom}
+          max={dateTo}
           onChange={(e) => setDateFrom(e.target.value)}
         />
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           type="date"
           value={dateTo}
+          min={dateFrom}
           onChange={(e) => setDateTo(e.target.value)}
         />
         <select

@@ -194,6 +194,7 @@ export default function Terminal(): ReactElement {
   const [busy, setBusy] = useState(false)
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
   const [message, setMessage] = useState('Cargando productos...')
+  const chargingRef = useRef(false)
 
   useEffect((): void => {
     saveRuntimeConfig(config)
@@ -556,6 +557,7 @@ export default function Terminal(): ReactElement {
   }, [removeItem, selectedCartSku])
 
   const handleCharge = useCallback(async (): Promise<void> => {
+    if (chargingRef.current) return
     if (!cart.length) {
       setMessage('No hay productos en el ticket.')
       return
@@ -572,6 +574,7 @@ export default function Terminal(): ReactElement {
       setMessage(`Monto insuficiente. Falta: $${(totals.total - effectiveReceived).toFixed(2)}`)
       return
     }
+    chargingRef.current = true
     setBusy(true)
     try {
       const turnId = shift?.id ? Number(shift.id) || null : null
@@ -613,6 +616,7 @@ export default function Terminal(): ReactElement {
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
+      chargingRef.current = false
       setBusy(false)
     }
   }, [
@@ -827,8 +831,9 @@ export default function Terminal(): ReactElement {
             className="w-16 rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-2 text-sm font-semibold text-center focus:border-blue-500 focus:outline-none"
             type="number"
             min={1}
+            step={1}
             value={qty}
-            onChange={(e) => setQty(Math.max(1, Number(e.target.value || 1)))}
+            onChange={(e) => setQty(Math.max(1, Math.floor(Number(e.target.value || 1))))}
           />
         </div>
 
@@ -920,6 +925,7 @@ export default function Terminal(): ReactElement {
                       className="w-16 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-center text-sm font-bold text-blue-300 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 shrink-0"
                       type="number"
                       min={1}
+                      step={1}
                       value={item.qty}
                       onChange={(e) => updateItemQty(item.sku, Number(e.target.value || 1))}
                       onClick={(e) => e.stopPropagation()}

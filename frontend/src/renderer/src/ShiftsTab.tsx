@@ -88,8 +88,8 @@ function saveHistory(history: ShiftRecord[]): void {
 }
 
 function toCsvCell(value: string): string {
-  const safe = value.replace(/"/g, '""')
-  return `"${safe}"`
+  const sanitized = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  return `"${sanitized.replace(/"/g, '""')}"`
 }
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]): void {

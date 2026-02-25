@@ -132,6 +132,8 @@ export default function SettingsTab(): ReactElement {
         />
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
+          type="password"
+          autoComplete="off"
           value={form.token}
           placeholder="Token"
           onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value }))}

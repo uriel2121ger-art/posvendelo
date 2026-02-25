@@ -39,7 +39,8 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
 }
 
 function toCsvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
+  const sanitized = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  return `"${sanitized.replace(/"/g, '""')}"`
 }
 
 function buildCsv(headers: string[], rows: string[][]): string {
@@ -145,12 +146,14 @@ export default function ReportsTab(): ReactElement {
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           type="date"
           value={dateFrom}
+          max={dateTo}
           onChange={(e) => setDateFrom(e.target.value)}
         />
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           type="date"
           value={dateTo}
+          min={dateFrom}
           onChange={(e) => setDateTo(e.target.value)}
         />
         <button
