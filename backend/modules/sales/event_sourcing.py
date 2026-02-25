@@ -100,28 +100,35 @@ class SaleEventStore:
         now = datetime.now(timezone.utc)
 
         async with get_connection() as db:
-            row = await db.fetchrow(
-                """
-                INSERT INTO sale_events
-                    (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
-                VALUES
-                    (:event_id, :sale_id,
-                     (SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id),
-                     :event_type, :data::jsonb,
-                     :user_id, :metadata::jsonb, :timestamp)
-                RETURNING sequence
-                """,
-                {
-                    "event_id": event_id,
-                    "sale_id": sale_id,
-                    "event_type": event_type,
-                    "data": json.dumps(data, default=str),
-                    "user_id": user_id,
-                    "metadata": json.dumps(metadata or {}, default=str),
-                    "timestamp": now.isoformat(),
-                },
-            )
-            sequence = row["sequence"]
+            conn = db.connection
+            async with conn.transaction():
+                # Lock existing events for this sale to prevent concurrent sequence conflicts
+                await conn.fetchval(
+                    "SELECT COUNT(*) FROM sale_events WHERE sale_id = $1 FOR UPDATE",
+                    sale_id,
+                )
+                row = await db.fetchrow(
+                    """
+                    INSERT INTO sale_events
+                        (event_id, sale_id, sequence, event_type, data, user_id, metadata, timestamp)
+                    VALUES
+                        (:event_id, :sale_id,
+                         (SELECT COALESCE(MAX(sequence), 0) + 1 FROM sale_events WHERE sale_id = :sale_id),
+                         :event_type, :data::jsonb,
+                         :user_id, :metadata::jsonb, :timestamp)
+                    RETURNING sequence
+                    """,
+                    {
+                        "event_id": event_id,
+                        "sale_id": sale_id,
+                        "event_type": event_type,
+                        "data": json.dumps(data, default=str),
+                        "user_id": user_id,
+                        "metadata": json.dumps(metadata or {}, default=str),
+                        "timestamp": now,
+                    },
+                )
+                sequence = row["sequence"]
 
         event = SaleEvent(
             sale_id=sale_id,

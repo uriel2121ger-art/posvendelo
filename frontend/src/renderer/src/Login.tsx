@@ -24,11 +24,19 @@ export default function Login(): ReactElement {
 
     try {
       const cfg = loadRuntimeConfig()
-      const res = await fetch(`${cfg.baseUrl}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password })
-      })
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000)
+      let res: Response
+      try {
+        res = await fetch(`${cfg.baseUrl}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username.trim(), password }),
+          signal: controller.signal
+        })
+      } finally {
+        clearTimeout(timeout)
+      }
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ detail: 'Error de conexión' }))

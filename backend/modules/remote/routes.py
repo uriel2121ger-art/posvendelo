@@ -287,7 +287,8 @@ async def get_system_status(auth: dict = Depends(verify_token), db=Depends(get_d
 
     sales_row = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'"""
+           FROM sales WHERE timestamp >= CURRENT_DATE::text
+           AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'"""
     )
 
     low_stock_row = await db.fetchrow(

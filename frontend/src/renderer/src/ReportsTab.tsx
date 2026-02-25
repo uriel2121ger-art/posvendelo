@@ -68,20 +68,20 @@ export default function ReportsTab(): ReactElement {
     const byMethod = Object.fromEntries(
       Object.entries(byMethodCents).map(([k, v]) => [k, v / 100])
     )
-    const productCounter = new Map<string, { qty: number; amount: number }>()
+    const productCounter = new Map<string, { qty: number; amountCents: number }>()
     for (const sale of sales) {
       for (const item of sale.items) {
         const key = String(item.sku ?? item.name ?? 'SIN_SKU')
         const qty = Math.max(0, Math.floor(toNumber(item.qty)))
-        const subtotal = toNumber(item.subtotal)
-        const current = productCounter.get(key) ?? { qty: 0, amount: 0 }
+        const subtotalCents = Math.round(toNumber(item.subtotal) * 100)
+        const current = productCounter.get(key) ?? { qty: 0, amountCents: 0 }
         current.qty += qty
-        current.amount += subtotal
+        current.amountCents += subtotalCents
         productCounter.set(key, current)
       }
     }
     const topProducts = [...productCounter.entries()]
-      .map(([sku, data]) => ({ sku, qty: data.qty, amount: data.amount }))
+      .map(([sku, data]) => ({ sku, qty: data.qty, amount: data.amountCents / 100 }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10)
 

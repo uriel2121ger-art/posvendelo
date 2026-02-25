@@ -226,6 +226,14 @@ async def sync_push(
                 sku = row.get("sku")
                 if not sku:
                     continue
+                # Handle soft-delete flag from frontend
+                if row.get("deleted"):
+                    await db.execute(
+                        "UPDATE products SET is_active = 0, synced = 0, updated_at = NOW() WHERE sku = :sku",
+                        {"sku": sku},
+                    )
+                    upserted += 1
+                    continue
                 await db.execute(
                     """INSERT INTO products (sku, name, price, price_wholesale, cost, stock, min_stock, is_active, created_at, updated_at)
                        VALUES (:sku, :name, :price, :pw, :cost, :stock, :min_stock, 1, NOW(), NOW())
@@ -249,6 +257,19 @@ async def sync_push(
 
         elif table_name == "customers":
             for row in payload.data:
+                # Handle soft-delete flag from frontend
+                if row.get("deleted"):
+                    cid = row.get("id")
+                    if cid:
+                        try:
+                            await db.execute(
+                                "UPDATE customers SET is_active = 0, synced = 0, updated_at = NOW() WHERE id = :id",
+                                {"id": int(cid)},
+                            )
+                            upserted += 1
+                        except (ValueError, TypeError):
+                            pass
+                    continue
                 name = row.get("name")
                 if not name:
                     continue

@@ -1,11 +1,11 @@
 """TITAN POS - Auth Module Schemas"""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., max_length=100)
+    password: str = Field(..., max_length=200)
 
 
 class TokenResponse(BaseModel):

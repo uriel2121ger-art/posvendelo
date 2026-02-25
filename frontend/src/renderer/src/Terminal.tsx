@@ -108,8 +108,8 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
   const sku = String(raw.sku ?? raw.code ?? raw.codigo ?? '').trim()
   const name = String(raw.name ?? raw.nombre ?? '').trim()
   if (!sku || !name) return null
-  const price =
-    toNumber(raw.price) || toNumber(raw.sale_price) || toNumber(raw.precio) || toNumber(raw.cost)
+  const priceFields = [raw.price, raw.sale_price, raw.precio, raw.cost]
+  const price = toNumber(priceFields.find((v) => v != null && toNumber(v) > 0) ?? 0)
   return {
     id: (raw.id as number | string | undefined) ?? sku,
     sku,
@@ -164,7 +164,7 @@ async function syncSale(
 
 export default function Terminal(): ReactElement {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
-  const [config, setConfig] = useState<RuntimeConfig>(() => loadRuntimeConfig())
+  const [config] = useState<RuntimeConfig>(() => loadRuntimeConfig())
   const [products, setProducts] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerName, setCustomerName] = useState('Publico General')
@@ -202,7 +202,7 @@ export default function Terminal(): ReactElement {
   }, [config])
 
   // Auto-load products on mount
-  useEffect((): void => {
+  useEffect(() => {
     if (!config.token.trim()) return
     let cancelled = false
     setBusy(true)
@@ -220,6 +220,7 @@ export default function Terminal(): ReactElement {
         if (!cancelled) setBusy(false)
       })
     return (): void => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect((): void => {
@@ -418,14 +419,14 @@ export default function Terminal(): ReactElement {
 
     const fallback = remaining[0]
     if (!fallback) return
-    const snapshot = restSnapshots[fallback.id]
+    const fallbackSnap = restSnapshots[fallback.id]
     setActiveTicketId(fallback.id)
-    setCart(snapshot?.cart ?? [])
-    setCustomerName(snapshot?.customerName ?? 'Publico General')
-    setPaymentMethod(snapshot?.paymentMethod ?? 'cash')
-    setGlobalDiscountPct(snapshot?.globalDiscountPct ?? 0)
-    setSelectedCartSku(snapshot?.selectedCartSku ?? null)
-    setAmountReceived(snapshot?.amountReceived ?? '')
+    setCart(fallbackSnap?.cart ?? [])
+    setCustomerName(fallbackSnap?.customerName ?? 'Publico General')
+    setPaymentMethod(fallbackSnap?.paymentMethod ?? 'cash')
+    setGlobalDiscountPct(fallbackSnap?.globalDiscountPct ?? 0)
+    setSelectedCartSku(fallbackSnap?.selectedCartSku ?? null)
+    setAmountReceived(fallbackSnap?.amountReceived ?? '')
     setMessage(`Ticket activo cerrado. Cambiado a ${fallback.label}.`)
   }
 
@@ -992,7 +993,7 @@ export default function Terminal(): ReactElement {
                     {/* Remove */}
                     <button
                       className="text-zinc-600 hover:text-rose-400 transition-colors shrink-0 p-1"
-                      onClick={(e) => { e.stopPropagation(); removeItem(item.sku) }}
+                      onClick={(e) => { e.stopPropagation(); if (window.confirm(`¿Quitar "${item.name}" del ticket?`)) removeItem(item.sku) }}
                       title="Quitar"
                     >
                       &times;

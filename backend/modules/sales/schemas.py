@@ -10,25 +10,25 @@ from pydantic import BaseModel, Field
 
 class SaleItemCreate(BaseModel):
     product_id: Optional[int] = None  # None or 0 = common/misc product
-    name: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=300)
     qty: float = Field(1.0, gt=0)
     price: float = Field(..., ge=0)
     discount: float = 0.0
-    sat_clave_prod_serv: Optional[str] = "01010101"
+    sat_clave_prod_serv: Optional[str] = Field("01010101", max_length=20)
     is_wholesale: bool = False
     price_wholesale: Optional[float] = None
     price_includes_tax: bool = True
 
 
 class SaleCreate(BaseModel):
-    items: List[SaleItemCreate] = Field(..., min_length=1)
-    payment_method: str = "cash"
+    items: List[SaleItemCreate] = Field(..., min_length=1, max_length=2000)
+    payment_method: str = Field("cash", max_length=20)
     customer_id: Optional[int] = None
     turn_id: Optional[int] = None
     branch_id: int = 1
-    serie: str = "A"
+    serie: str = Field("A", max_length=5)
     cash_received: Optional[float] = 0.0
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=2000)
     requiere_factura: bool = False
     # Mixed payment
     mixed_cash: Optional[float] = 0.0

@@ -25,22 +25,20 @@ router = APIRouter()
 async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de monitoreo RESICO - acumulado anual serie A vs B."""
     year = datetime.now(timezone.utc).year
+    year_start = f"{year}-01-01"
+    year_end = f"{year + 1}-01-01"
 
-    result_a = await db.fetchrow(
-        """SELECT COALESCE(SUM(total), 0) as total FROM sales
-           WHERE serie = 'A' AND EXTRACT(YEAR FROM timestamp::timestamp) = :year
+    result = await db.fetchrow(
+        """SELECT
+             COALESCE(SUM(CASE WHEN serie = 'A' THEN total ELSE 0 END), 0) as total_a,
+             COALESCE(SUM(CASE WHEN serie = 'B' THEN total ELSE 0 END), 0) as total_b
+           FROM sales
+           WHERE timestamp >= :year_start AND timestamp < :year_end
            AND status = 'completed'""",
-        {"year": year},
+        {"year_start": year_start, "year_end": year_end},
     )
-    facturado_a = float(result_a["total"]) if result_a else 0.0
-
-    result_b = await db.fetchrow(
-        """SELECT COALESCE(SUM(total), 0) as total FROM sales
-           WHERE serie = 'B' AND EXTRACT(YEAR FROM timestamp::timestamp) = :year
-           AND status = 'completed'""",
-        {"year": year},
-    )
-    facturado_b = float(result_b["total"]) if result_b else 0.0
+    facturado_a = float(result["total_a"]) if result else 0.0
+    facturado_b = float(result["total_b"]) if result else 0.0
 
     limite = 3_500_000.0
     restante = limite - facturado_a
@@ -78,7 +76,8 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
     """Quick status widget — ventas hoy, mermas pendientes."""
     sales = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'"""
+           FROM sales WHERE timestamp >= CURRENT_DATE::text
+           AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'"""
     )
 
     mermas = await db.fetchrow(
@@ -99,15 +98,26 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
 @router.get("/expenses")
 async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de gastos en efectivo — mes y anio."""
+    now = datetime.now(timezone.utc)
+    month_start = f"{now.year}-{now.month:02d}-01"
+    if now.month == 12:
+        month_end = f"{now.year + 1}-01-01"
+    else:
+        month_end = f"{now.year}-{now.month + 1:02d}-01"
+    year_start = f"{now.year}-01-01"
+    year_end = f"{now.year + 1}-01-01"
+
     month_row = await db.fetchrow(
         """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
            WHERE type = 'expense'
-           AND TO_CHAR(timestamp::timestamp, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')"""
+           AND timestamp >= :month_start AND timestamp < :month_end""",
+        {"month_start": month_start, "month_end": month_end},
     )
     year_row = await db.fetchrow(
         """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
            WHERE type = 'expense'
-           AND EXTRACT(YEAR FROM timestamp::timestamp) = EXTRACT(YEAR FROM NOW())"""
+           AND timestamp >= :year_start AND timestamp < :year_end""",
+        {"year_start": year_start, "year_end": year_end},
     )
 
     return {
@@ -131,6 +141,8 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 
     try:
         year = datetime.now(timezone.utc).year
+        year_start = f"{year}-01-01"
+        year_end = f"{year + 1}-01-01"
 
         # Ingresos por serie
         income = await db.fetchrow(
@@ -139,17 +151,17 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
                    COALESCE(SUM(CASE WHEN serie = 'B' THEN total ELSE 0 END), 0) as serie_b,
                    COALESCE(SUM(total), 0) as total
                FROM sales
-               WHERE EXTRACT(YEAR FROM timestamp::timestamp) = :year
+               WHERE timestamp >= :year_start AND timestamp < :year_end
                AND status = 'completed'""",
-            {"year": year},
+            {"year_start": year_start, "year_end": year_end},
         )
 
         # Gastos
         expenses = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                WHERE type IN ('out', 'expense')
-               AND EXTRACT(YEAR FROM timestamp::timestamp) = :year""",
-            {"year": year},
+               AND timestamp >= :year_start AND timestamp < :year_end""",
+            {"year_start": year_start, "year_end": year_end},
         )
 
         ingresos = float(income["total"]) if income else 0.0
@@ -233,14 +245,14 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
                   COALESCE(SUM(total), 0) as revenue,
                   CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(total), 0) / COUNT(*) ELSE 0 END as avg_ticket
            FROM sales
-           WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'"""
+           WHERE timestamp >= CURRENT_DATE::text AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'"""
     )
 
     hourly = await db.fetch(
         """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
-           WHERE CAST(timestamp AS DATE) = CURRENT_DATE AND status = 'completed'
+           WHERE timestamp >= CURRENT_DATE::text AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'
            GROUP BY hour ORDER BY hour"""
     )
 
@@ -249,7 +261,7 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
            FROM sale_items si
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
-           WHERE CAST(s.timestamp AS DATE) = CURRENT_DATE AND s.status = 'completed'
+           WHERE s.timestamp >= CURRENT_DATE::text AND s.timestamp < (CURRENT_DATE + 1)::text AND s.status = 'completed'
            GROUP BY p.name ORDER BY qty DESC LIMIT 5"""
     )
 

@@ -149,7 +149,8 @@ async def create_product(
         err_str = str(e).lower()
         if "unique" in err_str or "duplicate" in err_str:
             raise HTTPException(status_code=400, detail="SKU ya existe")
-        raise
+        logger.exception("Error creando producto")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
     return {"success": True, "data": {"id": row["id"]}}
 
@@ -170,7 +171,7 @@ async def update_product(
             raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
 
     existing = await db.fetchrow(
-        "SELECT id, price FROM products WHERE id = :id", {"id": product_id}
+        "SELECT id, price, price_wholesale FROM products WHERE id = :id", {"id": product_id}
     )
     if not existing:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -194,20 +195,26 @@ async def update_product(
         params,
     )
 
-    # Record price change in price_history if price changed
-    if "price" in fields and round(float(fields["price"]), 2) != round(float(existing["price"]), 2):
-        await db.execute(
-            """
-            INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
-            VALUES (:product_id, 'price', :old_value, :new_value, :user_id, NOW())
-            """,
-            {
-                "product_id": product_id,
-                "old_value": float(existing["price"]),
-                "new_value": float(fields["price"]),
-                "user_id": int(auth["sub"]),
-            },
-        )
+    # Record price changes in price_history
+    user_id = int(auth["sub"])
+    for price_field in ("price", "price_wholesale"):
+        if price_field in fields:
+            old_val = float(existing.get(price_field) or 0)
+            new_val = float(fields[price_field])
+            if round(new_val, 2) != round(old_val, 2):
+                await db.execute(
+                    """
+                    INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
+                    VALUES (:product_id, :field, :old_value, :new_value, :user_id, NOW())
+                    """,
+                    {
+                        "product_id": product_id,
+                        "field": price_field,
+                        "old_value": old_val,
+                        "new_value": new_val,
+                        "user_id": user_id,
+                    },
+                )
 
     return {"success": True, "data": {"id": product_id}}
 

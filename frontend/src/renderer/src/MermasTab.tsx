@@ -52,7 +52,6 @@ export default function MermasTab(): ReactElement {
   }, [])
 
   const handleAction = async (id: number, approved: boolean): Promise<void> => {
-    const action = approved ? 'aprobar' : 'rechazar'
     const target = mermas.find((m) => m.id === id)
     if (!target) {
       setError('Merma no encontrada. Recarga la lista.')

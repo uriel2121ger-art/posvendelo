@@ -153,7 +153,8 @@ async def update_employee(
     except Exception as e:
         if "unique" in str(e).lower() or "duplicate" in str(e).lower():
             raise HTTPException(status_code=400, detail="Codigo de empleado duplicado")
-        raise
+        logger.exception("Error actualizando empleado")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
     return {"success": True, "data": {"id": employee_id}}
 
