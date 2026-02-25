@@ -1,143 +1,373 @@
-# QA Reporte de Bugs — 2026-02-25
+# QA TITAN POS — Reporte Completo para Desarrollo
 
-Scan completo backend + frontend. 17 issues encontrados y corregidos en commit `81c5581`.
-
-## Resumen
-
-| Severidad | Cantidad | Corregidos |
-|-----------|----------|------------|
-| Critico   | 1        | 1          |
-| Alto      | 10       | 10         |
-| Medio     | 6        | 6          |
-| **Total** | **17**   | **17**     |
+> **Fecha de ejecución:** 2026-02-25 12:56 CST  
+> **Entorno:** Docker (postgres:15-alpine + FastAPI uvicorn), Vite dev server (port 5173)  
+> **Tester:** QA Automatizado via browser sandbox  
+> **Documento:** `QA-TITAN-POS.md` (referencia de casos de prueba)
 
 ---
 
-## Issues Corregidos
+## Resumen Ejecutivo
 
-### #1 — CRITICO: NaN/Inf en schemas de venta
-
-**Archivo:** `backend/modules/sales/schemas.py`
-**Problema:** `SaleItemCreate._reject_special_floats` no validaba `price_wholesale`, permitiendo NaN/Inf en ese campo.
-**Fix:** Agregar `price_wholesale` al loop de validacion.
-
-### #2 — ALTO: float→Decimal en acumulador de stock (ventas)
-
-**Archivo:** `backend/modules/sales/routes.py`
-**Problema:** `demand_by_pid` usaba `float` para acumular demanda de stock, causando drift en operaciones con muchos items.
-**Fix:** `Decimal(str(item.qty))` y `Decimal(str(prod.get("stock", 0)))` para toda la aritmetica de stock.
-
-### #3 — ALTO: float cast antes de escribir a DB (inventario)
-
-**Archivo:** `backend/modules/inventory/routes.py`
-**Problema:** `float(new_stock)` antes de `UPDATE products SET stock = $1` descartaba la precision Decimal.
-**Fix:** Pasar `new_stock` (Decimal) directamente a asyncpg.
-
-### #4 — ALTO: float en operaciones de stock remoto (productos)
-
-**Archivo:** `backend/modules/products/routes.py`
-**Problema:** `update_stock_remote` usaba aritmetica float para calcular nuevo stock.
-**Fix:** `Decimal(str(product["stock"]))` + `Decimal(str(body.quantity))`, import de `Decimal` agregado.
-
-### #5 — ALTO: NaN/Inf incompleto en products schemas
-
-**Archivo:** `backend/modules/products/schemas.py`
-**Problema:** `StockUpdateRemote` y `SimplePriceUpdate` solo validaban `isinf` pero no `isnan`.
-**Fix:** Agregar `math.isnan()` a ambos validators.
-
-### #6 — ALTO: Dead imports en 8 modulos backend
-
-**Archivos:** `customers/routes.py`, `dashboard/routes.py`, `dashboard/schemas.py`, `mermas/routes.py`, `turns/routes.py`, `shared/domain_event.py`, `shared/event_bridge.py`, `products/routes.py`
-**Problema:** Imports no utilizados (`Optional`, `Dict`, `List`, `Query`, `json`, `asyncio`, etc.)
-**Fix:** Eliminados.
-
-### #7 — ALTO: Discount calc sin redondeo (frontend)
-
-**Archivo:** `frontend/.../Terminal.tsx` — `calculateLineSubtotal()`
-**Estado:** Ya usaba `Math.round(...*100)/100` — no requirio cambio.
-
-### #8 — ALTO: /health sin verificar DB
-
-**Archivo:** `backend/main.py`
-**Problema:** Retornaba `{"status": "healthy"}` sin verificar conectividad a PostgreSQL.
-**Fix:** `SELECT 1` via pool, retorna `"unhealthy"` si falla.
-
-### #9 — ALTO: /terminals tragaba excepciones
-
-**Archivo:** `backend/main.py`
-**Problema:** `except Exception` retornaba `success: True` con terminal hardcodeada, ocultando errores reales.
-**Fix:** `logger.exception()` + `raise HTTPException(500)`.
-
-### #10 — ALTO: localStorage.getItem sin try/catch (posApi)
-
-**Archivo:** `frontend/.../posApi.ts` — `loadRuntimeConfig()`
-**Problema:** 3 llamadas a `localStorage.getItem` sin proteccion.
-**Fix:** try/catch con fallback a valores default.
-
-### #11 — MEDIO: localStorage.removeItem sin try/catch (posApi)
-
-**Archivo:** `frontend/.../posApi.ts` — `handleExpiredSession()`
-**Problema:** `removeItem` podia lanzar en contextos restringidos, impidiendo el redirect.
-**Fix:** try/catch, redirect y throw siempre ejecutan.
-
-### #12 — MEDIO: localStorage en JSX render (TopNavbar)
-
-**Archivo:** `frontend/.../components/TopNavbar.tsx`
-**Problema:** `localStorage.getItem('titan.user')` directamente en JSX sin proteccion.
-**Fix:** IIFE con try/catch, fallback a `'Usuario'`.
-
-### #13 — MEDIO: localStorage en logout (TopNavbar)
-
-**Archivo:** `frontend/.../components/TopNavbar.tsx`
-**Problema:** `removeItem` en handler de logout sin try/catch + `getItem('titan.currentShift')` sin proteccion.
-**Fix:** try/catch en removeItem loop y hasShift check.
-
-### #14 — MEDIO: readCurrentShift localStorage fuera de try (Terminal)
-
-**Archivo:** `frontend/.../Terminal.tsx`
-**Problema:** `localStorage.getItem(CURRENT_SHIFT_KEY)` fuera del bloque try existente.
-**Fix:** Mover dentro del try/catch.
-
-### #15 — MEDIO: pending tickets localStorage fuera de try (Terminal)
-
-**Archivo:** `frontend/.../Terminal.tsx`
-**Problema:** `localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)` en useEffect sin proteccion.
-**Fix:** Variable `let raw = null` + try/catch para el getItem.
-
-### #16 — MEDIO: readCurrentShift/readHistory localStorage (ShiftsTab)
-
-**Archivo:** `frontend/.../ShiftsTab.tsx`
-**Problema:** Ambas funciones tenian `localStorage.getItem` fuera del try/catch.
-**Fix:** Mover getItem dentro del try existente en ambas funciones.
-
-### #17 — ALTO: mermas null guard insuficiente (MermasTab)
-
-**Archivo:** `frontend/.../MermasTab.tsx`
-**Problema:** `(inner.mermas ?? [])` — nullish coalescing no protege contra valores truthy no-array.
-**Fix:** `Array.isArray(raw) ? raw : []`.
+| Módulo | Tests | ✅ PASS | ⚠️ PARTIAL | ❌ FAIL | Blocker |
+|--------|-------|---------|------------|---------|---------|
+| 2. Login | 6 | 5 | 0 | 0 | — |
+| 3. Terminal/POS | 8 | 7 | 1 | 0 | BUG-001 |
+| 4. Clientes | 4 | 4 | 0 | 0 | — |
+| 5. Productos | 4 | 4 | 0 | 0 | — |
+| 6. Inventario | 3 | 3 | 0 | 0 | — |
+| 7. Turnos | 3 | 3 | 0 | 0 | BUG-001 |
+| 8. Reportes | 2 | 2 | 0 | 0 | — |
+| 9. Historial | 2 | 2 | 0 | 0 | — |
+| 10. Configuraciones | 2 | 2 | 0 | 0 | — |
+| 11. Dashboard | 2 | 2 | 0 | 0 | — |
+| 12. Mermas | 2 | 2 | 0 | 0 | — |
+| 13. Gastos | 2 | 1 | 1 | 0 | BUG-006 |
+| 14. Navegación | 2 | 1 | 0 | 1 | BUG-005 |
+| 15. API Backend | 12 | 11 | 0 | 1 | BUG-001 |
+| **TOTAL** | **54** | **49** | **2** | **2** | — |
 
 ---
 
-## Archivos Modificados (18)
+## 🐛 Bugs Encontrados
 
-### Backend (13)
-- `main.py` — health check DB + terminals error propagation + HTTPException import
-- `modules/sales/routes.py` — Decimal stock accumulation
-- `modules/sales/schemas.py` — NaN/Inf validation
-- `modules/inventory/routes.py` — Decimal pass-through
-- `modules/products/routes.py` — Decimal stock math + dead imports
-- `modules/products/schemas.py` — isnan validation
-- `modules/customers/routes.py` — dead import
-- `modules/dashboard/routes.py` — dead imports
-- `modules/dashboard/schemas.py` — dead import
-- `modules/mermas/routes.py` — dead import
-- `modules/turns/routes.py` — dead import
-- `modules/shared/domain_event.py` — dead imports
-- `modules/shared/event_bridge.py` — dead imports
+### BUG-001 — `POST /api/v1/turns/open` devuelve 500 (CRITICA)
 
-### Frontend (5)
-- `posApi.ts` — loadRuntimeConfig + handleExpiredSession try/catch
-- `components/TopNavbar.tsx` — 3x localStorage protection
-- `Terminal.tsx` — readCurrentShift + pendingTickets try/catch
-- `ShiftsTab.tsx` — readCurrentShift + readHistory try/catch
-- `MermasTab.tsx` — Array.isArray guard
+| Campo | Detalle |
+|-------|---------|
+| **Severidad** | 🔴 CRITICA |
+| **Módulos afectados** | Turnos, Terminal/Ventas |
+| **Impacto** | Bloquea el flujo de ventas completo: no se puede abrir turno → no se puede cobrar |
+| **Síntoma** | HTTP 500 Internal Server Error |
+| **Endpoint** | `POST /api/v1/turns/open` |
+
+**Causa raíz:** El módulo de turnos pasa una cadena ISO 8601 como parámetro a asyncpg donde el esquema espera un `datetime.datetime`:
+
+```
+asyncpg.exceptions.DataError: invalid input for query argument $5:
+'2026-02-25T15:35:45.150560+00:00'
+(expected a datetime.date or datetime.datetime instance, got 'str')
+```
+
+**Corrección sugerida:** En el módulo que construye el INSERT de turnos, buscar donde se asigna `opened_at` y cambiar:
+```python
+# ANTES (bug):
+"opened_at": datetime.now(timezone.utc).isoformat()
+
+# DESPUÉS (fix):
+"opened_at": datetime.now(timezone.utc)
+```
+
+**Reproducir:**
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+curl -s -w "\nHTTP: %{http_code}\n" -X POST http://localhost:8000/api/v1/turns/open \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"initial_cash": 500, "branch_id": 1}'
+# → 500 Internal Server Error
+```
+
+---
+
+### BUG-002 — `setup.sh` no crea schema tras instalación limpia (CRITICA)
+
+| Campo | Detalle |
+|-------|---------|
+| **Severidad** | 🔴 CRITICA |
+| **Módulos afectados** | Todos (instalación) |
+| **Impacto** | Después de `docker compose down -v`, la DB queda vacía y toda la app falla |
+
+**Causa raíz:** El script `setup.sh` NO tiene ningún paso que ejecute `schema_postgresql.sql` ni las migraciones SQL. Solo inicia los contenedores y asume que las tablas existen.
+
+**Corrección sugerida:** Agregar entre la Fase 4 (Iniciar DB) y Fase 5 (Iniciar servidor) en `setup.sh`:
+
+```bash
+# ═══════════════════════════════════════
+# FASE 4.5: Inicializar schema
+# ═══════════════════════════════════════
+step 5 "Inicializando base de datos..."
+
+# Schema base
+docker compose exec -T postgres psql -U titan_user -d titan_pos \
+  < "_archive/backend_original/src/infra/schema_postgresql.sql" 2>/dev/null
+
+# Migraciones incrementales
+for f in backend/migrations/*.sql; do
+  docker compose exec -T postgres psql -U titan_user -d titan_pos < "$f" 2>/dev/null
+done
+
+ok "Schema y migraciones aplicados"
+```
+
+**Nota adicional:** También falta un mecanismo de seed para el usuario admin inicial. Actualmente el comentario en `setup.sh` dice "La primera vez, la aplicación te pedirá crear tu usuario y contraseña" pero esto no ocurre — no hay UI de registro ni auto-seed.
+
+---
+
+### BUG-003 — Carrito se limpia al navegar entre pestañas (MEDIA)
+
+| Campo | Detalle |
+|-------|---------|
+| **Severidad** | 🟢 MEDIA |
+| **Módulos afectados** | Terminal/Ventas |
+| **Impacto** | El cajero pierde el ticket activo si cambia de pestaña |
+
+**Síntoma:** Al navegar de Ventas → Turnos → Ventas, el carrito se vacía completamente.
+
+**Causa sugerida:** El estado del carrito vive en el state local del componente React (`useState`) y se destruye al desmontar el componente. 
+
+**Corrección sugerida:** Persistir el carrito en `localStorage` o migrar a un store global (`zustand`, `jotai`, o `Context`) que sobreviva a la navegación entre pestañas.
+
+---
+
+### BUG-004 — Ventas bloqueadas sin turno (ALTA — cascading de BUG-001)
+
+| Campo | Detalle |
+|-------|---------|
+| **Severidad** | 🟡 ALTA |
+| **Módulos afectados** | Terminal/Ventas |
+| **Impacto** | `POST /api/v1/sales/` devuelve 400 cuando no hay turno abierto |
+
+**Nota:** Esto podría ser comportamiento esperado (el negocio requiere turno abierto antes de vender). Sin embargo, combinado con BUG-001 que impide abrir turnos, el resultado es que **el flujo completo de ventas está bloqueado**.
+
+---
+
+### BUG-005 — Botón logout no funciona (ALTA)
+
+| Campo | Detalle |
+|-------|---------|
+| **Severidad** | 🟡 ALTA |
+| **Módulos afectados** | Navegación Global |
+| **Impacto** | El usuario no puede cerrar sesión |
+
+**Síntoma:** Al hacer clic en el ícono de logout (LogOut, esquina superior derecha), no ocurre redirección a `#/login`. La sesión persiste tras refresh.
+
+**Reproducir:**
+1. Login con admin/admin
+2. Click en ícono de salida (esquina superior derecha, junto al nombre "admin")
+3. Observar: la URL NO cambia a `#/login`
+4. Refrescar la página: sigue en la vista de Terminal (sesión activa)
+
+---
+
+### BUG-006 — `/api/v1/expenses/summary` falla (MEDIA)
+
+| Campo | Detalle |
+|-------|---------|
+| **Severidad** | 🟢 MEDIA |
+| **Módulos afectados** | Gastos |
+| **Impacto** | La vista de Gastos no muestra los totales del mes/año |
+
+**Síntoma:** La UI muestra error al intentar cargar datos. El browser reporta CORS — esto usualmente indica que el backend devuelve un 500 sin adjuntar headers CORS (mismo patrón que BUG-001).
+
+**Investigar:** Revisar los logs del contenedor API al hacer la petición a `/api/v1/expenses/summary`. Probablemente falta una tabla o hay un error de tipo similar al BUG-001.
+
+---
+
+## Cambios de Infraestructura Realizados Durante QA
+
+Estos cambios fueron necesarios para poder ejecutar las pruebas. **No son correcciones de bugs**, son adaptaciones al entorno de testing.
+
+| # | Archivo | Cambio | Razón |
+|---|---------|--------|-------|
+| 1 | `docker-compose.yml` L24 | Puerto PG `5432` → `5433` | Conflicto con PostgreSQL 17 local del host (ocupaba 5432) |
+| 2 | `docker-compose.yml` L44-45 | `CORS_ORIGINS: "*"` → orígenes explícitos | Wildcard `*` + `allow_credentials=True` viola spec CORS del browser. Cambiado a `http://localhost:5173,http://127.0.0.1:5173,...` |
+| 3 | `backend/requirements.txt` L25 | Agregado `aiofiles>=23.1.0` | `ModuleNotFoundError: No module named 'aiofiles'` al importar `modules/fiscal/routes.py` |
+| 4 | Base de datos | Ejecutado `schema_postgresql.sql` + 16 migraciones + seed admin | `docker compose down -v` borró todos los volúmenes (BUG-002) |
+| 5 | `frontend/vite.browser.config.ts` | Creado config standalone Vite | `electron-vite` requiere Electron que necesita `chrome-sandbox` con `root:4755` (sin sudo disponible) |
+
+---
+
+## Detalle de Pruebas por Módulo
+
+### Módulo 2: Login
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T2.01 | CRITICA | ✅ PASS | Login `admin/admin` → redirige a Terminal. Usuario "admin" visible en header. |
+| T2.02 | CRITICA | ✅ PASS | Password incorrecta → "Credenciales invalidas" en rojo. Mensaje genérico (no revela si es user o password). |
+| T2.03 | ALTA | ✅ PASS | Campos vacíos → botón INGRESAR deshabilitado. Campos parciales → también deshabilitado. |
+| T2.04 | BAJA | ✅ PASS | Cursor automáticamente en campo usuario al cargar página. |
+| T2.05 | BAJA | ✅ PASS | Logo "TITAN POS", iconos User/Lock, indicador "Servidor Online", versión "V 0.1.0 • TITAN POS DEMO". |
+| T2.06 | ALTA | ⏭️ N/A | Rate limiting (5/min). Requiere 6+ intentos rápidos. Pendiente para pruebas de seguridad dedicadas. |
+
+---
+
+### Módulo 3: Terminal / Punto de Venta
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T3.01 | CRITICA | ✅ PASS | Buscar "Coca" → dropdown con "Coca Cola 600ml" (SKU, nombre, precio verde, stock). Click agrega al carrito. |
+| T3.02 | CRITICA | ✅ PASS | Buscar "PEPSI600" → producto aparece. Enter agrega al carrito instantáneamente. |
+| T3.08 | ALTA | ✅ PASS | Estado vacío: "Sin productos en el ticket", botón COBRAR deshabilitado. |
+| T3.09 | CRITICA | ✅ PASS | Carrito muestra columnas: #, Nombre, Cant, Precio, Subtotal. COBRAR habilitado con items. |
+| T3.11 | CRITICA | ✅ PASS | Cambiar cantidad de Coca Cola a 13 → subtotal $240.50 (13×18.50). Total general recalculado. |
+| T3.12 | CRITICA | ✅ PASS | Click X en Pepsi → desaparece. Total ajustado de $257.50 a $240.50. |
+| T3.17 | CRITICA | ⚠️ PARTIAL | Cálculo de cambio correcto (Recibido $50 - Total $18.50 = Cambio $31.50). **COBRAR bloqueado por BUG-001** (no hay turno abierto y no se puede abrir). |
+| T3.25/26 | ALTA | ✅ PASS | Contador artículos y total correcto. |
+
+---
+
+### Módulo 4: Clientes
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T4.01 | CRITICA | ✅ PASS | Tab Clientes carga con lista de clientes (3 registros test). |
+| T4.02 | ALTA | ✅ PASS | Buscar "Juan" → filtra correctamente a "Juan Perez". |
+| T4.03 | ALTA | ✅ PASS | Botón "Nuevo" presente + campos Name, Phone, Email. |
+| T4.04 | MEDIA | ✅ PASS | Columnas visibles: Nombre, Teléfono, Email. |
+
+---
+
+### Módulo 5: Productos
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T5.01 | CRITICA | ✅ PASS | Tab Productos carga con 10 productos seeded. |
+| T5.02 | ALTA | ✅ PASS | Buscar "Coca" → filtra a "Coca Cola 600ml". |
+| T5.03 | ALTA | ✅ PASS | Columnas: SKU, Nombre, Precio, Stock visibles. |
+| T5.04 | ALTA | ✅ PASS | Botones "Nuevo" y "Eliminar" presentes y funcionales. |
+
+---
+
+### Módulo 6: Inventario
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T6.01 | CRITICA | ✅ PASS | Vista de inventario carga correctamente. |
+| T6.02 | ALTA | ✅ PASS | Alertas de stock bajo visibles (ej. Arroz SOS 1kg con 25 unidades). |
+| T6.03 | ALTA | ✅ PASS | Formulario de ajuste presente: SKU, Tipo movimiento (Entrada/Salida), Cantidad. |
+
+---
+
+### Módulo 7: Turnos
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T7.01 | CRITICA | ✅ PASS | Vista de turnos carga con interfaz de gestión. |
+| T7.02 | CRITICA | ✅ PASS | Campos: Operador, Efectivo inicial, botón "Abrir turno" presentes. |
+| T7.13 | ALTA | ✅ PASS | Sin turno activo: Operador y Ef. Inicial habilitados, Ef. Cierre deshabilitado. |
+
+> **⚠️ NOTA:** Tests T7.01-T7.12 (abrir/cerrar turno funcional, acumulados, conciliación, exportar CSV) **NO pudieron ejecutarse** debido a BUG-001. Estos tests quedan pendientes.
+
+---
+
+### Módulo 8: Reportes
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T8.01 | CRITICA | ✅ PASS | Vista carga con selectores de fecha (desde/hasta). |
+| T8.02 | CRITICA | ✅ PASS | Cards KPI presentes: Ventas, Monto total, Ticket promedio. |
+
+---
+
+### Módulo 9: Historial
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T9.01 | CRITICA | ✅ PASS | Filtros presentes: Folio, Fecha desde, Fecha hasta. |
+| T9.07 | MEDIA | ✅ PASS | Sin ventas registradas → "Sin ventas para los filtros seleccionados". |
+
+---
+
+### Módulo 10: Configuraciones
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T10.01 | CRITICA | ✅ PASS | Campos: Base URL, Token (password), Terminal ID presentes. |
+| T10.02 | ALTA | ✅ PASS | Botones "Guardar" y "Probar conexión" presentes. |
+
+---
+
+### Módulo 11: Dashboard / Estadísticas
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T11.01 | CRITICA | ✅ PASS | Dashboard carga con layout de stats en tiempo real. |
+| T11.02 | CRITICA | ✅ PASS | Cards KPI: Ventas Hoy, Ingreso Hoy, Mermas Pendientes. |
+
+---
+
+### Módulo 12: Mermas
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T12.01 | CRITICA | ✅ PASS | Vista de mermas carga correctamente. |
+| T12.06 | MEDIA | ✅ PASS | Sin mermas pendientes → "Sin mermas pendientes" con icono. |
+
+---
+
+### Módulo 13: Gastos
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T13.01 | ALTA | ⚠️ PARTIAL | Estructura de cards OK, pero datos no cargan (BUG-006: `/api/v1/expenses/summary` falla). |
+| T13.02 | CRITICA | ✅ PASS | Formulario: Monto (step 0.01), Descripción, Razón (opcional), botón Registrar. |
+
+---
+
+### Módulo 14: Navegación Global
+
+| Test | Prioridad | Resultado | Detalles |
+|------|-----------|-----------|----------|
+| T14.01 | CRITICA | ✅ PASS | 11 tabs en navbar: Ventas, Clientes, Productos, Inventario, Turnos, Reportes, Historial, Ajustes, Stats, Mermas, Gastos. Orden correcto. |
+| T14.03 | CRITICA | ❌ FAIL | Logout NO redirige a login. Sesión persiste tras click y refresh (BUG-005). |
+
+---
+
+### Módulo 15: API Backend (via curl)
+
+| Test | Prioridad | Resultado | HTTP | Detalles |
+|------|-----------|-----------|------|----------|
+| T15.01 | CRITICA | ✅ PASS | 200 | `{"status":"healthy","service":"titan-pos"}` |
+| T15.02 | CRITICA | ✅ PASS | 200 | JWT devuelto con `access_token`, `expires_in` |
+| T15.03 | ALTA | ✅ PASS | 401 | `{"detail":"Credenciales invalidas"}` — mensaje genérico |
+| T15.04 | ALTA | ✅ PASS | 200 | `{"valid":true, "user":"1", "role":"admin"}` |
+| T15.05 | CRITICA | ✅ PASS | 200 | GET /products/ devuelve lista con datos completos |
+| T15.05b | CRITICA | ✅ PASS | 200 | GET /products/?search=coca filtra correctamente |
+| T15.05c | CRITICA | ✅ PASS | 200 | GET /products/sku/COCA600 devuelve producto específico |
+| T15.05d | ALTA | ✅ PASS | 200 | GET /products/low-stock funciona |
+| T15.06 | ALTA | ✅ PASS | 200 | Paginación: limit=3&offset=3 funciona |
+| T15.12 | ALTA | ✅ PASS | 200 | GET /customers/ devuelve 3 clientes |
+| T15.13 | ALTA | ✅ PASS | 200 | GET /inventory/alerts funciona |
+| T15.14 | ALTA | ❌ FAIL | 500 | POST /turns/open — BUG-001 (datetime string) |
+| T15.14b | ALTA | ✅ PASS | 200 | GET /turns/current devuelve null (sin turno activo) |
+| — | ALTA | ✅ PASS | 200 | GET /dashboard/quick funciona |
+
+---
+
+## Tests Pendientes (requieren BUG-001 resuelto)
+
+Estos tests no pudieron ejecutarse porque dependen de la funcionalidad de turnos (BUG-001):
+
+| Test | Módulo | Descripción |
+|------|--------|------------|
+| T3.17-T3.24 | Terminal | Flujo completo de cobro: efectivo, tarjeta, transferencia, mixto |
+| T7.01-T7.12 | Turnos | Abrir/cerrar turno, acumulados, conciliación, exportar CSV |
+| T7.05-T7.08 | Turnos | Verificación de caja, historial, corte impresión |
+| T9.02-T9.06 | Historial | Búsqueda y filtros con ventas reales |
+| T15.07-T15.11 | API | Crear venta, métodos de pago, validaciones, cancelar venta |
+
+---
+
+## Priorización para Desarrollo
+
+### 🔴 Críticos — Resolver Primero
+1. **BUG-001**: `turns/open` 500 — Una línea: cambiar `.isoformat()` por el objeto datetime directo
+2. **BUG-002**: `setup.sh` sin schema — Agregar ejecución de SQL en el script
+
+### 🟡 Altos — Resolver Después
+3. **BUG-005**: Logout no funciona — Revisar handler del botón LogOut
+4. **BUG-004**: Ventas bloqueadas — Se resuelve automáticamente al corregir BUG-001
+
+### 🟢 Medios — Mejorar
+5. **BUG-003**: Carrito no persistente — Migrar estado a store global o localStorage
+6. **BUG-006**: Gastos summary falla — Revisar logs del endpoint `/api/v1/expenses/summary`
+
+---
+
+*Reporte generado: 2026-02-25 12:56 CST*
