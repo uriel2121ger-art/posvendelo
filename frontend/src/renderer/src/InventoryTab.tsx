@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, pullTable, adjustStock } from './posApi'
 
@@ -38,6 +38,7 @@ export default function InventoryTab(): ReactElement {
   const [message, setMessage] = useState(
     'Inventario (F4): carga y movimientos de entrada/salida funcional.'
   )
+  const requestIdRef = useRef(0)
 
   const PAGE_SIZE = 50
   const [page, setPage] = useState(0)
@@ -57,24 +58,28 @@ export default function InventoryTab(): ReactElement {
   useEffect(() => { setPage(0) }, [query])
 
   const handleLoad = useCallback(async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const products = await pullTable('products', cfg)
+      if (requestIdRef.current !== reqId) return
       const normalized = products
         .map(normalizeProduct)
         .filter((item): item is InventoryRow => item !== null)
       setRows(normalized)
       setMessage(`Inventario cargado: ${normalized.length} productos.`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }, [])
 
   useEffect(() => {
     void handleLoad()
+    return () => { requestIdRef.current++ }
   }, [handleLoad])
 
   async function handleAdjustStock(): Promise<void> {

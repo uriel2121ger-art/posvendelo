@@ -15,7 +15,7 @@ export default function Login(): ReactElement {
     e.preventDefault()
     setError('')
 
-    if (!username.trim() || !password.trim()) {
+    if (!username.trim() || password.length === 0) {
       setError('Por favor, ingresa tu usuario y contraseña.')
       return
     }
@@ -27,7 +27,7 @@ export default function Login(): ReactElement {
       const res = await fetch(`${cfg.baseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password: password.trim() })
+        body: JSON.stringify({ username: username.trim(), password })
       })
 
       if (!res.ok) {
@@ -125,6 +125,7 @@ export default function Login(): ReactElement {
                     }}
                     placeholder="Nombre de usuario"
                     autoComplete="username"
+                    autoFocus
                     className="w-full rounded-xl border-2 border-zinc-700 bg-zinc-900/90 py-3.5 pl-12 pr-4 text-lg font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white placeholder:text-zinc-600 shadow-sm hover:border-zinc-600"
                   />
                 </div>
@@ -146,7 +147,6 @@ export default function Login(): ReactElement {
                     }}
                     placeholder="••••••••"
                     className="w-full rounded-xl border-2 border-zinc-700 bg-zinc-900/50 py-3.5 pl-12 pr-4 text-xl font-mono tracking-widest focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white placeholder:text-zinc-600"
-                    autoFocus
                   />
                 </div>
                 {error && (

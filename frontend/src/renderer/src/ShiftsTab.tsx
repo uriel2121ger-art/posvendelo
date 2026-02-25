@@ -239,11 +239,9 @@ export default function ShiftsTab(): ReactElement {
         cashDifference: differenceFromBackend,
         notes: notes.trim()
       }
-      setHistory((prev) => {
-        const next = [closed, ...prev]
-        saveHistory(next)
-        return next
-      })
+      const nextHistory = [closed, ...history]
+      saveHistory(nextHistory)
+      setHistory(nextHistory)
       setCurrentShift(null)
       saveCurrentShift(null)
       setClosingCash('0')
@@ -269,7 +267,7 @@ export default function ShiftsTab(): ReactElement {
       const closedMs = new Date(shift.closedAt ?? new Date().toISOString()).getTime()
       const scoped = backendSales.filter((sale) => {
         const terminal = Number(sale.terminal_id ?? sale._terminal_id ?? 0)
-        if (terminal !== shift.terminalId) return false
+        if (terminal !== 0 && terminal !== shift.terminalId) return false
         const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '').replace(' ', 'T')
         const tsMs = new Date(tsRaw).getTime()
         return Number.isFinite(tsMs) && tsMs >= openedMs && tsMs <= closedMs
@@ -411,7 +409,7 @@ export default function ShiftsTab(): ReactElement {
     const html = `
       <html>
         <head>
-          <title>Corte de turno ${shift.id}</title>
+          <title>Corte de turno ${esc(shift.id)}</title>
         </head>
         <body style="font-family: Arial, sans-serif; padding: 16px;">
           <h2 style="margin: 0 0 12px 0;">TITAN POS - Corte de Turno</h2>

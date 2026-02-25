@@ -89,8 +89,7 @@ async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Res
   let lastDetail = ''
 
   for (const path of paths) {
-    const res = await fetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
-    if (res.status === 401) handleExpiredSession()
+    const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
     if (res.status === 404 || res.status === 405) {
       lastStatus = res.status
       continue

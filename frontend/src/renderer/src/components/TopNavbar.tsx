@@ -59,8 +59,25 @@ export default function TopNavbar(): ReactElement {
         </div>
         <button
           onClick={() => {
-            const keys = Object.keys(localStorage).filter((k) => k.startsWith('titan.'))
-            keys.forEach((k) => localStorage.removeItem(k))
+            const hasPending = (() => {
+              try {
+                const raw = localStorage.getItem('titan.pendingTickets')
+                if (!raw) return false
+                const arr = JSON.parse(raw)
+                return Array.isArray(arr) && arr.length > 0
+              } catch { return false }
+            })()
+            const hasShift = Boolean(localStorage.getItem('titan.currentShift'))
+            const warnings: string[] = []
+            if (hasPending) warnings.push('Hay tickets pendientes sin cobrar.')
+            if (hasShift) warnings.push('Hay un turno abierto.')
+            const msg = warnings.length
+              ? `${warnings.join(' ')} ¿Cerrar sesion de todas formas?`
+              : '¿Cerrar sesion?'
+            if (!window.confirm(msg)) return
+            ;['titan.token', 'titan.user', 'titan.currentShift'].forEach(
+              (k) => localStorage.removeItem(k)
+            )
             navigate('/login')
           }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"

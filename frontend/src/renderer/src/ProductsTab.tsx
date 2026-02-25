@@ -93,6 +93,11 @@ export default function ProductsTab(): ReactElement {
       setMessage('SKU y nombre son obligatorios.')
       return
     }
+    const parsedPrice = toNumber(price)
+    if (parsedPrice <= 0) {
+      setMessage('El precio debe ser mayor a 0.')
+      return
+    }
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()

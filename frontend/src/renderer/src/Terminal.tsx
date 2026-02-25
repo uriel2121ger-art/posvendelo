@@ -100,7 +100,7 @@ function readCurrentShift(): ShiftState | null {
 function calculateLineSubtotal(price: number, qty: number, discountPct: number): number {
   const safeQty = Math.max(1, Math.floor(qty))
   const safeDiscount = clampDiscount(discountPct)
-  return price * safeQty * (1 - safeDiscount / 100)
+  return Math.round(price * safeQty * (1 - safeDiscount / 100) * 100) / 100
 }
 
 function normalizeProduct(raw: Record<string, unknown>): Product | null {
@@ -226,7 +226,12 @@ export default function Terminal(): ReactElement {
     if (!raw) return
     try {
       const parsed = JSON.parse(raw) as PendingTicket[]
-      if (Array.isArray(parsed)) setPendingTickets(parsed)
+      if (!Array.isArray(parsed)) return
+      // Validate each ticket has required fields before loading
+      const valid = parsed.filter(
+        (t) => t && typeof t.id === 'string' && typeof t.label === 'string' && Array.isArray(t.cart)
+      )
+      setPendingTickets(valid)
     } catch {
       // ignore invalid stored payload
     }
@@ -264,13 +269,15 @@ export default function Terminal(): ReactElement {
     tax: number
     total: number
   } => {
-    const subtotalBeforeDiscount = cart.reduce((acc, item) => acc + item.subtotal, 0)
-    const globalDiscountAmount = subtotalBeforeDiscount * (clampDiscount(globalDiscountPct) / 100)
+    // Accumulate in cents to avoid float drift over many cart items
+    const subtotalBeforeDiscountCents = cart.reduce((acc, item) => acc + Math.round(item.subtotal * 100), 0)
+    const subtotalBeforeDiscount = subtotalBeforeDiscountCents / 100
+    const globalDiscountAmount = Math.round(subtotalBeforeDiscount * (clampDiscount(globalDiscountPct) / 100) * 100) / 100
     // Prices already include IVA — total is the sum minus discount (NOT plus tax)
-    const total = subtotalBeforeDiscount - globalDiscountAmount
+    const total = Math.round((subtotalBeforeDiscount - globalDiscountAmount) * 100) / 100
     // Extract IVA that's already baked into the prices (informational for display)
-    const tax = total - total / (1 + TAX_RATE)
-    const subtotal = total - tax
+    const tax = Math.round((total - total / (1 + TAX_RATE)) * 100) / 100
+    const subtotal = Math.round((total - tax) * 100) / 100
     return { subtotalBeforeDiscount, globalDiscountAmount, subtotal, tax, total }
   }, [cart, globalDiscountPct])
   const amountReceivedNum = toNumber(amountReceived)
@@ -588,21 +595,24 @@ export default function Terminal(): ReactElement {
         turnId
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
-      const saleTotal = Number(saleData.total) || totals.total
+      const saleTotal = saleData.total != null ? Number(saleData.total) : totals.total
       const capturedChange = Math.max(0, effectiveReceived - totals.total)
       setCart([])
       setGlobalDiscountPct(0)
       setSelectedCartSku(null)
       setAmountReceived('')
-      if (shift) {
+      setCustomerName('Publico General')
+      // Re-read shift from localStorage to avoid stale data after async sale
+      const freshShift = readCurrentShift()
+      if (freshShift) {
         const updatedShift: ShiftState = {
-          ...shift,
-          salesCount: (shift.salesCount ?? 0) + 1,
-          totalSales: (shift.totalSales ?? 0) + saleTotal,
-          cashSales: (shift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0),
-          cardSales: (shift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0),
+          ...freshShift,
+          salesCount: (freshShift.salesCount ?? 0) + 1,
+          totalSales: Math.round(((freshShift.totalSales ?? 0) + saleTotal) * 100) / 100,
+          cashSales: Math.round(((freshShift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0)) * 100) / 100,
+          cardSales: Math.round(((freshShift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0)) * 100) / 100,
           transferSales:
-            (shift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0),
+            Math.round(((freshShift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0)) * 100) / 100,
           lastSaleAt: new Date().toISOString()
         }
         localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
@@ -622,12 +632,10 @@ export default function Terminal(): ReactElement {
   }, [
     amountReceivedNum,
     cart,
-    changeDue,
     config,
     customerName,
     globalDiscountPct,
     paymentMethod,
-    pendingAmount,
     totals
   ])
 
@@ -796,6 +804,7 @@ export default function Terminal(): ReactElement {
             value={query}
             onChange={(e) => { setQuery(e.target.value); setShowResults(true) }}
             onFocus={() => setShowResults(true)}
+            onBlur={() => setTimeout(() => setShowResults(false), 150)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && firstMatch) {
                 addProduct(firstMatch)
@@ -833,7 +842,10 @@ export default function Terminal(): ReactElement {
             min={1}
             step={1}
             value={qty}
-            onChange={(e) => setQty(Math.max(1, Math.floor(Number(e.target.value || 1))))}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              setQty(Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 1)
+            }}
           />
         </div>
 
@@ -927,7 +939,10 @@ export default function Terminal(): ReactElement {
                       min={1}
                       step={1}
                       value={item.qty}
-                      onChange={(e) => updateItemQty(item.sku, Number(e.target.value || 1))}
+                      onChange={(e) => {
+                        const n = Number(e.target.value)
+                        updateItemQty(item.sku, Number.isFinite(n) ? n : item.qty)
+                      }}
                       onClick={(e) => e.stopPropagation()}
                     />
 
@@ -996,7 +1011,12 @@ export default function Terminal(): ReactElement {
                       type="number"
                       min={0}
                       value={amountReceived}
-                      onChange={(e) => setAmountReceived(e.target.value)}
+                      onChange={(e) => {
+                        const n = Number(e.target.value)
+                        if (e.target.value === '' || (Number.isFinite(n) && n >= 0)) {
+                          setAmountReceived(e.target.value)
+                        }
+                      }}
                       placeholder="$0.00"
                     />
                   </div>
