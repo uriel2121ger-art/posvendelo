@@ -196,6 +196,7 @@ async def update_product(
 
         set_parts = [f"{k} = :{k}" for k in fields]
         set_parts.append("updated_at = NOW()")
+        set_parts.append("synced = 0")
         params = {**fields, "id": product_id}
 
         await db.execute(
@@ -237,17 +238,19 @@ async def delete_product(
     if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar productos")
 
-    existing = await db.fetchrow(
-        "SELECT id FROM products WHERE id = :id AND is_active = 1",
-        {"id": product_id},
-    )
-    if not existing:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    conn = db.connection
+    async with conn.transaction():
+        existing = await db.fetchrow(
+            "SELECT id FROM products WHERE id = :id AND is_active = 1 FOR UPDATE",
+            {"id": product_id},
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    await db.execute(
-        "UPDATE products SET is_active = 0, updated_at = NOW() WHERE id = :id",
-        {"id": product_id},
-    )
+        await db.execute(
+            "UPDATE products SET is_active = 0, synced = 0, updated_at = NOW() WHERE id = :id",
+            {"id": product_id},
+        )
 
     return {"success": True, "data": {"id": product_id}}
 

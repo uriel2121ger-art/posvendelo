@@ -167,7 +167,7 @@ async def create_sale(
                 try:
                     locked_products = await conn.fetch(
                         "SELECT id, name, stock, sku, sale_type, is_kit "
-                        "FROM products WHERE id = ANY($1) FOR UPDATE NOWAIT",
+                        "FROM products WHERE id = ANY($1) AND is_active = 1 FOR UPDATE NOWAIT",
                         all_ids_to_lock,
                     )
                 except asyncpg.exceptions.LockNotAvailableError:
@@ -468,7 +468,7 @@ async def create_sale(
             if pm == "credit" and body.customer_id:
                 cust = await db.fetchrow(
                     "SELECT credit_balance, credit_limit, credit_authorized "
-                    "FROM customers WHERE id = :id FOR UPDATE",
+                    "FROM customers WHERE id = :id AND is_active = 1 FOR UPDATE",
                     {"id": body.customer_id},
                 )
                 if not cust:
@@ -499,8 +499,8 @@ async def create_sale(
                     {
                         "cid": body.customer_id,
                         "amount": total_val,
-                        "before": _f(balance),
-                        "after": _f(new_balance),
+                        "before": balance,
+                        "after": new_balance,
                         "notes": f"Venta a credito - folio:{folio_visible}",
                         "uid": user_id,
                     },
@@ -515,17 +515,17 @@ async def create_sale(
                         detail="Pago con monedero requiere customer_id",
                     )
                 wallet_row = await db.fetchrow(
-                    "SELECT wallet_balance FROM customers WHERE id = :cid FOR UPDATE",
+                    "SELECT wallet_balance FROM customers WHERE id = :cid AND is_active = 1 FOR UPDATE",
                     {"cid": body.customer_id},
                 )
-                if not wallet_row or float(wallet_row.get("wallet_balance") or 0) < _f(total_val):
+                if not wallet_row or _dec(wallet_row.get("wallet_balance") or 0) < total_val:
                     raise HTTPException(
                         status_code=400,
                         detail="Saldo insuficiente en monedero",
                     )
                 await db.execute(
                     "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
-                    {"amount": _f(total_val), "cid": body.customer_id},
+                    {"amount": total_val, "cid": body.customer_id},
                 )
 
             # 9b. Mixed payment with wallet component
@@ -536,17 +536,18 @@ async def create_sale(
                         detail="No se puede usar monedero sin cliente asignado",
                     )
                 wallet_row = await db.fetchrow(
-                    "SELECT wallet_balance FROM customers WHERE id = :cid FOR UPDATE",
+                    "SELECT wallet_balance FROM customers WHERE id = :cid AND is_active = 1 FOR UPDATE",
                     {"cid": body.customer_id},
                 )
-                if not wallet_row or float(wallet_row.get("wallet_balance") or 0) < body.mixed_wallet:
+                mixed_wallet_dec = _dec(body.mixed_wallet)
+                if not wallet_row or _dec(wallet_row.get("wallet_balance") or 0) < mixed_wallet_dec:
                     raise HTTPException(
                         status_code=400,
                         detail="Saldo insuficiente en monedero",
                     )
                 await db.execute(
                     "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
-                    {"amount": body.mixed_wallet, "cid": body.customer_id},
+                    {"amount": mixed_wallet_dec, "cid": body.customer_id},
                 )
 
         # ── Transaction committed ──
@@ -740,17 +741,17 @@ async def cancel_sale(
 
             # Revert credit if applicable
             if sale["payment_method"] == "credit" and sale.get("customer_id"):
-                total = float(sale["total"])
+                total_val = _dec(sale["total"])
                 cust_row = await db.fetchrow(
                     "SELECT credit_balance FROM customers WHERE id = :id FOR UPDATE",
                     {"id": sale["customer_id"]},
                 )
-                balance_before = float(cust_row.get("credit_balance") or 0) if cust_row else 0.0
-                balance_after = max(0.0, balance_before - total)
+                balance_before = _dec(cust_row.get("credit_balance") or 0) if cust_row else Decimal("0")
+                balance_after = max(Decimal("0"), balance_before - total_val)
                 await db.execute(
-                    "UPDATE customers SET credit_balance = :new_balance, synced = 0, updated_at = NOW() "
+                    "UPDATE customers SET credit_balance = GREATEST(0, credit_balance - :amount), synced = 0, updated_at = NOW() "
                     "WHERE id = :id",
-                    {"new_balance": balance_after, "id": sale["customer_id"]},
+                    {"amount": total_val, "id": sale["customer_id"]},
                 )
                 await db.execute(
                     """INSERT INTO credit_history
@@ -760,7 +761,7 @@ async def cancel_sale(
                                :before, :after, NOW()::text, :notes, :uid)""",
                     {
                         "cid": sale["customer_id"],
-                        "amount": total,
+                        "amount": total_val,
                         "before": balance_before,
                         "after": balance_after,
                         "notes": f"Cancelacion venta ID:{sale_id}",

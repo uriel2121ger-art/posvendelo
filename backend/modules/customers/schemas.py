@@ -13,7 +13,7 @@ class CustomerCreate(BaseModel):
     rfc: Optional[str] = None
     address: Optional[str] = None
     notes: Optional[str] = None
-    credit_limit: Optional[float] = 0.0
+    credit_limit: Optional[float] = Field(0.0, ge=0)
 
 
 class CustomerUpdate(BaseModel):

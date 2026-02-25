@@ -14,7 +14,7 @@ class ProductCreate(BaseModel):
     price: float = Field(..., ge=0)
     price_wholesale: Optional[float] = 0.0
     cost: Optional[float] = 0.0
-    stock: Optional[float] = 0.0
+    stock: Optional[float] = Field(0.0, ge=0)
     category: Optional[str] = None
     department: Optional[str] = None
     provider: Optional[str] = None

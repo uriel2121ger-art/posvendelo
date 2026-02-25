@@ -48,7 +48,7 @@ services:
       JWT_SECRET: "${JWT_SECRET:-tP0s-S3cr3t-k3y-2026!xQm9vR4nBz}"
       DEBUG: "false"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy

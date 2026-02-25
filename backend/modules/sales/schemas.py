@@ -13,7 +13,7 @@ class SaleItemCreate(BaseModel):
     name: Optional[str] = Field(None, max_length=300)
     qty: float = Field(1.0, gt=0)
     price: float = Field(..., ge=0)
-    discount: float = 0.0
+    discount: float = Field(0.0, ge=0)
     sat_clave_prod_serv: Optional[str] = Field("01010101", max_length=20)
     is_wholesale: bool = False
     price_wholesale: Optional[float] = None

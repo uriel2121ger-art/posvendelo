@@ -32,7 +32,7 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Credenciales requeridas")
 
     user = await db.fetchrow(
-        "SELECT * FROM users WHERE username = :username AND is_active = 1",
+        "SELECT id, username, password_hash, role, is_active FROM users WHERE username = :username AND is_active = 1",
         {"username": body.username},
     )
 

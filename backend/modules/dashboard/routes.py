@@ -168,7 +168,7 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
         serie_a = float(income["serie_a"]) if income else 0.0
         serie_b = float(income["serie_b"]) if income else 0.0
         gastos = float(expenses["total"]) if expenses else 0.0
-        impuestos = round(serie_a * 0.16, 2)  # IVA 16% sobre facturado
+        impuestos = round(serie_a - serie_a / 1.16, 2)  # IVA extraido de precio IVA-incluido
         utilidad_bruta = ingresos - gastos
         utilidad_neta = utilidad_bruta - impuestos
         disponible = max(0.0, utilidad_neta)

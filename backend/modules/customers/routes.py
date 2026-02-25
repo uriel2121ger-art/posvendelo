@@ -130,12 +130,6 @@ async def update_customer(
     db=Depends(get_db),
 ):
     """Update a customer. Only non-null fields are updated."""
-    existing = await db.fetchrow(
-        "SELECT id FROM customers WHERE id = :id", {"id": customer_id}
-    )
-    if not existing:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-
     _ALLOWED_COLUMNS = {
         "name", "phone", "email", "rfc", "address", "credit_limit",
         "is_active", "notes",
@@ -150,14 +144,23 @@ async def update_customer(
     if _MANAGER_FIELDS & fields.keys() and role not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
 
-    set_parts = [f"{k} = :{k}" for k in fields]
-    set_parts.append("updated_at = NOW()")
-    params = {**fields, "id": customer_id}
+    conn = db.connection
+    async with conn.transaction():
+        existing = await db.fetchrow(
+            "SELECT id FROM customers WHERE id = :id FOR UPDATE",
+            {"id": customer_id},
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    await db.execute(
-        f"UPDATE customers SET {', '.join(set_parts)} WHERE id = :id",
-        params,
-    )
+        set_parts = [f"{k} = :{k}" for k in fields]
+        set_parts.append("updated_at = NOW()")
+        params = {**fields, "id": customer_id}
+
+        await db.execute(
+            f"UPDATE customers SET {', '.join(set_parts)} WHERE id = :id",
+            params,
+        )
 
     return {"success": True, "data": {"id": customer_id}}
 
@@ -173,17 +176,19 @@ async def delete_customer(
     if role not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden desactivar clientes")
 
-    existing = await db.fetchrow(
-        "SELECT id FROM customers WHERE id = :id AND is_active = 1",
-        {"id": customer_id},
-    )
-    if not existing:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    conn = db.connection
+    async with conn.transaction():
+        existing = await db.fetchrow(
+            "SELECT id FROM customers WHERE id = :id AND is_active = 1 FOR UPDATE",
+            {"id": customer_id},
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    await db.execute(
-        "UPDATE customers SET is_active = 0, updated_at = NOW() WHERE id = :id",
-        {"id": customer_id},
-    )
+        await db.execute(
+            "UPDATE customers SET is_active = 0, synced = 0, updated_at = NOW() WHERE id = :id",
+            {"id": customer_id},
+        )
 
     return {"success": True, "data": {"id": customer_id}}
 

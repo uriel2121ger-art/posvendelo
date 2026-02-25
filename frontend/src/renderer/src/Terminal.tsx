@@ -142,7 +142,7 @@ async function syncSale(
     const compoundSubtotal = item.subtotal * (1 - globalDisc)
     const discount = parseFloat(Math.max(0, fullPrice - compoundSubtotal).toFixed(2))
     return {
-      product_id: item.isCommon ? null : (Number(item.id) || null),
+      product_id: item.isCommon ? null : (Number(item.id) > 0 ? Number(item.id) : null),
       name: item.name,
       qty: item.qty,
       price: item.price,
