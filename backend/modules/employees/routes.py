@@ -101,9 +101,9 @@ async def create_employee(
                 "code": body.employee_code,
                 "name": body.name,
                 "position": body.position,
-                "hire_date": body.hire_date or now_str[:10],
-                "salary": body.base_salary or 0.0,
-                "commission": body.commission_rate or 0.0,
+                "hire_date": body.hire_date if body.hire_date is not None else now_str[:10],
+                "salary": body.base_salary if body.base_salary is not None else 0.0,
+                "commission": body.commission_rate if body.commission_rate is not None else 0.0,
                 "phone": body.phone,
                 "email": body.email,
                 "notes": body.notes,
@@ -158,8 +158,8 @@ async def update_employee(
             if conflict:
                 raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
 
-        fields["synced"] = 0
         set_parts = [f"{k} = :{k}" for k in fields]
+        set_parts.append("synced = 0")
         params = {**fields, "id": employee_id}
 
         try:

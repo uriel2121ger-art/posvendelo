@@ -52,13 +52,25 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
                 body.password.encode("utf-8"),
                 stored_hash.encode("utf-8"),
             )
-        except Exception as e:
-            logger.error("Bcrypt verification error: %s", e)
+        except Exception:
+            logger.error("Bcrypt verification error for user %s", user.get("id", "?"))
             # Simulate bcrypt work to prevent timing oracle
-            bcrypt.hashpw(b"dummy-timing-pad", bcrypt.gensalt(rounds=10))
+            bcrypt.hashpw(b"dummy-timing-pad", bcrypt.gensalt(rounds=12))
     elif len(stored_hash) == 64:
         password_sha256 = hashlib.sha256(body.password.encode()).hexdigest()
         auth_success = secrets.compare_digest(stored_hash, password_sha256)
+        # Auto-upgrade SHA256 → bcrypt on successful login
+        if auth_success:
+            try:
+                import bcrypt as _bc_upgrade
+                new_hash = _bc_upgrade.hashpw(body.password.encode("utf-8"), _bc_upgrade.gensalt(rounds=12)).decode()
+                await db.execute(
+                    "UPDATE users SET password_hash = :h WHERE id = :id",
+                    {"h": new_hash, "id": user["id"]},
+                )
+                logger.info("SHA256→bcrypt upgrade for user %s", user["id"])
+            except Exception:
+                logger.warning("Failed to upgrade password hash for user %s", user["id"])
     else:
         # Unknown hash format — simulate bcrypt work to prevent timing leak
         import bcrypt as _bc

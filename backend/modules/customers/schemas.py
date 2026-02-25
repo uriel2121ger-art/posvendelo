@@ -2,8 +2,19 @@
 TITAN POS - Customers Module Schemas
 """
 
+import re
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_rfc(v: Optional[str]) -> Optional[str]:
+    """Validate basic RFC format (Mexico): 12 chars (moral) or 13 chars (fisica)."""
+    if v is None or v == "":
+        return v
+    v = v.upper().strip()
+    if not re.match(r'^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$', v):
+        raise ValueError("RFC invalido: debe ser 12 (persona moral) o 13 (persona fisica) caracteres alfanumericos")
+    return v
 
 
 class CustomerCreate(BaseModel):
@@ -15,6 +26,19 @@ class CustomerCreate(BaseModel):
     notes: Optional[str] = Field(None, max_length=2000)
     credit_limit: Optional[float] = Field(0.0, ge=0)
 
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("nombre no puede estar vacío")
+        return stripped
+
+    @field_validator("rfc")
+    @classmethod
+    def validate_rfc(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_rfc(v)
+
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=200)
@@ -25,6 +49,11 @@ class CustomerUpdate(BaseModel):
     notes: Optional[str] = Field(None, max_length=2000)
     credit_limit: Optional[float] = Field(None, ge=0)
     is_active: Optional[int] = Field(None, ge=0, le=1)
+
+    @field_validator("rfc")
+    @classmethod
+    def validate_rfc(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_rfc(v)
 
 
 class CustomerResponse(BaseModel):

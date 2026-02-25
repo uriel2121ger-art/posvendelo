@@ -75,11 +75,15 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             SECRET_KEY,
             algorithms=[ALGORITHM],
         )
-        # Normalize role to lowercase for consistent RBAC checks
-        if "role" in payload:
-            payload["role"] = (payload["role"] or "").strip().lower()
-        return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token invalido")
+
+    # Validate required claims exist
+    if not payload.get("sub") or not payload.get("role"):
+        raise HTTPException(status_code=401, detail="Token invalido: faltan claims requeridos")
+
+    # Normalize role to lowercase for consistent RBAC checks
+    payload["role"] = (payload["role"] or "").strip().lower()
+    return payload

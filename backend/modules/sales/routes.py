@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 TAX_RATE = Decimal("0.16")
-VALID_PAYMENT_METHODS = {"cash", "card", "transfer", "mixed", "credit", "wallet", "gift_card"}
+VALID_PAYMENT_METHODS = {"cash", "card", "transfer", "mixed", "credit", "wallet"}
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -444,10 +444,10 @@ async def create_sale(
                             },
                         )
                 elif not is_common:
-                    # Regular product
+                    # Regular product — use Decimal for precision
                     await db.execute(
                         "UPDATE products SET stock = stock - :qty, synced = 0, updated_at = NOW() WHERE id = :id",
-                        {"qty": item.qty, "id": item.product_id},
+                        {"qty": qty, "id": item.product_id},
                     )
                     await db.execute(
                         """INSERT INTO inventory_movements
@@ -457,7 +457,7 @@ async def create_sale(
                                    'sale', :sale_id, :uid, :bid, NOW(), 0)""",
                         {
                             "pid": item.product_id,
-                            "qty": item.qty,
+                            "qty": qty,
                             "reason": f"Venta folio:{folio_visible}",
                             "sale_id": sale_id,
                             "uid": user_id,
@@ -772,9 +772,9 @@ async def cancel_sale(
             # Revert wallet if applicable (pure wallet or mixed with wallet component)
             wallet_amount = Decimal("0")
             if sale["payment_method"] == "wallet" and sale.get("customer_id"):
-                wallet_amount = sale.get("total") or Decimal("0")
+                wallet_amount = _dec(sale.get("total") or 0)
             elif sale["payment_method"] == "mixed" and sale.get("customer_id"):
-                wallet_amount = sale.get("mixed_wallet") or Decimal("0")
+                wallet_amount = _dec(sale.get("mixed_wallet") or 0)
 
             if wallet_amount > 0 and sale.get("customer_id"):
                 wallet_row = await db.fetchrow(

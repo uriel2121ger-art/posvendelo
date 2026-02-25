@@ -19,8 +19,8 @@ class ProductCreate(BaseModel):
     category: Optional[str] = Field(None, max_length=100)
     department: Optional[str] = Field(None, max_length=100)
     provider: Optional[str] = Field(None, max_length=200)
-    min_stock: Optional[float] = 5.0
-    max_stock: Optional[float] = 1000.0
+    min_stock: Optional[float] = Field(5.0, ge=0)
+    max_stock: Optional[float] = Field(1000.0, ge=0)
     tax_rate: Optional[float] = Field(0.16, ge=0, le=1)
     sale_type: Optional[str] = Field("unit", max_length=20)
     barcode: Optional[str] = Field(None, max_length=100)
@@ -61,7 +61,7 @@ class ProductResponse(BaseModel):
 
 class StockUpdateRemote(BaseModel):
     sku: str = Field(..., max_length=100)
-    quantity: float = Field(..., ge=0)
+    quantity: float = Field(..., gt=0)
     operation: str  # 'add', 'subtract', 'set'
     reason: Optional[str] = Field(None, max_length=500)
 
