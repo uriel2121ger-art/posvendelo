@@ -192,11 +192,32 @@ export default function Terminal(): ReactElement {
   const [qty, setQty] = useState(1)
   const [busy, setBusy] = useState(false)
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
-  const [message, setMessage] = useState('Configura URL/token y carga productos para comenzar.')
+  const [message, setMessage] = useState('Cargando productos...')
 
   useEffect((): void => {
     saveRuntimeConfig(config)
   }, [config])
+
+  // Auto-load products on mount
+  useEffect((): void => {
+    if (!config.token.trim()) return
+    let cancelled = false
+    setBusy(true)
+    fetchProducts(config)
+      .then((data) => {
+        if (cancelled) return
+        setProducts(data)
+        setMessage(data.length ? `${data.length} productos cargados` : 'Sin productos')
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setMessage((err as Error).message)
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false)
+      })
+    return (): void => { cancelled = true }
+  }, [])
 
   useEffect((): void => {
     const raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
@@ -533,23 +554,6 @@ export default function Terminal(): ReactElement {
     removeItem(selectedCartSku)
   }, [removeItem, selectedCartSku])
 
-  async function handleLoadProducts(): Promise<void> {
-    if (!config.token.trim()) {
-      setMessage('Falta token de API.')
-      return
-    }
-    setBusy(true)
-    try {
-      const data = await fetchProducts(config)
-      setProducts(data)
-      setMessage(`Productos cargados: ${data.length}`)
-    } catch (error) {
-      setMessage((error as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const handleCharge = useCallback(async (): Promise<void> => {
     if (!cart.length) {
       setMessage('No hay productos en el ticket.')
@@ -769,321 +773,264 @@ export default function Terminal(): ReactElement {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200">
       <TopNavbar />
-      <div className="border-b border-zinc-800 bg-zinc-900/80 p-5 mt-4 shadow-sm rounded-xl mx-4 mb-2">
-        <h2 className="mb-4 text-xl font-bold text-blue-400 px-1">Configuración y Recepción</h2>
 
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
-          <input
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            value={config.baseUrl}
-            onChange={(e) => setConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
-            placeholder="Base URL"
-          />
-          <input
-            type="password"
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            value={config.token}
-            onChange={(e) => setConfig((prev) => ({ ...prev, token: e.target.value }))}
-            placeholder="Token"
-          />
-          <input
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            type="number"
-            value={config.terminalId}
-            onChange={(e) =>
-              setConfig((prev) => ({
-                ...prev,
-                terminalId: Math.max(1, Number(e.target.value || 1))
-              }))
-            }
-            placeholder="Terminal ID"
-          />
-          <input
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Cliente en ticket"
-          />
-          <select
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-          >
-            <option value="cash">Efectivo</option>
-            <option value="card">Tarjeta</option>
-            <option value="transfer">Transferencia</option>
-          </select>
-          <input
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            type="number"
-            min={0}
-            value={amountReceived}
-            onChange={(e) => setAmountReceived(e.target.value)}
-            placeholder="Monto recibido"
-            disabled={paymentMethod !== 'cash'}
-          />
-          <button
-            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-            onClick={() => void handleLoadProducts()}
-            disabled={busy}
-          >
-            {busy ? 'Cargando...' : 'Cargar productos'}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 border-b border-zinc-800 bg-zinc-900/80 p-5 mt-2 shadow-sm rounded-xl mx-4 md:grid-cols-[1fr_auto_auto]">
-        <div className="relative">
-          <SearchIcon className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-zinc-400" />
+      {/* Toolbar: search + shift info + ticket actions */}
+      <div className="flex items-center gap-3 bg-zinc-900 border-b border-zinc-800 px-4 py-2">
+        {/* Search */}
+        <div className="relative flex-1 max-w-md">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <input
             autoFocus
             ref={searchInputRef}
-            className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 pl-10 pr-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-            placeholder="Buscar por SKU o nombre"
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2 pl-10 pr-4 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600"
+            placeholder="Buscar SKU o nombre (F10)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <input
-          className="w-32 rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold text-center focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          type="number"
-          min={1}
-          value={qty}
-          onChange={(e) => setQty(Math.max(1, Number(e.target.value || 1)))}
-        />
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={() => firstMatch && addProduct(firstMatch)}
-          disabled={!firstMatch || busy}
-        >
-          <Plus className="h-4 w-4" /> Agregar primero
-        </button>
-      </div>
 
-      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900/80 p-5 mt-2 shadow-sm rounded-xl mx-4 md:grid-cols-[1fr_180px_180px_220px]">
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          value={ticketLabel}
-          onChange={(e) => setTicketLabel(e.target.value)}
-          placeholder="Nombre ticket pendiente (opcional)"
-        />
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
-          onClick={saveCurrentAsPending}
-          disabled={busy || cart.length === 0}
-        >
-          Guardar pendiente
-        </button>
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          type="number"
-          min={0}
-          max={100}
-          value={globalDiscountPct}
-          onChange={(e) => setGlobalDiscountPct(clampDiscount(Number(e.target.value || 0)))}
-          placeholder="Descuento global %"
-        />
-        <select
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          value=""
-          onChange={(e) => {
-            const value = e.target.value
-            if (!value) return
-            loadPendingTicket(value)
-            e.target.value = ''
-          }}
-        >
-          <option value="">Cargar ticket pendiente...</option>
-          {pendingTickets.map((ticket) => (
-            <option key={ticket.id} value={ticket.id}>
-              {ticket.label}
-            </option>
-          ))}
-        </select>
-      </div>
+        {/* Qty */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-zinc-500">Cant:</span>
+          <input
+            className="w-16 rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-2 text-sm font-semibold text-center focus:border-blue-500 focus:outline-none"
+            type="number"
+            min={1}
+            value={qty}
+            onChange={(e) => setQty(Math.max(1, Number(e.target.value || 1)))}
+          />
+        </div>
 
-      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900/80 p-5 mt-2 shadow-sm rounded-xl mx-4 md:grid-cols-[1fr_auto_auto]">
-        <select
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          value={activeTicketId}
-          onChange={(e) => switchActiveTicket(e.target.value)}
-        >
-          {activeTickets.map((ticket) => (
-            <option key={ticket.id} value={ticket.id}>
-              {ticket.label}
-            </option>
-          ))}
-        </select>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
-          onClick={createNewActiveTicket}
-          disabled={busy || activeTickets.length >= 8}
-        >
-          Nuevo ticket activo (Ctrl+N)
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-rose-500/20 border border-rose-500/30 px-5 py-2.5 font-bold text-rose-400 shadow-[0_0_15px_rgba(243,66,102,0.1)] hover:bg-rose-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={() => closeActiveTicket(activeTicketId)}
-          disabled={busy || activeTickets.length <= 1}
-        >
-          Cerrar ticket activo
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900/80 p-5 mt-2 shadow-sm rounded-xl mx-4 md:grid-cols-4">
-        <div className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
-          <span className="text-zinc-400">Turno</span>
-          <div className="font-semibold">
-            {currentShift ? `Abierto (${currentShift.openedBy})` : 'Sin turno'}
+        {/* Shift info compact */}
+        <div className="hidden md:flex items-center gap-3 ml-auto text-xs">
+          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${currentShift ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400' : 'border-zinc-700 bg-zinc-900 text-zinc-500'}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${currentShift ? 'bg-emerald-400' : 'bg-zinc-600'}`}></div>
+            {currentShift ? `Turno: ${currentShift.openedBy}` : 'Sin turno'}
           </div>
+          {currentShift && (
+            <>
+              <span className="text-zinc-500">{currentShift.salesCount ?? 0} ventas</span>
+              <span className="font-semibold text-zinc-300">${(currentShift.totalSales ?? 0).toFixed(2)}</span>
+            </>
+          )}
         </div>
-        <div className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
-          <span className="text-zinc-400">Ventas turno</span>
-          <div className="font-semibold">{currentShift?.salesCount ?? 0}</div>
-        </div>
-        <div className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
-          <span className="text-zinc-400">Total turno</span>
-          <div className="font-semibold">${(currentShift?.totalSales ?? 0).toFixed(2)}</div>
-        </div>
-        <div className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm">
-          <span className="text-zinc-400">Efectivo turno</span>
-          <div className="font-semibold">${(currentShift?.cashSales ?? 0).toFixed(2)}</div>
+
+        {/* Ticket management */}
+        <div className="flex items-center gap-1">
+          {activeTickets.length > 1 && (
+            <select
+              className="rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-2 text-xs font-semibold focus:border-blue-500 focus:outline-none"
+              value={activeTicketId}
+              onChange={(e) => switchActiveTicket(e.target.value)}
+            >
+              {activeTickets.map((ticket) => (
+                <option key={ticket.id} value={ticket.id}>{ticket.label}</option>
+              ))}
+            </select>
+          )}
+          <button
+            className="rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
+            onClick={createNewActiveTicket}
+            disabled={busy || activeTickets.length >= 8}
+            title="Nuevo ticket (Ctrl+N)"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {activeTickets.length > 1 && (
+            <button
+              className="rounded-lg border border-rose-800 bg-rose-950/50 px-2.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-900/50 transition-colors"
+              onClick={() => closeActiveTicket(activeTicketId)}
+              disabled={busy || activeTickets.length <= 1}
+              title="Cerrar ticket activo"
+            >
+              &times;
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-6 bg-zinc-950 shadow-[inset_0_5px_15px_rgba(0,0,0,0.3)] md:grid-cols-[1fr_400px]">
-        <div className="overflow-hidden rounded border border-zinc-800">
-          <div className="grid grid-cols-12 gap-2 border-b border-zinc-800 bg-zinc-900/80 px-4 py-3 text-xs font-bold uppercase tracking-wider text-zinc-500">
-            <div className="col-span-3">SKU</div>
-            <div className="col-span-5">Producto</div>
+      {/* Main: products list (left) + ticket panel (right) */}
+      <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-[1fr_380px]">
+        {/* Products */}
+        <div className="flex flex-col overflow-hidden border-r border-zinc-800">
+          <div className="grid grid-cols-12 gap-2 border-b border-zinc-800 bg-zinc-900/80 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-zinc-500">
+            <div className="col-span-2">SKU</div>
+            <div className="col-span-6">Producto</div>
             <div className="col-span-2 text-right">Precio</div>
             <div className="col-span-2 text-right">Stock</div>
           </div>
-          <div className="max-h-[38vh] overflow-y-auto bg-zinc-950">
+          <div className="flex-1 overflow-y-auto bg-zinc-950">
             {filtered.map((p) => (
               <button
                 key={`${p.sku}-${p.id ?? ''}`}
-                className="grid w-full grid-cols-12 gap-2 border-b border-zinc-800/50 px-4 py-4 text-left text-sm cursor-pointer transition-colors hover:bg-zinc-800/40"
+                className="grid w-full grid-cols-12 gap-2 border-b border-zinc-800/50 px-4 py-3 text-left text-sm cursor-pointer transition-colors hover:bg-zinc-800/40"
                 onClick={() => addProduct(p)}
               >
-                <div className="col-span-3 font-mono text-zinc-300">{p.sku}</div>
-                <div className="col-span-5">{p.name}</div>
-                <div className="col-span-2 text-right">${p.price.toFixed(2)}</div>
-                <div className="col-span-2 text-right">{p.stock ?? 0}</div>
+                <div className="col-span-2 font-mono text-zinc-400 text-xs">{p.sku}</div>
+                <div className="col-span-6">{p.name}</div>
+                <div className="col-span-2 text-right font-semibold">${p.price.toFixed(2)}</div>
+                <div className="col-span-2 text-right text-zinc-500">{p.stock ?? 0}</div>
               </button>
             ))}
+            {filtered.length === 0 && (
+              <div className="p-8 text-center text-zinc-600 text-sm">
+                {products.length === 0 ? 'Cargando productos...' : 'Sin resultados'}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-col overflow-hidden rounded border border-zinc-800 bg-zinc-900">
-          <div className="border-b border-zinc-800 px-4 py-3 font-semibold">Ticket actual</div>
-          <div className="flex-1 overflow-y-auto px-4 py-2">
+        {/* Ticket panel */}
+        <div className="flex flex-col overflow-hidden bg-zinc-900">
+          <div className="border-b border-zinc-800 px-4 py-2.5 font-bold text-sm flex items-center justify-between">
+            <span>Ticket</span>
+            <div className="flex items-center gap-2">
+              <button
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                onClick={saveCurrentAsPending}
+                disabled={busy || cart.length === 0}
+                title="Guardar como pendiente"
+              >
+                Guardar
+              </button>
+              {pendingTickets.length > 0 && (
+                <select
+                  className="rounded border border-zinc-700 bg-zinc-950 py-0.5 px-1 text-xs focus:border-blue-500 focus:outline-none"
+                  value=""
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (!value) return
+                    loadPendingTicket(value)
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Pendientes ({pendingTickets.length})</option>
+                  {pendingTickets.map((ticket) => (
+                    <option key={ticket.id} value={ticket.id}>{ticket.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Cart items */}
+          <div className="flex-1 overflow-y-auto px-3 py-2">
             {cart.length === 0 && (
-              <p className="text-sm text-zinc-400">Sin productos en carrito.</p>
+              <p className="text-sm text-zinc-500 text-center py-8">Agrega productos para comenzar</p>
             )}
             {cart.map((item) => (
               <div
                 key={item.sku}
-                className={`mb-2 rounded border p-2 text-sm ${
+                className={`mb-1.5 rounded-lg border p-2.5 text-sm cursor-pointer transition-colors ${
                   selectedCartSku === item.sku
-                    ? 'border-blue-500 bg-zinc-900'
-                    : 'border-zinc-800 bg-zinc-950'
+                    ? 'border-blue-500/60 bg-blue-950/20'
+                    : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
                 }`}
                 onClick={() => setSelectedCartSku(item.sku)}
               >
-                <div className="font-semibold">{item.name}</div>
-                {item.isCommon && item.commonNote && (
-                  <div className="mt-1 text-xs text-amber-300">Nota: {item.commonNote}</div>
-                )}
-                <div className="mt-1 flex items-center justify-between text-zinc-300">
-                  <span>{item.sku}</span>
-                  <span>
-                    {item.qty} x ${item.price.toFixed(2)}
-                  </span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-zinc-300">
-                  <label className="flex items-center gap-2">
-                    Cant:
-                    <input
-                      className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-semibold text-blue-300 focus:border-blue-500 focus:outline-none"
-                      type="number"
-                      min={1}
-                      value={item.qty}
-                      onChange={(e) => updateItemQty(item.sku, Number(e.target.value || 1))}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2">
-                    Desc %:
-                    <input
-                      className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 font-semibold text-blue-300 focus:border-blue-500 focus:outline-none"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={item.discountPct}
-                      onChange={(e) => updateItemDiscount(item.sku, Number(e.target.value || 0))}
-                    />
-                  </label>
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="font-mono text-blue-300">${item.subtotal.toFixed(2)}</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold truncate">{item.name}</span>
                   <button
-                    className="text-xs text-rose-400 hover:text-rose-300"
-                    onClick={() => removeItem(item.sku)}
+                    className="text-xs text-rose-500/60 hover:text-rose-400 ml-2 shrink-0"
+                    onClick={(e) => { e.stopPropagation(); removeItem(item.sku) }}
                   >
-                    Quitar
+                    &times;
                   </button>
+                </div>
+                {item.isCommon && item.commonNote && (
+                  <div className="text-xs text-amber-400/80 mt-0.5">{item.commonNote}</div>
+                )}
+                <div className="mt-1.5 flex items-center gap-2 text-xs">
+                  <input
+                    className="w-14 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-center font-semibold text-blue-300 focus:border-blue-500 focus:outline-none"
+                    type="number"
+                    min={1}
+                    value={item.qty}
+                    onChange={(e) => updateItemQty(item.sku, Number(e.target.value || 1))}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <span className="text-zinc-500">x ${item.price.toFixed(2)}</span>
+                  {item.discountPct > 0 && (
+                    <span className="text-rose-400">-{item.discountPct}%</span>
+                  )}
+                  <span className="ml-auto font-mono font-semibold text-zinc-200">${item.subtotal.toFixed(2)}</span>
                 </div>
               </div>
             ))}
           </div>
-          <div className="border-t border-zinc-800 px-4 py-3 text-sm">
-            <div className="mb-1 flex justify-between">
-              <span>Subtotal</span>
-              <span>${totals.subtotalBeforeDiscount.toFixed(2)}</span>
+
+          {/* Payment & totals */}
+          <div className="border-t border-zinc-800 px-4 py-3 text-sm space-y-2">
+            {/* Customer + payment method */}
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="rounded-lg border border-zinc-700 bg-zinc-950 py-1.5 px-3 text-xs font-semibold focus:border-blue-500 focus:outline-none placeholder:text-zinc-600"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Cliente"
+              />
+              <select
+                className="rounded-lg border border-zinc-700 bg-zinc-950 py-1.5 px-3 text-xs font-semibold focus:border-blue-500 focus:outline-none"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              >
+                <option value="cash">Efectivo</option>
+                <option value="card">Tarjeta</option>
+                <option value="transfer">Transferencia</option>
+              </select>
             </div>
+
+            {/* Global discount */}
             {globalDiscountPct > 0 && (
-              <div className="mb-1 flex justify-between text-rose-400">
-                <span>Desc. global ({clampDiscount(globalDiscountPct).toFixed(0)}%)</span>
+              <div className="flex justify-between text-rose-400 text-xs">
+                <span>Desc. global ({globalDiscountPct}%)</span>
                 <span>-${totals.globalDiscountAmount.toFixed(2)}</span>
               </div>
             )}
-            <div className="mb-3 flex justify-between text-lg font-bold text-emerald-400">
+
+            {/* Totals */}
+            <div className="flex justify-between text-lg font-bold text-emerald-400 pt-1">
               <span>Total</span>
               <span>${totals.total.toFixed(2)}</span>
             </div>
-            <div className="mb-1 flex justify-between text-xs text-zinc-500">
-              <span>IVA incluido</span>
-              <span>${totals.tax.toFixed(2)}</span>
-            </div>
+
+            {/* Cash received */}
             {paymentMethod === 'cash' && (
-              <>
-                <div className="mb-1 flex justify-between">
-                  <span>Recibido</span>
-                  <span>${amountReceivedNum.toFixed(2)}</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <input
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-1.5 px-3 font-semibold text-lg focus:border-blue-500 focus:outline-none placeholder:text-zinc-600 placeholder:text-sm placeholder:font-normal"
+                    type="number"
+                    min={0}
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    placeholder="$ Recibido"
+                  />
                 </div>
-                <div className="mb-1 flex justify-between">
-                  <span>Faltante</span>
-                  <span>${pendingAmount.toFixed(2)}</span>
+                <div className="flex flex-col justify-center text-right">
+                  <div className="text-lg font-bold text-amber-300">${changeDue.toFixed(2)} cambio</div>
+                  {pendingAmount > 0 && (
+                    <div className="text-rose-400">Faltan ${pendingAmount.toFixed(2)}</div>
+                  )}
                 </div>
-                <div className="mb-3 flex justify-between font-semibold text-amber-300">
-                  <span>Cambio</span>
-                  <span>${changeDue.toFixed(2)}</span>
-                </div>
-              </>
+              </div>
             )}
+
             <button
-              className="flex w-full mt-4 items-center justify-center gap-2 rounded-xl bg-blue-600 py-4 font-bold text-lg tracking-wide text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0 disabled:shadow-none"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-bold text-base tracking-wide text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0 disabled:shadow-none"
               onClick={() => void handleCharge()}
               disabled={busy || cart.length === 0}
             >
-              <Banknote className="h-5 w-5" /> {busy ? 'Procesando...' : 'Cobrar y sincronizar'}
+              <Banknote className="h-5 w-5" /> {busy ? 'Procesando...' : 'COBRAR (F12)'}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-        {message}
+      {/* Status bar */}
+      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-400 flex items-center justify-between">
+        <span>{message}</span>
+        <span className="text-zinc-600">{products.length} productos | +/- cant | Del borrar | Ctrl+P comun | Ctrl+D desc | Ctrl+G desc global</span>
       </div>
     </div>
   )
