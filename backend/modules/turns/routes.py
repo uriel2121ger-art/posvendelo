@@ -277,7 +277,8 @@ async def create_cash_movement(
     role = auth.get("role", "")
     is_manager = role in ("admin", "manager", "owner", "gerente", "dueño")
 
-    # Verify manager PIN for non-manager roles
+    # Verify manager PIN for non-manager roles (pre-compute hash before transaction)
+    pin_hash = None
     if not is_manager:
         if not body.manager_pin:
             raise HTTPException(
@@ -286,19 +287,20 @@ async def create_cash_movement(
             )
         import hashlib
         pin_hash = hashlib.sha256(body.manager_pin.encode()).hexdigest()
-        conn = db.connection
-        # Verify PIN belongs to an active manager-level employee
-        mgr_check = await conn.fetchrow(
-            "SELECT id FROM employees WHERE pin_hash = $1 AND is_active = 1 "
-            "AND position IN ('gerente', 'dueño', 'admin', 'manager', 'owner')",
-            pin_hash,
-        )
-        if not mgr_check:
-            raise HTTPException(status_code=403, detail="PIN de gerente invalido")
 
-    # Atomic: lock turn row to prevent race with close_turn
+    # Atomic: lock turn row + verify PIN inside transaction to prevent TOCTOU
     conn = db.connection
     async with conn.transaction():
+        # Verify PIN inside transaction to prevent TOCTOU race
+        if pin_hash:
+            mgr_check = await conn.fetchrow(
+                "SELECT id FROM employees WHERE pin_hash = $1 AND is_active = 1 "
+                "AND position IN ('gerente', 'dueño', 'admin', 'manager', 'owner')",
+                pin_hash,
+            )
+            if not mgr_check:
+                raise HTTPException(status_code=403, detail="PIN de gerente invalido")
+
         turn = await conn.fetchrow(
             "SELECT id, status FROM turns WHERE id = $1 FOR UPDATE",
             turn_id,

@@ -2,8 +2,8 @@
 TITAN POS - Sync Module Routes
 
 Endpoints that posApi.ts expects for pullTable() and syncTable():
-  GET  /api/v1/sync/products   — All active products
-  GET  /api/v1/sync/customers  — All active customers
+  GET  /api/v1/sync/products   — Active products (paginated: ?after_id=0&limit=500)
+  GET  /api/v1/sync/customers  — Active customers (paginated: ?after_id=0&limit=500)
   GET  /api/v1/sync/sales      — Recent sales (with ?limit=N&since=DATETIME)
   GET  /api/v1/sync/shifts     — Current open turn
   GET  /api/v1/sync/status     — Health / connection test
@@ -48,18 +48,22 @@ def _serialize_rows(rows: list) -> list:
 
 @router.get("/products")
 async def sync_pull_products(
+    after_id: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=2000),
     db=Depends(get_db),
     auth: dict = Depends(verify_token),
 ):
-    """Return all active products for frontend sync."""
+    """Return active products for frontend sync with cursor-based pagination."""
     rows = await db.fetch(
         """SELECT id, sku, barcode, name, description, price, price_wholesale, cost,
                   stock, min_stock, category, sale_type, is_active, is_kit,
                   sat_clave_prod_serv, sat_descripcion, tax_rate,
                   created_at, updated_at
            FROM products
-           WHERE is_active = 1
-           ORDER BY name"""
+           WHERE is_active = 1 AND id > :after_id
+           ORDER BY id
+           LIMIT :limit""",
+        {"after_id": after_id, "limit": limit},
     )
     data = _serialize_rows(rows)
     return {
@@ -67,23 +71,28 @@ async def sync_pull_products(
         "table": "products",
         "data": data,
         "count": len(data),
+        "has_more": len(data) == limit,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @router.get("/customers")
 async def sync_pull_customers(
+    after_id: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=2000),
     db=Depends(get_db),
     auth: dict = Depends(verify_token),
 ):
-    """Return all active customers for frontend sync."""
+    """Return active customers for frontend sync with cursor-based pagination."""
     rows = await db.fetch(
         """SELECT id, name, email, phone, rfc, address,
                   credit_balance, credit_limit, credit_authorized,
                   is_active, created_at, updated_at
            FROM customers
-           WHERE is_active = 1
-           ORDER BY name"""
+           WHERE is_active = 1 AND id > :after_id
+           ORDER BY id
+           LIMIT :limit""",
+        {"after_id": after_id, "limit": limit},
     )
     data = _serialize_rows(rows)
     return {
@@ -91,6 +100,7 @@ async def sync_pull_customers(
         "table": "customers",
         "data": data,
         "count": len(data),
+        "has_more": len(data) == limit,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

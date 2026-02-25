@@ -53,7 +53,7 @@ export default function Login(): ReactElement {
       }
 
       saveRuntimeConfig({ ...cfg, token })
-      localStorage.setItem('titan.user', username.trim())
+      try { localStorage.setItem('titan.user', username.trim()) } catch { /* QuotaExceeded */ }
       navigate('/terminal')
     } catch (err) {
       setError(

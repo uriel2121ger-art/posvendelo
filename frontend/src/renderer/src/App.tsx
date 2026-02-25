@@ -53,6 +53,60 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+class TabErrorBoundary extends Component<
+  { children: ReactNode; tabName: string },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode; tabName: string }) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error(`TabErrorBoundary [${this.props.tabName}] caught:`, error, info)
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-slate-200 p-8">
+          <div className="max-w-md text-center">
+            <h1 className="text-2xl font-bold text-rose-400 mb-4">
+              Error en {this.props.tabName}
+            </h1>
+            <p className="text-zinc-400 mb-4">{this.state.error.message}</p>
+            <p className="text-zinc-500 text-sm mb-6">
+              Las demas pestanas siguen funcionando. Puedes navegar con las teclas F1-F11.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => this.setState({ error: null })}
+                className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all"
+              >
+                Reintentar
+              </button>
+              <button
+                onClick={() => {
+                  this.setState({ error: null })
+                  window.location.hash = '#/terminal'
+                }}
+                className="px-6 py-3 rounded-xl bg-zinc-700 text-white font-bold hover:bg-zinc-600 transition-all"
+              >
+                Ir a Terminal
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   const token = localStorage.getItem('titan.token')
   if (!token) return <Navigate to="/login" replace />
@@ -124,17 +178,17 @@ function RoutedApp(): ReactElement {
     <Routes>
       <Route path="/" element={<RequireAuth><Navigate to="/terminal" replace /></RequireAuth>} />
       <Route path="/login" element={<Login />} />
-      <Route path="/terminal" element={<RequireAuth><Terminal /></RequireAuth>} />
-      <Route path="/clientes" element={<RequireAuth><CustomersTab /></RequireAuth>} />
-      <Route path="/productos" element={<RequireAuth><ProductsTab /></RequireAuth>} />
-      <Route path="/inventario" element={<RequireAuth><InventoryTab /></RequireAuth>} />
-      <Route path="/turnos" element={<RequireAuth><ShiftsTab /></RequireAuth>} />
-      <Route path="/reportes" element={<RequireAuth><ReportsTab /></RequireAuth>} />
-      <Route path="/historial" element={<RequireAuth><HistoryTab /></RequireAuth>} />
-      <Route path="/configuraciones" element={<RequireAuth><SettingsTab /></RequireAuth>} />
-      <Route path="/estadisticas" element={<RequireAuth><DashboardStatsTab /></RequireAuth>} />
-      <Route path="/mermas" element={<RequireAuth><MermasTab /></RequireAuth>} />
-      <Route path="/gastos" element={<RequireAuth><ExpensesTab /></RequireAuth>} />
+      <Route path="/terminal" element={<RequireAuth><TabErrorBoundary tabName="Terminal"><Terminal /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/clientes" element={<RequireAuth><TabErrorBoundary tabName="Clientes"><CustomersTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/productos" element={<RequireAuth><TabErrorBoundary tabName="Productos"><ProductsTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/inventario" element={<RequireAuth><TabErrorBoundary tabName="Inventario"><InventoryTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/turnos" element={<RequireAuth><TabErrorBoundary tabName="Turnos"><ShiftsTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/reportes" element={<RequireAuth><TabErrorBoundary tabName="Reportes"><ReportsTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/historial" element={<RequireAuth><TabErrorBoundary tabName="Historial"><HistoryTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/configuraciones" element={<RequireAuth><TabErrorBoundary tabName="Configuraciones"><SettingsTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/estadisticas" element={<RequireAuth><TabErrorBoundary tabName="Estadisticas"><DashboardStatsTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/mermas" element={<RequireAuth><TabErrorBoundary tabName="Mermas"><MermasTab /></TabErrorBoundary></RequireAuth>} />
+      <Route path="/gastos" element={<RequireAuth><TabErrorBoundary tabName="Gastos"><ExpensesTab /></TabErrorBoundary></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

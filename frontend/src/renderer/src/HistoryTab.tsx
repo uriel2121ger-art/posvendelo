@@ -43,7 +43,7 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]): voi
   anchor.href = url
   anchor.download = filename
   anchor.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 100)
 }
 
 function getIsoDateDaysAgo(days: number): string {

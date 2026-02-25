@@ -27,8 +27,9 @@ export default function ExpensesTab(): ReactElement {
       const body = await getExpensesSummary(cfg)
       if (requestIdRef.current !== reqId) return
       const data = (body.data ?? body) as Record<string, unknown>
-      setMonthTotal(Number(data.month ?? 0))
-      setYearTotal(Number(data.year ?? 0))
+      const safeNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0 }
+      setMonthTotal(safeNum(data.month))
+      setYearTotal(safeNum(data.year))
     } catch (err) {
       if (requestIdRef.current !== reqId) return
       setError(err instanceof Error ? err.message : 'Error cargando gastos')

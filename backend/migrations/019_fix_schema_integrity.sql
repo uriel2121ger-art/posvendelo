@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_sale_items_product_sale ON sale_items(product_id,
 CREATE INDEX IF NOT EXISTS idx_loyalty_ledger_account ON loyalty_ledger(account_id);
 
 -- 6. Registrar migración
-INSERT INTO schema_migrations (version, description, applied_at)
+INSERT INTO schema_version (version, description, applied_at)
 VALUES (19, 'Fix schema integrity: synced columns, text search indexes', NOW())
 ON CONFLICT (version) DO NOTHING;
 

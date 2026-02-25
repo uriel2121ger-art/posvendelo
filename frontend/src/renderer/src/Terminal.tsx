@@ -196,6 +196,7 @@ export default function Terminal(): ReactElement {
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
   const [message, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
+  const hasLoadedPendingRef = useRef(false)
 
   useEffect((): void => {
     saveRuntimeConfig(config)
@@ -225,10 +226,16 @@ export default function Terminal(): ReactElement {
 
   useEffect((): void => {
     const raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
-    if (!raw) return
+    if (!raw) {
+      hasLoadedPendingRef.current = true
+      return
+    }
     try {
       const parsed = JSON.parse(raw) as PendingTicket[]
-      if (!Array.isArray(parsed)) return
+      if (!Array.isArray(parsed)) {
+        hasLoadedPendingRef.current = true
+        return
+      }
       // Validate each ticket has required fields before loading
       const valid = parsed.filter(
         (t) => t && typeof t.id === 'string' && typeof t.label === 'string' && Array.isArray(t.cart)
@@ -237,9 +244,11 @@ export default function Terminal(): ReactElement {
     } catch {
       // ignore invalid stored payload
     }
+    hasLoadedPendingRef.current = true
   }, [])
 
   useEffect((): void => {
+    if (!hasLoadedPendingRef.current) return
     try {
       localStorage.setItem(PENDING_TICKETS_STORAGE_KEY, JSON.stringify(pendingTickets))
     } catch {
@@ -699,11 +708,16 @@ export default function Terminal(): ReactElement {
         amountReceived
       }
     }))
-    // Recalculate subtotals in case prices changed since ticket was saved
-    const restoredCart = found.cart.map((item) => ({
-      ...item,
-      subtotal: calculateLineSubtotal(item.price, item.qty, item.discountPct)
-    }))
+    // Look up current prices from products array; fall back to saved price if not found
+    const restoredCart = found.cart.map((item) => {
+      const currentProduct = products.find((p) => p.sku === item.sku)
+      const currentPrice = currentProduct ? currentProduct.price : item.price
+      return {
+        ...item,
+        price: currentPrice,
+        subtotal: calculateLineSubtotal(currentPrice, item.qty, item.discountPct)
+      }
+    })
     setCart(restoredCart)
     setCustomerName(found.customerName)
     setPaymentMethod(found.paymentMethod)

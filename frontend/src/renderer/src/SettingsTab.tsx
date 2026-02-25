@@ -26,11 +26,9 @@ function parseTerminalId(value: string): number {
 }
 
 export default function SettingsTab(): ReactElement {
-  const initial = loadRuntimeConfig()
-  const [form, setForm] = useState<RuntimeState>({
-    baseUrl: initial.baseUrl,
-    token: initial.token,
-    terminalId: initial.terminalId
+  const [form, setForm] = useState<RuntimeState>(() => {
+    const cfg = loadRuntimeConfig()
+    return { baseUrl: cfg.baseUrl, token: cfg.token, terminalId: cfg.terminalId }
   })
   const [busy, setBusy] = useState(false)
   const [profileName, setProfileName] = useState('')
@@ -56,7 +54,7 @@ export default function SettingsTab(): ReactElement {
 
   function persistProfiles(next: ConfigProfile[]): void {
     setProfiles(next)
-    localStorage.setItem(CONFIG_PROFILES_KEY, JSON.stringify(next))
+    try { localStorage.setItem(CONFIG_PROFILES_KEY, JSON.stringify(next)) } catch { /* QuotaExceeded */ }
   }
 
   function saveProfile(): void {

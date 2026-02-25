@@ -24,7 +24,7 @@ class CustomerUpdate(BaseModel):
     address: Optional[str] = None
     notes: Optional[str] = None
     credit_limit: Optional[float] = None
-    is_active: Optional[int] = None
+    is_active: Optional[int] = Field(None, ge=0, le=1)
 
 
 class CustomerResponse(BaseModel):

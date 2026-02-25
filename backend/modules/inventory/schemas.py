@@ -11,7 +11,6 @@ class StockAdjustment(BaseModel):
     quantity: float = Field(..., ne=0, description="Positive to add, negative to subtract")
     reason: str = Field(..., min_length=1)
     reference_id: Optional[str] = None
-    user_id: Optional[int] = None
 
 
 class InventoryTransfer(BaseModel):

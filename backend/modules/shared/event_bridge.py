@@ -16,6 +16,7 @@ Usage:
     await setup_event_bridge()  # Call once at app startup
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -111,10 +112,15 @@ def _on_legacy_event(event):
             aggregate_id=str(data.get("id", data.get("sale_id", data.get("product_id", "")))),
         )
 
-        # Publish to enhanced bus (publish() handles both sync+async)
+        # Publish to enhanced bus (publish() is async — schedule from sync context)
         if _enhanced_bus:
-            _enhanced_bus.publish(domain_event)
-            logger.debug(f"Bridge: {event_type} → {mapping['event_type']}")
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_enhanced_bus.publish(domain_event))
+            except RuntimeError:
+                # No running loop — skip persistence (in-memory only)
+                logger.debug("No event loop — skipping domain event persistence")
+            logger.debug("Bridge: %s -> %s", event_type, mapping['event_type'])
 
     except Exception as e:
         logger.error(f"Event bridge error for {event_type}: {e}")

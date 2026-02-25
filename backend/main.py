@@ -32,13 +32,15 @@ app = FastAPI(
 
 # Rate limiting (optional)
 try:
-    from slowapi import Limiter, _rate_limit_exceeded_handler
-    from slowapi.util import get_remote_address
+    from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
+    from modules.shared.rate_limit import limiter
 
-    limiter = Limiter(key_func=get_remote_address)
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    if limiter is not None:
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    else:
+        logger.warning("slowapi limiter not initialized — rate limiting disabled")
 except ImportError:
     logger.warning("slowapi not installed — rate limiting disabled")
 

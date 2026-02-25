@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _escape_like(term: str) -> str:
+    """Escape ILIKE special characters to prevent wildcard injection."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # ============================================================================
 # READ endpoints (existentes)
 # ============================================================================
@@ -45,7 +50,7 @@ async def list_products(
         params["category"] = category
     if search:
         sql += " AND (name ILIKE :search OR sku ILIKE :search OR barcode ILIKE :search)"
-        params["search"] = f"%{search}%"
+        params["search"] = f"%{_escape_like(search)}%"
 
     sql += " ORDER BY name LIMIT :limit OFFSET :offset"
     params["limit"] = limit
@@ -170,15 +175,9 @@ async def update_product(
         if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
             raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
 
-    existing = await db.fetchrow(
-        "SELECT id, price, price_wholesale FROM products WHERE id = :id", {"id": product_id}
-    )
-    if not existing:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-
     # Build dynamic SET clause from non-null fields (allowlist validates keys)
     _ALLOWED_COLUMNS = {
-        "name", "price", "price_wholesale", "cost", "stock",
+        "name", "price", "price_wholesale", "cost",
         "category", "department", "provider", "min_stock", "max_stock",
         "tax_rate", "sale_type", "barcode", "is_active", "description",
     }
@@ -186,35 +185,44 @@ async def update_product(
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
 
-    set_parts = [f"{k} = :{k}" for k in fields]
-    set_parts.append("updated_at = NOW()")
-    params = {**fields, "id": product_id}
+    conn = db.connection
+    async with conn.transaction():
+        existing = await db.fetchrow(
+            "SELECT id, price, price_wholesale FROM products WHERE id = :id FOR UPDATE",
+            {"id": product_id},
+        )
+        if not existing:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    await db.execute(
-        f"UPDATE products SET {', '.join(set_parts)} WHERE id = :id",
-        params,
-    )
+        set_parts = [f"{k} = :{k}" for k in fields]
+        set_parts.append("updated_at = NOW()")
+        params = {**fields, "id": product_id}
 
-    # Record price changes in price_history
-    user_id = int(auth["sub"])
-    for price_field in ("price", "price_wholesale"):
-        if price_field in fields:
-            old_val = float(existing.get(price_field) or 0)
-            new_val = float(fields[price_field])
-            if round(new_val, 2) != round(old_val, 2):
-                await db.execute(
-                    """
-                    INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
-                    VALUES (:product_id, :field, :old_value, :new_value, :user_id, NOW())
-                    """,
-                    {
-                        "product_id": product_id,
-                        "field": price_field,
-                        "old_value": old_val,
-                        "new_value": new_val,
-                        "user_id": user_id,
-                    },
-                )
+        await db.execute(
+            f"UPDATE products SET {', '.join(set_parts)} WHERE id = :id",
+            params,
+        )
+
+        # Record price changes in price_history (inside transaction)
+        user_id = int(auth["sub"])
+        for price_field in ("price", "price_wholesale"):
+            if price_field in fields:
+                old_val = float(existing.get(price_field) or 0)
+                new_val = float(fields[price_field])
+                if round(new_val, 2) != round(old_val, 2):
+                    await db.execute(
+                        """
+                        INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
+                        VALUES (:product_id, :field, :old_value, :new_value, :user_id, NOW())
+                        """,
+                        {
+                            "product_id": product_id,
+                            "field": price_field,
+                            "old_value": old_val,
+                            "new_value": new_val,
+                            "user_id": user_id,
+                        },
+                    )
 
     return {"success": True, "data": {"id": product_id}}
 
@@ -265,7 +273,7 @@ async def scan_product(sku: str, auth: dict = Depends(verify_token), db=Depends(
         """SELECT id, sku, name, stock FROM products
            WHERE is_active = 1 AND (sku ILIKE :q OR name ILIKE :q OR barcode ILIKE :q)
            LIMIT 5""",
-        {"q": f"%{sku}%"},
+        {"q": f"%{_escape_like(sku)}%"},
     )
     return {
         "success": True,

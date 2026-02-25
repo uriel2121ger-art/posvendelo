@@ -10,6 +10,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from decimal import Decimal
+
 from db.connection import get_db
 from modules.shared.auth import verify_token
 from modules.inventory.schemas import StockAdjustment
@@ -63,6 +65,7 @@ async def stock_alerts(auth: dict = Depends(verify_token), db=Depends(get_db)):
           AND COALESCE(min_stock, 0) > 0
           AND stock <= min_stock
         ORDER BY stock ASC
+        LIMIT 200
     """)
     return {"success": True, "data": rows}
 
@@ -98,19 +101,20 @@ async def adjust_stock(
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-        current_stock = float(product["stock"] or 0)
-        new_stock = current_stock + body.quantity
+        current_stock = Decimal(str(product["stock"] or 0))
+        adjustment = Decimal(str(body.quantity))
+        new_stock = current_stock + adjustment
 
         if new_stock < 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Stock insuficiente. Actual: {current_stock}, ajuste: {body.quantity}",
+                detail=f"Stock insuficiente. Actual: {float(current_stock)}, ajuste: {body.quantity}",
             )
 
         # Update stock
         await conn.execute(
             "UPDATE products SET stock = $1, updated_at = NOW() WHERE id = $2",
-            new_stock, body.product_id,
+            float(new_stock), body.product_id,
         )
 
         # Record movement
@@ -135,8 +139,8 @@ async def adjust_stock(
         "success": True,
         "data": {
             "product_id": body.product_id,
-            "previous_stock": current_stock,
+            "previous_stock": float(current_stock),
             "adjustment": body.quantity,
-            "new_stock": new_stock,
+            "new_stock": float(new_stock),
         },
     }

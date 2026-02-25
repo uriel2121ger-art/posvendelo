@@ -3,24 +3,30 @@ TITAN POS - Auth Module Routes
 
 Login + verify endpoints using asyncpg direct.
 Ports verify_user logic from app/core.py (bcrypt + SHA256 fallback).
+Rate-limited login: 5/min prod, 25/min DEBUG.
 """
 
 import hashlib
 import logging
+import os
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, create_token, TOKEN_EXPIRE_MINUTES
+from modules.shared.rate_limit import limiter
 from modules.auth.schemas import LoginRequest, TokenResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Login rate limit: 5/min in prod, 25/min in DEBUG (E2E tests)
+_debug = os.getenv("DEBUG", "false").lower() == "true"
+_login_rate = "25/minute" if _debug else "5/minute"
 
-@router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db=Depends(get_db)):
+
+async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
     """Login with username/password. Supports bcrypt and SHA256 hashes."""
     if not body.username or not body.password:
         raise HTTPException(status_code=401, detail="Credenciales requeridas")
@@ -68,6 +74,13 @@ async def login(body: LoginRequest, db=Depends(get_db)):
         access_token=token,
         expires_in=TOKEN_EXPIRE_MINUTES * 60,
     )
+
+
+# Apply rate limiter decorator if slowapi is available
+if limiter is not None:
+    _do_login = limiter.limit(_login_rate)(_do_login)
+
+router.post("/login", response_model=TokenResponse)(_do_login)
 
 
 @router.get("/verify")

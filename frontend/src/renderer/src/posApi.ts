@@ -26,9 +26,13 @@ export function loadRuntimeConfig(): RuntimeConfig {
 }
 
 export function saveRuntimeConfig(cfg: RuntimeConfig): void {
-  localStorage.setItem('titan.baseUrl', cfg.baseUrl)
-  localStorage.setItem('titan.token', cfg.token)
-  localStorage.setItem('titan.terminalId', String(cfg.terminalId))
+  try {
+    localStorage.setItem('titan.baseUrl', cfg.baseUrl)
+    localStorage.setItem('titan.token', cfg.token)
+    localStorage.setItem('titan.terminalId', String(cfg.terminalId))
+  } catch {
+    // QuotaExceededError — silently ignore, config stays in memory
+  }
 }
 
 function headers(cfg: RuntimeConfig): HeadersInit {
@@ -63,6 +67,7 @@ function inDateRange(row: Record<string, unknown>, dateFrom?: string, dateTo?: s
 function handleExpiredSession(): never {
   localStorage.removeItem('titan.token')
   localStorage.removeItem('titan.user')
+  localStorage.removeItem('titan.currentShift')
   window.location.hash = '#/login'
   throw new Error('Sesión expirada. Inicia sesión de nuevo.')
 }

@@ -67,9 +67,11 @@ async def approve_merma(
     if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Sin permisos para aprobar mermas")
 
+    user_id = int(auth["sub"])
+
     async with db.connection.transaction():
         existing = await db.fetchrow(
-            "SELECT id, status FROM loss_records WHERE id = :id FOR UPDATE",
+            "SELECT id, status, product_id, quantity FROM loss_records WHERE id = :id FOR UPDATE",
             {"id": body.merma_id},
         )
         if not existing:
@@ -78,19 +80,41 @@ async def approve_merma(
             raise HTTPException(status_code=400, detail="Merma ya procesada")
 
         new_status = "approved" if body.approved else "rejected"
-        now = datetime.now(timezone.utc).isoformat()
 
         await db.execute(
             """UPDATE loss_records
-               SET status = :status, authorized_by = :uid, authorized_at = :now, notes = :notes
+               SET status = :status, authorized_by = :uid, authorized_at = NOW(), notes = :notes
                WHERE id = :id""",
             {
                 "status": new_status,
-                "uid": int(auth["sub"]),
-                "now": now,
+                "uid": user_id,
                 "notes": body.notes,
                 "id": body.merma_id,
             },
         )
+
+        # If approved and has product_id, deduct stock + record inventory movement
+        if body.approved and existing.get("product_id"):
+            pid = existing["product_id"]
+            qty = float(existing["quantity"] or 0)
+            if qty > 0:
+                await db.execute(
+                    "UPDATE products SET stock = stock - :qty, synced = 0, updated_at = NOW() WHERE id = :pid FOR UPDATE",
+                    {"qty": qty, "pid": pid},
+                )
+                await db.execute(
+                    """INSERT INTO inventory_movements
+                       (product_id, movement_type, type, quantity, reason,
+                        reference_type, reference_id, user_id, timestamp, synced)
+                       VALUES (:pid, 'OUT', 'merma', :qty, :reason,
+                               'merma', :merma_id, :uid, NOW(), 0)""",
+                    {
+                        "pid": pid,
+                        "qty": qty,
+                        "reason": f"Merma aprobada #{body.merma_id}",
+                        "merma_id": str(body.merma_id),
+                        "uid": user_id,
+                    },
+                )
 
     return {"success": True, "data": {"status": new_status}}

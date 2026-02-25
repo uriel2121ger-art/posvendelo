@@ -35,7 +35,7 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
   anchor.href = url
   anchor.download = filename
   anchor.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 100)
 }
 
 function toCsvCell(value: string): string {

@@ -51,6 +51,9 @@ class DomainEventStore:
 
     Implements the Outbox Pattern: events are persisted in the same
     transaction as the business data change, ensuring consistency.
+
+    Uses asyncpg DB wrapper with :name params (converted to $N internally).
+    All methods are async to match the asyncpg-based DB wrapper.
     """
 
     def __init__(self, db):
@@ -58,15 +61,17 @@ class DomainEventStore:
         Initialize with database connection.
 
         Args:
-            db: Database instance with execute_query/execute_write methods
+            db: Database instance (asyncpg DB wrapper with fetch/execute/fetchrow/fetchval)
         """
         self.db = db
-        self._ensure_table()
+        self._table_ensured = False
 
-    def _ensure_table(self):
-        """Create domain_events table if it doesn't exist."""
+    async def ensure_table(self):
+        """Create domain_events table if it doesn't exist (idempotent)."""
+        if self._table_ensured:
+            return
         try:
-            self.db.execute_write("""
+            await self.db.execute("""
                 CREATE TABLE IF NOT EXISTS domain_events (
                     id BIGSERIAL PRIMARY KEY,
                     event_id TEXT UNIQUE NOT NULL,
@@ -83,20 +88,21 @@ class DomainEventStore:
                 )
             """)
             # Index for unprocessed events (for polling/replay)
-            self.db.execute_write("""
+            await self.db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_domain_events_unprocessed
                 ON domain_events (processed, created_at)
                 WHERE processed = FALSE
             """)
             # Index for aggregate history (for event sourcing queries)
-            self.db.execute_write("""
+            await self.db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_domain_events_aggregate
                 ON domain_events (aggregate_type, aggregate_id, timestamp)
             """)
+            self._table_ensured = True
         except Exception as e:
-            logger.warning(f"Could not ensure domain_events table: {e}")
+            logger.warning("Could not ensure domain_events table: %s", e)
 
-    def persist(self, event: DomainEvent) -> Optional[int]:
+    async def persist(self, event: DomainEvent) -> Optional[int]:
         """
         Persist a domain event to the outbox table.
 
@@ -104,27 +110,30 @@ class DomainEventStore:
             event: DomainEvent to persist
 
         Returns:
-            Row ID of persisted event, or None on failure
+            1 on success, or None on failure
         """
         try:
-            self.db.execute_write("""
-                INSERT INTO domain_events
-                    (event_id, event_type, aggregate_type, aggregate_id,
-                     data, source_module, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (event_id) DO NOTHING
-            """, (
-                event.event_id,
-                event.event_type,
-                event.aggregate_type,
-                event.aggregate_id,
-                json.dumps(event.data, default=str),
-                event.source_module,
-                event.timestamp.isoformat()
-            ))
+            await self.ensure_table()
+            await self.db.execute(
+                """INSERT INTO domain_events
+                       (event_id, event_type, aggregate_type, aggregate_id,
+                        data, source_module, timestamp)
+                   VALUES (:event_id, :event_type, :aggregate_type, :aggregate_id,
+                           :data::jsonb, :source_module, :timestamp)
+                   ON CONFLICT (event_id) DO NOTHING""",
+                {
+                    "event_id": event.event_id,
+                    "event_type": event.event_type,
+                    "aggregate_type": event.aggregate_type,
+                    "aggregate_id": event.aggregate_id,
+                    "data": json.dumps(event.data, default=str),
+                    "source_module": event.source_module,
+                    "timestamp": event.timestamp,
+                },
+            )
             return 1
         except Exception as e:
-            logger.error(f"Failed to persist domain event {event.event_id}: {e}")
+            logger.error("Failed to persist domain event %s: %s", event.event_id, e)
             return None
 
     def persist_sql(self, event: DomainEvent) -> tuple:
@@ -133,75 +142,79 @@ class DomainEventStore:
         Use this to include event persistence in an atomic transaction.
 
         Returns:
-            Tuple of (sql, params) for use in execute_transaction
+            Tuple of (sql, params_dict) for use with db.execute(sql, params)
         """
-        sql = """
-            INSERT INTO domain_events
-                (event_id, event_type, aggregate_type, aggregate_id,
-                 data, source_module, timestamp)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (event_id) DO NOTHING
-        """
-        params = (
-            event.event_id,
-            event.event_type,
-            event.aggregate_type,
-            event.aggregate_id,
-            json.dumps(event.data, default=str),
-            event.source_module,
-            event.timestamp.isoformat()
-        )
+        sql = """INSERT INTO domain_events
+                     (event_id, event_type, aggregate_type, aggregate_id,
+                      data, source_module, timestamp)
+                 VALUES (:event_id, :event_type, :aggregate_type, :aggregate_id,
+                         :data::jsonb, :source_module, :timestamp)
+                 ON CONFLICT (event_id) DO NOTHING"""
+        params = {
+            "event_id": event.event_id,
+            "event_type": event.event_type,
+            "aggregate_type": event.aggregate_type,
+            "aggregate_id": event.aggregate_id,
+            "data": json.dumps(event.data, default=str),
+            "source_module": event.source_module,
+            "timestamp": event.timestamp,
+        }
         return sql, params
 
-    def mark_processed(self, event_id: str) -> bool:
+    async def mark_processed(self, event_id: str) -> bool:
         """Mark an event as processed."""
         try:
-            self.db.execute_write(
-                "UPDATE domain_events SET processed = TRUE WHERE event_id = %s",
-                (event_id,)
+            await self.db.execute(
+                "UPDATE domain_events SET processed = TRUE WHERE event_id = :event_id",
+                {"event_id": event_id},
             )
             return True
         except Exception as e:
-            logger.error(f"Failed to mark event {event_id} as processed: {e}")
+            logger.error("Failed to mark event %s as processed: %s", event_id, e)
             return False
 
-    def mark_failed(self, event_id: str, error: str) -> bool:
+    async def mark_failed(self, event_id: str, error: str) -> bool:
         """Mark an event as failed with error message and increment retry count."""
         try:
-            self.db.execute_write(
-                "UPDATE domain_events SET retry_count = retry_count + 1, error_message = %s WHERE event_id = %s",
-                (error, event_id)
+            await self.db.execute(
+                "UPDATE domain_events SET retry_count = retry_count + 1, "
+                "error_message = :error WHERE event_id = :event_id",
+                {"error": error, "event_id": event_id},
             )
             return True
         except Exception as e:
-            logger.error(f"Failed to mark event {event_id} as failed: {e}")
+            logger.error("Failed to mark event %s as failed: %s", event_id, e)
             return False
 
-    def get_unprocessed(self, limit: int = 100, max_retries: int = 5) -> List[Dict]:
+    async def get_unprocessed(self, limit: int = 100, max_retries: int = 5) -> List[Dict]:
         """Get unprocessed events for replay/processing."""
         try:
-            rows = self.db.execute_query("""
-                SELECT * FROM domain_events
-                WHERE processed = FALSE AND retry_count < %s
-                ORDER BY created_at ASC
-                LIMIT %s
-            """, (max_retries, limit))
+            await self.ensure_table()
+            rows = await self.db.fetch(
+                """SELECT * FROM domain_events
+                   WHERE processed = FALSE AND retry_count < :max_retries
+                   ORDER BY created_at ASC
+                   LIMIT :limit""",
+                {"max_retries": max_retries, "limit": limit},
+            )
             return [dict(row) for row in rows] if rows else []
         except Exception as e:
-            logger.error(f"Failed to get unprocessed events: {e}")
+            logger.error("Failed to get unprocessed events: %s", e)
             return []
 
-    def get_aggregate_events(self, aggregate_type: str, aggregate_id: str) -> List[Dict]:
+    async def get_aggregate_events(self, aggregate_type: str, aggregate_id: str) -> List[Dict]:
         """Get all events for a specific aggregate (for event sourcing)."""
         try:
-            rows = self.db.execute_query("""
-                SELECT * FROM domain_events
-                WHERE aggregate_type = %s AND aggregate_id = %s
-                ORDER BY timestamp ASC
-            """, (aggregate_type, aggregate_id))
+            await self.ensure_table()
+            rows = await self.db.fetch(
+                """SELECT * FROM domain_events
+                   WHERE aggregate_type = :aggregate_type AND aggregate_id = :aggregate_id
+                   ORDER BY timestamp ASC""",
+                {"aggregate_type": aggregate_type, "aggregate_id": aggregate_id},
+            )
             return [dict(row) for row in rows] if rows else []
         except Exception as e:
-            logger.error(f"Failed to get events for {aggregate_type}/{aggregate_id}: {e}")
+            logger.error("Failed to get events for %s/%s: %s", aggregate_type, aggregate_id, e)
             return []
 
 
@@ -252,7 +265,7 @@ class EnhancedEventBus:
                 if event_type in registry and handler in registry[event_type]:
                     registry[event_type].remove(handler)
 
-    def publish(self, event: DomainEvent, persist: bool = True) -> None:
+    async def publish(self, event: DomainEvent, persist: bool = True) -> None:
         """
         Publish a domain event.
 
@@ -262,7 +275,7 @@ class EnhancedEventBus:
         """
         # 1. Persist to store (outbox pattern)
         if persist and self.store:
-            self.store.persist(event)
+            await self.store.persist(event)
 
         # 2. Dispatch to sync handlers
         with self._lock:
@@ -278,44 +291,31 @@ class EnhancedEventBus:
                 handler(event)
             except Exception as e:
                 logger.error(
-                    f"Error in sync handler {handler.__name__} for {event.event_type}: {e}",
-                    exc_info=True
+                    "Error in sync handler %s for %s: %s",
+                    handler.__name__, event.event_type, e,
+                    exc_info=True,
                 )
                 if self.store:
-                    self.store.mark_failed(event.event_id, str(e))
+                    await self.store.mark_failed(event.event_id, str(e))
 
         # 3. Dispatch to async handlers
-        if async_handlers:
+        for handler in async_handlers:
             try:
-                loop = asyncio.get_running_loop()
-                # We're inside an async context — schedule as tasks
-                for handler in async_handlers:
-                    loop.create_task(self._run_async_handler(handler, event))
-            except RuntimeError:
-                # No running event loop — create a new one
-                for handler in async_handlers:
-                    try:
-                        asyncio.run(self._run_async_handler(handler, event))
-                    except Exception as e:
-                        logger.error(f"Error in async handler for {event.event_type}: {e}")
+                await handler(event)
+            except Exception as e:
+                logger.error(
+                    "Error in async handler %s for %s: %s",
+                    handler.__name__, event.event_type, e,
+                    exc_info=True,
+                )
 
         # 4. Mark as processed if all handlers succeeded
         if self.store and persist:
-            self.store.mark_processed(event.event_id)
+            await self.store.mark_processed(event.event_id)
 
-        logger.debug(f"Published domain event: {event.event_type} from {event.source_module}")
+        logger.debug("Published domain event: %s from %s", event.event_type, event.source_module)
 
-    async def _run_async_handler(self, handler: Callable, event: DomainEvent) -> None:
-        """Run an async handler with error isolation."""
-        try:
-            await handler(event)
-        except Exception as e:
-            logger.error(
-                f"Error in async handler {handler.__name__} for {event.event_type}: {e}",
-                exc_info=True
-            )
-
-    def replay_unprocessed(self, max_retries: int = 5) -> int:
+    async def replay_unprocessed(self, max_retries: int = 5) -> int:
         """
         Replay unprocessed events from the store.
 
@@ -325,7 +325,7 @@ class EnhancedEventBus:
         if not self.store:
             return 0
 
-        events = self.store.get_unprocessed(max_retries=max_retries)
+        events = await self.store.get_unprocessed(max_retries=max_retries)
         count = 0
         for event_data in events:
             try:
@@ -348,12 +348,12 @@ class EnhancedEventBus:
                     source_module=event_data['source_module'],
                     timestamp=ts,
                 )
-                self.publish(event, persist=False)  # Don't re-persist
+                await self.publish(event, persist=False)  # Don't re-persist
                 count += 1
             except Exception as e:
-                logger.error(f"Failed to replay event {event_data.get('event_id')}: {e}")
+                logger.error("Failed to replay event %s: %s", event_data.get('event_id'), e)
                 if self.store:
-                    self.store.mark_failed(event_data['event_id'], str(e))
+                    await self.store.mark_failed(event_data['event_id'], str(e))
 
         return count
 

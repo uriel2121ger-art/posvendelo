@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _escape_like(term: str) -> str:
+    """Escape ILIKE special characters."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("/")
 async def list_employees(
     search: Optional[str] = None,
@@ -39,7 +44,7 @@ async def list_employees(
         params["is_active"] = is_active
     if search:
         sql += " AND (name ILIKE :search OR position ILIKE :search OR employee_code ILIKE :search)"
-        params["search"] = f"%{search}%"
+        params["search"] = f"%{_escape_like(search)}%"
 
     sql += " ORDER BY name LIMIT :limit OFFSET :offset"
     params["limit"] = limit

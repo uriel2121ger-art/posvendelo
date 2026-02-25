@@ -14,7 +14,7 @@ Endpoints:
 import logging
 import math
 import uuid as uuid_mod
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
@@ -33,6 +33,11 @@ VALID_PAYMENT_METHODS = {"cash", "card", "transfer", "mixed", "credit", "wallet"
 
 
 # ── Helpers ────────────────────────────────────────────────────────
+
+def _escape_like(term: str) -> str:
+    """Escape ILIKE special characters."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 
 def _dec(val) -> Decimal:
     """Convert to Decimal safely."""
@@ -60,37 +65,44 @@ async def list_sales(
     db=Depends(get_db),
 ):
     """List sales with filters."""
-    sql = "SELECT * FROM sales WHERE 1=1"
+    sql = """SELECT s.id, s.uuid, s.folio_visible, s.subtotal, s.tax, s.total, s.discount,
+                    s.payment_method, s.status, s.customer_id, s.user_id, s.turn_id,
+                    s.branch_id, s.timestamp, s.serie, s.cash_received,
+                    c.name AS customer_name
+             FROM sales s
+             LEFT JOIN customers c ON s.customer_id = c.id
+             WHERE 1=1"""
     params: dict = {}
 
     if status and status != "all":
-        sql += " AND status = :status"
+        sql += " AND s.status = :status"
         params["status"] = status
     if branch_id:
-        sql += " AND branch_id = :branch_id"
+        sql += " AND s.branch_id = :branch_id"
         params["branch_id"] = branch_id
     if customer_id:
-        sql += " AND customer_id = :customer_id"
+        sql += " AND s.customer_id = :customer_id"
         params["customer_id"] = customer_id
     if folio:
-        sql += " AND folio_visible ILIKE :folio"
-        params["folio"] = f"%{folio}%"
+        sql += " AND s.folio_visible ILIKE :folio"
+        params["folio"] = f"%{_escape_like(folio)}%"
     if start_date:
         try:
             date.fromisoformat(start_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="start_date debe ser formato ISO (YYYY-MM-DD)")
-        sql += " AND timestamp >= :start_date"
+        sql += " AND s.timestamp >= :start_date"
         params["start_date"] = start_date
     if end_date:
         try:
-            date.fromisoformat(end_date)
+            parsed_end = date.fromisoformat(end_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="end_date debe ser formato ISO (YYYY-MM-DD)")
-        sql += " AND timestamp <= :end_date"
-        params["end_date"] = end_date + " 23:59:59"
+        next_day = (parsed_end + timedelta(days=1)).isoformat()
+        sql += " AND s.timestamp < :end_date"
+        params["end_date"] = next_day
 
-    sql += " ORDER BY id DESC LIMIT :limit OFFSET :offset"
+    sql += " ORDER BY s.id DESC LIMIT :limit OFFSET :offset"
     params["limit"] = limit
     params["offset"] = offset
 
@@ -579,7 +591,7 @@ async def search_sales(
 
     if folio:
         sql += " AND folio_visible ILIKE :folio"
-        params["folio"] = f"%{folio}%"
+        params["folio"] = f"%{_escape_like(folio)}%"
     if date_from:
         try:
             date.fromisoformat(date_from)
@@ -589,11 +601,12 @@ async def search_sales(
         params["date_from"] = date_from
     if date_to:
         try:
-            date.fromisoformat(date_to)
+            parsed_to = date.fromisoformat(date_to)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_to debe ser formato ISO")
-        sql += " AND timestamp <= :date_to"
-        params["date_to"] = date_to + " 23:59:59"
+        next_day_to = (parsed_to + timedelta(days=1)).isoformat()
+        sql += " AND timestamp < :date_to"
+        params["date_to"] = next_day_to
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit
@@ -680,10 +693,6 @@ async def cancel_sale(
                 sale_type = prod.get("sale_type", "unit") or "unit"
                 is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
                 is_kit = prod.get("is_kit", False)
-
-                # Skip stock revert for granel/weight — stock was never deducted
-                if not is_common and sale_type in ("granel", "weight") and not is_kit:
-                    continue
 
                 if is_kit:
                     kit_comps = kit_comp_map.get(pid, [])

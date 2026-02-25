@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _escape_like(term: str) -> str:
+    """Escape ILIKE special characters."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # ============================================================================
 # READ endpoints (existentes)
 # ============================================================================
@@ -40,7 +45,7 @@ async def list_customers(
         params["is_active"] = is_active
     if search:
         sql += " AND (name ILIKE :search OR phone ILIKE :search OR email ILIKE :search OR rfc ILIKE :search)"
-        params["search"] = f"%{search}%"
+        params["search"] = f"%{_escape_like(search)}%"
 
     sql += " ORDER BY name LIMIT :limit OFFSET :offset"
     params["limit"] = limit

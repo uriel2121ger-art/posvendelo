@@ -65,7 +65,7 @@ def test_domain_event_types_constants():
 # EnhancedEventBus — sync handlers
 # ============================================================================
 
-def test_bus_subscribe_and_publish_sync():
+async def test_bus_subscribe_and_publish_sync():
     """Sync handler receives published events."""
     bus = EnhancedEventBus()
     received = []
@@ -81,26 +81,26 @@ def test_bus_subscribe_and_publish_sync():
         data={"sale_id": 1},
         source_module="test",
     )
-    bus.publish(event, persist=False)
+    await bus.publish(event, persist=False)
 
     assert len(received) == 1
     assert received[0].data == {"sale_id": 1}
 
 
-def test_bus_wildcard_handler():
+async def test_bus_wildcard_handler():
     """Wildcard '*' handler receives all events."""
     bus = EnhancedEventBus()
     received = []
 
     bus.subscribe("*", lambda e: received.append(e.event_type))
 
-    bus.publish(DomainEvent(event_type="a", aggregate_type="x", data={}, source_module="t"), persist=False)
-    bus.publish(DomainEvent(event_type="b", aggregate_type="x", data={}, source_module="t"), persist=False)
+    await bus.publish(DomainEvent(event_type="a", aggregate_type="x", data={}, source_module="t"), persist=False)
+    await bus.publish(DomainEvent(event_type="b", aggregate_type="x", data={}, source_module="t"), persist=False)
 
     assert received == ["a", "b"]
 
 
-def test_bus_unsubscribe():
+async def test_bus_unsubscribe():
     """Unsubscribed handler no longer receives events."""
     bus = EnhancedEventBus()
     received = []
@@ -109,15 +109,15 @@ def test_bus_unsubscribe():
         received.append(1)
 
     bus.subscribe("test.event", handler)
-    bus.publish(DomainEvent(event_type="test.event", aggregate_type="x", data={}, source_module="t"), persist=False)
+    await bus.publish(DomainEvent(event_type="test.event", aggregate_type="x", data={}, source_module="t"), persist=False)
     assert len(received) == 1
 
     bus.unsubscribe("test.event", handler)
-    bus.publish(DomainEvent(event_type="test.event", aggregate_type="x", data={}, source_module="t"), persist=False)
+    await bus.publish(DomainEvent(event_type="test.event", aggregate_type="x", data={}, source_module="t"), persist=False)
     assert len(received) == 1  # Not incremented
 
 
-def test_bus_handler_isolation():
+async def test_bus_handler_isolation():
     """One failing sync handler doesn't block others."""
     bus = EnhancedEventBus()
     results = []
@@ -131,11 +131,11 @@ def test_bus_handler_isolation():
     bus.subscribe("test.event", bad_handler)
     bus.subscribe("test.event", good_handler)
 
-    bus.publish(DomainEvent(event_type="test.event", aggregate_type="x", data={}, source_module="t"), persist=False)
+    await bus.publish(DomainEvent(event_type="test.event", aggregate_type="x", data={}, source_module="t"), persist=False)
     assert "ok" in results
 
 
-def test_bus_no_duplicate_subscriptions():
+async def test_bus_no_duplicate_subscriptions():
     """Same handler can't be subscribed twice for same event."""
     bus = EnhancedEventBus()
     count = []
@@ -146,7 +146,7 @@ def test_bus_no_duplicate_subscriptions():
     bus.subscribe("e", handler)
     bus.subscribe("e", handler)  # Duplicate
 
-    bus.publish(DomainEvent(event_type="e", aggregate_type="x", data={}, source_module="t"), persist=False)
+    await bus.publish(DomainEvent(event_type="e", aggregate_type="x", data={}, source_module="t"), persist=False)
     assert len(count) == 1
 
 
@@ -170,10 +170,7 @@ async def test_bus_async_handler():
         data={"sale_id": 42},
         source_module="test",
     )
-    bus.publish(event, persist=False)
-
-    # Give the event loop a chance to process the task
-    await asyncio.sleep(0.05)
+    await bus.publish(event, persist=False)
 
     assert "sale.completed" in received
 
@@ -182,9 +179,9 @@ async def test_bus_async_handler():
 # EnhancedEventBus — persistence
 # ============================================================================
 
-def test_bus_persists_events_to_store():
+async def test_bus_persists_events_to_store():
     """Events are persisted to store when persist=True."""
-    mock_store = MagicMock()
+    mock_store = AsyncMock()
     mock_store.persist.return_value = 1
     mock_store.mark_processed.return_value = True
 
@@ -196,18 +193,18 @@ def test_bus_persists_events_to_store():
         data={"sale_id": 1},
         source_module="test",
     )
-    bus.publish(event, persist=True)
+    await bus.publish(event, persist=True)
 
-    mock_store.persist.assert_called_once_with(event)
-    mock_store.mark_processed.assert_called_once_with(event.event_id)
+    mock_store.persist.assert_awaited_once_with(event)
+    mock_store.mark_processed.assert_awaited_once_with(event.event_id)
 
 
-def test_bus_skips_persistence_when_disabled():
+async def test_bus_skips_persistence_when_disabled():
     """Events are NOT persisted when persist=False."""
-    mock_store = MagicMock()
+    mock_store = AsyncMock()
     bus = EnhancedEventBus(store=mock_store)
 
     event = DomainEvent(event_type="x", aggregate_type="x", data={}, source_module="t")
-    bus.publish(event, persist=False)
+    await bus.publish(event, persist=False)
 
-    mock_store.persist.assert_not_called()
+    mock_store.persist.assert_not_awaited()

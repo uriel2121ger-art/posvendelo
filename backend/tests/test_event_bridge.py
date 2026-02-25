@@ -1,12 +1,13 @@
 """Tests for modules/shared/event_bridge.py"""
 
-from unittest.mock import MagicMock, patch
+import asyncio
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from modules.shared.event_bridge import _LEGACY_TO_DOMAIN, _on_legacy_event
 
 
 # ============================================================================
-# Legacy → Domain event mapping
+# Legacy -> Domain event mapping
 # ============================================================================
 
 def test_legacy_mapping_has_all_sales_events():
@@ -68,11 +69,12 @@ def test_on_legacy_event_unknown_type():
     _on_legacy_event(mock_event)
 
 
-def test_on_legacy_event_known_type():
+async def test_on_legacy_event_known_type():
     """Known event types create DomainEvent and publish to bus."""
     import modules.shared.event_bridge as bridge
 
     mock_bus = MagicMock()
+    mock_bus.publish = AsyncMock()
     original_bus = bridge._enhanced_bus
     bridge._enhanced_bus = mock_bus
 
@@ -83,7 +85,10 @@ def test_on_legacy_event_known_type():
 
         _on_legacy_event(mock_event)
 
-        mock_bus.publish.assert_called_once()
+        # Give the event loop a chance to process the scheduled task
+        await asyncio.sleep(0.05)
+
+        mock_bus.publish.assert_awaited_once()
         published_event = mock_bus.publish.call_args[0][0]
         assert published_event.event_type == "sale.completed"
         assert published_event.aggregate_type == "sale"
@@ -92,11 +97,12 @@ def test_on_legacy_event_known_type():
         bridge._enhanced_bus = original_bus
 
 
-def test_on_legacy_event_extracts_aggregate_id():
+async def test_on_legacy_event_extracts_aggregate_id():
     """Bridge extracts aggregate_id from event data."""
     import modules.shared.event_bridge as bridge
 
     mock_bus = MagicMock()
+    mock_bus.publish = AsyncMock()
     original_bus = bridge._enhanced_bus
     bridge._enhanced_bus = mock_bus
 
@@ -106,6 +112,9 @@ def test_on_legacy_event_extracts_aggregate_id():
         mock_event.data = {"id": 99, "name": "Widget"}
 
         _on_legacy_event(mock_event)
+
+        # Give the event loop a chance to process the scheduled task
+        await asyncio.sleep(0.05)
 
         published_event = mock_bus.publish.call_args[0][0]
         assert published_event.aggregate_id == "99"

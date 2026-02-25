@@ -76,15 +76,23 @@ function readHistory(): ShiftRecord[] {
 }
 
 function saveCurrentShift(shift: ShiftRecord | null): void {
-  if (!shift) {
-    localStorage.removeItem(CURRENT_SHIFT_KEY)
-    return
+  try {
+    if (!shift) {
+      localStorage.removeItem(CURRENT_SHIFT_KEY)
+      return
+    }
+    localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(shift))
+  } catch {
+    // QuotaExceededError — shift stays in memory state only
   }
-  localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(shift))
 }
 
 function saveHistory(history: ShiftRecord[]): void {
-  localStorage.setItem(SHIFT_HISTORY_KEY, JSON.stringify(history.slice(0, 100)))
+  try {
+    localStorage.setItem(SHIFT_HISTORY_KEY, JSON.stringify(history.slice(0, 100)))
+  } catch {
+    // QuotaExceededError — history stays in memory state only
+  }
 }
 
 function toCsvCell(value: string): string {
@@ -100,7 +108,7 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]): voi
   anchor.href = url
   anchor.download = filename
   anchor.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 100)
 }
 
 function toMoney(value: number): string {
@@ -288,7 +296,13 @@ export default function ShiftsTab(): ReactElement {
           if (method === 'cash') acc.cashSales += totalCents
           else if (method === 'card') acc.cardSales += totalCents
           else if (method === 'transfer') acc.transferSales += totalCents
-          else if (method === 'mixed') acc.cashSales += mixedCashCents
+          else if (method === 'mixed') {
+            acc.cashSales += mixedCashCents
+            const mixedCardCents = Math.round(Math.max(0, Number(sale.mixed_card ?? 0)) * 100)
+            const mixedTransferCents = Math.round(Math.max(0, Number(sale.mixed_transfer ?? 0)) * 100)
+            acc.cardSales += mixedCardCents
+            acc.transferSales += mixedTransferCents
+          }
           return acc
         },
         initial
