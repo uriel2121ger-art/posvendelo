@@ -17,60 +17,48 @@ async def test_pending_mermas_query(db_session):
 
 async def test_approve_merma_lifecycle(db_session):
     """Insert a pending merma, approve it, verify status change."""
-    try:
-        row = await db_session.fetchrow(
-            """INSERT INTO loss_records
-               (product_id, quantity, unit_cost, total_value, loss_type, reason,
-                product_name, product_sku, category, status, created_by, created_at)
-               VALUES (1, 2, 10.0, 20.0, 'damage', 'Test merma',
-                       'Test Product', 'TST-001', 'Test', 'pending', 1, NOW())
-               RETURNING id""",
-        )
-        mid = row["id"]
+    row = await db_session.fetchrow(
+        """INSERT INTO loss_records
+           (product_id, quantity, unit_cost, total_value, loss_type, reason,
+            product_name, product_sku, category, status, created_by, created_at)
+           VALUES (1, 2, 10.0, 20.0, 'damage', 'Test merma',
+                   'Test Product', 'TST-001', 'Test', 'pending', 1, NOW())
+           RETURNING id""",
+    )
+    mid = row["id"]
 
-        # Approve
-        await db_session.execute(
-            """UPDATE loss_records SET status = 'approved', authorized_by = 1, authorized_at = NOW()::text
-               WHERE id = :id""",
-            {"id": mid},
-        )
+    # Approve
+    await db_session.execute(
+        """UPDATE loss_records SET status = 'approved', authorized_by = 1, authorized_at = NOW()::text
+           WHERE id = :id""",
+        {"id": mid},
+    )
 
-        updated = await db_session.fetchrow(
-            "SELECT status FROM loss_records WHERE id = :id", {"id": mid}
-        )
-        assert updated["status"] == "approved"
-    finally:
-        if row:
-            await db_session.execute(
-                "DELETE FROM loss_records WHERE id = :id", {"id": row["id"]}
-            )
+    updated = await db_session.fetchrow(
+        "SELECT status FROM loss_records WHERE id = :id", {"id": mid}
+    )
+    assert updated["status"] == "approved"
 
 
 async def test_reject_merma(db_session):
     """Insert a pending merma, reject it, verify status."""
-    try:
-        row = await db_session.fetchrow(
-            """INSERT INTO loss_records
-               (product_id, quantity, unit_cost, total_value, loss_type, reason,
-                product_name, product_sku, category, status, created_by, created_at)
-               VALUES (1, 1, 5.0, 5.0, 'expired', 'Test reject',
-                       'Test Reject', 'TST-REJ', 'Test', 'pending', 1, NOW())
-               RETURNING id""",
-        )
-        mid = row["id"]
+    row = await db_session.fetchrow(
+        """INSERT INTO loss_records
+           (product_id, quantity, unit_cost, total_value, loss_type, reason,
+            product_name, product_sku, category, status, created_by, created_at)
+           VALUES (1, 1, 5.0, 5.0, 'expired', 'Test reject',
+                   'Test Reject', 'TST-REJ', 'Test', 'pending', 1, NOW())
+           RETURNING id""",
+    )
+    mid = row["id"]
 
-        await db_session.execute(
-            """UPDATE loss_records SET status = 'rejected', authorized_by = 1, authorized_at = NOW()::text
-               WHERE id = :id""",
-            {"id": mid},
-        )
+    await db_session.execute(
+        """UPDATE loss_records SET status = 'rejected', authorized_by = 1, authorized_at = NOW()::text
+           WHERE id = :id""",
+        {"id": mid},
+    )
 
-        updated = await db_session.fetchrow(
-            "SELECT status FROM loss_records WHERE id = :id", {"id": mid}
-        )
-        assert updated["status"] == "rejected"
-    finally:
-        if row:
-            await db_session.execute(
-                "DELETE FROM loss_records WHERE id = :id", {"id": row["id"]}
-            )
+    updated = await db_session.fetchrow(
+        "SELECT status FROM loss_records WHERE id = :id", {"id": mid}
+    )
+    assert updated["status"] == "rejected"

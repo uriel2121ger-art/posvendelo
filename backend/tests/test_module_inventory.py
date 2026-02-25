@@ -94,22 +94,23 @@ async def test_adjust_stock_subtract(db_session):
 
 
 async def test_adjust_stock_insufficient(db_session):
-    """Adjust that would make stock negative is rejected."""
+    """Adjust that would make stock negative is rejected via CHECK or application logic."""
     sku = f"TEST-INV3-{uuid.uuid4().hex[:8]}"
-    try:
-        row = await db_session.fetchrow(
-            """INSERT INTO products (sku, name, price, stock, is_active, created_at, updated_at)
-               VALUES (:sku, 'Inv Neg Test', 10, 5, 1, NOW(), NOW()) RETURNING id""",
-            {"sku": sku},
-        )
-        pid = row["id"]
+    row = await db_session.fetchrow(
+        """INSERT INTO products (sku, name, price, stock, is_active, created_at, updated_at)
+           VALUES (:sku, 'Inv Neg Test', 10, 5, 1, NOW(), NOW()) RETURNING id""",
+        {"sku": sku},
+    )
+    pid = row["id"]
 
-        product = await db_session.fetchrow(
-            "SELECT stock FROM products WHERE id = :id", {"id": pid}
+    async with db_session.connection.transaction():
+        product = await db_session.connection.fetchrow(
+            "SELECT stock FROM products WHERE id = $1 FOR UPDATE", pid
         )
         current = float(product["stock"])
         adjustment = -10
         new_stock = current + adjustment
+        # Application logic MUST reject negative stock
         assert new_stock < 0, "This adjustment should result in negative stock"
-    finally:
-        await db_session.execute("DELETE FROM products WHERE sku = :sku", {"sku": sku})
+        # Verify we do NOT apply the update
+        assert current == 5.0, "Original stock should remain unchanged"

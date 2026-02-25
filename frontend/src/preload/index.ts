@@ -9,4 +9,6 @@ if (process.contextIsolated) {
   } catch (error) {
     console.error(error)
   }
+} else {
+  console.warn('contextIsolation is disabled — API bridge not exposed')
 }

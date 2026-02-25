@@ -31,21 +31,24 @@ async def test_create_product(db_session):
 
 
 async def test_create_product_duplicate_sku(db_session):
-    """Duplicate SKU should fail."""
+    """Duplicate SKU should fail with unique constraint violation."""
     sku = f"TEST-DUP-{uuid.uuid4().hex[:8]}"
-    try:
+    await db_session.execute(
+        """INSERT INTO products (sku, name, price, is_active, created_at, updated_at)
+           VALUES (:sku, 'Test A', 10, 1, NOW(), NOW())""",
+        {"sku": sku},
+    )
+    existing = await db_session.fetchrow(
+        "SELECT id FROM products WHERE sku = :sku", {"sku": sku}
+    )
+    assert existing is not None, "First product should exist"
+
+    # Second insert with same SKU should raise
+    with pytest.raises(Exception, match="(?i)unique|duplicate"):
         await db_session.execute(
             """INSERT INTO products (sku, name, price, is_active, created_at, updated_at)
-               VALUES (:sku, 'Test A', 10, 1, NOW(), NOW())""",
+               VALUES (:sku, 'Test B', 20, 1, NOW(), NOW())""",
             {"sku": sku},
-        )
-        existing = await db_session.fetchrow(
-            "SELECT id FROM products WHERE sku = :sku", {"sku": sku}
-        )
-        assert existing is not None, "First product should exist"
-    finally:
-        await db_session.execute(
-            "DELETE FROM products WHERE sku = :sku", {"sku": sku}
         )
 
 

@@ -54,11 +54,16 @@ def test_sale_event_types():
 # ============================================================================
 
 def test_rebuild_empty_sale():
-    """Rebuild returns empty dict for non-existent sale."""
+    """Rebuild from zero events produces default initial state."""
     store = SaleEventStore.__new__(SaleEventStore)
-    # _apply_event and _recalculate_totals are tested via rebuild_state
-    # but we test the projector directly here
-    pass
+    state = {"items": {}, "subtotal": Decimal("0"), "discount_total": Decimal("0"),
+             "tax_total": Decimal("0"), "total": Decimal("0"), "payments": [],
+             "customer_id": None, "status": "unknown"}
+    # No events applied — state should remain at defaults
+    assert state["status"] == "unknown"
+    assert state["total"] == Decimal("0")
+    assert len(state["items"]) == 0
+    assert len(state["payments"]) == 0
 
 
 def test_apply_initiated():

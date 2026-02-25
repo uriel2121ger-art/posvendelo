@@ -20,9 +20,12 @@ TEST_DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 
 @pytest.fixture
 async def db_session():
-    """Provide a DB wrapper around a fresh asyncpg connection per test."""
+    """Provide a DB wrapper inside a transaction that rolls back after each test."""
     conn = await asyncpg.connect(dsn=TEST_DATABASE_URL)
+    tr = conn.transaction()
+    await tr.start()
     try:
         yield DB(conn)
     finally:
+        await tr.rollback()
         await conn.close()
