@@ -336,12 +336,23 @@ class CFDIService:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    _CFDI_ALLOWED_COLS = frozenset({
+        "sale_id", "uuid", "folio", "serie", "fecha", "rfc_emisor", "rfc_receptor",
+        "razon_social_emisor", "razon_social_receptor", "subtotal", "impuestos", "total",
+        "moneda", "metodo_pago", "forma_pago", "uso_cfdi", "tipo_comprobante",
+        "regimen_fiscal", "lugar_expedicion", "xml_path", "xml_timbrado",
+        "emitter_rfc", "receiver_rfc", "status", "created_at", "updated_at",
+    })
+
     async def _save_cfdi(self, cfdi_data: Dict[str, Any]) -> int:
-        cols = list(cfdi_data.keys())
+        cols = [c for c in cfdi_data.keys() if c in self._CFDI_ALLOWED_COLS]
+        if not cols:
+            raise ValueError("No valid columns in cfdi_data")
+        filtered_data = {c: cfdi_data[c] for c in cols}
         col_names = ", ".join(cols)
         placeholders = ", ".join([f":{c}" for c in cols])
         sql = f"INSERT INTO cfdis ({col_names}) VALUES ({placeholders}) RETURNING id"
-        row = await self.db.fetchrow(sql, cfdi_data)
+        row = await self.db.fetchrow(sql, filtered_data)
         return row["id"] if row else 0
 
     async def _save_xml_file(self, uuid: str, xml_content: str) -> str:

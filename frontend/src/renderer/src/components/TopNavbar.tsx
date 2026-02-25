@@ -76,7 +76,7 @@ export default function TopNavbar(): ReactElement {
               : '¿Cerrar sesion?'
             if (!window.confirm(msg)) return
             try {
-              ;['titan.token', 'titan.user', 'titan.currentShift'].forEach(
+              ;['titan.token', 'titan.user', 'titan.currentShift', 'titan.pendingTickets', 'titan.activeTickets'].forEach(
                 (k) => localStorage.removeItem(k)
               )
             } catch { /* storage inaccessible — proceed with redirect */ }

@@ -163,7 +163,8 @@ class FederationDashboard:
                     SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'
                 """, ys=year_start, ye=year_end)
                 if result_dir: facturado += Decimal(str(result_dir['total'] or 0))
-            except Exception: pass
+            except Exception as e:
+                logger.warning("Error consultando facturación directa para %s: %s", emitter.get('rfc', '?'), e)
             
             restante = self.RESICO_LIMIT - facturado
             porcentaje = (facturado / self.RESICO_LIMIT) * 100
