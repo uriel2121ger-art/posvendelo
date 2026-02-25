@@ -25,7 +25,7 @@ export default function Login(): ReactElement {
     try {
       const cfg = loadRuntimeConfig()
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 30000)
+      const timeout = setTimeout(() => controller.abort(), 3000)
       let res: Response
       try {
         res = await fetch(`${cfg.baseUrl}/api/v1/auth/login`, {
@@ -40,7 +40,15 @@ export default function Login(): ReactElement {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ detail: 'Error de conexión' }))
-        setError(body.detail || body.error || 'Credenciales incorrectas. Intenta de nuevo.')
+        let msg: string
+        if (typeof body.detail === 'string') {
+          msg = body.detail
+        } else if (Array.isArray(body.detail)) {
+          msg = body.detail.map((e: Record<string, unknown>) => e.msg ?? '').filter(Boolean).join('; ')
+        } else {
+          msg = body.error || 'Credenciales incorrectas. Intenta de nuevo.'
+        }
+        setError(msg || 'Credenciales incorrectas. Intenta de nuevo.')
         return
       }
 

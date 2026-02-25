@@ -208,7 +208,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
            WHERE s.status = 'completed'
-           AND s.timestamp::timestamp >= NOW() - INTERVAL '30 days'
+           AND s.timestamp >= to_char(NOW() - INTERVAL '30 days', 'YYYY-MM-DD')
            GROUP BY p.name
            ORDER BY sales_count DESC
            LIMIT 5"""

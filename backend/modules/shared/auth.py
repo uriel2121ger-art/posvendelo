@@ -58,7 +58,7 @@ def create_token(user_id: str, role: str) -> str:
     jti = secrets.token_hex(16)
     payload = {
         "sub": user_id,
-        "role": role,
+        "role": (role or "").strip().lower(),
         "exp": expire,
         "iat": now,
         "nbf": now,
@@ -75,6 +75,9 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             SECRET_KEY,
             algorithms=[ALGORITHM],
         )
+        # Normalize role to lowercase for consistent RBAC checks
+        if "role" in payload:
+            payload["role"] = (payload["role"] or "").strip().lower()
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")

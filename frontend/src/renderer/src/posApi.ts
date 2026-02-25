@@ -72,16 +72,36 @@ function handleExpiredSession(): never {
   throw new Error('Sesión expirada. Inicia sesión de nuevo.')
 }
 
+function parseErrorDetail(text: string, fallback: string): string {
+  try {
+    const body = JSON.parse(text)
+    if (typeof body.detail === 'string') return body.detail
+    if (Array.isArray(body.detail)) {
+      const msgs = body.detail
+        .map((e: Record<string, unknown>) => {
+          const msg = typeof e.msg === 'string' ? e.msg : ''
+          const loc = Array.isArray(e.loc) ? String(e.loc[e.loc.length - 1]) : ''
+          return loc && msg ? `${loc}: ${msg}` : msg
+        })
+        .filter(Boolean)
+      return msgs.join('; ') || fallback
+    }
+    if (typeof body.error === 'string') return body.error
+    if (typeof body.message === 'string') return body.message
+  } catch { /* not JSON — use raw text */ }
+  return text || fallback
+}
+
 async function apiFetch(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30_000)
+  const timeout = setTimeout(() => controller.abort(), 3_000)
   try {
     const res = await fetch(url, { ...init, signal: controller.signal })
     if (res.status === 401) handleExpiredSession()
     return res
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error('Tiempo de espera agotado (30s). Verifica la conexion al servidor.')
+      throw new Error('Tiempo de espera agotado. Verifica la conexion al servidor.')
     }
     throw err
   } finally {
@@ -90,26 +110,17 @@ async function apiFetch(url: string, init: RequestInit): Promise<Response> {
 }
 
 async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Response> {
-  let lastStatus = 0
-  let lastDetail = ''
-
   for (const path of paths) {
     const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
-    if (res.status === 404 || res.status === 405) {
-      lastStatus = res.status
-      continue
-    }
+    if (res.status === 404 || res.status === 405) continue
     if (!res.ok) {
-      lastStatus = res.status
-      lastDetail = await res.text()
-      continue
+      const detail = await res.text()
+      throw new Error(parseErrorDetail(detail, 'Error del servidor'))
     }
     return res
   }
 
-  throw new Error(
-    `Error ${lastStatus || 500}: ${lastDetail || 'sin endpoint compatible disponible'}`
-  )
+  throw new Error('Sin endpoint compatible disponible')
 }
 
 export async function pullTable(
@@ -135,12 +146,12 @@ export async function pullTable(
         return Array.isArray(fallbackCandidate) ? (fallbackCandidate as Record<string, unknown>[]) : []
       }
       const detail = await fallback.text()
-      throw new Error(`Error ${fallback.status}: ${detail || 'fallo en fallback de carga'}`)
+      throw new Error(parseErrorDetail(detail, 'Fallo cargando datos'))
     }
   }
 
   const detail = await primary.text()
-  throw new Error(`Error ${primary.status}: ${detail || 'fallo cargando datos'}`)
+  throw new Error(parseErrorDetail(detail, 'Fallo cargando datos'))
 }
 
 export async function syncTable(
@@ -162,7 +173,7 @@ export async function syncTable(
   })
   if (!res.ok) {
     const detail = await res.text()
-    throw new Error(`Error ${res.status}: ${detail || 'fallo sincronizando datos'}`)
+    throw new Error(parseErrorDetail(detail, 'Fallo sincronizando datos'))
   }
 }
 
@@ -267,7 +278,7 @@ export async function openTurn(
       notes: body.notes || undefined
     })
   })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -284,7 +295,7 @@ export async function closeTurn(
       notes: body.notes || undefined
     })
   })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -292,7 +303,7 @@ export async function getCurrentTurn(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown> | null> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   const body = (await res.json()) as Record<string, unknown>
   const data = body.data as Record<string, unknown> | null
   return data
@@ -309,7 +320,7 @@ export async function adjustStock(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -350,7 +361,7 @@ export async function createSale(
   })
   if (!res.ok) {
     const detail = await res.text()
-    throw new Error(`Error ${res.status}: ${detail || 'Error creando venta'}`)
+    throw new Error(parseErrorDetail(detail, 'Error creando venta'))
   }
   return (await res.json()) as Record<string, unknown>
 }
@@ -361,7 +372,7 @@ export async function getDashboardQuick(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/dashboard/quick`, { headers: headers(cfg) })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -371,7 +382,7 @@ export async function getMermasPending(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/mermas/pending`, { headers: headers(cfg) })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -386,7 +397,7 @@ export async function approveMerma(
     headers: headers(cfg),
     body: JSON.stringify({ merma_id: id, approved, notes: notes || undefined })
   })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -404,7 +415,7 @@ export async function getExpensesSummary(
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/expenses/summary${qs ? `?${qs}` : ''}`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -417,6 +428,6 @@ export async function registerExpense(
     headers: headers(cfg),
     body: JSON.stringify(expense)
   })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
 }

@@ -196,7 +196,7 @@ async def create_sale(
                 prod = locked_map[item.product_id]
                 sku = prod.get("sku", "") or ""
                 sale_type = prod.get("sale_type", "unit") or "unit"
-                is_kit = prod.get("is_kit", False)
+                is_kit = prod.get("is_kit", 0) == 1
                 is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
 
                 if not is_common and sale_type not in ("granel", "weight") and not is_kit:
@@ -376,7 +376,7 @@ async def create_sale(
                 prod = locked_map.get(item.product_id, {}) if item.product_id else {}
                 sku = prod.get("sku", "") or ""
                 sale_type = prod.get("sale_type", "unit") or "unit"
-                is_kit = prod.get("is_kit", False)
+                is_kit = prod.get("is_kit", 0) == 1
                 is_common = is_common_item or sku.startswith("COM-") or sku.startswith("COMUN-")
 
                 price = _dec(item.price)
@@ -475,7 +475,7 @@ async def create_sale(
                 )
                 if not cust:
                     raise HTTPException(status_code=400, detail="Cliente no encontrado para venta a credito")
-                if not cust.get("credit_authorized"):
+                if cust.get("credit_authorized") != 1:
                     raise HTTPException(status_code=400, detail="Cliente no tiene credito habilitado")
 
                 balance = _dec(cust.get("credit_balance") or 0)
@@ -695,7 +695,7 @@ async def cancel_sale(
                 sku = prod.get("sku", "") or ""
                 sale_type = prod.get("sale_type", "unit") or "unit"
                 is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
-                is_kit = prod.get("is_kit", False)
+                is_kit = prod.get("is_kit", 0) == 1
 
                 if is_kit:
                     kit_comps = kit_comp_map.get(pid, [])

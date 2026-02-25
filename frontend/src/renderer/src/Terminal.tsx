@@ -651,11 +651,13 @@ export default function Terminal(): ReactElement {
       )
     } catch (error) {
       const raw = (error as Error).message
-      setMessage(
-        raw.includes('fetch') || raw.includes('network') || raw.includes('Failed')
-          ? 'No se pudo conectar al servidor. El ticket sigue intacto, intenta cobrar de nuevo.'
-          : `Error al registrar venta: ${raw}. El ticket sigue intacto.`
-      )
+      if (raw.includes('fetch') || raw.includes('network') || raw.includes('Failed')) {
+        setMessage('No se pudo conectar al servidor. El ticket sigue intacto, intenta cobrar de nuevo.')
+      } else if (raw.includes('Tiempo de espera')) {
+        setMessage(`${raw} El ticket sigue intacto.`)
+      } else {
+        setMessage(`Error al registrar venta: ${raw}. El ticket sigue intacto.`)
+      }
     } finally {
       chargingRef.current = false
       setBusy(false)
