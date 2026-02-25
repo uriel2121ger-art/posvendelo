@@ -22,7 +22,7 @@ services:
       POSTGRES_USER: titan_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -41,8 +41,8 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: "postgresql+asyncpg://titan_user:${POSTGRES_PASSWORD}@postgres:5432/titan_pos"
-      CORS_ORIGINS: "*"              # Required: Electron sends from file:// origin
-      CORS_ALLOWED_ORIGINS: "*"       # LAN-only — do NOT expose to internet
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000"
       ADMIN_API_USER: "${ADMIN_API_USER:-admin}"
       ADMIN_API_PASSWORD: "${ADMIN_API_PASSWORD}"
       JWT_SECRET: "${JWT_SECRET}"
