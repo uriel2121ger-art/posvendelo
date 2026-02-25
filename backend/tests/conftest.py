@@ -10,11 +10,12 @@ import asyncpg
 
 from db.connection import DB
 
-# Use test database URL
-_raw_url = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos",
-)
+# Use test database URL (falls back to DATABASE_URL if TEST_DATABASE_URL not set)
+_raw_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+if not _raw_url:
+    raise RuntimeError(
+        "TEST_DATABASE_URL o DATABASE_URL debe estar configurada para ejecutar tests."
+    )
 TEST_DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 
 

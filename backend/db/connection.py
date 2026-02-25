@@ -25,10 +25,13 @@ import asyncpg
 logger = logging.getLogger(__name__)
 
 # Parse DATABASE_URL — strip +asyncpg suffix if present (from SQLAlchemy format)
-_raw_url = os.getenv(
-    "DATABASE_URL",
-    "postgresql://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos",
-)
+_raw_url = os.getenv("DATABASE_URL")
+if not _raw_url:
+    raise RuntimeError(
+        "DATABASE_URL no está configurada. "
+        "Exporta la variable de entorno antes de iniciar el servidor. "
+        "Ejemplo: export DATABASE_URL='postgresql://user:pass@localhost:5432/titan_pos'"
+    )
 DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 
 # Global connection pool (with lock to prevent double-creation on concurrent startup)

@@ -353,7 +353,7 @@
       "pattern": "api_key_assignment",
       "path": "backend/server/instalar_sucursal.sh",
       "line": 31,
-      "snippet": "ADMIN_TOKEN=\"sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y\""
+      "snippet": "ADMIN_TOKEN=\"<REDACTED>\""
     },
     {
       "pattern": "password_assignment",
@@ -371,7 +371,7 @@
       "pattern": "api_key_assignment",
       "path": "frontend/server/instalar_sucursal.sh",
       "line": 31,
-      "snippet": "ADMIN_TOKEN=\"sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y\""
+      "snippet": "ADMIN_TOKEN=\"<REDACTED>\""
     }
   ],
   "top_risk_files": [

@@ -91,8 +91,8 @@ Esto levanta tanto PostgreSQL (puerto 5432) como la API (puerto 8000).
 
 | Variable | Valor por defecto | Descripcion |
 |---|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://titan_user:POvBSlIvC9jB76ZtYBvaFw@localhost:5432/titan_pos` | Conexion a la BD |
-| `JWT_SECRET` | `tP0s-S3cr3t-k3y-2026!xQm9vR4nBz` | Clave para tokens JWT |
+| `DATABASE_URL` | `postgresql+asyncpg://titan_user:<TU_PASSWORD>@localhost:5432/titan_pos` | Conexion a la BD |
+| `JWT_SECRET` | `<TU_JWT_SECRET>` | Clave para tokens JWT |
 | `CORS_ORIGINS` | `*` | Origenes permitidos (LAN local) |
 | `DEBUG` | `false` | Modo debug |
 
@@ -117,7 +117,7 @@ Los endpoints de modulos estan bajo el prefijo `/api/v1/`.
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "titanpos2026"}'
+  -d '{"username": "admin", "password": "<TU_PASSWORD>"}'
 ```
 
 **Respuesta esperada (200 OK):**

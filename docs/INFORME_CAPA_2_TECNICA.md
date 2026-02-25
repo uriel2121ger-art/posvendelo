@@ -61,10 +61,10 @@ Análisis derivado del inventario total, con enfoque en arquitectura real, riesg
 
 - `backend/scripts/backup_postgresql.sh:42` [password_assignment] -> `export PGPASSWORD="$PASSWORD"`
 - `backend/scripts/restore_postgresql.sh:52` [password_assignment] -> `export PGPASSWORD="$PASSWORD"`
-- `backend/server/instalar_sucursal.sh:31` [api_key_assignment] -> `ADMIN_TOKEN="sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y"`
+- `backend/server/instalar_sucursal.sh:31` [api_key_assignment] -> `ADMIN_TOKEN="<REDACTED>"`
 - `frontend/scripts/backup_postgresql.sh:42` [password_assignment] -> `export PGPASSWORD="$PASSWORD"`
 - `frontend/scripts/restore_postgresql.sh:52` [password_assignment] -> `export PGPASSWORD="$PASSWORD"`
-- `frontend/server/instalar_sucursal.sh:31` [api_key_assignment] -> `ADMIN_TOKEN="sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y"`
+- `frontend/server/instalar_sucursal.sh:31` [api_key_assignment] -> `ADMIN_TOKEN="<REDACTED>"`
 
 ## 6) Hotspots de riesgo técnico (heurístico)
 

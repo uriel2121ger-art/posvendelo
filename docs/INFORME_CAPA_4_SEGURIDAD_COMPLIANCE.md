@@ -26,12 +26,12 @@ Evaluación documental y estática de exposición de secretos, manejo de credenc
 
 - [ALTA] `backend/scripts/backup_postgresql.sh:42` | db_password_literal | `export PGPASSWORD="$PASSWORD"`
 - [ALTA] `backend/scripts/restore_postgresql.sh:52` | db_password_literal | `export PGPASSWORD="$PASSWORD"`
-- [ALTA] `backend/server/instalar_sucursal.sh:31` | hardcoded_admin_token | `ADMIN_TOKEN="sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y"`
-- [MEDIA] `backend/server/instalar_sucursal.sh:31` | generic_api_key | `ADMIN_TOKEN="sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y"`
+- [ALTA] `backend/server/instalar_sucursal.sh:31` | hardcoded_admin_token | `ADMIN_TOKEN="<REDACTED>"`
+- [MEDIA] `backend/server/instalar_sucursal.sh:31` | generic_api_key | `ADMIN_TOKEN="<REDACTED>"`
 - [ALTA] `frontend/scripts/backup_postgresql.sh:42` | db_password_literal | `export PGPASSWORD="$PASSWORD"`
 - [ALTA] `frontend/scripts/restore_postgresql.sh:52` | db_password_literal | `export PGPASSWORD="$PASSWORD"`
-- [ALTA] `frontend/server/instalar_sucursal.sh:31` | hardcoded_admin_token | `ADMIN_TOKEN="sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y"`
-- [MEDIA] `frontend/server/instalar_sucursal.sh:31` | generic_api_key | `ADMIN_TOKEN="sOha_F4JGLhkCB7ERzgqrmLAQmJsX4NMISXyNHrjV6Y"`
+- [ALTA] `frontend/server/instalar_sucursal.sh:31` | hardcoded_admin_token | `ADMIN_TOKEN="<REDACTED>"`
+- [MEDIA] `frontend/server/instalar_sucursal.sh:31` | generic_api_key | `ADMIN_TOKEN="<REDACTED>"`
 
 ## Evaluación de postura de compliance (heurística)
 
