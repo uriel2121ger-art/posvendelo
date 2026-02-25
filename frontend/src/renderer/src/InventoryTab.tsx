@@ -39,11 +39,22 @@ export default function InventoryTab(): ReactElement {
     'Inventario (F4): carga y movimientos de entrada/salida funcional.'
   )
 
+  const PAGE_SIZE = 50
+  const [page, setPage] = useState(0)
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return rows
     return rows.filter((r) => r.sku.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
   }, [rows, query])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated = useMemo(() => {
+    const start = page * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, page])
+
+  useEffect(() => { setPage(0) }, [query])
 
   const handleLoad = useCallback(async (): Promise<void> => {
     setBusy(true)
@@ -168,7 +179,7 @@ export default function InventoryTab(): ReactElement {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
+            {paginated.map((r) => (
               <tr
                 key={r.sku}
                 className={`border-b border-zinc-800/50 cursor-pointer transition-colors text-sm ${
@@ -187,8 +198,22 @@ export default function InventoryTab(): ReactElement {
         </table>
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-        {message}
+      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 flex items-center justify-between">
+        <span>{message}</span>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-zinc-500">{filtered.length} resultados</span>
+          <button
+            className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >&laquo; Ant</button>
+          <span className="text-zinc-400">{page + 1} / {totalPages}</span>
+          <button
+            className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+          >Sig &raquo;</button>
+        </div>
       </div>
     </div>
   )
