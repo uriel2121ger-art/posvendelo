@@ -108,7 +108,8 @@ class TabErrorBoundary extends Component<
 }
 
 function RequireAuth({ children }: { children: ReactElement }): ReactElement {
-  const token = localStorage.getItem('titan.token')
+  let token: string | null = null
+  try { token = localStorage.getItem('titan.token') } catch { /* storage error */ }
   if (!token) return <Navigate to="/login" replace />
   return children
 }
@@ -118,7 +119,7 @@ function RoutedApp(): ReactElement {
 
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!localStorage.getItem('titan.token')) return
+      try { if (!localStorage.getItem('titan.token')) return } catch { return }
       const tag = (document.activeElement?.tagName ?? '').toUpperCase()
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
       switch (event.key) {

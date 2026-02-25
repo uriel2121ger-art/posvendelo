@@ -243,7 +243,7 @@ async def remote_change_price(
         old_price = float(product["price"])
 
         await db.execute(
-            "UPDATE products SET price = :price, updated_at = NOW() WHERE id = :id",
+            "UPDATE products SET price = :price, synced = 0, updated_at = NOW() WHERE id = :id",
             {"price": body.new_price, "id": product["id"]},
         )
 

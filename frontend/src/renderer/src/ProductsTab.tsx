@@ -89,6 +89,7 @@ export default function ProductsTab(): ReactElement {
   }, [handleLoad])
 
   async function handleCreate(): Promise<void> {
+    if (busy) return
     if (!sku.trim() || !name.trim()) {
       setMessage('SKU y nombre son obligatorios.')
       return
@@ -136,6 +137,7 @@ export default function ProductsTab(): ReactElement {
   }
 
   async function handleDelete(): Promise<void> {
+    if (busy) return
     if (!selectedSku) {
       setMessage('Selecciona un producto para eliminar.')
       return

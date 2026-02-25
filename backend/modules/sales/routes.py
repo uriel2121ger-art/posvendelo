@@ -770,11 +770,11 @@ async def cancel_sale(
                 )
 
             # Revert wallet if applicable (pure wallet or mixed with wallet component)
-            wallet_amount = 0.0
+            wallet_amount = Decimal("0")
             if sale["payment_method"] == "wallet" and sale.get("customer_id"):
-                wallet_amount = float(sale.get("total") or 0)
+                wallet_amount = sale.get("total") or Decimal("0")
             elif sale["payment_method"] == "mixed" and sale.get("customer_id"):
-                wallet_amount = float(sale.get("mixed_wallet") or 0)
+                wallet_amount = sale.get("mixed_wallet") or Decimal("0")
 
             if wallet_amount > 0 and sale.get("customer_id"):
                 await db.fetchrow(

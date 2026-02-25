@@ -56,10 +56,11 @@ async def get_pool() -> asyncpg.Pool:
 async def close_pool():
     """Close the connection pool (call at app shutdown)."""
     global _pool
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
-        logger.info("asyncpg connection pool closed")
+    async with _pool_lock:
+        if _pool is not None:
+            await _pool.close()
+            _pool = None
+            logger.info("asyncpg connection pool closed")
 
 
 def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
@@ -85,7 +86,13 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
     # Restore :: casts
     converted = converted.replace("\x00CAST\x00", "::")
 
-    args = [params[name] for name in param_order]
+    try:
+        args = [params[name] for name in param_order]
+    except KeyError as e:
+        raise KeyError(
+            f"SQL param {e} not found in params dict. "
+            f"Available: {list(params.keys())}, Required: {param_order}"
+        ) from e
     return converted, args
 
 

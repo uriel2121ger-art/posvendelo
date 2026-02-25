@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field, model_validator
 class StockAdjustment(BaseModel):
     product_id: int
     quantity: float = Field(..., ne=0, description="Positive to add, negative to subtract")
-    reason: str = Field(..., min_length=1)
-    reference_id: Optional[str] = None
+    reason: str = Field(..., min_length=1, max_length=500)
+    reference_id: Optional[str] = Field(None, max_length=100)
 
     @model_validator(mode='after')
     def _reject_special_floats(self):

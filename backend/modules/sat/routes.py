@@ -8,7 +8,9 @@ No asyncpg needed — the SAT catalog lives in its own SQLite DB.
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from modules.shared.auth import verify_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,6 +33,7 @@ _COMMON_CODES = [
 async def search_sat_codes(
     q: str = Query(..., min_length=2),
     limit: int = Query(20, ge=1, le=100),
+    auth: dict = Depends(verify_token),
 ):
     """Search SAT catalog by code or description. No auth required."""
     try:
@@ -62,8 +65,8 @@ async def search_sat_codes(
 
 
 @router.get("/{code}")
-async def get_sat_code_info(code: str):
-    """Get SAT code description. No auth required."""
+async def get_sat_code_info(code: str, auth: dict = Depends(verify_token)):
+    """Get SAT code description by key."""
     try:
         def _get():
             from modules.sat.sat_catalog import get_sat_description
@@ -73,7 +76,9 @@ async def get_sat_code_info(code: str):
 
         if description:
             return {"success": True, "data": {"code": code, "description": description}}
-        return {"success": False, "data": {"code": code, "description": "No existe en el catalogo"}}
+        raise HTTPException(status_code=404, detail="Codigo SAT no encontrado")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning("SAT catalog lookup fallback: %s", e)
-        return {"success": False, "data": {"code": code, "description": "No existe en el catalogo"}}
+        raise HTTPException(status_code=404, detail="Codigo SAT no encontrado")

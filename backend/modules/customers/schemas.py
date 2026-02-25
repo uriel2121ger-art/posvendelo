@@ -8,22 +8,22 @@ from pydantic import BaseModel, Field
 
 class CustomerCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    rfc: Optional[str] = None
-    address: Optional[str] = None
-    notes: Optional[str] = None
+    phone: Optional[str] = Field(None, max_length=30)
+    email: Optional[str] = Field(None, max_length=200)
+    rfc: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=500)
+    notes: Optional[str] = Field(None, max_length=2000)
     credit_limit: Optional[float] = Field(0.0, ge=0)
 
 
 class CustomerUpdate(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    rfc: Optional[str] = None
-    address: Optional[str] = None
-    notes: Optional[str] = None
-    credit_limit: Optional[float] = None
+    name: Optional[str] = Field(None, max_length=200)
+    phone: Optional[str] = Field(None, max_length=30)
+    email: Optional[str] = Field(None, max_length=200)
+    rfc: Optional[str] = Field(None, max_length=20)
+    address: Optional[str] = Field(None, max_length=500)
+    notes: Optional[str] = Field(None, max_length=2000)
+    credit_limit: Optional[float] = Field(None, ge=0)
     is_active: Optional[int] = Field(None, ge=0, le=1)
 
 

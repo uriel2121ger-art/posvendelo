@@ -94,7 +94,7 @@ def _on_legacy_event(event):
     Handler called by the legacy EventBus when any event fires.
     Converts to DomainEvent and publishes to enhanced bus.
     """
-    event_type = event.event_type if hasattr(event, "event_type") else str(event)
+    event_type = getattr(event, "event_type", None) or getattr(event, "type", None) or str(event)
     data = event.data if hasattr(event, "data") else {}
 
     mapping = _LEGACY_TO_DOMAIN.get(event_type)
@@ -104,12 +104,13 @@ def _on_legacy_event(event):
     try:
         from modules.shared.domain_event import DomainEvent
 
+        safe_data = data if isinstance(data, dict) else {}
         domain_event = DomainEvent(
             event_type=mapping["event_type"],
             aggregate_type=mapping["aggregate_type"],
             data=data if isinstance(data, dict) else {"value": data},
             source_module="monolith",
-            aggregate_id=str(data.get("id", data.get("sale_id", data.get("product_id", "")))),
+            aggregate_id=str(safe_data.get("id", safe_data.get("sale_id", safe_data.get("product_id", "")))),
         )
 
         # Publish to enhanced bus (publish() is async — schedule from sync context)

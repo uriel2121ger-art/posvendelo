@@ -11,6 +11,7 @@ Endpoints that posApi.ts expects for pullTable() and syncTable():
 """
 
 import logging
+import math
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -244,23 +245,44 @@ async def sync_push(
                     )
                     upserted += 1
                     continue
+                # Validate numeric fields (reject NaN/Infinity)
+                num_fields = {
+                    "price": row.get("price", 0),
+                    "price_wholesale": row.get("price_wholesale", 0),
+                    "cost": row.get("cost", 0),
+                    "stock": row.get("stock", 0),
+                    "min_stock": row.get("min_stock", 0),
+                }
+                parsed = {}
+                for fname, fval in num_fields.items():
+                    try:
+                        f = float(fval)
+                    except (ValueError, TypeError):
+                        f = 0.0
+                    if math.isnan(f) or math.isinf(f):
+                        continue  # skip entire product row
+                    parsed[fname] = f
+                if len(parsed) < len(num_fields):
+                    continue  # skip row with invalid numeric data
+
                 await db.execute(
-                    """INSERT INTO products (sku, name, price, price_wholesale, cost, stock, min_stock, is_active, created_at, updated_at)
-                       VALUES (:sku, :name, :price, :pw, :cost, :stock, :min_stock, 1, NOW(), NOW())
+                    """INSERT INTO products (sku, name, price, price_wholesale, cost, stock, min_stock, is_active, synced, created_at, updated_at)
+                       VALUES (:sku, :name, :price, :pw, :cost, :stock, :min_stock, 1, 0, NOW(), NOW())
                        ON CONFLICT (sku) DO UPDATE SET
                          name = EXCLUDED.name,
                          price = EXCLUDED.price,
                          price_wholesale = EXCLUDED.price_wholesale,
                          cost = EXCLUDED.cost,
+                         synced = 0,
                          updated_at = NOW()""",
                     {
                         "sku": sku,
                         "name": row.get("name", ""),
-                        "price": float(row.get("price", 0)),
-                        "pw": float(row.get("price_wholesale", 0)),
-                        "cost": float(row.get("cost", 0)),
-                        "stock": float(row.get("stock", 0)),
-                        "min_stock": float(row.get("min_stock", 0)),
+                        "price": parsed["price"],
+                        "pw": parsed["price_wholesale"],
+                        "cost": parsed["cost"],
+                        "stock": parsed["stock"],
+                        "min_stock": parsed["min_stock"],
                     },
                 )
                 upserted += 1
@@ -294,7 +316,7 @@ async def sync_push(
                     )
                     if existing:
                         await db.execute(
-                            """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc, updated_at = NOW()
+                            """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc, synced = 0, updated_at = NOW()
                                WHERE id = :id""",
                             {
                                 "id": cid_int,
@@ -307,8 +329,8 @@ async def sync_push(
                         upserted += 1
                         continue
                 await db.execute(
-                    """INSERT INTO customers (name, phone, email, rfc, is_active, created_at, updated_at)
-                       VALUES (:name, :phone, :email, :rfc, 1, NOW(), NOW())""",
+                    """INSERT INTO customers (name, phone, email, rfc, is_active, synced, created_at, updated_at)
+                       VALUES (:name, :phone, :email, :rfc, 1, 0, NOW(), NOW())""",
                     {
                         "name": name,
                         "phone": row.get("phone", ""),

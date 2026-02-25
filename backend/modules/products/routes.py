@@ -142,9 +142,9 @@ async def create_product(
                 "category": body.category,
                 "department": body.department,
                 "provider": body.provider,
-                "min_stock": body.min_stock or 5.0,
-                "max_stock": body.max_stock or 1000.0,
-                "tax_rate": body.tax_rate or 0.16,
+                "min_stock": body.min_stock if body.min_stock is not None else 5.0,
+                "max_stock": body.max_stock if body.max_stock is not None else 1000.0,
+                "tax_rate": body.tax_rate if body.tax_rate is not None else 0.16,
                 "sale_type": body.sale_type or "unit",
                 "barcode": body.barcode,
                 "description": body.description,
@@ -319,7 +319,7 @@ async def update_stock_remote(
             )
 
         await db.execute(
-            "UPDATE products SET stock = :stock, updated_at = NOW() WHERE id = :id",
+            "UPDATE products SET stock = :stock, synced = 0, updated_at = NOW() WHERE id = :id",
             {"stock": new_stock, "id": product["id"]},
         )
 
@@ -373,7 +373,7 @@ async def update_price_remote(
         old_price = float(product["price"])
 
         await conn.execute(
-            "UPDATE products SET price = $1, updated_at = NOW() WHERE id = $2",
+            "UPDATE products SET price = $1, synced = 0, updated_at = NOW() WHERE id = $2",
             body.new_price, product["id"],
         )
 

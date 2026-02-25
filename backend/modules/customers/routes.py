@@ -115,7 +115,7 @@ async def create_customer(
             "rfc": body.rfc,
             "address": body.address,
             "notes": body.notes,
-            "credit_limit": body.credit_limit or 0.0,
+            "credit_limit": body.credit_limit if body.credit_limit is not None else 0.0,
         },
     )
 

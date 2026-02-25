@@ -286,10 +286,13 @@ class EnhancedEventBus:
             sync_handlers.extend(self._handlers.get('*', []))
             async_handlers.extend(self._async_handlers.get('*', []))
 
+        any_failed = False
+
         for handler in sync_handlers:
             try:
                 handler(event)
             except Exception as e:
+                any_failed = True
                 logger.error(
                     "Error in sync handler %s for %s: %s",
                     handler.__name__, event.event_type, e,
@@ -303,14 +306,17 @@ class EnhancedEventBus:
             try:
                 await handler(event)
             except Exception as e:
+                any_failed = True
                 logger.error(
                     "Error in async handler %s for %s: %s",
                     handler.__name__, event.event_type, e,
                     exc_info=True,
                 )
+                if self.store:
+                    await self.store.mark_failed(event.event_id, str(e))
 
-        # 4. Mark as processed if all handlers succeeded
-        if self.store and persist:
+        # 4. Mark as processed ONLY if all handlers succeeded
+        if self.store and persist and not any_failed:
             await self.store.mark_processed(event.event_id)
 
         logger.debug("Published domain event: %s from %s", event.event_type, event.source_module)

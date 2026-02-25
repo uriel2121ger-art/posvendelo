@@ -242,38 +242,38 @@ class SATCatalogManager:
         conn.commit()
         logger.info(f"Loaded {len(COMMON_CODES)} common SAT codes")
     
+    @staticmethod
+    def _escape_like(term: str) -> str:
+        """Escape SQLite LIKE special characters."""
+        return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     def search(self, query: str, limit: int = 50) -> List[Tuple[str, str]]:
         """Search for SAT codes by code or description."""
         if not query or len(query) < 2:
             return []
-        
+
         query = query.strip()
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        like_query = f"%{query}%"
-        cursor.execute("""
-            SELECT clave, descripcion FROM c_ClaveProdServ
-            WHERE clave LIKE ? OR descripcion LIKE ?
-            ORDER BY clave LIMIT ?
-        """, (like_query, like_query, limit))
-        results = cursor.fetchall()
-        conn.close()
-        return results
-    
+        escaped = self._escape_like(query)
+        like_query = f"%{escaped}%"
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT clave, descripcion FROM c_ClaveProdServ
+                WHERE clave LIKE ? ESCAPE '\\' OR descripcion LIKE ? ESCAPE '\\'
+                ORDER BY clave LIMIT ?
+            """, (like_query, like_query, limit))
+            return cursor.fetchall()
+
     def get_description(self, clave: str) -> Optional[str]:
         """Get description for a specific code."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "SELECT descripcion FROM c_ClaveProdServ WHERE clave = ?",
-            (clave,)
-        )
-        row = cursor.fetchone()
-        conn.close()
-        
-        return row[0] if row else None
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT descripcion FROM c_ClaveProdServ WHERE clave = ?",
+                (clave,)
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
     
     def add_code(self, clave: str, descripcion: str, categoria: str = None):
         """Add a custom code to the catalog."""
@@ -289,7 +289,6 @@ class SATCatalogManager:
         """, (clave, descripcion, categoria))
         
         conn.commit()
-        self._rebuild_fts(conn)
         conn.close()
     
     def import_from_csv(self, csv_path: str) -> int:
@@ -338,31 +337,32 @@ class SATCatalogManager:
     
     def get_count(self) -> int:
         """Get total number of codes in catalog."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM c_ClaveProdServ")
-        result = cursor.fetchone()
-        count = result[0] if result else 0
-        conn.close()
-        return count
-    
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM c_ClaveProdServ")
+            result = cursor.fetchone()
+            return result[0] if result else 0
+
     def get_all_for_autocomplete(self) -> List[str]:
         """Get all codes formatted for autocomplete (code - description)."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT clave, descripcion FROM c_ClaveProdServ ORDER BY clave")
-        rows = cursor.fetchall()
-        conn.close()
-        return [f"{code} - {desc}" for code, desc in rows]
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT clave, descripcion FROM c_ClaveProdServ ORDER BY clave")
+            rows = cursor.fetchall()
+            return [f"{code} - {desc}" for code, desc in rows]
 
-# Singleton instance
+# Singleton instance (thread-safe)
+import threading
+_catalog_lock = threading.Lock()
 _catalog_manager = None
 
 def get_catalog_manager() -> SATCatalogManager:
     """Get or create the singleton catalog manager."""
     global _catalog_manager
     if _catalog_manager is None:
-        _catalog_manager = SATCatalogManager()
+        with _catalog_lock:
+            if _catalog_manager is None:
+                _catalog_manager = SATCatalogManager()
     return _catalog_manager
 
 def search_sat_catalog(query: str, limit: int = 50) -> List[Tuple[str, str]]:

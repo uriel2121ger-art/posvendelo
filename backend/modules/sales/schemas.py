@@ -4,8 +4,9 @@ TITAN POS - Sales Module Schemas
 Pydantic models matching the real PostgreSQL schema for sales and sale_items.
 """
 
+import math
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SaleItemCreate(BaseModel):
@@ -19,6 +20,14 @@ class SaleItemCreate(BaseModel):
     price_wholesale: Optional[float] = None
     price_includes_tax: bool = True
 
+    @model_validator(mode='after')
+    def _reject_special_floats(self):
+        for name in ('qty', 'price', 'discount'):
+            val = getattr(self, name)
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                raise ValueError(f'{name}: valor numerico invalido')
+        return self
+
 
 class SaleCreate(BaseModel):
     items: List[SaleItemCreate] = Field(..., min_length=1, max_length=2000)
@@ -31,11 +40,11 @@ class SaleCreate(BaseModel):
     notes: Optional[str] = Field(None, max_length=2000)
     requiere_factura: bool = False
     # Mixed payment
-    mixed_cash: Optional[float] = 0.0
-    mixed_card: Optional[float] = 0.0
-    mixed_transfer: Optional[float] = 0.0
-    mixed_wallet: Optional[float] = 0.0
-    mixed_gift_card: Optional[float] = 0.0
+    mixed_cash: Optional[float] = Field(0.0, ge=0)
+    mixed_card: Optional[float] = Field(0.0, ge=0)
+    mixed_transfer: Optional[float] = Field(0.0, ge=0)
+    mixed_wallet: Optional[float] = Field(0.0, ge=0)
+    mixed_gift_card: Optional[float] = Field(0.0, ge=0)
 
 
 class SaleResponse(BaseModel):

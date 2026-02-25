@@ -83,6 +83,7 @@ export default function InventoryTab(): ReactElement {
   }, [handleLoad])
 
   async function handleAdjustStock(): Promise<void> {
+    if (busy) return
     const targetSku = sku.trim()
     if (!targetSku) {
       setMessage('Captura un SKU para ajustar inventario.')
@@ -105,7 +106,8 @@ export default function InventoryTab(): ReactElement {
         reason: `Ajuste manual ${movementType === 'in' ? 'entrada' : 'salida'}`
       })
       const data = result.data as Record<string, unknown>
-      const newStock = Number(data?.new_stock ?? current.stock + signed)
+      const rawNew = Number(data?.new_stock ?? current.stock + signed)
+      const newStock = Number.isFinite(rawNew) ? rawNew : Math.max(0, current.stock + signed)
       setRows((prev) => {
         const idx = prev.findIndex((r) => r.sku === targetSku)
         if (idx < 0) return prev

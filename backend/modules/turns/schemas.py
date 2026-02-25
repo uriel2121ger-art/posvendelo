@@ -41,8 +41,8 @@ class TurnClose(BaseModel):
 class CashMovementCreate(BaseModel):
     amount: float = Field(..., gt=0)
     movement_type: str = Field(..., pattern="^(in|out)$")
-    reason: str = Field(..., min_length=1)
-    manager_pin: Optional[str] = None
+    reason: str = Field(..., min_length=1, max_length=500)
+    manager_pin: Optional[str] = Field(None, max_length=20)
 
     @model_validator(mode='after')
     def _reject_special_floats(self):

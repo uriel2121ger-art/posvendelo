@@ -12,6 +12,6 @@ class ExpenseCreate(BaseModel):
 
     @model_validator(mode='after')
     def _reject_special_floats(self):
-        if math.isinf(self.amount):
+        if math.isinf(self.amount) or math.isnan(self.amount):
             raise ValueError('amount: valor numerico invalido')
         return self

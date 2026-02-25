@@ -124,7 +124,8 @@ async def close_turn(
                 difference = $3,
                 denominations = $4::jsonb,
                 notes = COALESCE($5, notes),
-                end_timestamp = $6
+                end_timestamp = $6,
+                synced = 0
             WHERE id = $7
             """,
             body.final_cash, system_sales_total, difference,
