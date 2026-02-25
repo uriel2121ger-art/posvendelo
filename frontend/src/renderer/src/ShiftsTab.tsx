@@ -54,9 +54,9 @@ function toNumber(value: string): number {
 }
 
 function readCurrentShift(): ShiftRecord | null {
-  const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
-  if (!raw) return null
   try {
+    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
+    if (!raw) return null
     const parsed = JSON.parse(raw) as ShiftRecord
     return parsed?.status === 'open' ? parsed : null
   } catch {
@@ -65,9 +65,9 @@ function readCurrentShift(): ShiftRecord | null {
 }
 
 function readHistory(): ShiftRecord[] {
-  const raw = localStorage.getItem(SHIFT_HISTORY_KEY)
-  if (!raw) return []
   try {
+    const raw = localStorage.getItem(SHIFT_HISTORY_KEY)
+    if (!raw) return []
     const parsed = JSON.parse(raw) as ShiftRecord[]
     return Array.isArray(parsed) ? parsed : []
   } catch {

@@ -11,11 +11,10 @@ Enhanced event bus with:
 import json
 import logging
 import uuid
-import asyncio
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

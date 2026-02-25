@@ -16,9 +16,7 @@ Usage:
     await setup_event_bridge()  # Call once at app startup
 """
 
-import asyncio
 import logging
-from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

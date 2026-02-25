@@ -11,7 +11,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Dict
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
@@ -170,7 +170,15 @@ app.router.lifespan_context = lifespan
 
 @app.get("/health", tags=["system"])
 async def health_check():
-    return {"status": "healthy", "service": "titan-pos"}
+    try:
+        from db.connection import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        return {"status": "healthy", "service": "titan-pos"}
+    except Exception:
+        logger.exception("Health check: DB unreachable")
+        return {"status": "unhealthy", "service": "titan-pos"}
 
 
 # ---------------------------------------------------------------------------
@@ -206,14 +214,5 @@ async def get_terminals(
             ],
         }
     except Exception:
-        return {
-            "success": True,
-            "terminals": [
-                {
-                    "terminal_id": 1,
-                    "terminal_name": "Sucursal Principal",
-                    "branch_id": 1,
-                    "is_active": True,
-                }
-            ],
-        }
+        logger.exception("Error fetching terminals")
+        raise HTTPException(status_code=500, detail="Error obteniendo terminales")

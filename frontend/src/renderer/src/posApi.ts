@@ -18,10 +18,14 @@ const FALLBACKS: Record<string, string> = {
 }
 
 export function loadRuntimeConfig(): RuntimeConfig {
-  return {
-    baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://127.0.0.1:8000',
-    token: localStorage.getItem('titan.token') ?? '',
-    terminalId: Number(localStorage.getItem('titan.terminalId') ?? '1')
+  try {
+    return {
+      baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://127.0.0.1:8000',
+      token: localStorage.getItem('titan.token') ?? '',
+      terminalId: Number(localStorage.getItem('titan.terminalId') ?? '1')
+    }
+  } catch {
+    return { baseUrl: 'http://127.0.0.1:8000', token: '', terminalId: 1 }
   }
 }
 
@@ -65,9 +69,11 @@ function inDateRange(row: Record<string, unknown>, dateFrom?: string, dateTo?: s
 }
 
 function handleExpiredSession(): never {
-  localStorage.removeItem('titan.token')
-  localStorage.removeItem('titan.user')
-  localStorage.removeItem('titan.currentShift')
+  try {
+    localStorage.removeItem('titan.token')
+    localStorage.removeItem('titan.user')
+    localStorage.removeItem('titan.currentShift')
+  } catch { /* storage inaccessible — proceed with redirect */ }
   window.location.hash = '#/login'
   throw new Error('Sesión expirada. Inicia sesión de nuevo.')
 }

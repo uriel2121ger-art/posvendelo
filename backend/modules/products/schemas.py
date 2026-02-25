@@ -67,7 +67,7 @@ class StockUpdateRemote(BaseModel):
 
     @model_validator(mode='after')
     def _reject_special_floats(self):
-        if math.isinf(self.quantity):
+        if math.isinf(self.quantity) or math.isnan(self.quantity):
             raise ValueError('quantity: valor numerico invalido')
         return self
 
@@ -78,6 +78,6 @@ class SimplePriceUpdate(BaseModel):
 
     @model_validator(mode='after')
     def _reject_special_floats(self):
-        if math.isinf(self.new_price):
+        if math.isinf(self.new_price) or math.isnan(self.new_price):
             raise ValueError('new_price: valor numerico invalido')
         return self

@@ -5,7 +5,6 @@ Stock movements + adjust endpoint with transactional safety.
 """
 
 import logging
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -114,7 +113,7 @@ async def adjust_stock(
         # Update stock
         await conn.execute(
             "UPDATE products SET stock = $1, updated_at = NOW(), synced = 0 WHERE id = $2",
-            float(new_stock), body.product_id,
+            new_stock, body.product_id,
         )
 
         # Record movement

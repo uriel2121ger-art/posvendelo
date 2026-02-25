@@ -87,9 +87,9 @@ function clampDiscount(value: number): number {
 }
 
 function readCurrentShift(): ShiftState | null {
-  const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
-  if (!raw) return null
   try {
+    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
+    if (!raw) return null
     const parsed = JSON.parse(raw) as ShiftState
     if (!parsed || parsed.status !== 'open') return null
     return parsed
@@ -225,7 +225,10 @@ export default function Terminal(): ReactElement {
   }, [])
 
   useEffect((): void => {
-    const raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
+    let raw: string | null = null
+    try {
+      raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
+    } catch { /* storage inaccessible */ }
     if (!raw) {
       hasLoadedPendingRef.current = true
       return

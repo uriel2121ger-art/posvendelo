@@ -1,6 +1,5 @@
 """TITAN POS - Dashboard Module Schemas"""
 
-from typing import Optional
 from pydantic import BaseModel
 
 

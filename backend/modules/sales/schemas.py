@@ -22,9 +22,9 @@ class SaleItemCreate(BaseModel):
 
     @model_validator(mode='after')
     def _reject_special_floats(self):
-        for name in ('qty', 'price', 'discount'):
+        for name in ('qty', 'price', 'discount', 'price_wholesale'):
             val = getattr(self, name)
-            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            if val is not None and isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
                 raise ValueError(f'{name}: valor numerico invalido')
         return self
 

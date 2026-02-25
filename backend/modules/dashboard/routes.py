@@ -107,18 +107,22 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
     year_start = f"{now.year}-01-01"
     year_end = f"{now.year + 1}-01-01"
 
-    month_row = await db.fetchrow(
-        """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-           WHERE type = 'expense'
-           AND timestamp >= :month_start AND timestamp < :month_end""",
-        {"month_start": month_start, "month_end": month_end},
-    )
-    year_row = await db.fetchrow(
-        """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-           WHERE type = 'expense'
-           AND timestamp >= :year_start AND timestamp < :year_end""",
-        {"year_start": year_start, "year_end": year_end},
-    )
+    try:
+        month_row = await db.fetchrow(
+            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
+               WHERE type = 'expense'
+               AND timestamp >= :month_start AND timestamp < :month_end""",
+            {"month_start": month_start, "month_end": month_end},
+        )
+        year_row = await db.fetchrow(
+            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
+               WHERE type = 'expense'
+               AND timestamp >= :year_start AND timestamp < :year_end""",
+            {"year_start": year_start, "year_end": year_end},
+        )
+    except Exception:
+        month_row = None
+        year_row = None
 
     return {
         "success": True,
@@ -157,12 +161,15 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
         )
 
         # Gastos
-        expenses = await db.fetchrow(
-            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-               WHERE type IN ('out', 'expense')
-               AND timestamp >= :year_start AND timestamp < :year_end""",
-            {"year_start": year_start, "year_end": year_end},
-        )
+        try:
+            expenses = await db.fetchrow(
+                """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
+                   WHERE type IN ('out', 'expense')
+                   AND timestamp >= :year_start AND timestamp < :year_end""",
+                {"year_start": year_start, "year_end": year_end},
+            )
+        except Exception:
+            expenses = None
 
         ingresos = float(income["total"]) if income else 0.0
         serie_a = float(income["serie_a"]) if income else 0.0

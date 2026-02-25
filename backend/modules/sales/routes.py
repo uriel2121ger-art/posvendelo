@@ -200,11 +200,11 @@ async def create_sale(
                 is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
 
                 if not is_common and sale_type not in ("granel", "weight") and not is_kit:
-                    demand_by_pid[item.product_id] = demand_by_pid.get(item.product_id, 0.0) + item.qty
+                    demand_by_pid[item.product_id] = demand_by_pid.get(item.product_id, Decimal(0)) + Decimal(str(item.qty))
 
             for pid, demanded in demand_by_pid.items():
                 prod = locked_map[pid]
-                current_stock = float(prod.get("stock", 0))
+                current_stock = Decimal(str(prod.get("stock", 0)))
                 if current_stock < demanded:
                     raise HTTPException(
                         status_code=400,
@@ -424,7 +424,7 @@ async def create_sale(
                     # Use already-fetched & locked kit_comp_rows (no re-fetch race)
                     components = [r for r in kit_comp_rows if r["kit_product_id"] == item.product_id]
                     for comp in components:
-                        comp_qty = float(comp["quantity"]) * item.qty
+                        comp_qty = Decimal(str(comp["quantity"])) * Decimal(str(item.qty))
                         await db.execute(
                             "UPDATE products SET stock = stock - :qty, synced = 0, updated_at = NOW() WHERE id = :id",
                             {"qty": comp_qty, "id": comp["component_product_id"]},
@@ -700,7 +700,7 @@ async def cancel_sale(
                 if is_kit:
                     kit_comps = kit_comp_map.get(pid, [])
                     for comp in kit_comps:
-                        comp_qty = float(comp["quantity"]) * qty
+                        comp_qty = Decimal(str(comp["quantity"])) * Decimal(str(qty))
                         await db.execute(
                             "UPDATE products SET stock = stock + :qty, synced = 0, updated_at = NOW() WHERE id = :id",
                             {"qty": comp_qty, "id": comp["component_product_id"]},

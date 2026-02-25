@@ -6,7 +6,7 @@ GET endpoints existentes + POST/PUT/DELETE nuevos.
 """
 
 import logging
-from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -304,13 +304,14 @@ async def update_stock_remote(
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-        current = float(product["stock"] or 0)
+        current = Decimal(str(product["stock"] or 0))
+        qty = Decimal(str(body.quantity))
         if body.operation == "add":
-            new_stock = current + body.quantity
+            new_stock = current + qty
         elif body.operation == "subtract":
-            new_stock = current - body.quantity
+            new_stock = current - qty
         else:
-            new_stock = body.quantity
+            new_stock = qty
 
         if new_stock < 0:
             raise HTTPException(

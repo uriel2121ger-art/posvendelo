@@ -5,7 +5,6 @@ Pending mermas listing + approval/rejection.
 """
 
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 

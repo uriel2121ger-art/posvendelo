@@ -5,7 +5,6 @@ CRUD completo para clientes con asyncpg directo.
 """
 
 import logging
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query

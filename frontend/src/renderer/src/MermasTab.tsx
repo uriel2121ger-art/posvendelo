@@ -35,7 +35,8 @@ export default function MermasTab(): ReactElement {
       const body = await getMermasPending(cfg)
       if (requestIdRef.current !== reqId) return
       const inner = (body.data ?? body) as Record<string, unknown>
-      const data = (inner.mermas ?? []) as MermaRecord[]
+      const raw = inner.mermas
+      const data = Array.isArray(raw) ? (raw as MermaRecord[]) : []
       setMermas(data)
       setNotesMap({})
     } catch (err) {
