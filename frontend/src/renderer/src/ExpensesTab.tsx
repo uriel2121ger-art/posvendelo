@@ -149,7 +149,8 @@ export default function ExpensesTab(): ReactElement {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                  disabled={submitting}
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 disabled:opacity-50"
                   required
                 />
               </div>
@@ -162,7 +163,8 @@ export default function ExpensesTab(): ReactElement {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Ej: Luz, Agua, Insumos..."
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                  disabled={submitting}
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 disabled:opacity-50"
                   required
                 />
               </div>
@@ -175,7 +177,8 @@ export default function ExpensesTab(): ReactElement {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Detalles adicionales..."
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                  disabled={submitting}
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 disabled:opacity-50"
                 />
               </div>
             </div>

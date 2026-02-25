@@ -126,7 +126,11 @@ export default function CustomersTab(): ReactElement {
       return
     }
     const target = customers.find((item) => String(item.id) === selectedId)
-    if (!target) return
+    if (!target) {
+      setMessage('Cliente no encontrado. Recarga la lista.')
+      return
+    }
+    if (!window.confirm(`¿Eliminar cliente "${target.name}"?`)) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
@@ -197,7 +201,7 @@ export default function CustomersTab(): ReactElement {
         <button
           className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
           onClick={() => void handleCreate()}
-          disabled={busy}
+          disabled={busy || !name.trim()}
         >
           {selectedId ? 'Actualizar' : 'Guardar'}
         </button>
@@ -243,6 +247,11 @@ export default function CustomersTab(): ReactElement {
             </tr>
           </thead>
           <tbody>
+            {paginated.length === 0 && (
+              <tr><td colSpan={3} className="py-12 text-center text-zinc-600">
+                {query.trim() ? 'Sin resultados para la busqueda.' : 'Sin clientes. Haz clic en Cargar.'}
+              </td></tr>
+            )}
             {paginated.map((c) => (
               <tr
                 key={String(c.id)}
@@ -266,17 +275,21 @@ export default function CustomersTab(): ReactElement {
         <span>{message}</span>
         <div className="flex items-center gap-3 text-xs">
           <span className="text-zinc-500">{filtered.length} resultados</span>
-          <button
-            className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-          >&laquo; Ant</button>
-          <span className="text-zinc-400">{page + 1} / {totalPages}</span>
-          <button
-            className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-          >Sig &raquo;</button>
+          {totalPages > 1 && (
+            <>
+              <button
+                className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >&laquo; Ant</button>
+              <span className="text-zinc-400">{page + 1} / {totalPages}</span>
+              <button
+                className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+              >Sig &raquo;</button>
+            </>
+          )}
         </div>
       </div>
     </div>

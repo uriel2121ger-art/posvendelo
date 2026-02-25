@@ -37,6 +37,7 @@ export default function MermasTab(): ReactElement {
       const inner = (body.data ?? body) as Record<string, unknown>
       const data = (inner.mermas ?? []) as MermaRecord[]
       setMermas(data)
+      setNotesMap({})
     } catch (err) {
       if (requestIdRef.current !== reqId) return
       setError(err instanceof Error ? err.message : 'Error cargando mermas')
@@ -51,6 +52,13 @@ export default function MermasTab(): ReactElement {
   }, [])
 
   const handleAction = async (id: number, approved: boolean): Promise<void> => {
+    const action = approved ? 'aprobar' : 'rechazar'
+    const target = mermas.find((m) => m.id === id)
+    if (!target) {
+      setError('Merma no encontrada. Recarga la lista.')
+      return
+    }
+    if (!window.confirm(`¿${approved ? 'Aprobar' : 'Rechazar'} merma de "${target.product}" (${target.quantity} uds)?`)) return
     setActionId(id)
     try {
       const cfg = loadRuntimeConfig()

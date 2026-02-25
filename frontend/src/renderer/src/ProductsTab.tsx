@@ -106,7 +106,15 @@ export default function ProductsTab(): ReactElement {
       }
       const isUpdate = Boolean(selectedSku)
       await syncTable('products', [product], cfg)
-      setProducts((prev) => [product, ...prev.filter((p) => p.sku !== product.sku)])
+      setProducts((prev) => {
+        const idx = prev.findIndex((p) => p.sku === product.sku)
+        if (idx >= 0) {
+          const copy = [...prev]
+          copy[idx] = product
+          return copy
+        }
+        return [product, ...prev]
+      })
       setSelectedSku(null)
       setSku('')
       setName('')
@@ -128,7 +136,11 @@ export default function ProductsTab(): ReactElement {
       return
     }
     const target = products.find((item) => item.sku === selectedSku)
-    if (!target) return
+    if (!target) {
+      setMessage('Producto no encontrado. Recarga la lista.')
+      return
+    }
+    if (!window.confirm(`¿Eliminar producto "${target.name}" (${target.sku})?`)) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
@@ -235,7 +247,7 @@ export default function ProductsTab(): ReactElement {
         <button
           className="flex items-center justify-center gap-2 rounded-xl bg-rose-500/20 border border-rose-500/30 px-5 py-2.5 font-bold text-rose-400 shadow-[0_0_15px_rgba(243,66,102,0.1)] hover:bg-rose-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
           onClick={() => void handleDelete()}
-          disabled={busy}
+          disabled={busy || !selectedSku}
         >
           Eliminar
         </button>
@@ -261,6 +273,11 @@ export default function ProductsTab(): ReactElement {
             </tr>
           </thead>
           <tbody>
+            {paginated.length === 0 && (
+              <tr><td colSpan={4} className="py-12 text-center text-zinc-600">
+                {query.trim() ? 'Sin resultados para la busqueda.' : 'Sin productos. Haz clic en Cargar.'}
+              </td></tr>
+            )}
             {paginated.map((p) => (
               <tr
                 key={String(p.id)}
@@ -285,17 +302,21 @@ export default function ProductsTab(): ReactElement {
         <span>{message}</span>
         <div className="flex items-center gap-3 text-xs">
           <span className="text-zinc-500">{filtered.length} resultados</span>
-          <button
-            className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-          >&laquo; Ant</button>
-          <span className="text-zinc-400">{page + 1} / {totalPages}</span>
-          <button
-            className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-          >Sig &raquo;</button>
+          {totalPages > 1 && (
+            <>
+              <button
+                className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >&laquo; Ant</button>
+              <span className="text-zinc-400">{page + 1} / {totalPages}</span>
+              <button
+                className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+              >Sig &raquo;</button>
+            </>
+          )}
         </div>
       </div>
     </div>

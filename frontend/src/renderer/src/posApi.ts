@@ -68,9 +68,20 @@ function handleExpiredSession(): never {
 }
 
 async function apiFetch(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init)
-  if (res.status === 401) handleExpiredSession()
-  return res
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal })
+    if (res.status === 401) handleExpiredSession()
+    return res
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado (30s). Verifica la conexion al servidor.')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Response> {

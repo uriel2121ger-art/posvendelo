@@ -62,12 +62,12 @@ export default function HistoryTab(): ReactElement {
   const detailRequestId = useRef(0)
 
   const visibleRows = useMemo(() => {
-    const min = toNumber(minTotal)
+    const min = minTotal.trim() ? toNumber(minTotal) : 0
     const max = maxTotal.trim() ? toNumber(maxTotal) : Number.POSITIVE_INFINITY
     return rows.filter((row) => {
       if (paymentFilter !== 'all' && row.paymentMethod !== paymentFilter) return false
-      if (row.total < min) return false
-      if (row.total > max) return false
+      if (min > 0 && row.total < min) return false
+      if (max < Number.POSITIVE_INFINITY && row.total > max) return false
       return true
     })
   }, [maxTotal, minTotal, paymentFilter, rows])
@@ -208,6 +208,9 @@ export default function HistoryTab(): ReactElement {
             <div className="col-span-3 text-right">Total</div>
           </div>
           <div className="max-h-[65vh] overflow-y-auto bg-zinc-950">
+            {visibleRows.length === 0 && (
+              <div className="py-12 text-center text-zinc-600">Sin ventas para los filtros seleccionados.</div>
+            )}
             {visibleRows.map((sale) => (
               <button
                 key={sale.id}
