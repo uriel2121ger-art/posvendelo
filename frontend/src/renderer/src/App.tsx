@@ -272,7 +272,7 @@ function RoutedApp(): ReactElement {
 
   return (
     <Routes>
-      <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+      <Route path="/" element={<RequireAuth><Navigate to="/terminal" replace /></RequireAuth>} />
       <Route path="/login" element={<Login />} />
       <Route path="/terminal" element={<RequireAuth><Terminal /></RequireAuth>} />
       <Route path="/clientes" element={<RequireAuth><CustomersTab /></RequireAuth>} />

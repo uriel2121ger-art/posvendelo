@@ -8,7 +8,6 @@ import {
   Settings,
   FileText,
   LogOut,
-  LayoutDashboard,
   Clock,
   BarChart3,
   TrendingUp,
@@ -36,15 +35,6 @@ export default function TopNavbar(): ReactElement {
 
   return (
     <div className="flex items-center gap-1 bg-zinc-900 border-b border-zinc-800 p-2 overflow-x-auto shrink-0 select-none">
-      <button
-        onClick={() => navigate('/')}
-        className="flex items-center gap-2 px-3 py-2 mr-2 rounded font-bold transition-colors text-white hover:bg-zinc-800"
-        title="Volver al Menú Principal"
-      >
-        <LayoutDashboard className="w-5 h-5 text-indigo-400" />
-      </button>
-      <div className="w-px h-6 bg-zinc-800 mx-1"></div>
-
       {navItems.map((item) => {
         const isActive = location.pathname === item.path
         return (
