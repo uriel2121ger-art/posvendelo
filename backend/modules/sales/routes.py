@@ -88,18 +88,18 @@ async def list_sales(
         params["folio"] = f"%{_escape_like(folio)}%"
     if start_date:
         try:
-            parsed_start = date.fromisoformat(start_date)
+            date.fromisoformat(start_date)  # validate format
         except ValueError:
             raise HTTPException(status_code=400, detail="start_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND s.timestamp >= :start_date"
-        params["start_date"] = parsed_start
+        params["start_date"] = start_date  # TEXT column — pass string
     if end_date:
         try:
             parsed_end = date.fromisoformat(end_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="end_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND s.timestamp < :end_date"
-        params["end_date"] = parsed_end + timedelta(days=1)
+        params["end_date"] = (parsed_end + timedelta(days=1)).isoformat()  # TEXT column — pass string
 
     sql += " ORDER BY s.id DESC LIMIT :limit OFFSET :offset"
     params["limit"] = limit
@@ -596,18 +596,18 @@ async def search_sales(
         params["folio"] = f"%{_escape_like(folio)}%"
     if date_from:
         try:
-            parsed_from = date.fromisoformat(date_from)
+            date.fromisoformat(date_from)  # validate format
         except ValueError:
             raise HTTPException(status_code=400, detail="date_from debe ser formato ISO")
         sql += " AND timestamp >= :date_from"
-        params["date_from"] = parsed_from
+        params["date_from"] = date_from  # TEXT column — pass string
     if date_to:
         try:
             parsed_to = date.fromisoformat(date_to)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_to debe ser formato ISO")
         sql += " AND timestamp < :date_to"
-        params["date_to"] = parsed_to + timedelta(days=1)
+        params["date_to"] = (parsed_to + timedelta(days=1)).isoformat()  # TEXT column — pass string
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit

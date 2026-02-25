@@ -157,6 +157,8 @@ async def create_product(
         logger.exception("Error creando producto")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+    if not row:
+        raise HTTPException(status_code=500, detail="Error al crear producto")
     return {"success": True, "data": {"id": row["id"]}}
 
 

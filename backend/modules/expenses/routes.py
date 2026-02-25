@@ -91,4 +91,6 @@ async def register_expense(
                 },
             )
 
+    if not row:
+        raise HTTPException(status_code=500, detail="Error al registrar gasto")
     return {"success": True, "data": {"id": row["id"]}}

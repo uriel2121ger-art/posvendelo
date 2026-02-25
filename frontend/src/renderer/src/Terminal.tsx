@@ -188,7 +188,7 @@ export default function Terminal(): ReactElement {
   const [products, setProducts] = useState<Product[]>([])
   // Restore active ticket state from localStorage (navigation persistence)
   const [_savedActive] = useState(() => readSavedActiveState())
-  const _snap = _savedActive?.ticketSnapshots?.[_savedActive.activeTicketId]
+  const _snap = _savedActive?.ticketSnapshots?.[_savedActive?.activeTicketId ?? '']
   const [cart, setCart] = useState<CartItem[]>(_snap?.cart ?? [])
   const [customerName, setCustomerName] = useState(_snap?.customerName ?? 'Publico General')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(_snap?.paymentMethod ?? 'cash')

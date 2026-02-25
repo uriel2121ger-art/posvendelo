@@ -99,13 +99,14 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
 async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de gastos en efectivo — mes y anio."""
     now = datetime.now(timezone.utc)
-    month_start = f"{now.year}-{now.month:02d}-01"
+    # cash_movements.timestamp is TIMESTAMP — pass datetime objects
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
     if now.month == 12:
-        month_end = f"{now.year + 1}-01-01"
+        month_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
     else:
-        month_end = f"{now.year}-{now.month + 1:02d}-01"
-    year_start = f"{now.year}-01-01"
-    year_end = f"{now.year + 1}-01-01"
+        month_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
+    year_start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
+    year_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
 
     try:
         month_row = await db.fetchrow(
@@ -120,7 +121,8 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
                AND timestamp >= :year_start AND timestamp < :year_end""",
             {"year_start": year_start, "year_end": year_end},
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("Error consultando gastos: %s", e)
         month_row = None
         year_row = None
 
@@ -144,9 +146,13 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
         raise HTTPException(status_code=403, detail="Solo gerentes/admin")
 
     try:
-        year = datetime.now(timezone.utc).year
-        year_start = f"{year}-01-01"
-        year_end = f"{year + 1}-01-01"
+        now = datetime.now(timezone.utc)
+        # sales.timestamp is TEXT — use strings
+        year_start_str = f"{now.year}-01-01"
+        year_end_str = f"{now.year + 1}-01-01"
+        # cash_movements.timestamp is TIMESTAMP — use datetime objects
+        year_start_ts = datetime(now.year, 1, 1, tzinfo=timezone.utc)
+        year_end_ts = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
 
         # Ingresos por serie
         income = await db.fetchrow(
@@ -157,7 +163,7 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
                FROM sales
                WHERE timestamp >= :year_start AND timestamp < :year_end
                AND status = 'completed'""",
-            {"year_start": year_start, "year_end": year_end},
+            {"year_start": year_start_str, "year_end": year_end_str},
         )
 
         # Gastos
@@ -166,9 +172,10 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
                 """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                    WHERE type IN ('out', 'expense')
                    AND timestamp >= :year_start AND timestamp < :year_end""",
-                {"year_start": year_start, "year_end": year_end},
+                {"year_start": year_start_ts, "year_end": year_end_ts},
             )
-        except Exception:
+        except Exception as e:
+            logger.warning("Error consultando gastos wealth: %s", e)
             expenses = None
 
         ingresos = float(income["total"]) if income else 0.0

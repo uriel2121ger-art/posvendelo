@@ -118,6 +118,8 @@ async def create_customer(
         },
     )
 
+    if not row:
+        raise HTTPException(status_code=500, detail="Error al crear cliente")
     return {"success": True, "data": {"id": row["id"]}}
 
 

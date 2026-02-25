@@ -53,6 +53,8 @@ async def open_turn(
             user_id, body.branch_id, body.initial_cash, body.notes, now,
         )
 
+    if not row:
+        raise HTTPException(status_code=500, detail="Error al abrir turno")
     return {"success": True, "data": {"id": row["id"], "status": "open"}}
 
 

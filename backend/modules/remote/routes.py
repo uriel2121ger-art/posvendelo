@@ -180,6 +180,8 @@ async def send_notification(
         },
     )
 
+    if not row:
+        raise HTTPException(status_code=500, detail="Error al crear notificacion")
     return {"success": True, "data": {"id": row["id"], "message": "Notificacion enviada"}}
 
 
