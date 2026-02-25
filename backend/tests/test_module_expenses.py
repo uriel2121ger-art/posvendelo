@@ -18,7 +18,7 @@ async def test_register_expense(db_session):
     try:
         row = await db_session.fetchrow(
             """INSERT INTO cash_movements (type, amount, description, reason, user_id, timestamp)
-               VALUES ('expense', 150.50, 'Test expense', 'test reason', 1, NOW()::text)
+               VALUES ('expense', 150.50, 'Test expense', 'test reason', 1, NOW())
                RETURNING id""",
         )
         assert row["id"] > 0

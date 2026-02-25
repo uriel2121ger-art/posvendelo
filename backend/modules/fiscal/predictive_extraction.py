@@ -129,7 +129,7 @@ class PredictiveExtraction:
         thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         
         try:
-            daily_sales = await self.db.fetch("SELECT LEFT(timestamp, 10) as day, COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :thirty_days_ago AND status = 'completed' GROUP BY LEFT(timestamp, 10)", thirty_days_ago=thirty_days_ago)
+            daily_sales = await self.db.fetch("SELECT SUBSTRING(timestamp FROM 1 FOR 10) as day, COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :thirty_days_ago AND status = 'completed' GROUP BY SUBSTRING(timestamp FROM 1 FOR 10)", thirty_days_ago=thirty_days_ago)
         except Exception:
             daily_sales = []
             

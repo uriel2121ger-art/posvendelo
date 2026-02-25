@@ -137,7 +137,8 @@ export async function pullTable(
   const primary = await apiFetch(primaryUrl, { headers: headers(cfg) })
 
   if (primary.ok) {
-    const body = (await primary.json()) as Record<string, unknown>
+    const body = (await primary.json()) as Record<string, unknown> | null
+    if (!body || typeof body !== 'object') return []
     const candidate = body.data ?? body[table] ?? []
     return Array.isArray(candidate) ? (candidate as Record<string, unknown>[]) : []
   }
@@ -147,7 +148,8 @@ export async function pullTable(
     if (fallbackPath) {
       const fallback = await apiFetch(`${cfg.baseUrl}${fallbackPath}`, { headers: headers(cfg) })
       if (fallback.ok) {
-        const body = (await fallback.json()) as Record<string, unknown>
+        const body = (await fallback.json()) as Record<string, unknown> | null
+        if (!body || typeof body !== 'object') return []
         const fallbackCandidate = body[table] ?? body.data ?? body.products ?? body.customers ?? []
         return Array.isArray(fallbackCandidate) ? (fallbackCandidate as Record<string, unknown>[]) : []
       }

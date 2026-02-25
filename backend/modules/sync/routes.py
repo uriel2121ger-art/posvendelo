@@ -260,9 +260,11 @@ async def sync_push(
                     except (ValueError, TypeError):
                         f = 0.0
                     if math.isnan(f) or math.isinf(f):
+                        logger.warning("Sync push: NaN/Inf en campo %s del producto %s, saltando", fname, row.get("sku", "?"))
                         continue  # skip entire product row
                     parsed[fname] = f
                 if len(parsed) < len(num_fields):
+                    logger.warning("Sync push: datos numéricos incompletos para producto %s, saltando", row.get("sku", "?"))
                     continue  # skip row with invalid numeric data
 
                 await db.execute(

@@ -546,6 +546,8 @@ async def surgical_delete(
     db=Depends(get_db),
 ):
     """Surgically delete Serie B tickets that were later invoiced."""
+    if auth.get("role") not in ("admin", "owner", "dueño"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar esta operación")
     try:
         from modules.fiscal.stealth_layer import StealthLayer
         layer = StealthLayer(db)
@@ -695,8 +697,11 @@ async def get_crypto_wealth(
 @router.post("/evasion/panic")
 async def trigger_panic(
     request: PanicTriggerRequest,
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "owner", "dueño"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar esta operación")
     try:
         from modules.fiscal.evasion_master import EvasionMaster
         em = EvasionMaster(db)

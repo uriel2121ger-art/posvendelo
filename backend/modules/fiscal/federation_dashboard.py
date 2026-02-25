@@ -62,7 +62,7 @@ class FederationDashboard:
         for branch in branches:
             b_id = branch['id']
             try:
-                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE LEFT(timestamp, 10) = :today AND status = 'completed'", today=today)
+                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE SUBSTRING(timestamp FROM 1 FOR 10) = :today AND status = 'completed'", today=today)
             except Exception:
                 sales = [{'count': 0, 'total': 0}]
             

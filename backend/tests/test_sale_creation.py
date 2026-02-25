@@ -38,7 +38,7 @@ async def _create_test_turn(db, user_id, terminal_id=1):
     """Create an open turn and return its id."""
     row = await db.fetchrow(
         """INSERT INTO turns (user_id, terminal_id, status, initial_cash, start_timestamp, synced)
-           VALUES (:uid, :tid, 'open', 0, NOW()::text, 0)
+           VALUES (:uid, :tid, 'open', 0, NOW(), 0)
            RETURNING id""",
         {"uid": user_id, "tid": terminal_id},
     )
