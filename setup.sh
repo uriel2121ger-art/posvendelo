@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# ============================================================================
+# TITAN POS — Instalador Automático
+# Uso: bash setup.sh   (o doble clic en INSTALAR.desktop)
+# Re-ejecutable: no sobreescribe .env si ya existe
+# ============================================================================
+set -euo pipefail
+
+# --- Colores y utilidades ------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+banner() {
+    echo ""
+    echo -e "${CYAN}${BOLD}"
+    echo "  ╔════════════════════════════════════════════╗"
+    echo "  ║         TITAN POS — INSTALADOR             ║"
+    echo "  ╚════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    echo ""
+}
+
+step() {
+    local n="$1" total=6 label="$2"
+    local filled=$((n)) empty=$((total - n))
+    local bar=""
+    for ((i=0; i<filled; i++)); do bar+="■"; done
+    for ((i=0; i<empty; i++)); do bar+="□"; done
+    echo ""
+    echo -e "  ${BOLD}[$bar]${NC}  ${CYAN}$label${NC}"
+    echo ""
+}
+
+ok()   { echo -e "    ${GREEN}✔${NC} $1"; }
+warn() { echo -e "    ${YELLOW}⚠${NC} $1"; }
+fail() { echo -e "    ${RED}✖${NC} $1"; }
+
+die() {
+    echo ""
+    echo -e "  ${RED}${BOLD}════════════════════════════════════════════${NC}"
+    echo -e "  ${RED}${BOLD}  ERROR: $1${NC}"
+    echo -e "  ${RED}${BOLD}════════════════════════════════════════════${NC}"
+    echo ""
+    exit 1
+}
+
+# --- Inicio ---------------------------------------------------------------
+banner
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 1: Verificar Docker
+# ═══════════════════════════════════════════════════════════════════════════
+step 1 "Verificando Docker..."
+
+if command -v docker &>/dev/null && docker compose version &>/dev/null; then
+    ok "Docker y Docker Compose encontrados"
+else
+    warn "Docker no encontrado. Intentando instalar..."
+    if command -v sudo &>/dev/null; then
+        if sudo apt-get update -qq && sudo apt-get install -y -qq docker.io docker-compose-v2 &>/dev/null; then
+            # Agregar usuario al grupo docker para no necesitar sudo
+            sudo usermod -aG docker "$USER" 2>/dev/null || true
+            ok "Docker instalado correctamente"
+            warn "Si los siguientes pasos fallan, cierra sesión y vuelve a entrar"
+            warn "(para que el grupo 'docker' tome efecto)"
+        else
+            fail "No se pudo instalar Docker automáticamente"
+            echo ""
+            echo -e "  ${BOLD}Pide a tu técnico que instale Docker:${NC}"
+            echo ""
+            echo "    sudo apt install docker.io docker-compose-v2"
+            echo "    sudo usermod -aG docker $USER"
+            echo "    # Cerrar sesión y volver a entrar"
+            echo ""
+            die "Docker es necesario para TITAN POS"
+        fi
+    else
+        fail "No se puede instalar Docker (sudo no disponible)"
+        echo ""
+        echo -e "  ${BOLD}Pide a tu técnico que instale Docker:${NC}"
+        echo ""
+        echo "    sudo apt install docker.io docker-compose-v2"
+        echo "    sudo usermod -aG docker $USER"
+        echo "    # Cerrar sesión y volver a entrar"
+        echo ""
+        die "Docker es necesario para TITAN POS"
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 2: Generar configuración
+# ═══════════════════════════════════════════════════════════════════════════
+step 2 "Configurando variables de entorno..."
+
+if [ -f .env ]; then
+    ok "Archivo .env ya existe (no se modifica)"
+else
+    if [ ! -f .env.example ]; then
+        die "No se encontró .env.example — ¿la descarga está completa?"
+    fi
+
+    # Generar secretos aleatorios
+    PG_PASS="$(openssl rand -base64 20 | tr -d '/+=' | head -c 24)"
+    JWT_SEC="$(openssl rand -hex 32)"
+    ADMIN_PASS="$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)"
+
+    # Crear .env desde template
+    cp .env.example .env
+
+    # Reemplazar cada variable por nombre (evita ambigüedad)
+    sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${PG_PASS}|" .env
+    sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SEC}|" .env
+    sed -i "s|^ADMIN_API_PASSWORD=.*|ADMIN_API_PASSWORD=${ADMIN_PASS}|" .env
+
+    # DATABASE_URL: insertar password real y apuntar a hostname Docker
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://titan_user:${PG_PASS}@postgres:5432/titan_pos|" .env
+
+    ok "Archivo .env generado con secretos aleatorios"
+
+    # Guardar credenciales en archivo legible
+    cat > CREDENCIALES.txt <<CREDS
+╔══════════════════════════════════════════════════╗
+║          TITAN POS — CREDENCIALES                ║
+║   Guarda este archivo en un lugar seguro         ║
+╚══════════════════════════════════════════════════╝
+
+Generado: $(date '+%Y-%m-%d %H:%M')
+
+Base de datos:
+  Usuario:    titan_user
+  Contraseña: ${PG_PASS}
+
+API Admin:
+  Usuario:    admin
+  Contraseña: ${ADMIN_PASS}
+
+JWT Secret: ${JWT_SEC}
+
+NOTA: El usuario y contraseña para usar el punto de venta
+se crean la primera vez que abres la aplicación.
+CREDS
+    ok "Credenciales guardadas en CREDENCIALES.txt"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 3: Construir contenedores
+# ═══════════════════════════════════════════════════════════════════════════
+step 3 "Construyendo contenedores (esto puede tardar unos minutos)..."
+
+if docker compose build --quiet 2>&1; then
+    ok "Contenedores construidos"
+else
+    fail "Error al construir contenedores"
+    die "Revisa tu conexión a internet e intenta de nuevo"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 4: Iniciar base de datos
+# ═══════════════════════════════════════════════════════════════════════════
+step 4 "Iniciando base de datos..."
+
+docker compose up -d postgres
+ok "Contenedor postgres iniciado"
+
+echo -n "    Esperando a que la base de datos esté lista"
+for i in $(seq 1 60); do
+    if docker compose exec -T postgres pg_isready -U titan_user -d titan_pos &>/dev/null; then
+        echo ""
+        ok "Base de datos lista"
+        break
+    fi
+    echo -n "."
+    sleep 1
+    if [ "$i" -eq 60 ]; then
+        echo ""
+        fail "La base de datos no respondió en 60 segundos"
+        die "Ejecuta 'docker compose logs postgres' para ver el error"
+    fi
+done
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 5: Iniciar servidor
+# ═══════════════════════════════════════════════════════════════════════════
+step 5 "Iniciando servidor TITAN POS..."
+
+docker compose up -d api
+ok "Contenedor api iniciado"
+
+echo -n "    Esperando a que el servidor esté listo"
+for i in $(seq 1 60); do
+    if curl -sf http://localhost:8000/health &>/dev/null; then
+        echo ""
+        ok "Servidor listo"
+        break
+    fi
+    echo -n "."
+    sleep 1
+    if [ "$i" -eq 60 ]; then
+        echo ""
+        fail "El servidor no respondió en 60 segundos"
+        die "Ejecuta 'docker compose logs api' para ver el error"
+    fi
+done
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 6: Crear acceso directo en escritorio
+# ═══════════════════════════════════════════════════════════════════════════
+step 6 "Creando acceso directo en el escritorio..."
+
+# Detectar carpeta de escritorio
+DESKTOP_DIR="${XDG_DESKTOP_DIR:-$HOME/Desktop}"
+if [ -d "$HOME/Escritorio" ]; then
+    DESKTOP_DIR="$HOME/Escritorio"
+elif [ -d "$HOME/Desktop" ]; then
+    DESKTOP_DIR="$HOME/Desktop"
+fi
+
+mkdir -p "$DESKTOP_DIR"
+
+cat > "$DESKTOP_DIR/TITAN-POS.desktop" <<DESK
+[Desktop Entry]
+Name=TITAN POS
+Comment=Punto de Venta
+Exec=xdg-open http://localhost:8000
+Terminal=false
+Type=Application
+Icon=accessories-calculator
+Categories=Office;Finance;
+DESK
+
+chmod +x "$DESKTOP_DIR/TITAN-POS.desktop"
+
+# Marcar como confiable (GNOME) — ignorar si falla
+gio set "$DESKTOP_DIR/TITAN-POS.desktop" metadata::trusted true 2>/dev/null || true
+
+ok "Acceso directo creado en $DESKTOP_DIR"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LISTO
+# ═══════════════════════════════════════════════════════════════════════════
+echo ""
+echo -e "  ${GREEN}${BOLD}════════════════════════════════════════════${NC}"
+echo -e "  ${GREEN}${BOLD}  ✅ ¡INSTALACIÓN COMPLETADA!${NC}"
+echo -e "  ${GREEN}${BOLD}════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  Se creó un acceso directo ${BOLD}TITAN POS${NC} en tu escritorio."
+echo -e "  Ábrelo para comenzar a usar el punto de venta."
+echo ""
+echo -e "  La primera vez, la aplicación te pedirá crear"
+echo -e "  tu usuario y contraseña."
+echo ""
+
+# Intentar abrir el navegador automáticamente
+xdg-open http://localhost:8000 2>/dev/null &

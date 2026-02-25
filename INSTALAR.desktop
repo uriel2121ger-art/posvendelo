@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=INSTALAR TITAN POS
+Comment=Instalador automatico de TITAN POS
+Exec=bash -c "exec bash \"\$(dirname \"\$1\")/instalar.sh\"" _ %k
+Terminal=true
+Type=Application
+Icon=system-software-install

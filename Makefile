@@ -2,7 +2,7 @@
 # TITAN POS — Makefile
 # ============================================================================
 
-.PHONY: up down logs test lint dev-backend dev-frontend clean
+.PHONY: up down logs test lint dev-backend dev-frontend clean setup
 
 # --- Docker ---
 up:
@@ -40,3 +40,7 @@ clean:
 
 health:
 	curl -s http://localhost:8000/health | python3 -m json.tool
+
+# --- Instalador ---
+setup:
+	bash setup.sh
