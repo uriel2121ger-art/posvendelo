@@ -53,6 +53,7 @@ export default function ReportsTab(): ReactElement {
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Reportes operativos listos para analisis diario.')
+  const requestIdRef = useRef(0)
 
   const totals = useMemo(() => {
     const totalSales = sales.length
@@ -91,18 +92,21 @@ export default function ReportsTab(): ReactElement {
   filtersRef.current = { dateFrom, dateTo }
 
   const handleLoad = useCallback(async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const { dateFrom: df, dateTo: dt } = filtersRef.current
       const rows = await searchSales(cfg, { dateFrom: df, dateTo: dt, limit: 500 })
+      if (requestIdRef.current !== reqId) return
       const normalized = rows.map(normalizeSale)
       setSales(normalized)
       setMessage(`Reporte cargado con ${normalized.length} ventas.`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }, [])
 
@@ -135,6 +139,7 @@ export default function ReportsTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    return () => { requestIdRef.current++ }
   }, [handleLoad])
 
   return (

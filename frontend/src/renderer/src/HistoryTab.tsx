@@ -64,6 +64,7 @@ export default function HistoryTab(): ReactElement {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Historial operativo: busca y revisa detalle de ventas.')
+  const requestIdRef = useRef(0)
   const detailRequestId = useRef(0)
 
   const visibleRows = useMemo(() => {
@@ -87,18 +88,21 @@ export default function HistoryTab(): ReactElement {
   filtersRef.current = { folio, dateFrom, dateTo }
 
   const handleLoad = useCallback(async (): Promise<void> => {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const { folio: f, dateFrom: df, dateTo: dt } = filtersRef.current
       const sales = await searchSales(cfg, { folio: f, dateFrom: df, dateTo: dt, limit: 200 })
+      if (requestIdRef.current !== reqId) return
       const normalized = sales.map(normalizeSale)
       setRows(normalized)
       setMessage(`Ventas encontradas: ${normalized.length}`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }, [])
 
@@ -137,6 +141,7 @@ export default function HistoryTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    return () => { requestIdRef.current++; detailRequestId.current++ }
   }, [handleLoad])
 
   return (

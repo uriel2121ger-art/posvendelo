@@ -96,6 +96,7 @@ export default function SettingsTab(): ReactElement {
       return
     }
     const target = profiles.find((p) => p.id === selectedProfileId)
+    if (!window.confirm(`¿Eliminar perfil "${target?.name ?? selectedProfileId}"?`)) return
     const next = profiles.filter((p) => p.id !== selectedProfileId)
     persistProfiles(next)
     setSelectedProfileId('')

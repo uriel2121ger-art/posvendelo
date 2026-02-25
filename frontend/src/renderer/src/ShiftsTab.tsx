@@ -170,10 +170,11 @@ export default function ShiftsTab(): ReactElement {
       setMessage('Ya existe un turno abierto.')
       return
     }
+    const initialCash = Math.max(0, toNumber(openingCash))
+    if (initialCash === 0 && !window.confirm('El efectivo inicial es $0.00. ¿Abrir turno asi?')) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const initialCash = Math.max(0, toNumber(openingCash))
       const result = await openTurn(cfg, {
         initial_cash: initialCash,
         notes: notes.trim() || undefined
@@ -219,10 +220,12 @@ export default function ShiftsTab(): ReactElement {
       setMessage('Error: turno sin ID de backend. Abre un turno nuevo.')
       return
     }
+    const closing = Math.max(0, toNumber(closingCash))
+    if (closing === 0 && !window.confirm('El efectivo de cierre es $0.00. ¿Cerrar turno asi?')) return
+    if (!window.confirm('¿Cerrar turno? Esta accion no se puede deshacer.')) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const closing = Math.max(0, toNumber(closingCash))
       const result = await closeTurn(cfg, currentShift.backendTurnId, {
         final_cash: closing,
         notes: notes.trim() || undefined
@@ -268,7 +271,7 @@ export default function ShiftsTab(): ReactElement {
       const scoped = backendSales.filter((sale) => {
         const terminal = Number(sale.terminal_id ?? sale._terminal_id ?? 0)
         if (terminal !== 0 && terminal !== shift.terminalId) return false
-        const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '').replace(' ', 'T')
+        const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '').replace(/^(\d{4}-\d{2}-\d{2}) /, '$1T')
         const tsMs = new Date(tsRaw).getTime()
         return Number.isFinite(tsMs) && tsMs >= openedMs && tsMs <= closedMs
       })

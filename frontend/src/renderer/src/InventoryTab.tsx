@@ -95,6 +95,7 @@ export default function InventoryTab(): ReactElement {
       return
     }
     const signed = movementType === 'in' ? qty : -qty
+    if (!window.confirm(`¿Aplicar ${movementType === 'in' ? 'entrada' : 'salida'} de ${qty} unidades a ${targetSku}?`)) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()

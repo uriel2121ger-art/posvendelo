@@ -63,6 +63,7 @@ const CURRENT_SHIFT_KEY = 'titan.currentShift'
 
 type ShiftState = {
   id: string
+  backendTurnId?: number
   terminalId: number
   openedAt: string
   openedBy: string
@@ -238,7 +239,11 @@ export default function Terminal(): ReactElement {
   }, [])
 
   useEffect((): void => {
-    localStorage.setItem(PENDING_TICKETS_STORAGE_KEY, JSON.stringify(pendingTickets))
+    try {
+      localStorage.setItem(PENDING_TICKETS_STORAGE_KEY, JSON.stringify(pendingTickets))
+    } catch {
+      setMessage('Error: no se pudieron guardar tickets pendientes. Almacenamiento lleno.')
+    }
   }, [pendingTickets])
 
   useEffect((): (() => void) => {
@@ -392,6 +397,11 @@ export default function Terminal(): ReactElement {
     if (activeTickets.length <= 1) {
       setMessage('Debe existir al menos un ticket activo.')
       return
+    }
+    const snapshot = ticketSnapshots[ticketId]
+    const ticketCart = ticketId === activeTicketId ? cart : (snapshot?.cart ?? [])
+    if (ticketCart.length > 0) {
+      if (!window.confirm(`Este ticket tiene ${ticketCart.length} producto(s). ¿Descartar y cerrar?`)) return
     }
 
     const remaining = activeTickets.filter((t) => t.id !== ticketId)
@@ -560,8 +570,10 @@ export default function Terminal(): ReactElement {
       setMessage('Selecciona un producto del carrito.')
       return
     }
+    const item = cart.find((i) => i.sku === selectedCartSku)
+    if (item && !window.confirm(`¿Quitar "${item.name}" del ticket?`)) return
     removeItem(selectedCartSku)
-  }, [removeItem, selectedCartSku])
+  }, [cart, removeItem, selectedCartSku])
 
   const handleCharge = useCallback(async (): Promise<void> => {
     if (chargingRef.current) return
@@ -572,6 +584,8 @@ export default function Terminal(): ReactElement {
     const shift = readCurrentShift()
     if (!shift) {
       setCurrentShift(null)
+      setMessage('No hay turno abierto. Abre un turno en la pestaña Turnos antes de cobrar.')
+      return
     }
     // For cash: if no amount entered, assume exact payment
     const effectiveReceived = paymentMethod === 'cash' && amountReceivedNum === 0
@@ -584,7 +598,7 @@ export default function Terminal(): ReactElement {
     chargingRef.current = true
     setBusy(true)
     try {
-      const turnId = shift?.id ? Number(shift.id) || null : null
+      const turnId = shift.backendTurnId ?? null
       const saleData = await syncSale(
         config,
         cart,
@@ -615,7 +629,9 @@ export default function Terminal(): ReactElement {
             Math.round(((freshShift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0)) * 100) / 100,
           lastSaleAt: new Date().toISOString()
         }
-        localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
+        try {
+          localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
+        } catch { /* storage full — shift counters may drift */ }
         setCurrentShift(updatedShift)
       }
       setMessage(
@@ -624,7 +640,12 @@ export default function Terminal(): ReactElement {
           : `Venta ${folio} registrada correctamente.`
       )
     } catch (error) {
-      setMessage((error as Error).message)
+      const raw = (error as Error).message
+      setMessage(
+        raw.includes('fetch') || raw.includes('network') || raw.includes('Failed')
+          ? 'No se pudo conectar al servidor. El ticket sigue intacto, intenta cobrar de nuevo.'
+          : `Error al registrar venta: ${raw}. El ticket sigue intacto.`
+      )
     } finally {
       chargingRef.current = false
       setBusy(false)
@@ -677,12 +698,17 @@ export default function Terminal(): ReactElement {
         amountReceived
       }
     }))
-    setCart(found.cart)
+    // Recalculate subtotals in case prices changed since ticket was saved
+    const restoredCart = found.cart.map((item) => ({
+      ...item,
+      subtotal: calculateLineSubtotal(item.price, item.qty, item.discountPct)
+    }))
+    setCart(restoredCart)
     setCustomerName(found.customerName)
     setPaymentMethod(found.paymentMethod)
     setGlobalDiscountPct(found.globalDiscountPct)
     setPendingTickets((prev) => prev.filter((item) => item.id !== ticketId))
-    setSelectedCartSku(found.cart[0]?.sku ?? null)
+    setSelectedCartSku(restoredCart[0]?.sku ?? null)
     setAmountReceived('')
     setMessage(`Pendiente cargado: ${found.label}`)
   }
