@@ -60,6 +60,7 @@ type ActiveTicketSnapshot = {
 const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
 const CURRENT_SHIFT_KEY = 'titan.currentShift'
+const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
 
 type ShiftState = {
   id: string
@@ -84,6 +85,25 @@ function toNumber(value: unknown): number {
 
 function clampDiscount(value: number): number {
   return Math.max(0, Math.min(100, value))
+}
+
+type SavedActiveState = {
+  activeTickets: ActiveTicketMeta[]
+  activeTicketId: string
+  ticketSnapshots: Record<string, ActiveTicketSnapshot>
+  ticketCounter: number
+}
+
+function readSavedActiveState(): SavedActiveState | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_TICKETS_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as SavedActiveState
+    if (!parsed || !Array.isArray(parsed.activeTickets) || !parsed.activeTicketId) return null
+    return parsed
+  } catch {
+    return null
+  }
 }
 
 function readCurrentShift(): ShiftState | null {
@@ -166,28 +186,33 @@ export default function Terminal(): ReactElement {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [config] = useState<RuntimeConfig>(() => loadRuntimeConfig())
   const [products, setProducts] = useState<Product[]>([])
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [customerName, setCustomerName] = useState('Publico General')
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
-  const [amountReceived, setAmountReceived] = useState('')
-  const [globalDiscountPct, setGlobalDiscountPct] = useState(0)
+  // Restore active ticket state from localStorage (navigation persistence)
+  const [_savedActive] = useState(() => readSavedActiveState())
+  const _snap = _savedActive?.ticketSnapshots?.[_savedActive.activeTicketId]
+  const [cart, setCart] = useState<CartItem[]>(_snap?.cart ?? [])
+  const [customerName, setCustomerName] = useState(_snap?.customerName ?? 'Publico General')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(_snap?.paymentMethod ?? 'cash')
+  const [amountReceived, setAmountReceived] = useState(_snap?.amountReceived ?? '')
+  const [globalDiscountPct, setGlobalDiscountPct] = useState(_snap?.globalDiscountPct ?? 0)
   const [pendingTickets, setPendingTickets] = useState<PendingTicket[]>([])
-  const [activeTickets, setActiveTickets] = useState<ActiveTicketMeta[]>([
-    { id: 'active-1', label: 'Activa 1' }
-  ])
-  const [activeTicketId, setActiveTicketId] = useState('active-1')
-  const [ticketSnapshots, setTicketSnapshots] = useState<Record<string, ActiveTicketSnapshot>>({
-    'active-1': {
-      customerName: 'Publico General',
-      paymentMethod: 'cash',
-      globalDiscountPct: 0,
-      cart: [],
-      selectedCartSku: null,
-      amountReceived: ''
+  const [activeTickets, setActiveTickets] = useState<ActiveTicketMeta[]>(
+    _savedActive?.activeTickets ?? [{ id: 'active-1', label: 'Activa 1' }]
+  )
+  const [activeTicketId, setActiveTicketId] = useState(_savedActive?.activeTicketId ?? 'active-1')
+  const [ticketSnapshots, setTicketSnapshots] = useState<Record<string, ActiveTicketSnapshot>>(
+    _savedActive?.ticketSnapshots ?? {
+      'active-1': {
+        customerName: 'Publico General',
+        paymentMethod: 'cash',
+        globalDiscountPct: 0,
+        cart: [],
+        selectedCartSku: null,
+        amountReceived: ''
+      }
     }
-  })
-  const [selectedCartSku, setSelectedCartSku] = useState<string | null>(null)
-  const ticketCounterRef = useRef(1)
+  )
+  const [selectedCartSku, setSelectedCartSku] = useState<string | null>(_snap?.selectedCartSku ?? null)
+  const ticketCounterRef = useRef(_savedActive?.ticketCounter ?? 1)
   const [ticketLabel, setTicketLabel] = useState('')
   const [query, setQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
@@ -323,6 +348,21 @@ export default function Terminal(): ReactElement {
     paymentMethod,
     selectedCartSku
   ])
+
+  // Persist active ticket state to localStorage so it survives tab navigation
+  useEffect((): void => {
+    try {
+      const state: SavedActiveState = {
+        activeTickets,
+        activeTicketId,
+        ticketSnapshots,
+        ticketCounter: ticketCounterRef.current
+      }
+      localStorage.setItem(ACTIVE_TICKETS_STORAGE_KEY, JSON.stringify(state))
+    } catch {
+      // storage full or inaccessible — silently ignore
+    }
+  }, [activeTickets, activeTicketId, ticketSnapshots])
 
   function switchActiveTicket(nextTicketId: string): void {
     if (nextTicketId === activeTicketId) return

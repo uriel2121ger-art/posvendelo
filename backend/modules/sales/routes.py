@@ -88,19 +88,18 @@ async def list_sales(
         params["folio"] = f"%{_escape_like(folio)}%"
     if start_date:
         try:
-            date.fromisoformat(start_date)
+            parsed_start = date.fromisoformat(start_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="start_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND s.timestamp >= :start_date"
-        params["start_date"] = start_date
+        params["start_date"] = parsed_start
     if end_date:
         try:
             parsed_end = date.fromisoformat(end_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="end_date debe ser formato ISO (YYYY-MM-DD)")
-        next_day = (parsed_end + timedelta(days=1)).isoformat()
         sql += " AND s.timestamp < :end_date"
-        params["end_date"] = next_day
+        params["end_date"] = parsed_end + timedelta(days=1)
 
     sql += " ORDER BY s.id DESC LIMIT :limit OFFSET :offset"
     params["limit"] = limit
@@ -597,19 +596,18 @@ async def search_sales(
         params["folio"] = f"%{_escape_like(folio)}%"
     if date_from:
         try:
-            date.fromisoformat(date_from)
+            parsed_from = date.fromisoformat(date_from)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_from debe ser formato ISO")
         sql += " AND timestamp >= :date_from"
-        params["date_from"] = date_from
+        params["date_from"] = parsed_from
     if date_to:
         try:
             parsed_to = date.fromisoformat(date_to)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_to debe ser formato ISO")
-        next_day_to = (parsed_to + timedelta(days=1)).isoformat()
         sql += " AND timestamp < :date_to"
-        params["date_to"] = next_day_to
+        params["date_to"] = parsed_to + timedelta(days=1)
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit

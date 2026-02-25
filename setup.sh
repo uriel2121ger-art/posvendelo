@@ -28,7 +28,7 @@ banner() {
 }
 
 step() {
-    local n="$1" total=6 label="$2"
+    local n="$1" total=7 label="$2"
     local filled=$((n)) empty=$((total - n))
     local bar=""
     for ((i=0; i<filled; i++)); do bar+="■"; done
@@ -186,9 +186,60 @@ for i in $(seq 1 60); do
 done
 
 # ═══════════════════════════════════════════════════════════════════════════
+# FASE 4.5: Inicializar schema y migraciones
+# ═══════════════════════════════════════════════════════════════════════════
+step 5 "Inicializando base de datos..."
+
+# Buscar schema SQL (puede estar en varias ubicaciones)
+SCHEMA_FILE=""
+for candidate in \
+    "_archive/backend_original/src/infra/schema_postgresql.sql" \
+    "backend/schema_postgresql.sql" \
+    "schema_postgresql.sql"; do
+    if [ -f "$candidate" ]; then
+        SCHEMA_FILE="$candidate"
+        break
+    fi
+done
+
+if [ -n "$SCHEMA_FILE" ]; then
+    if docker compose exec -T postgres psql -U titan_user -d titan_pos < "$SCHEMA_FILE" 2>/dev/null; then
+        ok "Schema base aplicado ($SCHEMA_FILE)"
+    else
+        warn "Schema ya existente o parcialmente aplicado (esto es normal en reinstalaciones)"
+    fi
+else
+    warn "No se encontro schema_postgresql.sql — asegurate de que las tablas existan"
+fi
+
+# Migraciones incrementales (orden alfabetico, idempotentes)
+MIGRATION_COUNT=0
+if [ -d "backend/migrations" ]; then
+    for f in backend/migrations/*.sql; do
+        [ -f "$f" ] || continue
+        if docker compose exec -T postgres psql -U titan_user -d titan_pos < "$f" 2>/dev/null; then
+            MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
+        fi
+    done
+    ok "$MIGRATION_COUNT migraciones aplicadas"
+else
+    warn "No se encontro directorio de migraciones"
+fi
+
+# Seed: crear usuario admin si no existe
+docker compose exec -T postgres psql -U titan_user -d titan_pos <<'SEED' 2>/dev/null
+INSERT INTO users (username, password_hash, role, is_active, created_at)
+SELECT 'admin',
+       '$2b$12$LJ3m4ys3Lk0T/XEVpGmCaOZEgMnUVWxYfPXZBCmO0jH/6YvQe6XAa',
+       'admin', 1, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin');
+SEED
+ok "Usuario admin verificado"
+
+# ═══════════════════════════════════════════════════════════════════════════
 # FASE 5: Iniciar servidor
 # ═══════════════════════════════════════════════════════════════════════════
-step 5 "Iniciando servidor TITAN POS..."
+step 6 "Iniciando servidor TITAN POS..."
 
 docker compose up -d api
 ok "Contenedor api iniciado"
@@ -212,7 +263,7 @@ done
 # ═══════════════════════════════════════════════════════════════════════════
 # FASE 6: Crear acceso directo en escritorio
 # ═══════════════════════════════════════════════════════════════════════════
-step 6 "Creando acceso directo en el escritorio..."
+step 7 "Creando acceso directo en el escritorio..."
 
 # Detectar carpeta de escritorio
 DESKTOP_DIR="${XDG_DESKTOP_DIR:-$HOME/Desktop}"

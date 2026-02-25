@@ -24,13 +24,13 @@ async def get_expense_summary(
 ):
     """Get expense summary — month and year totals."""
     now = datetime.now(timezone.utc)
-    month_start = f"{now.year}-{now.month:02d}-01"
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
     if now.month == 12:
-        month_end = f"{now.year + 1}-01-01"
+        month_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
     else:
-        month_end = f"{now.year}-{now.month + 1:02d}-01"
-    year_start = f"{now.year}-01-01"
-    year_end = f"{now.year + 1}-01-01"
+        month_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
+    year_start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
+    year_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
 
     month_row = await db.fetchrow(
         """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
@@ -65,7 +65,7 @@ async def register_expense(
     if role not in ("admin", "manager", "owner", "gerente", "dueño"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden registrar gastos")
     user_id = int(auth["sub"])
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
 
     async with get_connection() as db_conn:
         conn = db_conn.connection

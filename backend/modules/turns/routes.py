@@ -42,7 +42,7 @@ async def open_turn(
                 detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
             )
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
 
         row = await conn.fetchrow(
             """
@@ -82,7 +82,7 @@ async def close_turn(
         if turn["user_id"] != user_id and role not in ("admin", "manager", "owner", "gerente", "dueño"):
             raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
 
         # Calculate expected: initial + cash sales (pure + mixed component) + cash_in - cash_out
         cash_sales = await conn.fetchval(
@@ -311,7 +311,7 @@ async def create_cash_movement(
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno esta cerrado")
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
 
         row = await conn.fetchrow(
             """
