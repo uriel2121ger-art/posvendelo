@@ -1,22 +1,21 @@
 """
 TITAN POS - SAT Catalog Module Routes
 
-Wraps sat_catalog_full.py (SQLite-based) with asyncio.to_thread.
-No asyncpg needed — the SAT catalog lives in its own SQLite DB.
+Queries sat_clave_prod_serv table in PostgreSQL via asyncpg.
+Falls back to embedded _COMMON_CODES if table is unavailable.
 """
 
-import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from db.connection import get_db
 from modules.shared.auth import verify_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-
-# Common SAT codes fallback for when the catalog is unavailable
+# Fallback codes for when sat_clave_prod_serv table is unavailable
 _COMMON_CODES = [
     ("01010101", "No existe en el catalogo"),
     ("53131500", "Productos para el cuidado de la piel"),
@@ -34,20 +33,21 @@ async def search_sat_codes(
     q: str = Query(..., min_length=2),
     limit: int = Query(20, ge=1, le=100),
     auth: dict = Depends(verify_token),
+    db=Depends(get_db),
 ):
-    """Search SAT catalog by code or description. No auth required."""
+    """Search SAT catalog by code or description."""
     try:
-        def _search():
-            from modules.sat.sat_catalog import search_sat_catalog
-            return search_sat_catalog(q, limit=limit)
+        from modules.sat.sat_catalog import search_sat_codes as _search
 
-        results = await asyncio.to_thread(_search)
-
+        rows = await _search(db, q, limit=limit)
         return {
             "success": True,
             "data": {
-                "results": [{"code": code, "description": desc} for code, desc in results],
-                "total": len(results),
+                "results": [
+                    {"code": r["clave"], "description": r["descripcion"]}
+                    for r in rows
+                ],
+                "total": len(rows),
             },
         }
     except Exception as e:
@@ -65,15 +65,16 @@ async def search_sat_codes(
 
 
 @router.get("/{code}")
-async def get_sat_code_info(code: str, auth: dict = Depends(verify_token)):
+async def get_sat_code_info(
+    code: str,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
     """Get SAT code description by key."""
     try:
-        def _get():
-            from modules.sat.sat_catalog import get_sat_description
-            return get_sat_description(code)
+        from modules.sat.sat_catalog import get_sat_description
 
-        description = await asyncio.to_thread(_get)
-
+        description = await get_sat_description(db, code)
         if description:
             return {"success": True, "data": {"code": code, "description": description}}
         raise HTTPException(status_code=404, detail="Codigo SAT no encontrado")

@@ -138,6 +138,17 @@ async def lifespan(application):
     except Exception as e:
         logger.warning("Auto-migration failed (non-fatal): %s", e)
 
+    # Seed SAT catalog (idempotent — skips if table already has data)
+    try:
+        from db.connection import get_pool, DB
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            db = DB(conn)
+            from modules.sat.sat_catalog import seed_sat_catalog
+            await seed_sat_catalog(db)
+    except Exception as e:
+        logger.warning("SAT catalog seed failed (non-fatal): %s", e)
+
     yield
 
     # Teardown: close asyncpg pool
