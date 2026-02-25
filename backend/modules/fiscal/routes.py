@@ -93,6 +93,44 @@ class ReleaseLockdownRequest(BaseModel):
     branch_id: int
     auth_code: str
 
+# --- Phase 7 Schemas ---
+
+class GhostTransferCreateRequest(BaseModel):
+    origin: str
+    destination: str
+    items: list
+    user_id: int
+    notes: str = ""
+
+class GhostTransferReceiveRequest(BaseModel):
+    transfer_code: str
+    user_id: int
+
+class ShadowStockAddRequest(BaseModel):
+    product_id: int
+    quantity: float
+    source: str = None
+    notes: str = None
+
+class ShadowSellRequest(BaseModel):
+    product_id: int
+    quantity: float
+    serie: str = 'B'
+
+class ReconcileFiscalRequest(BaseModel):
+    product_id: int
+    fiscal_stock: float
+
+class PanicTriggerRequest(BaseModel):
+    immediate: bool = False
+
+class DeadDriveRequest(BaseModel):
+    device: str
+    confirm: str
+
+class FakeScreenRequest(BaseModel):
+    screen_type: str = 'windows_update'
+
 
 # ---------------------------------------------------------------------------
 # CFDI Generation
@@ -648,3 +686,233 @@ async def get_crypto_wealth(
     except Exception as e:
         logger.error(f"Error crypto wealth: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error riqueza crypto")
+
+
+# ---------------------------------------------------------------------------
+# Evasion Master (Phase 7 - Anti-Forensics)
+# ---------------------------------------------------------------------------
+
+@router.post("/evasion/panic")
+async def trigger_panic(
+    request: PanicTriggerRequest,
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.evasion_master import EvasionMaster
+        em = EvasionMaster(db)
+        em.arm()
+        result = em.trigger_panic(immediate=request.immediate)
+        return result
+    except Exception as e:
+        logger.error(f"Error panic: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.post("/evasion/fake-screen")
+async def trigger_fake_screen(
+    request: FakeScreenRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.evasion_master import EvasionMaster
+        em = EvasionMaster(db)
+        return em.trigger_screen_with_protection(request.screen_type)
+    except Exception as e:
+        logger.error(f"Error fake screen: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.post("/evasion/dead-drive")
+async def simulate_dead_drive(
+    request: DeadDriveRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.evasion_master import EvasionMaster
+        em = EvasionMaster(db)
+        result = em.simulate_dead_drive(request.device, request.confirm)
+        if result.get('success'): return result
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error dead drive: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+
+# ---------------------------------------------------------------------------
+# Ghost Carrier (Phase 7 - Covert Inter-Branch Logistics)
+# ---------------------------------------------------------------------------
+
+@router.post("/ghost/transfer/create")
+async def create_ghost_transfer(
+    request: GhostTransferCreateRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.ghost_carrier import GhostCarrier
+        gc = GhostCarrier(db)
+        result = await gc.create_transfer(request.origin, request.destination, request.items, request.user_id, request.notes)
+        if result.get('success'): return result
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error ghost transfer: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error traspaso")
+
+@router.post("/ghost/transfer/receive")
+async def receive_ghost_transfer(
+    request: GhostTransferReceiveRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.ghost_carrier import GhostCarrier
+        gc = GhostCarrier(db)
+        result = await gc.receive_transfer(request.transfer_code, request.user_id)
+        if result.get('success'): return result
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error receive: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error recepción")
+
+@router.get("/ghost/transfer/pending")
+async def get_pending_ghost_transfers(
+    branch: str = None,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.ghost_carrier import GhostCarrier
+        gc = GhostCarrier(db)
+        return {"success": True, "transfers": await gc.get_pending_transfers(branch)}
+    except Exception as e:
+        logger.error(f"Error pending: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.get("/ghost/transfer/slip/{transfer_code}")
+async def get_warehouse_slip(
+    transfer_code: str,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.ghost_carrier import GhostCarrier
+        gc = GhostCarrier(db)
+        slip = await gc.generate_warehouse_slip(transfer_code)
+        if slip: return {"success": True, "slip": slip}
+        raise HTTPException(status_code=404, detail="Traslado no encontrado")
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error slip: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+
+# ---------------------------------------------------------------------------
+# Shadow Inventory (Phase 7 - Dual Stock System)
+# ---------------------------------------------------------------------------
+
+@router.get("/shadow/dual-stock/{product_id}")
+async def get_dual_stock(
+    product_id: int,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        return await si.get_dual_stock(product_id)
+    except Exception as e:
+        logger.error(f"Error dual stock: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.post("/shadow/add")
+async def add_shadow_stock(
+    request: ShadowStockAddRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        result = await si.add_shadow_stock(request.product_id, request.quantity, request.source, request.notes)
+        if result.get('success'): return result
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error add shadow: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.post("/shadow/sell")
+async def shadow_sell(
+    request: ShadowSellRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        result = await si.sell_with_attribution(request.product_id, request.quantity, request.serie)
+        if result.get('success'): return result
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error shadow sell: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.get("/shadow/audit-view")
+async def get_audit_view(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        return {"success": True, "products": await si.get_audit_view()}
+    except Exception as e:
+        logger.error(f"Error audit view: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.get("/shadow/real-view")
+async def get_real_view(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        return {"success": True, "products": await si.get_real_view()}
+    except Exception as e:
+        logger.error(f"Error real view: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.get("/shadow/discrepancy")
+async def get_discrepancy_report(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        return {"success": True, "data": await si.get_discrepancy_report()}
+    except Exception as e:
+        logger.error(f"Error discrepancy: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")
+
+@router.post("/shadow/reconcile")
+async def reconcile_fiscal(
+    request: ReconcileFiscalRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    try:
+        from modules.fiscal.shadow_inventory import ShadowInventory
+        si = ShadowInventory(db)
+        result = await si.reconcile_fiscal(request.product_id, request.fiscal_stock)
+        if result.get('success'): return result
+        raise HTTPException(status_code=400, detail=result.get('error'))
+    except HTTPException: raise
+    except Exception as e:
+        logger.error(f"Error reconcile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error")

@@ -94,7 +94,7 @@ class CrossBranchBilling:
         Registra la fachada comercial de una factura cruzada localmente en la DB.
         """
         try:
-            sale = await self.db.fetchrow("SELECT * FROM sales WHERE id = :sid", {"sid": sale_id})
+            sale = await self.db.fetchrow("SELECT * FROM sales WHERE id = :sid", sid=sale_id)
             if not sale:
                 return {'success': False, 'error': 'Venta no encontrada'}
             
@@ -106,14 +106,11 @@ class CrossBranchBilling:
                     sale_id, original_rfc, target_rfc, 
                     cross_concept, amount, timestamp
                 ) VALUES (:sid, :orig, :targ, :conc, :amt, CURRENT_TIMESTAMP)
-            """, {
-                "sid": sale_id, "orig": original_rfc, "targ": target_rfc,
-                "conc": cross_concept, "amt": sale['total']
-            })
+            """, sid=sale_id, orig=original_rfc, targ=target_rfc, conc=cross_concept, amt=sale['total'])
             
             await self.db.execute("""
                 UPDATE sales SET rfc_used = :targ, is_cross_billed = 1, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :sid
-            """, {"targ": target_rfc, "sid": sale_id})
+            """, targ=target_rfc, sid=sale_id)
             
             return {
                 'success': True,

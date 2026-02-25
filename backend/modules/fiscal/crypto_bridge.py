@@ -59,10 +59,12 @@ class CryptoBridge:
         """)
     
     async def get_available_for_conversion(self) -> Dict[str, Any]:
-        year = str(datetime.now().year)
+        year = datetime.now().year
+        year_start = f"{year}-01-01"
+        year_end = f"{year + 1}-01-01"
         
         try:
-            row_b = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND EXTRACT(YEAR FROM timestamp) = :year", year=float(year))
+            row_b = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
             total_serie_b = float(row_b['total'] or 0) if row_b else 0.0
         except Exception:
             total_serie_b = 0.0
@@ -70,10 +72,10 @@ class CryptoBridge:
         await self._ensure_table()
         
         try:
-            row_c = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE EXTRACT(YEAR FROM created_at) = :year AND status = 'completed'", year=float(year))
+            row_c = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at >= :ys::timestamp AND created_at < :ye::timestamp AND status = 'completed'", ys=year_start, ye=year_end)
             total_converted = float(row_c['total'] or 0) if row_c else 0.0
             
-            row_e = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_expenses WHERE EXTRACT(YEAR FROM expense_date) = :year", year=float(year))
+            row_e = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_expenses WHERE expense_date >= :ys::date AND expense_date < :ye::date", ys=year_start, ye=year_end)
             total_expenses = float(row_e['total'] or 0) if row_e else 0.0
         except Exception:
             total_converted = 0.0

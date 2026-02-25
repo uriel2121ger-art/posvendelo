@@ -62,7 +62,7 @@ class FederationDashboard:
         for branch in branches:
             b_id = branch['id']
             try:
-                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE timestamp::date = :today AND status = 'completed'", today=datetime.strptime(today, '%Y-%m-%d').date())
+                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE LEFT(timestamp, 10) = :today AND status = 'completed'", today=today)
             except Exception:
                 sales = [{'count': 0, 'total': 0}]
             
@@ -147,18 +147,21 @@ class FederationDashboard:
         rfc_data = []
         total_facturado = Decimal('0')
         
+        year_start = f"{year}-01-01"
+        year_end = f"{int(year) + 1}-01-01"
+        
         for emitter in emitters:
             result = await self.db.fetchrow("""
                 SELECT COALESCE(SUM(s.total), 0) as total
                 FROM sales s JOIN cfdis c ON s.id = c.sale_id
-                WHERE c.emitter_rfc = :rfc AND EXTRACT(YEAR FROM s.timestamp) = :yr AND s.status = 'completed'
-            """, rfc=emitter['rfc'], yr=float(year))
+                WHERE c.emitter_rfc = :rfc AND s.timestamp >= :ys AND s.timestamp < :ye AND s.status = 'completed'
+            """, rfc=emitter['rfc'], ys=year_start, ye=year_end)
             facturado = Decimal(str(result['total'] or 0)) if result else Decimal('0')
             
             try:
                 result_dir = await self.db.fetchrow("""
-                    SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND rfc_emisor = :rfc AND EXTRACT(YEAR FROM timestamp) = :yr AND status = 'completed'
-                """, rfc=emitter['rfc'], yr=float(year))
+                    SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'
+                """, ys=year_start, ye=year_end)
                 if result_dir: facturado += Decimal(str(result_dir['total'] or 0))
             except Exception: pass
             
@@ -197,13 +200,15 @@ class FederationDashboard:
     # ==========================================================================
     
     async def get_wealth_dashboard(self) -> Dict[str, Any]:
-        year = float(datetime.now().year)
+        year = datetime.now().year
+        year_start = f"{year}-01-01"
+        year_end = f"{year + 1}-01-01"
         try:
-            rb = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND EXTRACT(YEAR FROM timestamp) = :yr AND status = 'completed'", yr=year)
+            rb = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
             tb = float(rb['total'] or 0) if rb else 0
-            ra = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND EXTRACT(YEAR FROM timestamp) = :yr AND status = 'completed'", yr=year)
+            ra = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
             ta = float(ra['total'] or 0) if ra else 0
-            re = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM cash_extractions WHERE EXTRACT(YEAR FROM extraction_date) = :yr", yr=year)
+            re = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye", ys=year_start, ye=year_end)
             te = float(re['total'] or 0) if re else 0
         except Exception:
             tb = ta = te = 0
@@ -226,7 +231,7 @@ class FederationDashboard:
     async def _calc_safe(self, disp: float, extraido: float) -> Dict:
         limit = 50000
         try:
-            personas = await self.db.fetch("SELECT name, relationship FROM related_persons WHERE is_active = true")
+            personas = await self.db.fetch("SELECT name, parentesco as relationship FROM related_persons WHERE is_active = 1")
         except Exception:
             personas = []
             

@@ -64,7 +64,7 @@ class GhostWallet:
         await self.db.execute("""
             INSERT INTO ghost_wallets (hash_id) VALUES (:hid)
             ON CONFLICT (hash_id) DO NOTHING
-        """, {"hid": formatted})
+        """, hid=formatted)
         
         return formatted
     
@@ -86,15 +86,15 @@ class GhostWallet:
                     transactions_count = transactions_count + 1,
                     last_activity = CURRENT_TIMESTAMP
                 WHERE hash_id = :hid
-            """, {"pts": points, "hid": hash_id})
+            """, pts=points, hid=hash_id)
             
             if sale_id:
                 await self.db.execute("""
                     INSERT INTO ghost_transactions (wallet_hash, type, amount, sale_id)
                     VALUES (:hid, 'earn', :amt, :sid)
-                """, {"hid": hash_id, "amt": points, "sid": sale_id})
+                """, hid=hash_id, amt=points, sid=sale_id)
             
-            row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", {"hid": hash_id})
+            row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
             balance = float(row['balance']) if row else 0
             
             return {
@@ -113,7 +113,7 @@ class GhostWallet:
         """
         await self._ensure_tables()
         try:
-            row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", {"hid": hash_id})
+            row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
             
             if not row or float(row['balance']) < amount:
                 return {'success': False, 'error': 'Saldo insuficiente'}
@@ -124,12 +124,12 @@ class GhostWallet:
                     total_spent = total_spent + :amt,
                     last_activity = CURRENT_TIMESTAMP
                 WHERE hash_id = :hid
-            """, {"amt": amount, "hid": hash_id})
+            """, amt=amount, hid=hash_id)
             
             await self.db.execute("""
                 INSERT INTO ghost_transactions (wallet_hash, type, amount)
                 VALUES (:hid, 'redeem', :amt)
-            """, {"hid": hash_id, "amt": -amount})
+            """, hid=hash_id, amt=-amount)
             
             new_balance = float(row['balance']) - amount
             

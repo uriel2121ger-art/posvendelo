@@ -63,6 +63,24 @@ class ReturnsEngine:
             await self.db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_returns_sale ON returns(sale_id)"
             )
+
+            # Ensure columns exist (table may have been created by Alembic without these)
+            for col, typ, dflt in [
+                ("cfdi_egreso_status", "TEXT", "'pending'"),
+                ("cfdi_egreso_uuid", "TEXT", "NULL"),
+                ("original_uuid", "TEXT", "NULL"),
+                ("return_type", "TEXT", "'partial'"),
+                ("product_condition", "TEXT", "'integro'"),
+                ("restock", "INTEGER", "1"),
+                ("reason_detail", "TEXT", "NULL"),
+                ("reason_category", "TEXT", "NULL"),
+            ]:
+                try:
+                    await self.db.execute(
+                        f"ALTER TABLE returns ADD COLUMN IF NOT EXISTS {col} {typ} DEFAULT {dflt}"
+                    )
+                except Exception:
+                    pass  # Column already exists or DB doesn't support IF NOT EXISTS
         except Exception as e:
             logger.error(f"Error creating returns table: {e}")
 

@@ -30,18 +30,18 @@ class PredictiveExtraction:
         """Analiza efectivo disponible para retiro."""
         month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
         
-        row_b = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp::date >= :m_start", m_start=month_start)
+        row_b = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :m_start AND status = 'completed'", m_start=month_start)
         total_serie_b = float(row_b['total'] or 0) if row_b else 0
         
         # In case cash_expenses doesn't exist, ignore softly
         try:
-            row_exp = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_expenses WHERE expense_date::date >= :m_start", m_start=month_start)
+            row_exp = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_expenses WHERE expense_date >= :m_start::date", m_start=month_start)
             total_expenses = float(row_exp['total'] or 0) if row_exp else 0
         except Exception:
             total_expenses = 0
             
         try:
-            row_ext = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_extractions WHERE extraction_date::date >= :m_start", m_start=month_start)
+            row_ext = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_extractions WHERE extraction_date >= :m_start", m_start=month_start)
             total_extracted = float(row_ext['total'] or 0) if row_ext else 0
         except Exception:
             total_extracted = 0
@@ -120,7 +120,7 @@ class PredictiveExtraction:
     
     async def _get_related_persons(self) -> List[Dict]:
         try:
-            rows = await self.db.fetch("SELECT name, relationship, annual_limit FROM related_persons WHERE status = 'active'")
+            rows = await self.db.fetch("SELECT name, parentesco as relationship FROM related_persons WHERE is_active = 1")
             return [dict(p) for p in rows]
         except Exception:
             return [{'name': 'Cónyuge', 'relationship': 'spouse'}, {'name': 'Padre', 'relationship': 'parent'}]
@@ -129,7 +129,7 @@ class PredictiveExtraction:
         thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         
         try:
-            daily_sales = await self.db.fetch("SELECT timestamp::date as day, COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp::date >= :thirty_days_ago GROUP BY timestamp::date", thirty_days_ago=thirty_days_ago)
+            daily_sales = await self.db.fetch("SELECT LEFT(timestamp, 10) as day, COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :thirty_days_ago AND status = 'completed' GROUP BY LEFT(timestamp, 10)", thirty_days_ago=thirty_days_ago)
         except Exception:
             daily_sales = []
             

@@ -100,7 +100,7 @@ class CerebroContable:
                 AND EXTRACT(YEAR FROM timestamp::timestamp) = :year
                 AND status = 'completed'
             """
-            data = await self.db.fetch(sql, {"serie": serie, "year": int(year)})
+            data = await self.db.fetch(sql, serie=serie, year=int(year))
             if data and data[0]['transacciones'] > 0:
                 result[f'serie_{serie.lower()}'] = {
                     'subtotal': Decimal(str(data[0]['subtotal'] or 0)),
@@ -166,7 +166,7 @@ class CerebroContable:
             AND s.status = 'completed'
             ORDER BY fiscal_margin DESC NULLS LAST, s.timestamp ASC
         """
-        ventas = await self.db.fetch(sql, {"year": int(year)})
+        ventas = await self.db.fetch(sql, year=int(year))
         
         total_subtotal = sum(Decimal(str(v['subtotal'] or 0)) for v in ventas)
         total_iva = sum(Decimal(str(v['tax'] or 0)) for v in ventas)

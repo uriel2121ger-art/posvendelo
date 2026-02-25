@@ -107,35 +107,39 @@ class DB:
     def __init__(self, conn: asyncpg.Connection):
         self._conn = conn
 
-    async def fetch(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    async def fetch(self, sql: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> List[Dict[str, Any]]:
         """Execute query with named params, return list of dicts."""
-        if params:
-            sql, args = _named_to_positional(sql, params)
+        merged = {**(params or {}), **kwargs}
+        if merged:
+            sql, args = _named_to_positional(sql, merged)
             rows = await self._conn.fetch(sql, *args)
         else:
             rows = await self._conn.fetch(sql)
         return [dict(r) for r in rows]
 
-    async def fetchrow(self, sql: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    async def fetchrow(self, sql: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[Dict[str, Any]]:
         """Execute query with named params, return single dict or None."""
-        if params:
-            sql, args = _named_to_positional(sql, params)
+        merged = {**(params or {}), **kwargs}
+        if merged:
+            sql, args = _named_to_positional(sql, merged)
             row = await self._conn.fetchrow(sql, *args)
         else:
             row = await self._conn.fetchrow(sql)
         return dict(row) if row else None
 
-    async def fetchval(self, sql: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    async def fetchval(self, sql: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Execute query with named params, return single value."""
-        if params:
-            sql, args = _named_to_positional(sql, params)
+        merged = {**(params or {}), **kwargs}
+        if merged:
+            sql, args = _named_to_positional(sql, merged)
             return await self._conn.fetchval(sql, *args)
         return await self._conn.fetchval(sql)
 
-    async def execute(self, sql: str, params: Optional[Dict[str, Any]] = None) -> str:
+    async def execute(self, sql: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> str:
         """Execute a write query with named params. Returns status string."""
-        if params:
-            sql, args = _named_to_positional(sql, params)
+        merged = {**(params or {}), **kwargs}
+        if merged:
+            sql, args = _named_to_positional(sql, merged)
             return await self._conn.execute(sql, *args)
         return await self._conn.execute(sql)
 

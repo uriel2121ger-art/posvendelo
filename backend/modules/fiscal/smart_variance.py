@@ -21,8 +21,8 @@ class SmartVarianceEngine:
     Introduce variación natural que refleja el comportamiento real del negocio.
     """
     
-    def __init__(self, core=None):
-        self.core = core
+    def __init__(self, db=None):
+        self.db = db
         self._seed = None
     
     async def calculate_smart_loss(self, base_amount: float, 
