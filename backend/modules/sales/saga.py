@@ -301,13 +301,13 @@ async def _create_transfer_record(context: Dict[str, Any]):
         await db.execute(
             """
             INSERT INTO inventory_movements
-                (product_id, quantity, movement_type, reason, reference_id, created_at)
+                (product_id, movement_type, type, quantity, reason, reference_type, reference_id, user_id, timestamp, synced)
             VALUES
-                (:pid, :qty, 'transfer_out', :reason, :ref, :ts)
+                (:pid, 'OUT', 'transfer', :qty, :reason, 'transfer', :ref, 0, :ts, 0)
             """,
             {
                 "pid": context["product_id"],
-                "qty": -context["qty"],
+                "qty": round(abs(float(context["qty"])), 2),
                 "reason": f"Transfer to branch {context['dest_branch_id']}",
                 "ref": transfer_id,
                 "ts": now,
@@ -346,13 +346,13 @@ async def _receive_at_destination(context: Dict[str, Any]):
         await db.execute(
             """
             INSERT INTO inventory_movements
-                (product_id, quantity, movement_type, reason, reference_id, created_at)
+                (product_id, movement_type, type, quantity, reason, reference_type, reference_id, user_id, timestamp, synced)
             VALUES
-                (:pid, :qty, 'transfer_in', :reason, :ref, :ts)
+                (:pid, 'IN', 'transfer', :qty, :reason, 'transfer', :ref, 0, :ts, 0)
             """,
             {
                 "pid": context["product_id"],
-                "qty": context["qty"],
+                "qty": round(abs(float(context["qty"])), 2),
                 "reason": f"Transfer from branch {context['source_branch_id']}",
                 "ref": transfer_id,
                 "ts": now,

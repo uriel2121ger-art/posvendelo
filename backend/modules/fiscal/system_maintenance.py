@@ -154,11 +154,22 @@ class EvasionMaster:
 
     # ── Dead Drive Simulator ──────────────────────────────────────
 
+    @staticmethod
+    def _validate_device_path(device: str) -> bool:
+        """Validate that device is a real block device path, not an arbitrary file."""
+        import re
+        if not device:
+            return False
+        # Only allow /dev/sd*, /dev/nvme*, /dev/hd*, /dev/vd* block devices
+        if not re.match(r'^/dev/(sd[a-z]|nvme\d+n\d+|hd[a-z]|vd[a-z])$', device):
+            return False
+        return True
+
     def simulate_dead_drive(self, device: str, confirm: str = None) -> Dict[str, Any]:
         if confirm != "CONFIRMO DESTRUCCION":
             return {'success': False, 'error': 'Confirmación requerida: "CONFIRMO DESTRUCCION"'}
-        if not device:
-            return {'success': False, 'error': 'Dispositivo no especificado'}
+        if not self._validate_device_path(device):
+            return {'success': False, 'error': 'Dispositivo inválido. Solo se permiten block devices (/dev/sd*, /dev/nvme*)'}
 
         corruption_log = []
         try:
@@ -178,6 +189,8 @@ class EvasionMaster:
     def quick_brick(self, device: str, confirm: str = None) -> Dict[str, Any]:
         if confirm != "BRICK":
             return {'success': False, 'error': 'Confirmación: "BRICK"'}
+        if not self._validate_device_path(device):
+            return {'success': False, 'error': 'Dispositivo inválido. Solo se permiten block devices (/dev/sd*, /dev/nvme*)'}
         try:
             with open(device, 'r+b') as f:
                 f.seek(0)
@@ -299,11 +312,15 @@ class EvasionMaster:
 
     def _run_background_protection(self):
         try:
-            os.system('sudo umount -f /mnt/ramfs 2>/dev/null')
-            os.system('sudo shred -vfz /var/log/antigravity/* 2>/dev/null')
+            subprocess.run(['sudo', 'umount', '-f', '/mnt/ramfs'],
+                           capture_output=True, timeout=5)
+            # Use glob to expand paths safely instead of shell expansion
+            for path in glob.glob('/var/log/antigravity/*'):
+                subprocess.run(['sudo', 'shred', '-vfz', path],
+                               capture_output=True, timeout=10)
             if self.db:
                 pass  # DB cleanup handled at async layer
-            os.system('sync')
+            subprocess.run(['sync'], capture_output=True, timeout=5)
         except Exception:
             pass
 

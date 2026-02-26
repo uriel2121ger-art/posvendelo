@@ -10,6 +10,7 @@ instead of legacy mobile_api.py columns (message, priority, read).
 
 import json
 import logging
+import re
 import subprocess
 from datetime import datetime, timezone
 
@@ -52,6 +53,8 @@ async def remote_open_drawer(
         printer = cfg.get("printer_name", "")
         if not printer:
             raise HTTPException(status_code=400, detail="Impresora no configurada")
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', printer):
+            raise HTTPException(status_code=400, detail="Nombre de impresora inválido")
 
         pulse_str = cfg.get("cash_drawer_pulse_bytes", "1B700019FA")
         _send_drawer_pulse(printer, pulse_str)

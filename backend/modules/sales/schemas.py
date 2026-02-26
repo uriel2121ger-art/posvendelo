@@ -23,10 +23,15 @@ class SaleItemCreate(BaseModel):
     price_includes_tax: bool = True
 
     @model_validator(mode='after')
-    def _reject_special_floats(self):
+    def _reject_special_values(self):
         for name in ('qty', 'price', 'discount', 'price_wholesale'):
             val = getattr(self, name)
-            if val is not None and isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            if val is None:
+                continue
+            # Check both float and Decimal for NaN/Inf
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                raise ValueError(f'{name}: valor numerico invalido')
+            if isinstance(val, Decimal) and (val.is_nan() or val.is_infinite()):
                 raise ValueError(f'{name}: valor numerico invalido')
         return self
 
