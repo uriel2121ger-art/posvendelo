@@ -68,10 +68,10 @@ class GeneralDeGuerra:
         findings = []
         try:
             row = await self.db.fetchrow("""
-                SELECT COUNT(*) as count 
-                FROM shrinkage 
-                WHERE (photo_url IS NULL OR photo_url = '')
-                AND timestamp >= CURRENT_DATE - INTERVAL '7 days'
+                SELECT COUNT(*) as count
+                FROM loss_records
+                WHERE (photo_path IS NULL OR photo_path = '')
+                AND created_at::timestamp >= CURRENT_DATE - INTERVAL '7 days'
             """)
             count = int(row['count'] or 0) if row else 0
             
@@ -119,8 +119,8 @@ class GeneralDeGuerra:
             # Query the difference between sold and registered shrinkage.
             rows = await self.db.fetch("""
                 SELECT p.id, p.name, p.stock,
-                    COALESCE((SELECT SUM(qty) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.product_id = p.id AND s.timestamp >= CURRENT_DATE - INTERVAL '7 days'), 0) as sold,
-                    COALESCE((SELECT SUM(value) FROM shrinkage sh WHERE sh.product_id = p.id AND sh.timestamp >= CURRENT_DATE - INTERVAL '7 days'), 0) as shrink
+                    COALESCE((SELECT SUM(qty) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.product_id = p.id AND s.timestamp::timestamp >= CURRENT_DATE - INTERVAL '7 days'), 0) as sold,
+                    COALESCE((SELECT SUM(total_value) FROM loss_records lr WHERE lr.product_id = p.id AND lr.created_at::timestamp >= CURRENT_DATE - INTERVAL '7 days'), 0) as shrink
                 FROM products p
                 WHERE p.stock > 0
                 LIMIT 100
@@ -149,9 +149,9 @@ class GeneralDeGuerra:
         try:
             row = await self.db.fetchrow("""
                 SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as ops
-                FROM expenses 
-                WHERE expense_date >= DATE_TRUNC('month', CURRENT_DATE)
-                AND category = 'CASH_EXTRACTION'
+                FROM cash_movements
+                WHERE type = 'out'
+                AND timestamp >= DATE_TRUNC('month', CURRENT_DATE)
             """)
             if row:
                 total = round(float(row['total'] or 0), 2)

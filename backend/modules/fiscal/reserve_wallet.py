@@ -110,29 +110,35 @@ class GhostWallet:
     async def redeem_points(self, hash_id: str, amount: float) -> Dict[str, Any]:
         """
         Canjea puntos Blue por descuento.
+        Uses FOR UPDATE to prevent double-spend race conditions.
         """
         await self._ensure_tables()
         try:
-            row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
-            
-            if not row or round(float(row['balance']), 2) < amount:
-                return {'success': False, 'error': 'Saldo insuficiente'}
-            
-            await self.db.execute("""
-                UPDATE ghost_wallets 
-                SET balance = balance - :amt,
-                    total_spent = total_spent + :amt,
-                    last_activity = CURRENT_TIMESTAMP
-                WHERE hash_id = :hid
-            """, amt=amount, hid=hash_id)
-            
-            await self.db.execute("""
-                INSERT INTO ghost_transactions (wallet_hash, type, amount)
-                VALUES (:hid, 'redeem', :amt)
-            """, hid=hash_id, amt=-amount)
-            
-            new_balance = round(float(row['balance']), 2) - amount
-            
+            conn = self.db.connection
+            async with conn.transaction():
+                row = await self.db.fetchrow(
+                    "SELECT balance FROM ghost_wallets WHERE hash_id = :hid FOR UPDATE",
+                    hid=hash_id,
+                )
+
+                if not row or round(float(row['balance']), 2) < amount:
+                    return {'success': False, 'error': 'Saldo insuficiente'}
+
+                await self.db.execute("""
+                    UPDATE ghost_wallets
+                    SET balance = balance - :amt,
+                        total_spent = total_spent + :amt,
+                        last_activity = CURRENT_TIMESTAMP
+                    WHERE hash_id = :hid
+                """, amt=amount, hid=hash_id)
+
+                await self.db.execute("""
+                    INSERT INTO ghost_transactions (wallet_hash, type, amount)
+                    VALUES (:hid, 'redeem', :amt)
+                """, hid=hash_id, amt=-amount)
+
+                new_balance = round(float(row['balance']), 2) - amount
+
             return {
                 'success': True,
                 'redeemed': amount,

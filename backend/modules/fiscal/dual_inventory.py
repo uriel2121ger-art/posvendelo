@@ -72,28 +72,37 @@ class ShadowInventory:
         return {'success': True, 'real_stock': dual['real_stock'], 'fiscal_stock': dual['fiscal_stock'], 'shadow_added': quantity}
 
     async def sell_with_attribution(self, product_id: int, quantity: float, serie: str = 'B') -> Dict[str, Any]:
-        dual = await self.get_dual_stock(product_id)
-        if not dual['found']:
-            return {'success': False, 'error': 'Producto no encontrado'}
-        if dual['real_stock'] < quantity:
-            return {'success': False, 'error': 'Stock insuficiente'}
+        conn = self.db.connection
+        async with conn.transaction():
+            # Lock the product row to prevent concurrent stock modifications
+            p = await self.db.fetchrow(
+                "SELECT id, name, stock, shadow_stock, min_stock FROM products WHERE id = :pid FOR UPDATE",
+                pid=product_id,
+            )
+            if not p:
+                return {'success': False, 'error': 'Producto no encontrado'}
 
-        if serie == 'A':
-            await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
-        else:
-            shadow_available = dual['shadow_stock']
-            if shadow_available >= quantity:
-                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, shadow_stock = shadow_stock - :qty WHERE id = :pid", qty=quantity, pid=product_id)
+            real_stock = round(float(p['stock'] or 0), 2)
+            shadow_stock = round(float(p['shadow_stock'] or 0), 2)
+
+            if real_stock < quantity:
+                return {'success': False, 'error': 'Stock insuficiente'}
+
+            if serie == 'A':
+                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
             else:
-                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, shadow_stock = 0 WHERE id = :pid", qty=quantity, pid=product_id)
+                if shadow_stock >= quantity:
+                    await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, shadow_stock = shadow_stock - :qty WHERE id = :pid", qty=quantity, pid=product_id)
+                else:
+                    await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, shadow_stock = 0 WHERE id = :pid", qty=quantity, pid=product_id)
 
-        try:
-            await self.db.execute("""
-                INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                VALUES (:pid, 'OUT', 'shadow_sale', :qty, :reason, 'shadow_inventory', NOW(), 0)
-            """, pid=product_id, qty=quantity, reason=f"Venta Serie {serie}")
-        except Exception:
-            pass
+            try:
+                await self.db.execute("""
+                    INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                    VALUES (:pid, 'OUT', 'shadow_sale', :qty, :reason, 'shadow_inventory', NOW(), 0)
+                """, pid=product_id, qty=quantity, reason=f"Venta Serie {serie}")
+            except Exception:
+                pass
 
         new_dual = await self.get_dual_stock(product_id)
         await self.db.execute("""

@@ -73,34 +73,36 @@ class GhostCarrier:
 
     async def receive_transfer(self, transfer_code: str, user_id: int) -> Dict[str, Any]:
         await self.ensure_table()
-        row = await self.db.fetchrow(
-            "SELECT * FROM ghost_transfers WHERE transfer_code = :code AND status = 'pending'",
-            code=transfer_code
-        )
-        if not row:
-            return {'success': False, 'error': 'Traslado no encontrado o ya recibido'}
-
-        items = json.loads(row['items_json'])
-        for item in items:
-            prod = await self.db.fetchrow(
-                "SELECT id FROM products WHERE sku = :sku LIMIT 1",
-                sku=item['sku']
+        conn = self.db.connection
+        async with conn.transaction():
+            row = await self.db.fetchrow(
+                "SELECT * FROM ghost_transfers WHERE transfer_code = :code AND status = 'pending' FOR UPDATE",
+                code=transfer_code,
             )
-            if prod:
-                pid, qty = prod['id'], item['quantity']
-                await self.db.execute("UPDATE products SET stock = stock + :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=qty, pid=pid)
-                try:
-                    await self.db.execute("""
-                        INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                        VALUES (:pid, 'IN', 'ghost_transfer', :qty, :reason, 'ghost_transfer', NOW(), 0)
-                    """, pid=pid, qty=qty, reason=f"Recepción {transfer_code}")
-                except Exception:
-                    pass
+            if not row:
+                return {'success': False, 'error': 'Traslado no encontrado o ya recibido'}
 
-        await self.db.execute(
-            "UPDATE ghost_transfers SET status = 'received', received_at = :rat, received_by = :uid WHERE transfer_code = :code",
-            rat=datetime.now().isoformat(), uid=user_id, code=transfer_code
-        )
+            items = json.loads(row['items_json'])
+            for item in items:
+                prod = await self.db.fetchrow(
+                    "SELECT id FROM products WHERE sku = :sku LIMIT 1",
+                    sku=item['sku']
+                )
+                if prod:
+                    pid, qty = prod['id'], item['quantity']
+                    await self.db.execute("UPDATE products SET stock = stock + :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=qty, pid=pid)
+                    try:
+                        await self.db.execute("""
+                            INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                            VALUES (:pid, 'IN', 'ghost_transfer', :qty, :reason, 'ghost_transfer', NOW(), 0)
+                        """, pid=pid, qty=qty, reason=f"Recepción {transfer_code}")
+                    except Exception:
+                        pass
+
+            await self.db.execute(
+                "UPDATE ghost_transfers SET status = 'received', received_at = :rat, received_by = :uid WHERE transfer_code = :code",
+                rat=datetime.now().isoformat(), uid=user_id, code=transfer_code
+            )
         return {'success': True, 'transfer_code': transfer_code, 'received_at': datetime.now().isoformat()}
 
     async def generate_warehouse_slip(self, transfer_code: str) -> Dict[str, Any]:

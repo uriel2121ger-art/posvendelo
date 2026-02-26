@@ -223,7 +223,12 @@ class ReturnsEngine:
         return result
 
     async def _generate_return_folio(self) -> str:
-        """Genera folio unico de devolucion."""
+        """Genera folio unico de devolucion.
+        Uses advisory lock to prevent duplicate folios under concurrency.
+        Must be called within a transaction (process_return provides one).
+        """
+        # Advisory lock serializes folio generation (released on tx commit/rollback)
+        await self.db.execute("SELECT pg_advisory_xact_lock(738201)")
         row = await self.db.fetchrow(
             "SELECT COUNT(*) as c FROM returns WHERE EXTRACT(YEAR FROM created_at) = :yr",
             {"yr": datetime.now().year},

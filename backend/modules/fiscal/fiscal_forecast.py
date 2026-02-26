@@ -64,11 +64,11 @@ class NostradamusFiscal:
         
         try:
             result_a = await self.db.fetch(
-                "SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count FROM sales WHERE serie = 'A' AND timestamp::date >= :ms",
+                "SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count FROM sales WHERE serie = 'A' AND timestamp >= :ms AND status = 'completed'",
                 {"ms": month_start}
             )
             result_b = await self.db.fetch(
-                "SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count FROM sales WHERE serie = 'B' AND timestamp::date >= :ms",
+                "SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count FROM sales WHERE serie = 'B' AND timestamp >= :ms AND status = 'completed'",
                 {"ms": month_start}
             )
             
@@ -91,34 +91,49 @@ class NostradamusFiscal:
     
     async def _get_deduction_status(self) -> Dict[str, Any]:
         """Analiza estado de deducciones fiscales."""
-        month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
-        
+        now = datetime.now()
+        # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — use naive datetime
+        month_start_ts = datetime(now.year, now.month, 1)
+        # sales.timestamp is TEXT, purchase_costs.purchase_date is TEXT, loss_records.created_at is TEXT
+        month_start_str = now.replace(day=1).strftime('%Y-%m-%d')
+
         try:
-            # Gastos deducibles
-            expenses = await self.db.fetch(
-                "SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE serie = 'A' AND expense_date::date >= :ms",
-                {"ms": month_start}
-            )
-            
-            purchases = await self.db.fetch(
-                "SELECT COALESCE(SUM(total), 0) as total FROM purchases WHERE has_invoice = 1 AND purchase_date::date >= :ms",
-                {"ms": month_start}
-            )
-            
-            shrinkage = await self.db.fetch(
-                "SELECT COALESCE(SUM(value), 0) as total FROM shrinkage WHERE approved = 1 AND timestamp::date >= :ms",
-                {"ms": month_start}
-            )
-            
-            total_deductions = (
-                (round(float(expenses[0]['total'] or 0), 2) if expenses else 0) +
-                (round(float(purchases[0]['total'] or 0), 2) if purchases else 0) +
-                (round(float(shrinkage[0]['total'] or 0), 2) if shrinkage else 0)
-            )
-            
+            # Gastos deducibles (each table may not exist yet, query individually)
+            expense_total = 0.0
+            try:
+                expenses = await self.db.fetch(
+                    "SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements WHERE type = 'expense' AND timestamp >= :ms",
+                    {"ms": month_start_ts}
+                )
+                expense_total = round(float(expenses[0]['total'] or 0), 2) if expenses else 0.0
+            except Exception:
+                pass
+
+            purchase_total = 0.0
+            try:
+                purchases = await self.db.fetch(
+                    "SELECT COALESCE(SUM(total_cost), 0) as total FROM purchase_costs WHERE serie = 'A' AND purchase_date >= :ms",
+                    {"ms": month_start_str}
+                )
+                purchase_total = round(float(purchases[0]['total'] or 0), 2) if purchases else 0.0
+            except Exception:
+                pass
+
+            shrinkage_total = 0.0
+            try:
+                shrinkage = await self.db.fetch(
+                    "SELECT COALESCE(SUM(total_value), 0) as total FROM loss_records WHERE status = 'authorized' AND created_at >= :ms",
+                    {"ms": month_start_str}
+                )
+                shrinkage_total = round(float(shrinkage[0]['total'] or 0), 2) if shrinkage else 0.0
+            except Exception:
+                pass
+
+            total_deductions = expense_total + purchase_total + shrinkage_total
+
             income_a = await self.db.fetch(
-                "SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp::date >= :ms",
-                {"ms": month_start}
+                "SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ms AND status = 'completed'",
+                {"ms": month_start_str}
             )
             total_income = round(float(income_a[0]['total'] or 0), 2) if income_a else 0
             

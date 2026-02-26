@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 import hashlib
 import json
+import secrets
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,14 @@ class StealthLayer:
         duress_h = row_duress['value'] if row_duress else None
         wipe_h = row_wipe['value'] if row_wipe else None
 
-        if normal_h and pin_hash == normal_h:
+        if normal_h and secrets.compare_digest(pin_hash, normal_h):
             self.duress_mode = False
             return {'authenticated': True, 'mode': 'normal', 'message': 'Acceso concedido'}
-        elif duress_h and pin_hash == duress_h:
+        elif duress_h and secrets.compare_digest(pin_hash, duress_h):
             self.duress_mode = True
             await self._trigger_silent_alert()
             return {'authenticated': True, 'mode': 'duress', 'message': 'Modo espejo activado'}
-        elif wipe_h and pin_hash == wipe_h:
+        elif wipe_h and secrets.compare_digest(pin_hash, wipe_h):
             return {'authenticated': False, 'mode': 'wipe', 'message': 'Protocolo de emergencia activado'}
 
         return {'authenticated': False, 'mode': 'denied', 'message': 'PIN incorrecto'}
@@ -68,6 +69,17 @@ class StealthLayer:
 
         conn = self.db.connection
         async with conn.transaction():
+            # Validate ALL sale_ids are Serie B before any deletion
+            for sid in sale_ids:
+                sale = await self.db.fetchrow(
+                    "SELECT serie FROM sales WHERE id = :sid", sid=sid
+                )
+                if not sale:
+                    return {'success': False, 'error': f'Venta {sid} no encontrada'}
+                if sale['serie'] != 'B':
+                    return {'success': False, 'error': f'Venta {sid} es Serie {sale["serie"]}. Solo Serie B puede eliminarse'}
+
+            deleted = 0
             for sid in sale_ids:
                 items = await self.db.fetch("SELECT product_id, qty FROM sale_items WHERE sale_id = :sid", sid=sid)
 
@@ -84,8 +96,9 @@ class StealthLayer:
                 await self.db.execute("DELETE FROM sale_items WHERE sale_id = :sid", sid=sid)
                 await self.db.execute("DELETE FROM payments WHERE sale_id = :sid", sid=sid)
                 await self.db.execute("DELETE FROM sales WHERE id = :sid AND serie = 'B'", sid=sid)
+                deleted += 1
 
-        return {'success': True, 'deleted_count': len(sale_ids), 'message': f'{len(sale_ids)} tickets Serie B eliminados'}
+        return {'success': True, 'deleted_count': deleted, 'message': f'{deleted} tickets Serie B eliminados'}
 
     async def activate_phantom_mode(self) -> Dict[str, Any]:
         self.duress_mode = True
