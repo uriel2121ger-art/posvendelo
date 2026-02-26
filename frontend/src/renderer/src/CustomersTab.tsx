@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, pullTable, syncTable } from './posApi'
+import { loadRuntimeConfig, pullTable, syncTable, getCustomerCredit, getCustomerSales } from './posApi'
 
 type Customer = {
   id?: number | string
@@ -33,6 +33,10 @@ export default function CustomersTab(): ReactElement {
     'Clientes (F2): carga, alta, edicion y baja logica funcional.'
   )
   const requestIdRef = useRef(0)
+  const [creditData, setCreditData] = useState<Record<string, unknown> | null>(null)
+  const [customerSales, setCustomerSales] = useState<Record<string, unknown>[]>([])
+  const [showCredit, setShowCredit] = useState(false)
+  const [showSales, setShowSales] = useState(false)
 
   const PAGE_SIZE = 50
   const [page, setPage] = useState(0)
@@ -166,11 +170,43 @@ export default function CustomersTab(): ReactElement {
     }
   }
 
+  async function loadCredit(customerId: string): Promise<void> {
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getCustomerCredit(cfg, Number(customerId))
+      const data = (raw.data ?? raw) as Record<string, unknown>
+      setCreditData(data)
+      setShowCredit(true)
+      setMessage(`Credito cargado para cliente ${customerId}.`)
+    } catch (err) {
+      setMessage((err as Error).message)
+      setCreditData(null)
+    }
+  }
+
+  async function loadCustomerSalesData(customerId: string): Promise<void> {
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getCustomerSales(cfg, Number(customerId), 20)
+      const data = (raw.data ?? raw.sales ?? []) as Record<string, unknown>[]
+      setCustomerSales(Array.isArray(data) ? data : [])
+      setShowSales(true)
+      setMessage(`Ventas cargadas para cliente ${customerId}.`)
+    } catch (err) {
+      setMessage((err as Error).message)
+      setCustomerSales([])
+    }
+  }
+
   function selectCustomer(customer: Customer): void {
     setSelectedId(String(customer.id))
     setName(customer.name)
     setPhone(customer.phone ?? '')
     setEmail(customer.email ?? '')
+    setShowCredit(false)
+    setShowSales(false)
+    setCreditData(null)
+    setCustomerSales([])
     setMessage(`Cliente seleccionado: ${customer.name}`)
   }
 
@@ -179,6 +215,10 @@ export default function CustomersTab(): ReactElement {
     setName('')
     setPhone('')
     setEmail('')
+    setShowCredit(false)
+    setShowSales(false)
+    setCreditData(null)
+    setCustomerSales([])
   }
 
   return (
@@ -280,6 +320,69 @@ export default function CustomersTab(): ReactElement {
           </tbody>
         </table>
       </div>
+
+      {selectedId && (
+        <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 flex gap-2">
+          <button
+            className="px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-600/40 transition-colors"
+            onClick={() => (showCredit ? setShowCredit(false) : void loadCredit(selectedId))}
+          >
+            {showCredit ? 'Ocultar Credito' : 'Credito'}
+          </button>
+          <button
+            className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-bold hover:bg-zinc-700 transition-colors"
+            onClick={() => (showSales ? setShowSales(false) : void loadCustomerSalesData(selectedId))}
+          >
+            {showSales ? 'Ocultar Ventas' : 'Ventas'}
+          </button>
+        </div>
+      )}
+
+      {showCredit && creditData && (
+        <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-3">
+          <p className="text-xs font-bold text-blue-400 mb-2 uppercase">Credito del Cliente</p>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
+              <p className="text-zinc-500 text-xs">Limite</p>
+              <p className="font-bold">${Number(creditData.credit_limit ?? creditData.limit ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
+              <p className="text-zinc-500 text-xs">Balance</p>
+              <p className="font-bold">${Number(creditData.balance ?? creditData.used ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
+              <p className="text-zinc-500 text-xs">Disponible</p>
+              <p className="font-bold text-emerald-400">${Number(creditData.available ?? 0).toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSales && customerSales.length > 0 && (
+        <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-3 max-h-40 overflow-auto">
+          <p className="text-xs font-bold text-zinc-400 mb-2 uppercase">Historial de Ventas</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-zinc-800 text-zinc-500">
+                <th className="px-2 py-1 text-left">Folio</th>
+                <th className="px-2 py-1 text-left">Total</th>
+                <th className="px-2 py-1 text-left">Metodo</th>
+                <th className="px-2 py-1 text-left">Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customerSales.map((s, i) => (
+                <tr key={i} className="border-b border-zinc-900">
+                  <td className="px-2 py-1 font-mono">{String(s.folio ?? s.id ?? '-')}</td>
+                  <td className="px-2 py-1">${Number(s.total ?? 0).toFixed(2)}</td>
+                  <td className="px-2 py-1">{String(s.payment_method ?? '-')}</td>
+                  <td className="px-2 py-1">{String(s.timestamp ?? s.created_at ?? '-').slice(0, 19).replace('T', ' ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 flex items-center justify-between">
         <span>{message}</span>

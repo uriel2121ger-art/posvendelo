@@ -1,7 +1,7 @@
 # TITAN POS — Mapa Completo del Frontend
 
-> Generado: 2026-02-26
-> Cubre: 13 vistas, 16 endpoints, ~40 botones, ~30 campos, ~10 filtros
+> Actualizado: 2026-02-26
+> Cubre: 16 vistas, ~70 endpoints, ~80 botones, ~60 campos, ~20 filtros
 
 ---
 
@@ -10,8 +10,9 @@
 - **Framework**: Electron + React (HashRouter)
 - **Estilos**: Tailwind CSS (tema zinc oscuro)
 - **Estado**: useState local + localStorage persistente
-- **API**: `apiFetch()` centralizado en `posApi.ts`
-- **Timeout**: 3s (AbortController) en todas las llamadas
+- **API**: `apiFetch()` centralizado en `posApi.ts` (~55 funciones)
+- **Timeout**: 3s (AbortController) estándar, 15s (`apiFetchLong`) para fiscal/dashboard
+- **RBAC**: `getUserRole()` lee `titan.role` (cashier|manager|owner|admin)
 - **Headers**: `Authorization: Bearer {token}`, `X-Terminal-Id: {terminalId}`, `Content-Type: application/json`
 - **Error 401**: Limpia token, redirige a `/login`
 - **Iconos**: Lucide React
@@ -34,8 +35,11 @@
 | F9 | `/estadisticas` | Dashboard Stats | `DashboardStatsTab.tsx` |
 | F10 | `/mermas` | Mermas | `MermasTab.tsx` |
 | F11 | `/gastos` | Gastos | `ExpensesTab.tsx` |
+| — | `/empleados` | Empleados | `EmployeesTab.tsx` |
+| — | `/remoto` | Control Remoto | `RemoteTab.tsx` |
+| — | `/fiscal` | Fiscal (8 sub-tabs) | `FiscalTab.tsx` |
 
-Navbar: `TopNavbar.tsx` — tabs horizontales con iconos Lucide, usuario a la derecha.
+Navbar: `TopNavbar.tsx` — 14 tabs horizontales con iconos Lucide, usuario a la derecha.
 
 ---
 
@@ -57,7 +61,7 @@ Navbar: `TopNavbar.tsx` — tabs horizontales con iconos Lucide, usuario a la de
 POST /api/v1/auth/login
 Body: {username, password}
 Resp: {token} o {access_token}
-→ Guarda titan.token, titan.user en localStorage
+→ Guarda titan.token, titan.user, titan.role en localStorage
 → Navega a /terminal
 ```
 
@@ -158,6 +162,14 @@ Resp: {folio, total, data}
 **Paginación**: 50 por página, botones Anterior/Siguiente
 **Selección**: clic en fila → carga en formulario
 
+### Extensiones (nuevo)
+| Botón | Acción | Endpoint |
+|-------|--------|----------|
+| Credito | getCustomerCredit() | `GET /api/v1/customers/{id}/credit` |
+| Ventas | getCustomerSales() | `GET /api/v1/customers/{id}/sales` |
+
+Panel expandible al seleccionar cliente: cards Limite/Balance/Disponible + mini-tabla historial ventas.
+
 ---
 
 ## 4. Productos (`/productos`)
@@ -182,6 +194,15 @@ Resp: {folio, total, data}
 | Filtro | Tipo | Busca en |
 |--------|------|----------|
 | Buscar producto | text | SKU, nombre |
+
+### Extensiones (nuevo)
+| Elemento | Acción | Endpoint |
+|----------|--------|----------|
+| Dropdown categoría | Filtra por categoría | `GET /api/v1/products/categories/list` |
+| Input SKU + Escanear | scanProduct() | `GET /api/v1/products/scan/{sku}` |
+| Stock Bajo | getLowStockProducts() | `GET /api/v1/products/low-stock` |
+
+Panel colapsable "Stock Bajo" con grid de productos bajo mínimo.
 
 ### Tabla
 **Columnas**: SKU | Nombre | Precio | Stock
@@ -215,6 +236,15 @@ Resp: {data: {new_stock}}
 | Filtro | Tipo | Busca en |
 |--------|------|----------|
 | Buscar por SKU o nombre | text | SKU, nombre |
+
+### Extensiones (nuevo)
+| Botón | Acción | Endpoint |
+|-------|--------|----------|
+| Ver Alertas Stock | getStockAlerts() | `GET /api/v1/inventory/alerts` |
+| Historial Movimientos | getInventoryMovements() | `GET /api/v1/inventory/movements` |
+
+Filtro movimientos: tipo (Todos/Entradas/Salidas) + botón Recargar.
+Panel colapsable con tabla: Producto | Tipo | Cant | Razon | Fecha.
 
 ### Tabla
 **Columnas**: SKU | Nombre | Stock
@@ -265,11 +295,22 @@ Resp: {data: {new_stock}}
 **Columnas**: Apertura | Cierre | Operador | Inicial | Ventas | Total | Efectivo | Cierre | Esperado | Diferencia
 **Límite**: 100 turnos recientes
 
+### Extensiones (nuevo)
+| Botón | Acción | Endpoint |
+|-------|--------|----------|
+| Resumen Backend | getTurnSummary() | `GET /api/v1/turns/{id}/summary` |
+| Registrar Mov. | createCashMovement() | `POST /api/v1/turns/{id}/movements` |
+
+Form "Movimiento de Caja" (visible con turno abierto): Tipo (in/out/expense) | Monto | Razón | PIN manager (si no es manager+).
+Panel "Resumen Backend" muestra JSON del summary del turno seleccionado.
+
 ### API
 ```
-POST /api/v1/turns/open        Body: {initial_cash, branch_id:1, notes}
-POST /api/v1/turns/{id}/close  Body: {final_cash, notes}  Resp: {expected_cash, difference}
-GET  /api/v1/sales/search      Query: date_from, date_to, limit:2000  (reconciliación)
+POST /api/v1/turns/open          Body: {initial_cash, branch_id:1, notes}
+POST /api/v1/turns/{id}/close    Body: {final_cash, notes}  Resp: {expected_cash, difference}
+GET  /api/v1/turns/{id}/summary  Resp: {sales_by_method, cash_in, cash_out, expected_cash}
+POST /api/v1/turns/{id}/movements Body: {movement_type, amount, reason, manager_pin?}
+GET  /api/v1/sales/search        Query: date_from, date_to, limit:2000  (reconciliación)
 ```
 
 ---
@@ -296,6 +337,20 @@ GET  /api/v1/sales/search      Query: date_from, date_to, limit:2000  (reconcili
 ### Tabla Top Productos
 **Columnas**: SKU/Nombre | Cantidad | Importe
 **Límite**: Top 10 por cantidad
+
+### Sub-tabs (nuevo)
+Barra: `local | daily | ranking | heatmap`
+
+| Sub-tab | Acción | Endpoint |
+|---------|--------|----------|
+| local | Contenido original (KPIs + top) | `GET /api/v1/sales/search` |
+| daily | getDailySummaryReport() | `GET /api/v1/sales/reports/daily-summary` |
+| ranking | getProductRanking() | `GET /api/v1/sales/reports/product-ranking` |
+| heatmap | getHourlyHeatmap() | `GET /api/v1/sales/reports/hourly-heatmap` |
+
+- **daily**: Tabla fecha/ventas/monto/ticket promedio
+- **ranking**: Tabla producto/cantidad/ingreso
+- **heatmap**: Grid 24 celdas (horas 0-23) con intensidad por color
 
 ---
 
@@ -324,12 +379,16 @@ GET  /api/v1/sales/search      Query: date_from, date_to, limit:2000  (reconcili
 ### Panel Detalle (derecha)
 - Folio, Cliente, Método, Total
 - JSON completo de la venta (pre-formatted)
+- **Cancelar Venta** (manager+ only, double confirm) → `POST /api/v1/sales/{id}/cancel`
+- **Tabla Eventos** (auto-cargada al seleccionar) → `GET /api/v1/sales/{id}/events`
 
 ### API
 ```
-GET /api/v1/sales/search    Query: folio, date_from, date_to, limit:200
-GET /api/v1/sales/{saleId}  ← Detalle individual
-GET /api/v1/sync/sales      ← Fallback si detail falla (limit:2000)
+GET  /api/v1/sales/search       Query: folio, date_from, date_to, limit:200
+GET  /api/v1/sales/{saleId}     ← Detalle individual
+POST /api/v1/sales/{id}/cancel  ← Cancelar venta (manager+)
+GET  /api/v1/sales/{id}/events  ← Eventos de la venta
+GET  /api/v1/sync/sales         ← Fallback si detail falla (limit:2000)
 ```
 
 ---
@@ -378,6 +437,16 @@ GET /api/v1/sync/sales      ← Fallback si detail falla (limit:2000)
 | Ventas Hoy | TrendingUp | emerald | ventas_hoy |
 | Ingreso Hoy | DollarSign | blue | $total_hoy |
 | Mermas Pendientes | AlertTriangle | amber/zinc | mermas_pendientes |
+
+### Paneles Avanzados (nuevo)
+| Panel | Endpoint | Restricción |
+|-------|----------|-------------|
+| RESICO | `GET /api/v1/dashboard/resico` (15s) | — |
+| Wealth | `GET /api/v1/dashboard/wealth` (15s) | manager+ |
+| AI Insights | `GET /api/v1/dashboard/ai` (15s) | — |
+| Executive | `GET /api/v1/dashboard/executive` (15s) | manager+ |
+
+Cada panel tiene botón "Cargar" independiente con loading state propio.
 
 ### Anti-race condition
 Usa `requestIdRef` para ignorar respuestas obsoletas.
@@ -444,22 +513,136 @@ POST /api/v1/expenses/         Body: {amount, description, reason}
 
 ---
 
-## 13. TopNavbar (global)
+## 13. Empleados (`/empleados`) — NUEVO
+
+### Campos del Formulario
+| Campo | Tipo | Placeholder | Validación |
+|-------|------|-------------|------------|
+| Código | text | "Código empleado" | required |
+| Nombre | text | "Nombre" | required |
+| Posición | text | "Posición" | required |
+| Salario Base | number | "Salario base" | min:0 |
+| Comisión % | number | "Comisión %" | min:0 |
+| Teléfono | text | "Teléfono" | — |
+| Email | text | "Email" | — |
+| Notas | text | "Notas" | — |
+
+### Botones
+| Botón | Acción | Endpoint | RBAC |
+|-------|--------|----------|------|
+| Guardar/Actualizar | createEmployee/updateEmployee | `POST/PUT /api/v1/employees/` | manager+ |
+| Cargar | listEmployees() | `GET /api/v1/employees/` | all |
+| Nuevo | Limpia form | — | — |
+| Eliminar | deleteEmployee() | `DELETE /api/v1/employees/{id}` | manager+ |
+
+### Tabla
+**Columnas**: Código | Nombre | Posición | Salario | Teléfono | Email
+**Paginación**: 50 por página, búsqueda por nombre/código
+
+---
+
+## 14. Control Remoto (`/remoto`) — NUEVO
+
+### Secciones
+1. **Estado del Turno** — Card con `getTurnStatusRemote()` → `GET /api/v1/remote/turn-status`
+2. **Ventas en Vivo** — Auto-refresh 10s con `getLiveSales(20)` → `GET /api/v1/remote/live-sales`
+3. **Acciones Remotas:**
+   - Botón "Abrir Cajón" + confirm → `POST /api/v1/remote/open-drawer`
+   - Form "Cambiar Precio": sku + new_price + reason → `POST /api/v1/remote/change-price`
+   - Form "Enviar Notificación": title + body + type → `POST /api/v1/remote/notification`
+4. **Notificaciones Pendientes** — Tabla + recargar → `GET /api/v1/remote/notifications/pending`
+
+---
+
+## 15. Fiscal (`/fiscal`) — NUEVO (8 sub-tabs)
+
+### Sub-tabs internos
+Barra horizontal: `facturacion | inventario | logistica | federation | auditoria | wallet | crypto | seguridad`
+
+### 15.1 Facturación
+| Acción | Endpoint |
+|--------|----------|
+| Generar CFDI | `POST /api/v1/fiscal/generate` |
+| CFDI Global | `POST /api/v1/fiscal/global/generate` |
+| Procesar Devolución | `POST /api/v1/fiscal/returns/process` |
+| Resumen Devoluciones | `GET /api/v1/fiscal/returns/summary` |
+| Parse XML (upload) | `POST /api/v1/fiscal/xml/parse` (FormData) |
+
+### 15.2 Inventario Fiscal
+| Acción | Endpoint |
+|--------|----------|
+| Vista SAT | `GET /api/v1/fiscal/shadow/audit-view` |
+| Vista Real | `GET /api/v1/fiscal/shadow/real-view` |
+| Discrepancias | `GET /api/v1/fiscal/shadow/discrepancy` |
+| Reconciliar | `POST /api/v1/fiscal/shadow/reconcile` |
+
+### 15.3 Logística
+| Acción | Endpoint |
+|--------|----------|
+| Crear Transferencia | `POST /api/v1/fiscal/ghost/transfer/create` |
+| Recibir Transferencia | `POST /api/v1/fiscal/ghost/transfer/receive` |
+| Pendientes | `GET /api/v1/fiscal/ghost/transfer/pending` |
+
+### 15.4 Federation
+| Acción | Endpoint |
+|--------|----------|
+| Dashboard Operacional | `GET /api/v1/fiscal/federation/operational` |
+| Inteligencia Fiscal | `GET /api/v1/fiscal/federation/fiscal` |
+
+### 15.5 Auditoría
+| Acción | Endpoint |
+|--------|----------|
+| Ejecutar Auditoría | `POST /api/v1/fiscal/audit/run` |
+| Ejecutar Shaper | `POST /api/v1/fiscal/shaper/run` |
+| Análisis Proveedor | `POST /api/v1/fiscal/supplier/analyze` |
+
+### 15.6 Wallet & Extracción
+| Acción | Endpoint |
+|--------|----------|
+| Crear Wallet | `POST /api/v1/fiscal/wallet/create` |
+| Agregar Puntos | `POST /api/v1/fiscal/wallet/add` |
+| Redimir Puntos | `POST /api/v1/fiscal/wallet/redeem` |
+| Stats Wallet | `GET /api/v1/fiscal/wallet/stats` |
+| Extracción Disponible | `GET /api/v1/fiscal/extraction/available` |
+| Plan Extracción | `POST /api/v1/fiscal/extraction/plan` |
+| Extracción Óptima | `GET /api/v1/fiscal/extraction/optimal` |
+
+### 15.7 Crypto
+| Acción | Endpoint |
+|--------|----------|
+| Fondos Disponibles | `GET /api/v1/fiscal/crypto/available` |
+| Convertir | `POST /api/v1/fiscal/crypto/convert` |
+| Wealth Total | `GET /api/v1/fiscal/crypto/wealth` |
+
+### 15.8 Seguridad
+| Acción | Endpoint | RBAC |
+|--------|----------|------|
+| Verificar PIN | `POST /api/v1/fiscal/stealth/verify-pin` | all |
+| Configurar PINs | `POST /api/v1/fiscal/stealth/configure-pins` | admin+ |
+| Surgical Delete | `POST /api/v1/fiscal/stealth/surgical-delete` | admin+ (2x confirm) |
+| Panic | `POST /api/v1/fiscal/evasion/panic` | admin+ (2x confirm) |
+| Fake Screen | `POST /api/v1/fiscal/evasion/fake-screen` | admin+ |
+
+Todos los endpoints fiscales usan `apiFetchLong` (15s timeout).
+
+---
+
+## 16. TopNavbar (global)
 
 ### Elementos
-- 11 tabs de navegación con iconos y F-key labels
+- 14 tabs de navegación con iconos Lucide (F1-F11 + 3 nuevos sin F-key)
 - Display "Le atiende: {usuario}" (lee `titan.user`)
 - Botón Logout (icono LogOut, color rose)
 
 ### Logout Flow
 1. Verifica `titan.pendingTickets` → warning si hay tickets
 2. Verifica `titan.currentShift` → warning si hay turno abierto
-3. Limpia: `titan.token`, `titan.user`, `titan.currentShift`, `titan.pendingTickets`, `titan.activeTickets`
+3. Limpia: `titan.token`, `titan.user`, `titan.role`, `titan.currentShift`, `titan.pendingTickets`, `titan.activeTickets`
 4. Navega a `/login`
 
 ---
 
-## Resumen de Endpoints Frontend → Backend
+## Resumen de Endpoints Frontend → Backend (~70 endpoints)
 
 ### Autenticación
 | Método | Endpoint | Componente |
@@ -481,22 +664,67 @@ POST /api/v1/expenses/         Body: {amount, description, reason}
 | POST | `/api/v1/sales/` | Terminal (cobrar) |
 | GET | `/api/v1/sales/search` | Historial, Reportes, Turnos |
 | GET | `/api/v1/sales/{id}` | Historial (detalle) |
+| POST | `/api/v1/sales/{id}/cancel` | Historial (manager+) |
+| GET | `/api/v1/sales/{id}/events` | Historial |
+| GET | `/api/v1/sales/reports/daily-summary` | Reportes |
+| GET | `/api/v1/sales/reports/product-ranking` | Reportes |
+| GET | `/api/v1/sales/reports/hourly-heatmap` | Reportes |
 
 ### Turnos
 | Método | Endpoint | Componente |
 |--------|----------|------------|
 | POST | `/api/v1/turns/open` | Turnos |
 | POST | `/api/v1/turns/{id}/close` | Turnos |
+| GET | `/api/v1/turns/{id}/summary` | Turnos |
+| POST | `/api/v1/turns/{id}/movements` | Turnos |
 
 ### Inventario
 | Método | Endpoint | Componente |
 |--------|----------|------------|
 | POST | `/api/v1/inventory/adjust` | Inventario |
+| GET | `/api/v1/inventory/alerts` | Inventario |
+| GET | `/api/v1/inventory/movements` | Inventario |
 
 ### Dashboard
 | Método | Endpoint | Componente |
 |--------|----------|------------|
 | GET | `/api/v1/dashboard/quick` | Estadísticas (30s refresh) |
+| GET | `/api/v1/dashboard/resico` | Estadísticas (15s) |
+| GET | `/api/v1/dashboard/wealth` | Estadísticas (15s, manager+) |
+| GET | `/api/v1/dashboard/ai` | Estadísticas (15s) |
+| GET | `/api/v1/dashboard/executive` | Estadísticas (15s, manager+) |
+
+### Clientes Extendido
+| Método | Endpoint | Componente |
+|--------|----------|------------|
+| GET | `/api/v1/customers/{id}/credit` | Clientes |
+| GET | `/api/v1/customers/{id}/sales` | Clientes |
+
+### Productos Extendido
+| Método | Endpoint | Componente |
+|--------|----------|------------|
+| GET | `/api/v1/products/categories/list` | Productos |
+| GET | `/api/v1/products/scan/{sku}` | Productos |
+| GET | `/api/v1/products/low-stock` | Productos |
+| POST | `/api/v1/products/stock` | RemoteTab |
+
+### Empleados
+| Método | Endpoint | Componente |
+|--------|----------|------------|
+| GET | `/api/v1/employees/` | Empleados |
+| POST | `/api/v1/employees/` | Empleados |
+| PUT | `/api/v1/employees/{id}` | Empleados |
+| DELETE | `/api/v1/employees/{id}` | Empleados |
+
+### Remoto
+| Método | Endpoint | Componente |
+|--------|----------|------------|
+| GET | `/api/v1/remote/live-sales` | Remoto |
+| GET | `/api/v1/remote/turn-status` | Remoto |
+| POST | `/api/v1/remote/open-drawer` | Remoto |
+| POST | `/api/v1/remote/change-price` | Remoto |
+| POST | `/api/v1/remote/notification` | Remoto |
+| GET | `/api/v1/remote/notifications/pending` | Remoto |
 
 ### Mermas
 | Método | Endpoint | Componente |
@@ -510,13 +738,49 @@ POST /api/v1/expenses/         Body: {amount, description, reason}
 | GET | `/api/v1/expenses/summary` | Gastos |
 | POST | `/api/v1/expenses/` | Gastos |
 
+### Fiscal (~30 endpoints, todos 15s timeout)
+| Método | Endpoint | Componente |
+|--------|----------|------------|
+| POST | `/api/v1/fiscal/generate` | Fiscal > Facturación |
+| POST | `/api/v1/fiscal/global/generate` | Fiscal > Facturación |
+| POST | `/api/v1/fiscal/returns/process` | Fiscal > Facturación |
+| GET | `/api/v1/fiscal/returns/summary` | Fiscal > Facturación |
+| POST | `/api/v1/fiscal/xml/parse` | Fiscal > Facturación |
+| POST | `/api/v1/fiscal/audit/run` | Fiscal > Auditoría |
+| POST | `/api/v1/fiscal/shaper/run` | Fiscal > Auditoría |
+| POST | `/api/v1/fiscal/supplier/analyze` | Fiscal > Auditoría |
+| GET | `/api/v1/fiscal/shadow/audit-view` | Fiscal > Inv. Fiscal |
+| GET | `/api/v1/fiscal/shadow/real-view` | Fiscal > Inv. Fiscal |
+| GET | `/api/v1/fiscal/shadow/discrepancy` | Fiscal > Inv. Fiscal |
+| POST | `/api/v1/fiscal/shadow/reconcile` | Fiscal > Inv. Fiscal |
+| POST | `/api/v1/fiscal/ghost/transfer/create` | Fiscal > Logística |
+| POST | `/api/v1/fiscal/ghost/transfer/receive` | Fiscal > Logística |
+| GET | `/api/v1/fiscal/ghost/transfer/pending` | Fiscal > Logística |
+| GET | `/api/v1/fiscal/federation/operational` | Fiscal > Federation |
+| GET | `/api/v1/fiscal/federation/fiscal` | Fiscal > Federation |
+| POST | `/api/v1/fiscal/wallet/create` | Fiscal > Wallet |
+| POST | `/api/v1/fiscal/wallet/add` | Fiscal > Wallet |
+| POST | `/api/v1/fiscal/wallet/redeem` | Fiscal > Wallet |
+| GET | `/api/v1/fiscal/wallet/stats` | Fiscal > Wallet |
+| GET | `/api/v1/fiscal/extraction/available` | Fiscal > Wallet |
+| POST | `/api/v1/fiscal/extraction/plan` | Fiscal > Wallet |
+| GET | `/api/v1/fiscal/extraction/optimal` | Fiscal > Wallet |
+| GET | `/api/v1/fiscal/crypto/available` | Fiscal > Crypto |
+| POST | `/api/v1/fiscal/crypto/convert` | Fiscal > Crypto |
+| GET | `/api/v1/fiscal/crypto/wealth` | Fiscal > Crypto |
+| POST | `/api/v1/fiscal/stealth/verify-pin` | Fiscal > Seguridad |
+| POST | `/api/v1/fiscal/stealth/configure-pins` | Fiscal > Seguridad |
+| POST | `/api/v1/fiscal/stealth/surgical-delete` | Fiscal > Seguridad |
+| POST | `/api/v1/fiscal/evasion/panic` | Fiscal > Seguridad |
+| POST | `/api/v1/fiscal/evasion/fake-screen` | Fiscal > Seguridad |
+
 ### Sistema
 | Método | Endpoint | Componente |
 |--------|----------|------------|
 | GET | `/api/v1/remote/system-status` | Configuraciones |
 | GET | `/api/v1/sync/status` | Configuraciones |
 
-**Total**: 16 endpoints únicos (11 GET, 5 POST)
+**Total**: ~70 endpoints únicos (~35 GET, ~35 POST/PUT/DELETE)
 
 ---
 
@@ -528,6 +792,7 @@ POST /api/v1/expenses/         Body: {amount, description, reason}
 | `titan.token` | string | Todos (auth header) |
 | `titan.terminalId` | string | Todos (X-Terminal-Id) |
 | `titan.user` | string | TopNavbar (display) |
+| `titan.role` | string | RBAC (cashier/manager/owner/admin) |
 | `titan.currentShift` | JSON | Turnos, Terminal |
 | `titan.shiftHistory` | JSON array | Turnos (max 100) |
 | `titan.pendingTickets` | JSON array | Terminal (pausar tickets) |
@@ -539,9 +804,11 @@ POST /api/v1/expenses/         Body: {amount, description, reason}
 ## Patrones Comunes
 
 ### Requests
-- Timeout 3s con AbortController
+- `apiFetch()`: Timeout 3s con AbortController (endpoints estándar)
+- `apiFetchLong()`: Timeout 15s (endpoints fiscal/dashboard)
 - Headers: `Authorization: Bearer`, `X-Terminal-Id`, `Content-Type: application/json`
 - 401 → clear token → redirect `/login`
+- RBAC: `getUserRole()` lee `titan.role` para condicionar UI (manager+, admin+)
 
 ### Responses
 - Wrapper flexible: `{data: {...}}` o campos en raíz

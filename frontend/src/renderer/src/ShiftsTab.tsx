@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, searchSales, openTurn, closeTurn } from './posApi'
+import { loadRuntimeConfig, searchSales, openTurn, closeTurn, getTurnSummary, createCashMovement, getUserRole } from './posApi'
 
 type ShiftRecord = {
   id: string
@@ -127,6 +127,13 @@ export default function ShiftsTab(): ReactElement {
   const [message, setMessage] = useState('Turnos (F5): apertura y cierre operativos.')
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null)
   const [reconciliation, setReconciliation] = useState<ShiftReconciliation | null>(null)
+  const [backendSummary, setBackendSummary] = useState<Record<string, unknown> | null>(null)
+  const [cashMovType, setCashMovType] = useState<'in' | 'out' | 'expense'>('in')
+  const [cashMovAmount, setCashMovAmount] = useState('')
+  const [cashMovReason, setCashMovReason] = useState('')
+  const [cashMovPin, setCashMovPin] = useState('')
+  const role = getUserRole()
+  const canManage = role === 'manager' || role === 'owner' || role === 'admin'
 
   useEffect((): (() => void) => {
     const refresh = (): void => setCurrentShift(readCurrentShift())
@@ -399,6 +406,59 @@ export default function ShiftsTab(): ReactElement {
     )
   }
 
+  async function loadBackendSummary(): Promise<void> {
+    const shift = selectedShift
+    if (!shift?.backendTurnId) {
+      setMessage('Sin ID de backend para este turno.')
+      return
+    }
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getTurnSummary(cfg, shift.backendTurnId)
+      const data = (raw.data ?? raw) as Record<string, unknown>
+      setBackendSummary(data)
+      setMessage(`Resumen backend cargado para turno ${shift.backendTurnId}.`)
+    } catch (err) {
+      setMessage((err as Error).message)
+      setBackendSummary(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCashMovement(): Promise<void> {
+    if (!currentShift?.backendTurnId) return
+    const amount = Math.max(0, Number(cashMovAmount))
+    if (amount <= 0) {
+      setMessage('Monto debe ser mayor a 0.')
+      return
+    }
+    if (!cashMovReason.trim()) {
+      setMessage('La razon del movimiento es obligatoria.')
+      return
+    }
+    if (!window.confirm(`¿Registrar ${cashMovType} de $${amount.toFixed(2)}?`)) return
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      await createCashMovement(cfg, currentShift.backendTurnId, {
+        movement_type: cashMovType,
+        amount,
+        reason: cashMovReason.trim(),
+        manager_pin: cashMovPin.trim() || undefined
+      })
+      setMessage(`Movimiento ${cashMovType} de $${amount.toFixed(2)} registrado.`)
+      setCashMovAmount('')
+      setCashMovReason('')
+      setCashMovPin('')
+    } catch (err) {
+      setMessage((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function printShiftCut(shift: ShiftRecord): void {
     const esc = (s: string): string =>
       s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -543,6 +603,13 @@ export default function ShiftsTab(): ReactElement {
           Conciliar con backend
         </button>
         <button
+          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600/20 border border-blue-500/30 px-5 py-2.5 font-bold text-blue-400 hover:bg-blue-600/40 transition-all disabled:opacity-50"
+          onClick={() => void loadBackendSummary()}
+          disabled={busy || !selectedShift?.backendTurnId}
+        >
+          Resumen Backend
+        </button>
+        <button
           className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
           onClick={() => selectedShift && exportShiftCutCsv(selectedShift)}
           disabled={busy || !selectedShift}
@@ -570,6 +637,59 @@ export default function ShiftsTab(): ReactElement {
           Aplicar esperado sugerido
         </button>
       </div>
+
+      {backendSummary && (
+        <div className="border-b border-zinc-800 bg-zinc-900 p-4">
+          <p className="text-xs font-bold text-blue-400 mb-2 uppercase">Resumen Backend</p>
+          <pre className="max-h-40 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-2 text-xs font-mono text-zinc-300">
+            {JSON.stringify(backendSummary, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {currentShift && (
+        <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[140px_140px_1fr_140px_auto]">
+          <select
+            className="rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all"
+            value={cashMovType}
+            onChange={(e) => setCashMovType(e.target.value as 'in' | 'out' | 'expense')}
+          >
+            <option value="in">Entrada</option>
+            <option value="out">Retiro</option>
+            <option value="expense">Gasto</option>
+          </select>
+          <input
+            className="rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600 placeholder:font-normal"
+            type="number"
+            min={0}
+            placeholder="Monto"
+            value={cashMovAmount}
+            onChange={(e) => setCashMovAmount(e.target.value)}
+          />
+          <input
+            className="rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600 placeholder:font-normal"
+            placeholder="Razon del movimiento"
+            value={cashMovReason}
+            onChange={(e) => setCashMovReason(e.target.value)}
+          />
+          {!canManage && (
+            <input
+              className="rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600 placeholder:font-normal"
+              type="password"
+              placeholder="PIN manager"
+              value={cashMovPin}
+              onChange={(e) => setCashMovPin(e.target.value)}
+            />
+          )}
+          <button
+            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition-all disabled:opacity-50"
+            onClick={() => void handleCashMovement()}
+            disabled={busy || !cashMovAmount || !cashMovReason.trim()}
+          >
+            Registrar Mov.
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-3">
         <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">

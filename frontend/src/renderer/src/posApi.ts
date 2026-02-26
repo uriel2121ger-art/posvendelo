@@ -119,6 +119,31 @@ async function apiFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
+async function apiFetchLong(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal })
+    if (res.status === 401) handleExpiredSession()
+    return res
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado (15s). Operacion pesada — reintenta mas tarde.')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export function getUserRole(): string {
+  try {
+    return localStorage.getItem('titan.role') ?? 'cashier'
+  } catch {
+    return 'cashier'
+  }
+}
+
 async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Response> {
   for (const path of paths) {
     const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
@@ -440,5 +465,744 @@ export async function registerExpense(
     body: JSON.stringify(expense)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Empleados ─────────────────────────────────────
+
+export async function listEmployees(
+  cfg: RuntimeConfig,
+  search?: string,
+  limit?: number,
+  offset?: number
+): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.set('search', search.trim())
+  if (limit) params.set('limit', String(limit))
+  if (offset) params.set('offset', String(offset))
+  const qs = params.toString()
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/${qs ? `?${qs}` : ''}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando empleados'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function createEmployee(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando empleado'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function updateEmployee(
+  cfg: RuntimeConfig,
+  id: number,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/${id}`, {
+    method: 'PUT',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error actualizando empleado'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function deleteEmployee(
+  cfg: RuntimeConfig,
+  id: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/${id}`, {
+    method: 'DELETE',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error eliminando empleado'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Remote ────────────────────────────────────────
+
+export async function getLiveSales(
+  cfg: RuntimeConfig,
+  limit?: number
+): Promise<Record<string, unknown>> {
+  const qs = limit ? `?limit=${limit}` : ''
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/live-sales${qs}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando ventas en vivo'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getTurnStatusRemote(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/turn-status`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error obteniendo estado turno'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function remoteOpenDrawer(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/open-drawer`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajon'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function remoteChangePrice(
+  cfg: RuntimeConfig,
+  body: { sku: string; new_price: number; reason: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/change-price`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cambiando precio'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function sendNotification(
+  cfg: RuntimeConfig,
+  body: { title: string; body: string; notification_type: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/notification`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error enviando notificacion'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getPendingNotifications(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/notifications/pending`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando notificaciones'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Dashboard Extendido ───────────────────────────
+
+export async function getDashboardResico(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/resico`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando RESICO'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getDashboardWealth(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/wealth`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando Wealth'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getDashboardAI(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/ai`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando AI'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getDashboardExecutive(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/executive`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando Executive'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Sales Extendido ───────────────────────────────
+
+export async function cancelSale(
+  cfg: RuntimeConfig,
+  saleId: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getSaleEvents(
+  cfg: RuntimeConfig,
+  saleId: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/events`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando eventos'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getDailySummaryReport(
+  cfg: RuntimeConfig,
+  branchId?: number,
+  limit?: number
+): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams()
+  if (branchId) params.set('branch_id', String(branchId))
+  if (limit) params.set('limit', String(limit))
+  const qs = params.toString()
+  const res = await apiFetch(
+    `${cfg.baseUrl}/api/v1/sales/reports/daily-summary${qs ? `?${qs}` : ''}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando reporte diario'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getProductRanking(
+  cfg: RuntimeConfig,
+  limit?: number
+): Promise<Record<string, unknown>> {
+  const qs = limit ? `?limit=${limit}` : ''
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/reports/product-ranking${qs}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando ranking'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getHourlyHeatmap(
+  cfg: RuntimeConfig,
+  branchId?: number
+): Promise<Record<string, unknown>> {
+  const qs = branchId ? `?branch_id=${branchId}` : ''
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/reports/hourly-heatmap${qs}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando heatmap'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Inventario Extendido ──────────────────────────
+
+export async function getInventoryMovements(
+  cfg: RuntimeConfig,
+  productId?: number,
+  type?: string,
+  limit?: number
+): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams()
+  if (productId) params.set('product_id', String(productId))
+  if (type) params.set('type', type)
+  if (limit) params.set('limit', String(limit))
+  const qs = params.toString()
+  const res = await apiFetch(
+    `${cfg.baseUrl}/api/v1/inventory/movements${qs ? `?${qs}` : ''}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando movimientos'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getStockAlerts(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/inventory/alerts`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando alertas'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Turnos Extendido ──────────────────────────────
+
+export async function getTurnSummary(
+  cfg: RuntimeConfig,
+  turnId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/summary`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando resumen turno'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function createCashMovement(
+  cfg: RuntimeConfig,
+  turnId: number,
+  body: { movement_type: string; amount: number; reason: string; manager_pin?: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/movements`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error registrando movimiento caja'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Clientes Extendido ────────────────────────────
+
+export async function getCustomerCredit(
+  cfg: RuntimeConfig,
+  customerId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/customers/${customerId}/credit`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando credito'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getCustomerSales(
+  cfg: RuntimeConfig,
+  customerId: number,
+  limit?: number
+): Promise<Record<string, unknown>> {
+  const qs = limit ? `?limit=${limit}` : ''
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/customers/${customerId}/sales${qs}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando ventas del cliente'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Productos Extendido ───────────────────────────
+
+export async function getProductCategories(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/products/categories/list`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando categorias'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function scanProduct(
+  cfg: RuntimeConfig,
+  sku: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/products/scan/${encodeURIComponent(sku)}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Producto no encontrado'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getLowStockProducts(
+  cfg: RuntimeConfig,
+  limit?: number
+): Promise<Record<string, unknown>> {
+  const qs = limit ? `?limit=${limit}` : ''
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/products/low-stock${qs}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando stock bajo'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function remoteStockUpdate(
+  cfg: RuntimeConfig,
+  body: { sku: string; quantity: number; operation: string; reason: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/products/stock`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error actualizando stock'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── Fiscal ────────────────────────────────────────
+
+export async function generateCFDI(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/generate`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error generando CFDI'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function generateGlobalCFDI(
+  cfg: RuntimeConfig,
+  body: { period_type: string; date: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/global/generate`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error generando CFDI global'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function processReturn(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/returns/process`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error procesando devolucion'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getReturnsSummary(
+  cfg: RuntimeConfig,
+  startDate?: string,
+  endDate?: string
+): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams()
+  if (startDate) params.set('start_date', startDate)
+  if (endDate) params.set('end_date', endDate)
+  const qs = params.toString()
+  const res = await apiFetchLong(
+    `${cfg.baseUrl}/api/v1/fiscal/returns/summary${qs ? `?${qs}` : ''}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando resumen devoluciones'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function parseXML(
+  cfg: RuntimeConfig,
+  file: File
+): Promise<Record<string, unknown>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/xml/parse`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cfg.token}`,
+      'X-Terminal-Id': String(cfg.terminalId)
+    },
+    body: formData
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error parseando XML'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function runAudit(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/audit/run`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error ejecutando auditoria'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getShadowAuditView(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shadow/audit-view`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando vista SAT'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getShadowRealView(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shadow/real-view`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando vista real'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getShadowDiscrepancy(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shadow/discrepancy`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando discrepancias'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function reconcileShadow(
+  cfg: RuntimeConfig,
+  body: { product_id: number; fiscal_stock: number }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shadow/reconcile`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error reconciliando'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function createGhostTransfer(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/ghost/transfer/create`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando transferencia'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function receiveGhostTransfer(
+  cfg: RuntimeConfig,
+  body: { transfer_code: string; user_id: number }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/ghost/transfer/receive`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error recibiendo transferencia'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getPendingGhostTransfers(
+  cfg: RuntimeConfig,
+  branch?: string
+): Promise<Record<string, unknown>> {
+  const qs = branch ? `?branch=${encodeURIComponent(branch)}` : ''
+  const res = await apiFetchLong(
+    `${cfg.baseUrl}/api/v1/fiscal/ghost/transfer/pending${qs}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando transferencias'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getFederationOperational(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/federation/operational`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando federation'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getFederationFiscal(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/federation/fiscal`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando inteligencia fiscal'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function createGhostWallet(
+  cfg: RuntimeConfig,
+  seed?: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/wallet/create`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(seed ? { seed } : {})
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando wallet'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function addWalletPoints(
+  cfg: RuntimeConfig,
+  body: { hash_id: string; sale_amount: number; sale_id?: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/wallet/add`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error agregando puntos'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function redeemWalletPoints(
+  cfg: RuntimeConfig,
+  body: { hash_id: string; amount: number }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/wallet/redeem`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error redimiendo puntos'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getWalletStats(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/wallet/stats`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando stats wallet'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getExtractionAvailable(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/extraction/available`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando extraccion disponible'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function createExtractionPlan(
+  cfg: RuntimeConfig,
+  body: { target_amount: number }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/extraction/plan`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando plan extraccion'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getOptimalExtraction(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/extraction/optimal`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando extraccion optima'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getCryptoAvailable(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/crypto/available`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando crypto disponible'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function convertCrypto(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/crypto/convert`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error convirtiendo crypto'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getCryptoWealth(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/crypto/wealth`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando crypto wealth'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function supplierAnalyze(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/supplier/analyze`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error analizando proveedor'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function verifyStealthPin(
+  cfg: RuntimeConfig,
+  body: { pin: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/stealth/verify-pin`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error verificando PIN'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function configureStealthPins(
+  cfg: RuntimeConfig,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/stealth/configure-pins`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error configurando PINs'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function surgicalDelete(
+  cfg: RuntimeConfig,
+  body: { sale_ids: string[]; confirm_phrase: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/stealth/surgical-delete`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en eliminacion'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function triggerPanic(
+  cfg: RuntimeConfig,
+  body?: { immediate?: boolean }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/evasion/panic`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body ?? {})
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en panic'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function triggerFakeScreen(
+  cfg: RuntimeConfig,
+  body?: { screen_type?: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/evasion/fake-screen`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body ?? {})
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en fake screen'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function runShaper(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shaper/run`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error ejecutando shaper'))
   return (await res.json()) as Record<string, unknown>
 }

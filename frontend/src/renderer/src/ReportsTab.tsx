@@ -1,7 +1,13 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, searchSales } from './posApi'
+import {
+  loadRuntimeConfig,
+  searchSales,
+  getDailySummaryReport,
+  getProductRanking,
+  getHourlyHeatmap
+} from './posApi'
 
 type SaleReportRow = {
   paymentMethod: string
@@ -47,13 +53,21 @@ function buildCsv(headers: string[], rows: string[][]): string {
   return [headers.join(','), ...rows.map((row) => row.map(toCsvCell).join(','))].join('\n')
 }
 
+type ReportSubTab = 'local' | 'daily' | 'ranking' | 'heatmap'
+
 export default function ReportsTab(): ReactElement {
+  const [subTab, setSubTab] = useState<ReportSubTab>('local')
   const [sales, setSales] = useState<SaleReportRow[]>([])
   const [dateFrom, setDateFrom] = useState(getIsoDateDaysAgo(7))
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Reportes operativos listos para analisis diario.')
   const requestIdRef = useRef(0)
+
+  // Extended report data
+  const [dailyData, setDailyData] = useState<Record<string, unknown>[]>([])
+  const [rankingData, setRankingData] = useState<Record<string, unknown>[]>([])
+  const [heatmapData, setHeatmapData] = useState<Record<string, unknown>[]>([])
 
   const totals = useMemo(() => {
     const totalSales = sales.length
@@ -142,10 +156,177 @@ export default function ReportsTab(): ReactElement {
     }
   }, [handleLoad])
 
+  async function loadDailySummary(): Promise<void> {
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getDailySummaryReport(cfg)
+      const data = (raw.data ?? raw.summaries ?? []) as Record<string, unknown>[]
+      setDailyData(Array.isArray(data) ? data : [])
+      setMessage(`Resumen diario: ${(Array.isArray(data) ? data : []).length} registros.`)
+    } catch (error) {
+      setMessage((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loadRanking(): Promise<void> {
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getProductRanking(cfg)
+      const data = (raw.data ?? raw.ranking ?? []) as Record<string, unknown>[]
+      setRankingData(Array.isArray(data) ? data : [])
+      setMessage(`Ranking: ${(Array.isArray(data) ? data : []).length} productos.`)
+    } catch (error) {
+      setMessage((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loadHeatmap(): Promise<void> {
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getHourlyHeatmap(cfg)
+      const data = (raw.data ?? raw.heatmap ?? []) as Record<string, unknown>[]
+      setHeatmapData(Array.isArray(data) ? data : [])
+      setMessage(`Heatmap: ${(Array.isArray(data) ? data : []).length} registros.`)
+    } catch (error) {
+      setMessage((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const subTabs: { key: ReportSubTab; label: string }[] = [
+    { key: 'local', label: 'Local' },
+    { key: 'daily', label: 'Resumen Diario' },
+    { key: 'ranking', label: 'Ranking' },
+    { key: 'heatmap', label: 'Heatmap' }
+  ]
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
       <TopNavbar />
 
+      {/* Sub-tab bar */}
+      <div className="flex items-center gap-1 border-b border-zinc-800 bg-zinc-900 p-2 overflow-x-auto shrink-0">
+        {subTabs.map((t) => (
+          <button
+            key={t.key}
+            className={`px-4 py-2 rounded font-medium text-sm transition-colors ${
+              subTab === t.key
+                ? 'bg-zinc-800 shadow-sm border border-zinc-700 font-bold text-blue-400'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+            }`}
+            onClick={() => setSubTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'daily' && (
+        <div className="flex-1 overflow-auto p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <button className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 transition-all disabled:opacity-50" onClick={() => void loadDailySummary()} disabled={busy}>
+              Cargar Resumen Diario
+            </button>
+          </div>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 bg-zinc-900/80 text-left text-xs font-bold uppercase tracking-wider text-zinc-500">
+                <th className="py-3 px-4">Fecha</th>
+                <th className="py-3 px-4">Ventas</th>
+                <th className="py-3 px-4">Monto</th>
+                <th className="py-3 px-4">Ticket Promedio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyData.length === 0 && (
+                <tr><td colSpan={4} className="py-8 text-center text-zinc-600">Haz clic en Cargar.</td></tr>
+              )}
+              {dailyData.map((d, i) => (
+                <tr key={i} className="border-b border-zinc-800/50">
+                  <td className="py-3 px-4">{String(d.date ?? d.fecha ?? '-')}</td>
+                  <td className="py-3 px-4">{String(d.sales_count ?? d.ventas ?? 0)}</td>
+                  <td className="py-3 px-4">${toNumber(d.total_amount ?? d.monto).toFixed(2)}</td>
+                  <td className="py-3 px-4">${toNumber(d.average_ticket ?? d.promedio).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {subTab === 'ranking' && (
+        <div className="flex-1 overflow-auto p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <button className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 transition-all disabled:opacity-50" onClick={() => void loadRanking()} disabled={busy}>
+              Cargar Ranking
+            </button>
+          </div>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 bg-zinc-900/80 text-left text-xs font-bold uppercase tracking-wider text-zinc-500">
+                <th className="py-3 px-4">Producto</th>
+                <th className="py-3 px-4">Cantidad</th>
+                <th className="py-3 px-4">Ingreso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankingData.length === 0 && (
+                <tr><td colSpan={3} className="py-8 text-center text-zinc-600">Haz clic en Cargar.</td></tr>
+              )}
+              {rankingData.map((d, i) => (
+                <tr key={i} className="border-b border-zinc-800/50">
+                  <td className="py-3 px-4">{String(d.product_name ?? d.sku ?? d.name ?? '-')}</td>
+                  <td className="py-3 px-4">{String(d.quantity ?? d.qty ?? 0)}</td>
+                  <td className="py-3 px-4">${toNumber(d.revenue ?? d.total).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {subTab === 'heatmap' && (
+        <div className="flex-1 overflow-auto p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <button className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 transition-all disabled:opacity-50" onClick={() => void loadHeatmap()} disabled={busy}>
+              Cargar Heatmap
+            </button>
+          </div>
+          <div className="grid grid-cols-6 md:grid-cols-12 gap-1">
+            {Array.from({ length: 24 }, (_, h) => {
+              const entry = heatmapData.find((d) => toNumber(d.hour) === h) as Record<string, unknown> | undefined
+              const count = toNumber(entry?.count ?? entry?.sales_count ?? 0)
+              const amount = toNumber(entry?.amount ?? entry?.total ?? 0)
+              const intensity = Math.min(1, count / Math.max(1, Math.max(...heatmapData.map((d) => toNumber(d.count ?? d.sales_count ?? 1)))))
+              return (
+                <div
+                  key={h}
+                  className="rounded-lg border border-zinc-800 p-2 text-center text-xs"
+                  style={{ backgroundColor: `rgba(59,130,246,${intensity * 0.6})` }}
+                  title={`${h}:00 — ${count} ventas — $${amount.toFixed(2)}`}
+                >
+                  <div className="font-bold">{h}h</div>
+                  <div>{count}</div>
+                  <div className="text-zinc-400 text-[10px]">${amount.toFixed(0)}</div>
+                </div>
+              )
+            })}
+          </div>
+          {heatmapData.length === 0 && (
+            <p className="mt-4 text-center text-zinc-600 text-sm">Haz clic en Cargar para ver el heatmap por hora.</p>
+          )}
+        </div>
+      )}
+
+      {subTab === 'local' && (<>
       <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[180px_180px_auto_auto_auto]">
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
@@ -237,6 +418,8 @@ export default function ReportsTab(): ReactElement {
           </table>
         </div>
       </div>
+
+      </>)}
 
       <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
         {message}

@@ -1,7 +1,14 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { getSaleDetail, loadRuntimeConfig, searchSales } from './posApi'
+import {
+  getSaleDetail,
+  loadRuntimeConfig,
+  searchSales,
+  cancelSale,
+  getSaleEvents,
+  getUserRole
+} from './posApi'
 
 type SaleRow = {
   id: string
@@ -64,8 +71,11 @@ export default function HistoryTab(): ReactElement {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Historial operativo: busca y revisa detalle de ventas.')
+  const [events, setEvents] = useState<Record<string, unknown>[]>([])
   const requestIdRef = useRef(0)
   const detailRequestId = useRef(0)
+  const role = getUserRole()
+  const canManage = role === 'manager' || role === 'owner' || role === 'admin'
 
   const visibleRows = useMemo(() => {
     const min = minTotal.trim() ? toNumber(minTotal) : 0
@@ -116,10 +126,39 @@ export default function HistoryTab(): ReactElement {
       if (detailRequestId.current !== reqId) return
       setDetail(payload)
       setMessage(`Detalle cargado: ${saleId}`)
+      void loadEvents(saleId)
     } catch {
       if (detailRequestId.current !== reqId) return
       setDetail(null)
       setMessage('No se pudo cargar detalle completo, mostrando resumen.')
+    }
+  }
+
+  async function handleCancelSale(): Promise<void> {
+    if (!selectedId || !canManage) return
+    if (!window.confirm('¿Cancelar esta venta? Esta accion no se puede deshacer.')) return
+    if (!window.confirm('SEGUNDA CONFIRMACION: ¿Estas seguro de cancelar?')) return
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      await cancelSale(cfg, selectedId)
+      setMessage(`Venta ${selectedId} cancelada.`)
+      void handleLoad()
+    } catch (error) {
+      setMessage((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loadEvents(saleId: string): Promise<void> {
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getSaleEvents(cfg, saleId)
+      const data = (raw.data ?? raw.events ?? []) as Record<string, unknown>[]
+      setEvents(Array.isArray(data) ? data : [])
+    } catch {
+      setEvents([])
     }
   }
 
@@ -269,6 +308,40 @@ export default function HistoryTab(): ReactElement {
                   <pre className="mt-3 max-h-80 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
                     {JSON.stringify(detail, null, 2)}
                   </pre>
+                )}
+                {canManage && (
+                  <button
+                    className="mt-3 w-full rounded-xl bg-rose-500/20 border border-rose-500/30 px-4 py-2 font-bold text-rose-400 hover:bg-rose-500/40 transition-all disabled:opacity-50 text-xs"
+                    onClick={() => void handleCancelSale()}
+                    disabled={busy}
+                  >
+                    Cancelar Venta
+                  </button>
+                )}
+                {events.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold text-zinc-400 mb-2 uppercase">Eventos</p>
+                    <div className="max-h-48 overflow-auto rounded border border-zinc-800 bg-zinc-950">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-zinc-500">
+                            <th className="px-2 py-1 text-left">#</th>
+                            <th className="px-2 py-1 text-left">Tipo</th>
+                            <th className="px-2 py-1 text-left">Fecha</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {events.map((ev, i) => (
+                            <tr key={i} className="border-b border-zinc-900">
+                              <td className="px-2 py-1">{String(ev.sequence ?? i + 1)}</td>
+                              <td className="px-2 py-1">{String(ev.event_type ?? ev.type ?? '-')}</td>
+                              <td className="px-2 py-1">{String(ev.timestamp ?? ev.created_at ?? '-').slice(0, 19).replace('T', ' ')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

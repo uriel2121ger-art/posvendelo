@@ -66,6 +66,8 @@ export default function Login(): ReactElement {
       saveRuntimeConfig({ ...cfg, token })
       try {
         localStorage.setItem('titan.user', username.trim())
+        const role = String(body.role ?? body.data?.role ?? 'cashier')
+        localStorage.setItem('titan.role', role)
       } catch {
         /* QuotaExceeded */
       }

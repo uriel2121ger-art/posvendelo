@@ -2,12 +2,87 @@ import type { ReactElement } from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, getDashboardQuick } from './posApi'
+import {
+  loadRuntimeConfig,
+  getDashboardQuick,
+  getDashboardResico,
+  getDashboardWealth,
+  getDashboardAI,
+  getDashboardExecutive,
+  getUserRole
+} from './posApi'
 
 interface QuickStats {
   ventas_hoy: number
   total_hoy: number
   mermas_pendientes: number
+}
+
+function DashboardPanel({
+  title,
+  onLoad,
+  restricted
+}: {
+  title: string
+  onLoad: () => Promise<Record<string, unknown>>
+  restricted?: boolean
+}): ReactElement {
+  const [data, setData] = useState<Record<string, unknown> | null>(null)
+  const [panelLoading, setPanelLoading] = useState(false)
+  const [panelError, setPanelError] = useState('')
+
+  async function load(): Promise<void> {
+    setPanelLoading(true)
+    setPanelError('')
+    try {
+      const raw = await onLoad()
+      setData((raw.data ?? raw) as Record<string, unknown>)
+    } catch (err) {
+      setPanelError(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setPanelLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold">{title}</h3>
+        <button
+          onClick={() => void load()}
+          disabled={panelLoading || restricted}
+          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium transition-colors disabled:opacity-50"
+        >
+          {panelLoading ? 'Cargando...' : 'Cargar'}
+        </button>
+      </div>
+      {restricted && <p className="text-xs text-zinc-500">Solo manager+</p>}
+      {panelError && <p className="text-xs text-rose-400">{panelError}</p>}
+      {data && (
+        <pre className="max-h-48 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-2 text-xs font-mono text-zinc-300">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+}
+
+function ExtendedPanels(): ReactElement {
+  const role = getUserRole()
+  const canManage = role === 'manager' || role === 'owner' || role === 'admin'
+  const cfg = loadRuntimeConfig()
+
+  return (
+    <div className="mt-8 space-y-4">
+      <h2 className="text-lg font-bold text-zinc-300">Paneles Avanzados</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DashboardPanel title="RESICO" onLoad={() => getDashboardResico(cfg)} />
+        <DashboardPanel title="Wealth" onLoad={() => getDashboardWealth(cfg)} restricted={!canManage} />
+        <DashboardPanel title="AI Insights" onLoad={() => getDashboardAI(cfg)} />
+        <DashboardPanel title="Executive" onLoad={() => getDashboardExecutive(cfg)} restricted={!canManage} />
+      </div>
+    </div>
+  )
 }
 
 export default function DashboardStatsTab(): ReactElement {
@@ -137,6 +212,9 @@ export default function DashboardStatsTab(): ReactElement {
           <div className="mt-8 text-center text-xs text-zinc-600">
             Auto-refresh cada 30 segundos
           </div>
+
+          {/* Extended Dashboard Panels */}
+          <ExtendedPanels />
         </div>
       </div>
     </div>

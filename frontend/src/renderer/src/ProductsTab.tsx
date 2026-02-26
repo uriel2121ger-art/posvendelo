@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { loadRuntimeConfig, pullTable, syncTable } from './posApi'
+import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, scanProduct, getLowStockProducts } from './posApi'
 
 type Product = {
   id?: number | string
@@ -44,6 +44,11 @@ export default function ProductsTab(): ReactElement {
     'Productos (F3): carga, alta, edicion y baja logica funcional.'
   )
   const requestIdRef = useRef(0)
+  const [categories, setCategories] = useState<string[]>([])
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [scanSku, setScanSku] = useState('')
+  const [lowStock, setLowStock] = useState<Record<string, unknown>[]>([])
+  const [showLowStock, setShowLowStock] = useState(false)
 
   const PAGE_SIZE = 50
   const [page, setPage] = useState(0)
@@ -87,6 +92,14 @@ export default function ProductsTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    void (async () => {
+      try {
+        const cfg = loadRuntimeConfig()
+        const raw = await getProductCategories(cfg)
+        const data = (raw.data ?? raw.categories ?? []) as unknown[]
+        setCategories(data.map((c) => String((c as Record<string, unknown>)?.name ?? c)).filter(Boolean))
+      } catch { /* categories are optional */ }
+    })()
     return () => {
       requestIdRef.current++
     }
@@ -192,6 +205,39 @@ export default function ProductsTab(): ReactElement {
     setMessage(`Producto seleccionado: ${product.sku}`)
   }
 
+  async function handleScan(): Promise<void> {
+    const target = scanSku.trim()
+    if (!target) return
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await scanProduct(cfg, target)
+      const data = (raw.data ?? raw) as Record<string, unknown>
+      const found = normalizeProduct(data)
+      if (found) {
+        selectProduct(found)
+        setMessage(`Producto escaneado: ${found.sku}`)
+      } else {
+        setMessage(`Sin resultados para SKU: ${target}`)
+      }
+    } catch (err) {
+      setMessage((err as Error).message)
+    }
+    setScanSku('')
+  }
+
+  async function loadLowStock(): Promise<void> {
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getLowStockProducts(cfg, 50)
+      const data = (raw.data ?? raw.products ?? []) as Record<string, unknown>[]
+      setLowStock(Array.isArray(data) ? data : [])
+      setShowLowStock(true)
+      setMessage(`Productos con stock bajo: ${Array.isArray(data) ? data.length : 0}`)
+    } catch (err) {
+      setMessage((err as Error).message)
+    }
+  }
+
   function resetForm(): void {
     setSelectedSku(null)
     setSku('')
@@ -263,6 +309,55 @@ export default function ProductsTab(): ReactElement {
           Eliminar
         </button>
       </div>
+
+      <div className="flex gap-2 border-b border-zinc-800 bg-zinc-900 px-4 py-2 items-center">
+        {categories.length > 0 && (
+          <select
+            className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="">Todas categorias</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        )}
+        <input
+          className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 w-36 placeholder:text-zinc-600"
+          placeholder="SKU a escanear"
+          value={scanSku}
+          onChange={(e) => setScanSku(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void handleScan() }}
+        />
+        <button
+          className="px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-600/40 transition-colors"
+          onClick={() => void handleScan()}
+          disabled={!scanSku.trim()}
+        >
+          Escanear
+        </button>
+        <button
+          className="px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/30 text-amber-400 text-xs font-bold hover:bg-amber-600/40 transition-colors"
+          onClick={() => (showLowStock ? setShowLowStock(false) : void loadLowStock())}
+        >
+          {showLowStock ? 'Ocultar Stock Bajo' : 'Stock Bajo'}
+        </button>
+      </div>
+
+      {showLowStock && lowStock.length > 0 && (
+        <div className="mx-4 mt-2 max-h-40 overflow-auto rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
+          <p className="text-xs font-bold text-amber-400 mb-2 uppercase">Productos con Stock Bajo</p>
+          <div className="grid grid-cols-3 gap-1 text-xs">
+            {lowStock.map((p, i) => (
+              <div key={i} className="flex justify-between rounded bg-zinc-900 px-2 py-1">
+                <span className="text-zinc-300 truncate">{String((p as Record<string, unknown>).sku ?? (p as Record<string, unknown>).name ?? `#${i}`)}</span>
+                <span className="text-amber-400 font-mono ml-2">{String((p as Record<string, unknown>).stock ?? '?')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="border-b border-zinc-800 bg-zinc-900/50 p-4 mx-4 mb-2 rounded-xl mt-4">
         <input

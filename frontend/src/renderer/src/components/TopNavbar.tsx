@@ -12,7 +12,10 @@ import {
   BarChart3,
   TrendingUp,
   AlertTriangle,
-  Receipt
+  Receipt,
+  UserCheck,
+  Radio,
+  FileStack
 } from 'lucide-react'
 
 export default function TopNavbar(): ReactElement {
@@ -30,7 +33,10 @@ export default function TopNavbar(): ReactElement {
     { path: '/configuraciones', label: 'Ajustes', icon: Settings },
     { path: '/estadisticas', label: 'Stats', icon: TrendingUp },
     { path: '/mermas', label: 'Mermas', icon: AlertTriangle },
-    { path: '/gastos', label: 'Gastos', icon: Receipt }
+    { path: '/gastos', label: 'Gastos', icon: Receipt },
+    { path: '/empleados', label: 'Empleados', icon: UserCheck },
+    { path: '/remoto', label: 'Remoto', icon: Radio },
+    { path: '/fiscal', label: 'Fiscal', icon: FileStack }
   ]
 
   return (
@@ -95,6 +101,7 @@ export default function TopNavbar(): ReactElement {
               ;[
                 'titan.token',
                 'titan.user',
+                'titan.role',
                 'titan.currentShift',
                 'titan.pendingTickets',
                 'titan.activeTickets'

@@ -12,6 +12,9 @@ import ProductsTab from './ProductsTab'
 import ReportsTab from './ReportsTab'
 import SettingsTab from './SettingsTab'
 import ShiftsTab from './ShiftsTab'
+import EmployeesTab from './EmployeesTab'
+import FiscalTab from './FiscalTab'
+import RemoteTab from './RemoteTab'
 import Terminal from './Terminal'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -297,6 +300,36 @@ function RoutedApp(): ReactElement {
           <RequireAuth>
             <TabErrorBoundary tabName="Gastos">
               <ExpensesTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/empleados"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Empleados">
+              <EmployeesTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/remoto"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Remoto">
+              <RemoteTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/fiscal"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Fiscal">
+              <FiscalTab />
             </TabErrorBoundary>
           </RequireAuth>
         }
