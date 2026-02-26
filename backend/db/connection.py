@@ -193,3 +193,12 @@ async def check_db_health() -> bool:
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return False
+
+
+def escape_like(term: str) -> str:
+    """Escape ILIKE special characters to prevent wildcard injection.
+
+    Use when building ILIKE patterns from user input:
+        params["search"] = f"%{escape_like(user_input)}%"
+    """
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

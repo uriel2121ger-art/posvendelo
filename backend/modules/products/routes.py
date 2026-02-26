@@ -11,17 +11,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from db.connection import get_db
+from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token
 from modules.products.schemas import ProductCreate, ProductUpdate, StockUpdateRemote, SimplePriceUpdate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _escape_like(term: str) -> str:
-    """Escape ILIKE special characters to prevent wildcard injection."""
-    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 # ============================================================================
@@ -50,7 +45,7 @@ async def list_products(
         params["category"] = category
     if search:
         sql += " AND (name ILIKE :search OR sku ILIKE :search OR barcode ILIKE :search)"
-        params["search"] = f"%{_escape_like(search)}%"
+        params["search"] = f"%{escape_like(search)}%"
 
     sql += " ORDER BY name LIMIT :limit OFFSET :offset"
     params["limit"] = limit
@@ -285,7 +280,7 @@ async def scan_product(sku: str, auth: dict = Depends(verify_token), db=Depends(
         """SELECT id, sku, name, stock FROM products
            WHERE is_active = 1 AND (sku ILIKE :q OR name ILIKE :q OR barcode ILIKE :q)
            LIMIT 5""",
-        {"q": f"%{_escape_like(sku)}%"},
+        {"q": f"%{escape_like(sku)}%"},
     )
     return {
         "success": True,

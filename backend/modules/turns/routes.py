@@ -111,7 +111,7 @@ async def close_turn(
         initial = float(turn["initial_cash"] or 0)
         system_sales_total = float(cash_sales)
         expected_cash = initial + system_sales_total + float(movements_in) - float(movements_out)
-        difference = body.final_cash - expected_cash
+        difference = float(body.final_cash) - expected_cash
 
         denominations_json = None
         if body.denominations:
