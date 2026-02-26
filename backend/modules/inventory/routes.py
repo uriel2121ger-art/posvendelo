@@ -107,7 +107,7 @@ async def adjust_stock(
         if new_stock < 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Stock insuficiente. Actual: {float(current_stock)}, ajuste: {body.quantity}",
+                detail=f"Stock insuficiente. Actual: {current_stock}, ajuste: {adjustment}",
             )
 
         # Update stock
@@ -117,8 +117,8 @@ async def adjust_stock(
         )
 
         # Record movement
-        mov_type = "IN" if body.quantity >= 0 else "OUT"
-        user_id = int(auth["sub"])  # Always use authenticated caller for audit
+        mov_type = "IN" if adjustment >= 0 else "OUT"
+        user_id = int(auth["sub"])
 
         await conn.execute(
             """
@@ -128,7 +128,7 @@ async def adjust_stock(
             """,
             body.product_id,
             mov_type,
-            abs(body.quantity),
+            abs(adjustment),
             body.reason,
             body.reference_id or "manual_adjust",
             user_id,
@@ -138,8 +138,8 @@ async def adjust_stock(
         "success": True,
         "data": {
             "product_id": body.product_id,
-            "previous_stock": float(current_stock),
-            "adjustment": body.quantity,
-            "new_stock": float(new_stock),
+            "previous_stock": current_stock,
+            "adjustment": adjustment,
+            "new_stock": new_stock,
         },
     }

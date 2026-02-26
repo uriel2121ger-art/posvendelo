@@ -108,10 +108,10 @@ async def close_turn(
             turn_id,
         )
 
-        initial = float(turn["initial_cash"] or 0)
-        system_sales_total = float(cash_sales)
-        expected_cash = initial + system_sales_total + float(movements_in) - float(movements_out)
-        difference = float(body.final_cash) - expected_cash
+        initial = round(float(turn["initial_cash"] or 0), 2)
+        system_sales_total = round(float(cash_sales), 2)
+        expected_cash = round(initial + system_sales_total + float(movements_in) - float(movements_out), 2)
+        difference = round(float(body.final_cash) - expected_cash, 2)
 
         denominations_json = None
         if body.denominations:
@@ -232,10 +232,10 @@ async def get_turn_summary(
         {"tid": turn_id},
     )
 
-    total_sales = sum(float(s["total"]) for s in sales_by_method)
-    movements_dict = {m["type"]: float(m["total"]) for m in movements}
+    total_sales = round(sum(float(s["total"]) for s in sales_by_method), 2)
+    movements_dict = {m["type"]: round(float(m["total"]), 2) for m in movements}
 
-    initial = float(turn["initial_cash"] or 0)
+    initial = round(float(turn["initial_cash"] or 0), 2)
 
     # Cash in register = pure cash sales + mixed_cash component (must match close_turn logic)
     cash_from_sales = await db.fetchval(
@@ -250,7 +250,7 @@ async def get_turn_summary(
         """,
         {"tid": turn_id},
     )
-    cash_sales = float(cash_from_sales)
+    cash_sales = round(float(cash_from_sales), 2)
 
     return {
         "success": True,
@@ -263,7 +263,7 @@ async def get_turn_summary(
             "cash_in": movements_dict.get("in", 0),
             "cash_out": movements_dict.get("out", 0) + movements_dict.get("expense", 0),
             "expenses": movements_dict.get("expense", 0),
-            "expected_cash": initial + cash_sales + movements_dict.get("in", 0) - movements_dict.get("out", 0) - movements_dict.get("expense", 0),
+            "expected_cash": round(initial + cash_sales + movements_dict.get("in", 0) - movements_dict.get("out", 0) - movements_dict.get("expense", 0), 2),
         },
     }
 

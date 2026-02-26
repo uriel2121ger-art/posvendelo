@@ -2,27 +2,21 @@
 TITAN POS - Inventory Module Schemas
 """
 
-import math
+from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class StockAdjustment(BaseModel):
     product_id: int
-    quantity: float = Field(..., ne=0, description="Positive to add, negative to subtract")
+    quantity: Decimal = Field(..., description="Positive to add, negative to subtract")
     reason: str = Field(..., min_length=1, max_length=500)
     reference_id: Optional[str] = Field(None, max_length=100)
-
-    @model_validator(mode='after')
-    def _reject_special_floats(self):
-        if math.isnan(self.quantity) or math.isinf(self.quantity):
-            raise ValueError('quantity: valor numerico invalido')
-        return self
 
 
 class InventoryTransfer(BaseModel):
     product_id: int
-    quantity: float = Field(..., gt=0)
+    quantity: Decimal = Field(..., gt=0)
     source_branch_id: int
     dest_branch_id: int
     notes: Optional[str] = None
@@ -31,7 +25,7 @@ class InventoryTransfer(BaseModel):
 class StockMovementResponse(BaseModel):
     id: int
     product_id: int
-    quantity: float
+    quantity: Decimal
     movement_type: str
     reason: Optional[str] = None
     reference_id: Optional[str] = None

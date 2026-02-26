@@ -42,8 +42,8 @@ def _dec(val) -> Decimal:
 
 
 def _f(val) -> float:
-    """Decimal → float for JSON response."""
-    return float(val) if val is not None else 0.0
+    """Decimal → float for JSON response (rounded to 2 decimals)."""
+    return round(float(val), 2) if val is not None else 0.0
 
 
 @dataclass(slots=True)
@@ -523,10 +523,10 @@ async def create_sale(
 
         # ── Transaction committed ──
 
-    # Calculate change
-    change = 0.0
+    # Calculate change (Decimal arithmetic to avoid float precision errors)
+    change = Decimal("0")
     if pm == "cash":
-        change = max(0.0, float(body.cash_received or 0) - _f(total_val))
+        change = max(Decimal("0"), _dec(body.cash_received or 0) - total_val)
 
     logger.info(f"Sale created: ID={sale_id}, folio={folio_visible}, total=${_f(total_val):.2f}")
 
@@ -539,7 +539,7 @@ async def create_sale(
             "subtotal": _f(subtotal_after_discount),
             "tax": _f(tax_total),
             "total": _f(total_val),
-            "change": change,
+            "change": _f(change),
             "payment_method": pm,
             "status": "completed",
         },
