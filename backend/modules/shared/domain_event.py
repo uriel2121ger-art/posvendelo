@@ -354,6 +354,10 @@ class EnhancedEventBus:
                     timestamp=ts,
                 )
                 await self.publish(event, persist=False)  # Don't re-persist
+                # Mark as processed after successful replay (publish with persist=False
+                # skips mark_processed, so we must do it explicitly here)
+                if self.store:
+                    await self.store.mark_processed(event.event_id)
                 count += 1
             except Exception as e:
                 logger.error("Failed to replay event %s: %s", event_data.get('event_id'), e)

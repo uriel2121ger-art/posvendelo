@@ -42,7 +42,7 @@ async def test_notification_lifecycle(db_session):
 
         # Mark as sent
         await db_session.execute(
-            "UPDATE remote_notifications SET sent = 1, sent_at = NOW()::text WHERE id = :id",
+            "UPDATE remote_notifications SET sent = 1, sent_at = NOW() WHERE id = :id",
             {"id": row["id"]},
         )
 

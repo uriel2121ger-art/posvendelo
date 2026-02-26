@@ -1,8 +1,10 @@
 """
 TITAN POS - Customers Module Schemas
+Uses Decimal for credit fields to match NUMERIC(12,2) in DB.
 """
 
 import re
+from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
@@ -24,7 +26,7 @@ class CustomerCreate(BaseModel):
     rfc: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = Field(None, max_length=2000)
-    credit_limit: Optional[float] = Field(0.0, ge=0)
+    credit_limit: Optional[Decimal] = Field(Decimal("0"), ge=0)
 
     @field_validator("name")
     @classmethod
@@ -47,7 +49,7 @@ class CustomerUpdate(BaseModel):
     rfc: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = Field(None, max_length=2000)
-    credit_limit: Optional[float] = Field(None, ge=0)
+    credit_limit: Optional[Decimal] = Field(None, ge=0)
     is_active: Optional[int] = Field(None, ge=0, le=1)
 
     @field_validator("rfc")
@@ -62,6 +64,6 @@ class CustomerResponse(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     rfc: Optional[str] = None
-    credit_limit: float = 0.0
-    credit_balance: float = 0.0
+    credit_limit: Decimal = Decimal("0")
+    credit_balance: Decimal = Decimal("0")
     is_active: int = 1

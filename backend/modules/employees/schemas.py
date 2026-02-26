@@ -1,11 +1,9 @@
 """
 TITAN POS - Employees Module Schemas
-
-Columns: id, employee_code, name, position, hire_date, status, is_active,
-         phone, email, base_salary, commission_rate, loan_limit,
-         current_loan_balance, user_id, notes, created_at, synced
+Uses Decimal for salary/commission fields.
 """
 
+from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -15,8 +13,8 @@ class EmployeeCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     position: Optional[str] = Field(None, max_length=100)
     hire_date: Optional[str] = Field(None, max_length=20)
-    base_salary: Optional[float] = Field(default=0.0, ge=0)
-    commission_rate: Optional[float] = Field(default=0.0, ge=0, le=1)
+    base_salary: Optional[Decimal] = Field(default=Decimal("0"), ge=0)
+    commission_rate: Optional[Decimal] = Field(default=Decimal("0"), ge=0, le=1)
     phone: Optional[str] = Field(None, max_length=30)
     email: Optional[str] = Field(None, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
@@ -27,8 +25,8 @@ class EmployeeUpdate(BaseModel):
     employee_code: Optional[str] = Field(default=None, min_length=1, max_length=50)
     position: Optional[str] = Field(None, max_length=100)
     hire_date: Optional[str] = Field(None, max_length=20)
-    base_salary: Optional[float] = Field(default=None, ge=0)
-    commission_rate: Optional[float] = Field(default=None, ge=0, le=1)
+    base_salary: Optional[Decimal] = Field(default=None, ge=0)
+    commission_rate: Optional[Decimal] = Field(default=None, ge=0, le=1)
     phone: Optional[str] = Field(None, max_length=30)
     email: Optional[str] = Field(None, max_length=200)
     notes: Optional[str] = Field(None, max_length=2000)
@@ -40,5 +38,5 @@ class EmployeeResponse(BaseModel):
     employee_code: str
     name: str
     position: Optional[str] = None
-    base_salary: float = 0.0
+    base_salary: Decimal = Decimal("0")
     is_active: int = 1

@@ -16,11 +16,9 @@ from modules.fiscal.constants import IVA_RATE
 try:
     import defusedxml.ElementTree as ET
 except ImportError:
-    import xml.etree.ElementTree as ET
-    import logging as _log
-    _log.getLogger(__name__).warning(
-        "defusedxml not installed. Using standard ElementTree. "
-        "Install defusedxml for better XXE protection: pip install defusedxml"
+    raise ImportError(
+        "defusedxml is REQUIRED for secure XML parsing. "
+        "Install it: pip install defusedxml"
     )
 
 logger = logging.getLogger(__name__)

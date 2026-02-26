@@ -46,8 +46,8 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
     auth_success = False
 
     if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
+        import bcrypt
         try:
-            import bcrypt
             auth_success = bcrypt.checkpw(
                 body.password.encode("utf-8"),
                 stored_hash.encode("utf-8"),
@@ -79,7 +79,7 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
     if not auth_success:
         raise HTTPException(status_code=401, detail="Credenciales invalidas")
 
-    role = user.get("role", "cajero")
+    role = user.get("role", "cashier")
     token = create_token(str(user["id"]), role)
 
     return TokenResponse(

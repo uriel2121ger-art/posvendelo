@@ -329,7 +329,7 @@ async def create_sale(
                     mixed_wallet, mixed_gift_card,
                     serie, folio_visible, status, synced
                 )
-                SELECT :uuid, NOW()::text,
+                SELECT :uuid, NOW(),
                        :subtotal, :tax, :total, :discount, :pm,
                        :cid, :uid, :tid_turn, :bid,
                        :cash_received, :mc, :mcard, :mt,
@@ -496,7 +496,7 @@ async def create_sale(
                     """INSERT INTO credit_history
                        (customer_id, transaction_type, movement_type, amount, balance_before, balance_after,
                         timestamp, notes, user_id)
-                       VALUES (:cid, 'CHARGE', 'CHARGE', :amount, :before, :after, NOW()::text, :notes, :uid)""",
+                       VALUES (:cid, 'CHARGE', 'CHARGE', :amount, :before, :after, NOW(), :notes, :uid)""",
                     {
                         "cid": body.customer_id,
                         "amount": total_val,
@@ -624,7 +624,7 @@ async def cancel_sale(
     auth: dict = Depends(verify_token),
 ):
     """Cancel a sale: revert stock and credit. RBAC: manager/admin/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para cancelar ventas")
     user_id = int(auth.get("sub", 0))
 
@@ -758,7 +758,7 @@ async def cancel_sale(
                        (customer_id, transaction_type, movement_type, amount,
                         balance_before, balance_after, timestamp, notes, user_id)
                        VALUES (:cid, 'REVERSAL', 'REVERSAL', :amount,
-                               :before, :after, NOW()::text, :notes, :uid)""",
+                               :before, :after, NOW(), :notes, :uid)""",
                     {
                         "cid": sale["customer_id"],
                         "amount": total_val,

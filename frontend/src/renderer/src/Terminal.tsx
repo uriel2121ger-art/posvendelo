@@ -16,6 +16,7 @@ type Product = {
   sku: string
   name: string
   price: number
+  priceWholesale?: number
   stock?: number
 }
 
@@ -24,6 +25,7 @@ type CartItem = {
   sku: string
   name: string
   price: number
+  priceWholesale?: number
   stock?: number
   qty: number
   discountPct: number
@@ -32,7 +34,7 @@ type CartItem = {
   subtotal: number
 }
 
-type PaymentMethod = 'cash' | 'card' | 'transfer'
+type PaymentMethod = 'cash' | 'card' | 'transfer' | 'mixed'
 
 type PendingTicket = {
   id: string
@@ -130,11 +132,13 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
   if (!sku || !name) return null
   const priceFields = [raw.price, raw.sale_price, raw.precio, raw.cost]
   const price = toNumber(priceFields.find((v) => v != null && toNumber(v) > 0) ?? 0)
+  const priceWholesale = toNumber(raw.price_wholesale ?? raw.priceWholesale ?? 0)
   return {
     id: (raw.id as number | string | undefined) ?? sku,
     sku,
     name,
     price,
+    priceWholesale: priceWholesale > 0 ? priceWholesale : undefined,
     stock: toNumber(raw.stock)
   }
 }
@@ -483,17 +487,15 @@ export default function Terminal(): ReactElement {
   }
 
   function updateItemQty(sku: string, nextQty: number): void {
+    if (!Number.isFinite(nextQty)) return
+    const safeQty = Math.max(1, Math.floor(nextQty))
     setCart((prev) =>
       prev.map((item) =>
         item.sku === sku
           ? {
               ...item,
-              qty: Math.max(1, Math.floor(nextQty)),
-              subtotal: calculateLineSubtotal(
-                item.price,
-                Math.max(1, Math.floor(nextQty)),
-                item.discountPct
-              )
+              qty: safeQty,
+              subtotal: calculateLineSubtotal(item.price, safeQty, item.discountPct)
             }
           : item
       )
@@ -833,12 +835,21 @@ export default function Terminal(): ReactElement {
           return
         }
         const current = cart.find((item) => item.sku === selectedCartSku)
+        if (!current) {
+          setMessage('El producto seleccionado ya no esta en el carrito.')
+          return
+        }
         const raw = window.prompt(
           'Descuento de producto seleccionado (%):',
-          String(current?.discountPct ?? 0)
+          String(current.discountPct ?? 0)
         )
         if (raw == null) return
-        updateItemDiscount(selectedCartSku, Number(raw))
+        const parsed = Number(raw)
+        if (!Number.isFinite(parsed)) {
+          setMessage('Valor de descuento invalido.')
+          return
+        }
+        updateItemDiscount(selectedCartSku, parsed)
         setMessage(`Descuento aplicado al SKU ${selectedCartSku}.`)
         return
       }
@@ -847,7 +858,12 @@ export default function Terminal(): ReactElement {
         event.preventDefault()
         const raw = window.prompt('Descuento global de la nota (%):', String(globalDiscountPct))
         if (raw == null) return
-        setGlobalDiscountPct(clampDiscount(Number(raw)))
+        const parsed = Number(raw)
+        if (!Number.isFinite(parsed)) {
+          setMessage('Valor de descuento global invalido.')
+          return
+        }
+        setGlobalDiscountPct(clampDiscount(parsed))
         setMessage('Descuento global actualizado.')
       }
 

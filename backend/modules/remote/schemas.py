@@ -1,8 +1,8 @@
 """TITAN POS - Remote Commands Module Schemas"""
 
-import math
+from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class NotificationCreate(BaseModel):
@@ -14,11 +14,5 @@ class NotificationCreate(BaseModel):
 
 class PriceChangeRemote(BaseModel):
     sku: str = Field(..., max_length=100)
-    new_price: float = Field(..., gt=0)
+    new_price: Decimal = Field(..., gt=0)
     reason: Optional[str] = Field(None, max_length=500)
-
-    @model_validator(mode='after')
-    def _reject_special_floats(self):
-        if math.isinf(self.new_price) or math.isnan(self.new_price):
-            raise ValueError('new_price: valor numerico invalido')
-        return self

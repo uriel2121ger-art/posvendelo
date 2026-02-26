@@ -77,7 +77,7 @@ async def create_employee(
     db=Depends(get_db),
 ):
     """Create a new employee. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     # Check unique employee_code
     existing = await db.fetchrow(
@@ -87,7 +87,7 @@ async def create_employee(
     if existing:
         raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
 
-    now_str = datetime.now(timezone.utc).isoformat()
+    now = datetime.utcnow()
 
     try:
         row = await db.fetchrow(
@@ -101,13 +101,13 @@ async def create_employee(
                 "code": body.employee_code,
                 "name": body.name,
                 "position": body.position,
-                "hire_date": body.hire_date if body.hire_date is not None else now_str[:10],
+                "hire_date": body.hire_date if body.hire_date is not None else now.date(),
                 "salary": body.base_salary if body.base_salary is not None else 0.0,
                 "commission": body.commission_rate if body.commission_rate is not None else 0.0,
                 "phone": body.phone,
                 "email": body.email,
                 "notes": body.notes,
-                "now": now_str,
+                "now": now,
             },
         )
     except Exception as e:
@@ -130,7 +130,7 @@ async def update_employee(
     db=Depends(get_db),
 ):
     """Update an employee. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     _ALLOWED_COLUMNS = {
         "name", "position", "employee_code", "phone", "email",
@@ -183,7 +183,7 @@ async def delete_employee(
     db=Depends(get_db),
 ):
     """Soft-delete an employee. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     conn = db.connection
     async with conn.transaction():

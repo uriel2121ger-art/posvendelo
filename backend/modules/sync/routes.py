@@ -124,11 +124,11 @@ async def sync_pull_sales(
 
     if since:
         try:
-            datetime.fromisoformat(since.replace("Z", "+00:00"))
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
             raise HTTPException(status_code=400, detail="Formato de fecha invalido para 'since'")
         sql += " AND timestamp >= :since"
-        params["since"] = since
+        params["since"] = since_dt
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit
@@ -200,7 +200,7 @@ async def sync_push(
 ):
     """Bulk upsert for products/customers. Sales are read-only from frontend."""
     role = auth.get("role", "")
-    if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden sincronizar datos")
 
     if table_name not in ALLOWED_TABLES:
@@ -275,6 +275,8 @@ async def sync_push(
                          price = EXCLUDED.price,
                          price_wholesale = EXCLUDED.price_wholesale,
                          cost = EXCLUDED.cost,
+                         stock = EXCLUDED.stock,
+                         min_stock = EXCLUDED.min_stock,
                          synced = 0,
                          updated_at = NOW()""",
                     {
@@ -314,7 +316,7 @@ async def sync_push(
                     except (ValueError, TypeError):
                         continue  # skip malformed record
                     existing = await db.fetchrow(
-                        "SELECT id FROM customers WHERE id = :id", {"id": cid_int}
+                        "SELECT id FROM customers WHERE id = :id FOR UPDATE", {"id": cid_int}
                     )
                     if existing:
                         await db.execute(

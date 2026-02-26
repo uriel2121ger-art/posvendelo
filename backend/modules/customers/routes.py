@@ -142,7 +142,7 @@ async def update_customer(
     # Only managers can modify credit_limit or is_active
     _MANAGER_FIELDS = {"credit_limit", "is_active"}
     role = auth.get("role", "")
-    if _MANAGER_FIELDS & fields.keys() and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if _MANAGER_FIELDS & fields.keys() and role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
 
     conn = db.connection
@@ -175,7 +175,7 @@ async def delete_customer(
 ):
     """Soft-delete a customer (set is_active = 0). Requires manager role."""
     role = auth.get("role", "")
-    if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden desactivar clientes")
 
     conn = db.connection

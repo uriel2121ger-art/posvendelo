@@ -22,16 +22,16 @@ async def _create_test_product(db, sku=None, stock=100.0, price=50.0, name="Test
     return row["id"], sku
 
 
-async def _create_test_employee(db):
-    """Create a test employee and return id."""
-    code = f"EMP-{uuid.uuid4().hex[:6]}"
+async def _create_test_user(db):
+    """Create a test user (turns.user_id FK → users) and return id."""
+    username = f"test-{uuid.uuid4().hex[:8]}"
     row = await db.fetchrow(
-        """INSERT INTO employees (employee_code, name, position, is_active, created_at)
-           VALUES (:code, 'Test Employee', 'cajero', 1, NOW()::text)
+        """INSERT INTO users (username, password_hash, role, name, is_active, created_at)
+           VALUES (:username, 'nologin', 'cashier', 'Test User', 1, NOW())
            RETURNING id""",
-        {"code": code},
+        {"username": username},
     )
-    return row["id"], code
+    return row["id"], username
 
 
 async def _create_test_turn(db, user_id, terminal_id=1):
@@ -72,7 +72,7 @@ async def _ensure_sequence(db, serie="A", terminal_id=1):
 async def test_create_cash_sale(db_session):
     """Simple cash sale: creates sale + items + deducts stock."""
     pid, sku = await _create_test_product(db_session, stock=50.0, price=100.0)
-    uid, emp_code = await _create_test_employee(db_session)
+    uid, uname = await _create_test_user(db_session)
     turn_id = await _create_test_turn(db_session, uid)
     await _ensure_sequence(db_session)
 
@@ -117,7 +117,13 @@ async def test_create_cash_sale(db_session):
             {"sid": sale_id, "pid": pid},
         )
 
-        # Deduct stock
+        # Lock + deduct stock (matches production FOR UPDATE pattern)
+        locked = await db_session.fetchrow(
+            "SELECT stock FROM products WHERE id = :id FOR UPDATE",
+            {"id": pid},
+        )
+        assert float(locked["stock"]) == 50.0
+
         await db_session.execute(
             "UPDATE products SET stock = stock - 1 WHERE id = :id",
             {"id": pid},
@@ -141,7 +147,7 @@ async def test_create_cash_sale(db_session):
         await db_session.execute("DELETE FROM inventory_movements WHERE reference_id IN (SELECT id FROM sales WHERE uuid = :uuid)", {"uuid": sale_uuid})
         await db_session.execute("DELETE FROM sales WHERE uuid = :uuid", {"uuid": sale_uuid})
         await db_session.execute("DELETE FROM turns WHERE id = :id", {"id": turn_id})
-        await db_session.execute("DELETE FROM employees WHERE id = :id", {"id": uid})
+        await db_session.execute("DELETE FROM users WHERE id = :id", {"id": uid})
         await db_session.execute("DELETE FROM products WHERE id = :id", {"id": pid})
 
 
@@ -171,7 +177,7 @@ async def test_create_sale_deducts_stock(db_session):
 
 async def test_create_sale_requires_open_turn(db_session):
     """Sale should fail without an open turn (query returns no rows)."""
-    uid, emp_code = await _create_test_employee(db_session)
+    uid, uname = await _create_test_user(db_session)
     try:
         # No turn created — query should return None
         turn = await db_session.fetchrow(
@@ -180,7 +186,7 @@ async def test_create_sale_requires_open_turn(db_session):
         )
         assert turn is None, "Should not find an open turn"
     finally:
-        await db_session.execute("DELETE FROM employees WHERE id = :id", {"id": uid})
+        await db_session.execute("DELETE FROM users WHERE id = :id", {"id": uid})
 
 
 async def test_create_sale_insufficient_stock(db_session):
@@ -230,7 +236,7 @@ async def test_create_sale_generates_folio(db_session):
     await _ensure_sequence(db_session, serie="T", terminal_id=99)
     sale_uuid_1 = str(uuid.uuid4())
     sale_uuid_2 = str(uuid.uuid4())
-    uid, emp_code = await _create_test_employee(db_session)
+    uid, uname = await _create_test_user(db_session)
     turn_id = await _create_test_turn(db_session, uid, terminal_id=99)
 
     try:
@@ -282,10 +288,10 @@ async def test_create_sale_generates_folio(db_session):
         assert num2 == num1 + 1
 
     finally:
-        await db_session.execute("DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE uuid IN (:u1, :u2))", {"u1": sale_uuid_1, "u2": sale_uuid_2})
-        await db_session.execute("DELETE FROM sales WHERE uuid IN (:u1, :u2)", {"u1": sale_uuid_1, "u2": sale_uuid_2})
+        await db_session.execute("DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE uuid = ANY(:uuids::text[]))", {"uuids": [sale_uuid_1, sale_uuid_2]})
+        await db_session.execute("DELETE FROM sales WHERE uuid = ANY(:uuids::text[])", {"uuids": [sale_uuid_1, sale_uuid_2]})
         await db_session.execute("DELETE FROM turns WHERE id = :id", {"id": turn_id})
-        await db_session.execute("DELETE FROM employees WHERE id = :id", {"id": uid})
+        await db_session.execute("DELETE FROM users WHERE id = :id", {"id": uid})
         await db_session.execute("DELETE FROM secuencias WHERE serie = 'T' AND terminal_id = 99")
 
 

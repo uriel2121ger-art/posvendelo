@@ -6,15 +6,20 @@
 -- Description: Adds missing columns to backups table (compressed, encrypted,
 --              status, backup_type, expires_at) and related_persons table
 --              (relationship)
+-- Fixed: Added IF NOT EXISTS + BEGIN/COMMIT for idempotency
 -- =============================================================================
 
+BEGIN;
+
 -- Add missing columns to backups table
-ALTER TABLE backups ADD COLUMN compressed INTEGER DEFAULT 0;
-ALTER TABLE backups ADD COLUMN encrypted INTEGER DEFAULT 0;
-ALTER TABLE backups ADD COLUMN status TEXT DEFAULT 'active';
-ALTER TABLE backups ADD COLUMN backup_type TEXT DEFAULT 'local';
-ALTER TABLE backups ADD COLUMN expires_at TEXT;
-ALTER TABLE backups ADD COLUMN notes TEXT;
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS compressed INTEGER DEFAULT 0;
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS encrypted INTEGER DEFAULT 0;
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS backup_type TEXT DEFAULT 'local';
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS expires_at TEXT;
+ALTER TABLE backups ADD COLUMN IF NOT EXISTS notes TEXT;
 
 -- Add missing column to related_persons table
-ALTER TABLE related_persons ADD COLUMN relationship TEXT;
+ALTER TABLE related_persons ADD COLUMN IF NOT EXISTS relationship TEXT;
+
+COMMIT;

@@ -3,7 +3,10 @@
 -- =============================================================================
 -- Fecha: 2026-01-17
 -- Descripción: Agrega columnas necesarias para Multi-Emitter Engine
+-- Fixed: Added BEGIN/COMMIT for atomicity
 -- =============================================================================
+
+BEGIN;
 
 -- Agregar columnas faltantes a emitters si no existen
 ALTER TABLE emitters ADD COLUMN IF NOT EXISTS current_annual_sum DECIMAL(15,2) DEFAULT 0;
@@ -19,3 +22,5 @@ ALTER TABLE emitters ADD COLUMN IF NOT EXISTS updated_at TEXT;
 
 -- Actualizar is_primary basado en is_default si existe
 UPDATE emitters SET is_primary = is_default WHERE is_default = 1;
+
+COMMIT;

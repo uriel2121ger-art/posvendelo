@@ -339,6 +339,7 @@ export type SaleItemPayload = {
   name?: string
   qty: number
   price: number
+  price_wholesale?: number
   discount: number
   is_wholesale: boolean
   price_includes_tax: boolean
@@ -356,6 +357,8 @@ export type CreateSalePayload = {
   mixed_cash?: number
   mixed_card?: number
   mixed_transfer?: number
+  mixed_wallet?: number
+  mixed_gift_card?: number
 }
 
 export async function createSale(

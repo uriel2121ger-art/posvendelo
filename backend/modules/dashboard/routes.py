@@ -76,8 +76,8 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
     """Quick status widget — ventas hoy, mermas pendientes."""
     sales = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE timestamp >= CURRENT_DATE::text
-           AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'"""
+           FROM sales WHERE timestamp >= CURRENT_DATE::timestamp
+           AND timestamp < (CURRENT_DATE + 1)::timestamp AND status = 'completed'"""
     )
 
     mermas = await db.fetchrow(
@@ -142,7 +142,7 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
 @router.get("/wealth")
 async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de riqueza real (asyncpg). RBAC: admin/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo gerentes/admin")
 
     try:
@@ -251,7 +251,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
 @router.get("/executive")
 async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard ejecutivo (asyncpg). RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo admin/manager")
 
     kpis = await db.fetchrow(
@@ -259,14 +259,14 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
                   COALESCE(SUM(total), 0) as revenue,
                   CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(total), 0) / COUNT(*) ELSE 0 END as avg_ticket
            FROM sales
-           WHERE timestamp >= CURRENT_DATE::text AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'"""
+           WHERE timestamp >= CURRENT_DATE::timestamp AND timestamp < (CURRENT_DATE + 1)::timestamp AND status = 'completed'"""
     )
 
     hourly = await db.fetch(
         """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
-           WHERE timestamp >= CURRENT_DATE::text AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'
+           WHERE timestamp >= CURRENT_DATE::timestamp AND timestamp < (CURRENT_DATE + 1)::timestamp AND status = 'completed'
            GROUP BY hour ORDER BY hour"""
     )
 
@@ -275,7 +275,7 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
            FROM sale_items si
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
-           WHERE s.timestamp >= CURRENT_DATE::text AND s.timestamp < (CURRENT_DATE + 1)::text AND s.status = 'completed'
+           WHERE s.timestamp >= CURRENT_DATE::timestamp AND s.timestamp < (CURRENT_DATE + 1)::timestamp AND s.status = 'completed'
            GROUP BY p.name ORDER BY qty DESC LIMIT 5"""
     )
 

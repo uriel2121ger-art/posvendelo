@@ -210,7 +210,7 @@ async def run_ticket_shaper(
 ):
     """Run the Autonomous Ticket Shaper Orchestrator."""
     try:
-        from modules.fiscal.nostradamus_fiscal import NostradamusFiscal
+        from modules.fiscal.fiscal_forecast import NostradamusFiscal
         orchestrator = NostradamusFiscal(db)
 
         result = await orchestrator.execute_daily_strategy()
@@ -325,7 +325,7 @@ async def run_general_guerra(
 ):
     """Run the AI Cross-Auditor to evaluate fiscal and materiality blind spots."""
     try:
-        from modules.fiscal.general_guerra import GeneralDeGuerra
+        from modules.fiscal.internal_audit import GeneralDeGuerra
         auditor = GeneralDeGuerra(db)
         
         result = await auditor.run_full_audit()
@@ -350,7 +350,7 @@ async def create_ghost_wallet(
 ):
     """Create a new anonymous Ghost Wallet."""
     try:
-        from modules.fiscal.ghost_wallet import GhostWallet
+        from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
         
         hash_id = await wallet.generate_hash_id(request.seed)
@@ -368,7 +368,7 @@ async def ghost_wallet_add_points(
 ):
     """Add points to a Ghost Wallet for a Serie B sale."""
     try:
-        from modules.fiscal.ghost_wallet import GhostWallet
+        from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
         
         result = await wallet.add_points(request.hash_id, request.sale_amount, request.sale_id)
@@ -390,7 +390,7 @@ async def ghost_wallet_redeem(
 ):
     """Redeem points from a Ghost Wallet."""
     try:
-        from modules.fiscal.ghost_wallet import GhostWallet
+        from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
         
         result = await wallet.redeem_points(request.hash_id, request.amount)
@@ -411,7 +411,7 @@ async def get_ghost_wallet_stats(
 ):
     """Get global stats for the Ghost Wallet program."""
     try:
-        from modules.fiscal.ghost_wallet import GhostWallet
+        from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
         
         stats = await wallet.get_wallet_stats()
@@ -433,7 +433,7 @@ async def get_operational_dashboard(
 ):
     """Get real-time operational dashboard across all branches."""
     try:
-        from modules.fiscal.federation_dashboard import FederationDashboard
+        from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
         return {"success": True, "data": await fd.get_operational_dashboard()}
     except Exception as e:
@@ -447,7 +447,7 @@ async def get_fiscal_intelligence(
 ):
     """Get RESICO capacity and fiscal intelligence across all RFCs."""
     try:
-        from modules.fiscal.federation_dashboard import FederationDashboard
+        from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
         return {"success": True, "data": await fd.get_fiscal_intelligence()}
     except Exception as e:
@@ -461,7 +461,7 @@ async def get_wealth_dashboard(
 ):
     """Get the real wealth dashboard (Serie A + B - Extractions)."""
     try:
-        from modules.fiscal.federation_dashboard import FederationDashboard
+        from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
         return {"success": True, "data": await fd.get_wealth_dashboard()}
     except Exception as e:
@@ -476,7 +476,7 @@ async def remote_lockdown(
 ):
     """Order a remote lockdown of a specific branch."""
     try:
-        from modules.fiscal.federation_dashboard import FederationDashboard
+        from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
         result = await fd.remote_lockdown(request.branch_id)
         return result
@@ -492,7 +492,7 @@ async def release_lockdown(
 ):
     """Release a branch lockdown with authorization code."""
     try:
-        from modules.fiscal.federation_dashboard import FederationDashboard
+        from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
         result = await fd.release_lockdown(request.branch_id, request.auth_code)
         if result.get("success"): return result
@@ -510,11 +510,12 @@ async def release_lockdown(
 @router.post("/stealth/verify-pin")
 async def verify_stealth_pin(
     request: VerifyPinRequest,
+    auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
     """Verify PIN and determine access mode (normal, duress, wipe)."""
     try:
-        from modules.fiscal.stealth_layer import StealthLayer
+        from modules.fiscal.data_privacy_layer import StealthLayer
         layer = StealthLayer(db)
         return await layer.verify_pin(request.pin)
     except Exception as e:
@@ -529,7 +530,7 @@ async def configure_stealth_pins(
 ):
     """Configure 3-tier PINs (normal, duress, wipe)."""
     try:
-        from modules.fiscal.stealth_layer import StealthLayer
+        from modules.fiscal.data_privacy_layer import StealthLayer
         layer = StealthLayer(db)
         result = await layer.configure_pins(request.normal_pin, request.duress_pin, request.wipe_pin)
         if result.get("success"): return result
@@ -546,10 +547,10 @@ async def surgical_delete(
     db=Depends(get_db),
 ):
     """Surgically delete Serie B tickets that were later invoiced."""
-    if auth.get("role") not in ("admin", "owner", "dueño"):
+    if auth.get("role") not in ("admin", "owner"):
         raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar esta operación")
     try:
-        from modules.fiscal.stealth_layer import StealthLayer
+        from modules.fiscal.data_privacy_layer import StealthLayer
         layer = StealthLayer(db)
         result = await layer.surgical_delete(request.sale_ids, request.confirm_phrase)
         if result.get("success"): return result
@@ -596,7 +597,7 @@ async def get_extraction_available(
 ):
     """Get available cash for extraction and remaining limits."""
     try:
-        from modules.fiscal.predictive_extraction import PredictiveExtraction
+        from modules.fiscal.smart_withdrawal import PredictiveExtraction
         pe = PredictiveExtraction(db)
         return {"success": True, "data": await pe.analyze_available()}
     except Exception as e:
@@ -611,7 +612,7 @@ async def generate_extraction_plan(
 ):
     """Generate a smoothed extraction plan over multiple days."""
     try:
-        from modules.fiscal.predictive_extraction import PredictiveExtraction
+        from modules.fiscal.smart_withdrawal import PredictiveExtraction
         pe = PredictiveExtraction(db)
         result = await pe.generate_extraction_plan(request.target_amount)
         if result.get("success"): return result
@@ -628,7 +629,7 @@ async def get_optimal_daily_extraction(
 ):
     """Get the AI-calculated optimal daily extraction amount."""
     try:
-        from modules.fiscal.predictive_extraction import PredictiveExtraction
+        from modules.fiscal.smart_withdrawal import PredictiveExtraction
         pe = PredictiveExtraction(db)
         return {"success": True, "data": await pe.get_optimal_daily_amount()}
     except Exception as e:
@@ -647,7 +648,7 @@ async def get_crypto_available(
 ):
     """Get available funds for stablecoin conversion."""
     try:
-        from modules.fiscal.crypto_bridge import CryptoBridge
+        from modules.fiscal.liquidity_bridge import CryptoBridge
         bridge = CryptoBridge(db)
         return {"success": True, "data": await bridge.get_available_for_conversion()}
     except Exception as e:
@@ -662,7 +663,7 @@ async def create_crypto_conversion(
 ):
     """Create a new MXN -> stablecoin conversion."""
     try:
-        from modules.fiscal.crypto_bridge import CryptoBridge
+        from modules.fiscal.liquidity_bridge import CryptoBridge
         bridge = CryptoBridge(db)
         result = await bridge.create_conversion(
             amount_mxn=request.amount_mxn, stablecoin=request.stablecoin,
@@ -682,7 +683,7 @@ async def get_crypto_wealth(
 ):
     """Get total crypto wealth across all cold wallets."""
     try:
-        from modules.fiscal.crypto_bridge import CryptoBridge
+        from modules.fiscal.liquidity_bridge import CryptoBridge
         bridge = CryptoBridge(db)
         return {"success": True, "data": await bridge.get_crypto_wealth()}
     except Exception as e:
@@ -700,10 +701,10 @@ async def trigger_panic(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    if auth.get("role") not in ("admin", "owner", "dueño"):
+    if auth.get("role") not in ("admin", "owner"):
         raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar esta operación")
     try:
-        from modules.fiscal.evasion_master import EvasionMaster
+        from modules.fiscal.system_maintenance import EvasionMaster
         em = EvasionMaster(db)
         em.arm()
         result = em.trigger_panic(immediate=request.immediate)
@@ -719,7 +720,7 @@ async def trigger_fake_screen(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.evasion_master import EvasionMaster
+        from modules.fiscal.system_maintenance import EvasionMaster
         em = EvasionMaster(db)
         return em.trigger_screen_with_protection(request.screen_type)
     except Exception as e:
@@ -733,7 +734,7 @@ async def simulate_dead_drive(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.evasion_master import EvasionMaster
+        from modules.fiscal.system_maintenance import EvasionMaster
         em = EvasionMaster(db)
         result = em.simulate_dead_drive(request.device, request.confirm)
         if result.get('success'): return result
@@ -755,7 +756,7 @@ async def create_ghost_transfer(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.ghost_carrier import GhostCarrier
+        from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
         result = await gc.create_transfer(request.origin, request.destination, request.items, request.user_id, request.notes)
         if result.get('success'): return result
@@ -772,7 +773,7 @@ async def receive_ghost_transfer(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.ghost_carrier import GhostCarrier
+        from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
         result = await gc.receive_transfer(request.transfer_code, request.user_id)
         if result.get('success'): return result
@@ -789,7 +790,7 @@ async def get_pending_ghost_transfers(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.ghost_carrier import GhostCarrier
+        from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
         return {"success": True, "transfers": await gc.get_pending_transfers(branch)}
     except Exception as e:
@@ -803,7 +804,7 @@ async def get_warehouse_slip(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.ghost_carrier import GhostCarrier
+        from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
         slip = await gc.generate_warehouse_slip(transfer_code)
         if slip: return {"success": True, "slip": slip}
@@ -825,7 +826,7 @@ async def get_dual_stock(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         return await si.get_dual_stock(product_id)
     except Exception as e:
@@ -839,7 +840,7 @@ async def add_shadow_stock(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         result = await si.add_shadow_stock(request.product_id, request.quantity, request.source, request.notes)
         if result.get('success'): return result
@@ -856,7 +857,7 @@ async def shadow_sell(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         result = await si.sell_with_attribution(request.product_id, request.quantity, request.serie)
         if result.get('success'): return result
@@ -872,7 +873,7 @@ async def get_audit_view(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         return {"success": True, "products": await si.get_audit_view()}
     except Exception as e:
@@ -885,7 +886,7 @@ async def get_real_view(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         return {"success": True, "products": await si.get_real_view()}
     except Exception as e:
@@ -898,7 +899,7 @@ async def get_discrepancy_report(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         return {"success": True, "data": await si.get_discrepancy_report()}
     except Exception as e:
@@ -912,7 +913,7 @@ async def reconcile_fiscal(
     db=Depends(get_db),
 ):
     try:
-        from modules.fiscal.shadow_inventory import ShadowInventory
+        from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
         result = await si.reconcile_fiscal(request.product_id, request.fiscal_stock)
         if result.get('success'): return result

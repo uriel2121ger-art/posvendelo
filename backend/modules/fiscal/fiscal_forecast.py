@@ -235,7 +235,7 @@ class NostradamusFiscal:
             logger.info("Ejecutando prescripción: move_b_to_a")
             
             # 1. Obtener la selección óptima de CerebroContable
-            from modules.fiscal.cerebro_contable import CerebroContable
+            from modules.fiscal.accounting_engine import CerebroContable
             from modules.fiscal.global_invoicing import GlobalInvoicingService
             
             cerebro = CerebroContable(self.db)

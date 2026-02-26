@@ -1,6 +1,8 @@
 -- Migration 020: Performance indexes identified in deep audit (Feb 24, 2026)
 -- These indexes address full table scans in dashboard, turns, inventory, and search queries.
 
+BEGIN;
+
 -- Cash movements: used in close_turn, get_turn_summary, expenses
 CREATE INDEX IF NOT EXISTS idx_cash_movements_turn_id ON cash_movements(turn_id);
 CREATE INDEX IF NOT EXISTS idx_cash_movements_type ON cash_movements(type);
@@ -31,3 +33,5 @@ CREATE INDEX IF NOT EXISTS idx_products_barcode_trgm ON products USING gin(barco
 
 -- Customers: phone trigram for search
 CREATE INDEX IF NOT EXISTS idx_customers_phone_trgm ON customers USING gin(phone gin_trgm_ops);
+
+COMMIT;

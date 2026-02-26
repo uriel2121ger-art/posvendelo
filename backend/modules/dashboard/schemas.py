@@ -1,27 +1,28 @@
 """TITAN POS - Dashboard Module Schemas"""
 
+from decimal import Decimal
 from pydantic import BaseModel
 
 
 class ResicoDashboard(BaseModel):
-    serie_a: float
-    serie_b: float
-    total: float
-    limite_resico: float = 3_500_000.0
-    restante: float
-    porcentaje: float
-    proyeccion_anual: float
+    serie_a: Decimal
+    serie_b: Decimal
+    total: Decimal
+    limite_resico: Decimal = Decimal("3500000")
+    restante: Decimal
+    porcentaje: Decimal
+    proyeccion_anual: Decimal
     status: str
     dias_restantes: int
 
 
 class QuickStatus(BaseModel):
     ventas_hoy: int
-    total_hoy: float
+    total_hoy: Decimal
     mermas_pendientes: int
     timestamp: str
 
 
 class ExpensesSummary(BaseModel):
-    month: float
-    year: float
+    month: Decimal
+    year: Decimal

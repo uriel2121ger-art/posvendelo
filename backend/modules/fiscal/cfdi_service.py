@@ -7,6 +7,7 @@ Uses :name params and db.fetch/db.fetchrow/db.execute.
 
 from typing import Any, Dict, Optional
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import aiofiles
 
@@ -340,8 +341,11 @@ class CFDIService:
         "sale_id", "uuid", "folio", "serie", "fecha", "rfc_emisor", "rfc_receptor",
         "razon_social_emisor", "razon_social_receptor", "subtotal", "impuestos", "total",
         "moneda", "metodo_pago", "forma_pago", "uso_cfdi", "tipo_comprobante",
-        "regimen_fiscal", "lugar_expedicion", "xml_path", "xml_timbrado",
-        "emitter_rfc", "receiver_rfc", "status", "created_at", "updated_at",
+        "regimen_fiscal", "lugar_expedicion", "xml_path", "xml_timbrado", "xml_original",
+        "emitter_rfc", "receiver_rfc", "status", "estado", "created_at", "updated_at",
+        "nombre_receptor", "regimen_receptor", "facturapi_id",
+        "fecha_emision", "fecha_timbrado", "fecha_cancelacion", "motivo_cancelacion",
+        "cfdi_relacionado", "tipo_relacion",
     })
 
     async def _save_cfdi(self, cfdi_data: Dict[str, Any]) -> int:
@@ -474,8 +478,13 @@ class CFDIService:
             if not items:
                 return {"success": False, "error": "No hay productos para la nota de credito"}
 
-            subtotal = sum(float(item.get("total", 0)) for item in items)
-            tax = subtotal * IVA_RATE
+            subtotal = sum(
+                (Decimal(str(item.get("total", 0))) for item in items),
+                Decimal("0"),
+            )
+            tax = (subtotal * Decimal(str(IVA_RATE))).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             total = subtotal + tax
 
             credit_note_data = {

@@ -29,7 +29,7 @@ async def test_approve_merma_lifecycle(db_session):
 
     # Approve
     await db_session.execute(
-        """UPDATE loss_records SET status = 'approved', authorized_by = 1, authorized_at = NOW()::text
+        """UPDATE loss_records SET status = 'approved', authorized_by = 1, authorized_at = NOW()
            WHERE id = :id""",
         {"id": mid},
     )
@@ -53,7 +53,7 @@ async def test_reject_merma(db_session):
     mid = row["id"]
 
     await db_session.execute(
-        """UPDATE loss_records SET status = 'rejected', authorized_by = 1, authorized_at = NOW()::text
+        """UPDATE loss_records SET status = 'rejected', authorized_by = 1, authorized_at = NOW()
            WHERE id = :id""",
         {"id": mid},
     )

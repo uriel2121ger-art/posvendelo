@@ -15,7 +15,7 @@ async def test_login_valid_sha256(db_session):
     try:
         await db_session.execute(
             """INSERT INTO users (username, password_hash, role, is_active, created_at)
-               VALUES (:username, :pw_hash, 'cajero', 1, NOW())""",
+               VALUES (:username, :pw_hash, 'cashier', 1, NOW())""",
             {"username": username, "pw_hash": pw_hash},
         )
 
@@ -45,7 +45,7 @@ async def test_login_invalid_password(db_session):
     try:
         await db_session.execute(
             """INSERT INTO users (username, password_hash, role, is_active, created_at)
-               VALUES (:username, :pw_hash, 'cajero', 1, NOW())""",
+               VALUES (:username, :pw_hash, 'cashier', 1, NOW())""",
             {"username": username, "pw_hash": pw_hash},
         )
 

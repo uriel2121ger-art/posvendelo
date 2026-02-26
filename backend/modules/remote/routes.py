@@ -40,7 +40,7 @@ async def remote_open_drawer(
     db=Depends(get_db),
 ):
     """Open cash drawer remotely. RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para abrir cajon")
 
     try:
@@ -165,7 +165,7 @@ async def send_notification(
     db=Depends(get_db),
 ):
     """Send notification to POS. Uses real DB columns (body, notification_type, sent)."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos")
 
     row = await db.fetchrow(
@@ -205,7 +205,7 @@ async def get_pending_notifications(
         if notifications:
             ids = [n["id"] for n in notifications]
             await conn.execute(
-                "UPDATE remote_notifications SET sent = 1, sent_at = NOW()::text WHERE id = ANY($1::int[])",
+                "UPDATE remote_notifications SET sent = 1, sent_at = NOW() WHERE id = ANY($1::int[])",
                 ids,
             )
 
@@ -231,7 +231,7 @@ async def remote_change_price(
     db=Depends(get_db),
 ):
     """Change product price remotely with audit trail. RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
 
     async with db.connection.transaction():

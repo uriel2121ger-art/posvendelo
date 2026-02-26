@@ -75,6 +75,16 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
     # Temporarily replace :: casts to avoid confusing them with params
     sql = sql.replace("::", "\x00CAST\x00")
 
+    # Protect string literals from param substitution
+    # Extract 'quoted strings' before processing params, then restore them
+    string_literals: list = []
+
+    def _save_literal(match):
+        string_literals.append(match.group(0))
+        return f"\x00STR{len(string_literals) - 1}\x00"
+
+    sql = re.sub(r"'(?:[^'\\]|\\.)*'", _save_literal, sql)
+
     param_order: list = []
 
     def replacer(match):
@@ -85,6 +95,10 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
         return f"${idx}"
 
     converted = re.sub(r":(\w+)", replacer, sql)
+
+    # Restore string literals
+    for i, literal in enumerate(string_literals):
+        converted = converted.replace(f"\x00STR{i}\x00", literal)
 
     # Restore :: casts
     converted = converted.replace("\x00CAST\x00", "::")

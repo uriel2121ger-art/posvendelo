@@ -51,8 +51,8 @@ async def test_wealth_requires_admin(db_session):
     from modules.shared.auth import create_token, SECRET_KEY, ALGORITHM
     import jwt
 
-    # Create a token with 'cajero' role
-    token = create_token("99", "cajero")
+    # Create a token with 'cashier' role
+    token = create_token("99", "cashier")
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    assert payload["role"] == "cajero"
-    assert payload["role"] not in ("admin", "owner", "dueño")
+    assert payload["role"] == "cashier"
+    assert payload["role"] not in ("admin", "manager", "owner")

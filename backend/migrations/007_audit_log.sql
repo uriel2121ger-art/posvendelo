@@ -6,7 +6,7 @@
 -- Main audit log table
 CREATE TABLE IF NOT EXISTS audit_log (
     id BIGSERIAL PRIMARY KEY,
-    timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     user_id INTEGER,
     username TEXT,
     action TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     ip_address TEXT,
     turn_id INTEGER,
     branch_id INTEGER,
-    success BOOLEAN DEFAULT 1,
+    success BOOLEAN DEFAULT TRUE,
     error_message TEXT,
     details TEXT
 );

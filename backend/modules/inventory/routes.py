@@ -86,7 +86,7 @@ async def adjust_stock(
     Records an inventory_movement for audit trail.
     RBAC: admin/manager/owner only.
     """
-    if auth.get("role") not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para ajustar inventario")
 
     conn = db.connection
@@ -123,8 +123,8 @@ async def adjust_stock(
         await conn.execute(
             """
             INSERT INTO inventory_movements
-                (product_id, movement_type, type, quantity, reason, reference_type, user_id, timestamp)
-            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, NOW())
+                (product_id, movement_type, type, quantity, reason, reference_type, user_id, timestamp, synced)
+            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, NOW(), 0)
             """,
             body.product_id,
             mov_type,

@@ -8,7 +8,7 @@ Columns: id, user_id, pos_id, branch_id, terminal_id, start_timestamp, end_times
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -42,12 +42,12 @@ async def open_turn(
                 detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
             )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         row = await conn.fetchrow(
             """
-            INSERT INTO turns (user_id, branch_id, initial_cash, status, notes, start_timestamp)
-            VALUES ($1, $2, $3, 'open', $4, $5)
+            INSERT INTO turns (user_id, branch_id, initial_cash, status, notes, start_timestamp, synced)
+            VALUES ($1, $2, $3, 'open', $4, $5, 0)
             RETURNING id
             """,
             user_id, body.branch_id, body.initial_cash, body.notes, now,
@@ -81,10 +81,10 @@ async def close_turn(
         # Ownership check: only the turn owner or manager+ can close
         user_id = int(auth.get("sub", 0))
         role = auth.get("role", "")
-        if turn["user_id"] != user_id and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        if turn["user_id"] != user_id and role not in ("admin", "manager", "owner"):
             raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         # Calculate expected: initial + cash sales (pure + mixed component) + cash_in - cash_out
         cash_sales = await conn.fetchval(
@@ -157,7 +157,7 @@ async def get_current_turn(
     uid = int(auth["sub"])
     if user_id and user_id != uid:
         role = auth.get("role", "")
-        if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+        if role not in ("admin", "manager", "owner"):
             raise HTTPException(status_code=403, detail="Sin permisos para ver turnos de otros usuarios")
         uid = user_id
 
@@ -190,7 +190,7 @@ async def get_turn(
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     uid = int(auth.get("sub", 0))
     role = auth.get("role", "")
-    if row["user_id"] != uid and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if row["user_id"] != uid and role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
     return {"success": True, "data": row}
 
@@ -209,7 +209,7 @@ async def get_turn_summary(
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     uid = int(auth.get("sub", 0))
     role = auth.get("role", "")
-    if turn["user_id"] != uid and role not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if turn["user_id"] != uid and role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
 
     sales_by_method = await db.fetch(
@@ -278,7 +278,7 @@ async def create_cash_movement(
     """Register a cash movement (in/out) for a turn. Requires manager PIN for non-managers."""
     user_id = int(auth["sub"])
     role = auth.get("role", "")
-    is_manager = role in ("admin", "manager", "owner", "gerente", "dueño")
+    is_manager = role in ("admin", "manager", "owner")
 
     # Verify manager PIN for non-manager roles (pre-compute hash before transaction)
     pin_hash = None
@@ -298,7 +298,7 @@ async def create_cash_movement(
         if pin_hash:
             mgr_check = await conn.fetchrow(
                 "SELECT id FROM employees WHERE pin_hash = $1 AND is_active = 1 "
-                "AND position IN ('gerente', 'dueño', 'admin', 'manager', 'owner')",
+                "AND position IN ('admin', 'manager', 'owner')",
                 pin_hash,
             )
             if not mgr_check:
@@ -313,7 +313,7 @@ async def create_cash_movement(
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno esta cerrado")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         row = await conn.fetchrow(
             """

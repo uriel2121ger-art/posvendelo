@@ -80,8 +80,7 @@ export default function TopNavbar(): ReactElement {
                 (k) => localStorage.removeItem(k)
               )
             } catch { /* storage inaccessible — proceed with redirect */ }
-            window.location.hash = '#/login'
-            window.location.reload()
+            navigate('/login')
           }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"
           title="Cerrar Sesion"

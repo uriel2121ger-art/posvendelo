@@ -180,6 +180,9 @@ class CFDIBuilder:
         # VALIDACIÓN SAT CRÍTICA: PPD requiere 99, PUE no puede ser 99
         validate_payment_logic(metodo_pago, forma_pago)
         
+        subtotal = Decimal(str(sale_data.get('subtotal', 0)))
+        total = Decimal(str(sale_data.get('total', 0)))
+
         attrs = {
             'Version': '4.0',
             'Serie': self.config.get('serie_factura', 'F'),
@@ -189,16 +192,17 @@ class CFDIBuilder:
             'MetodoPago': metodo_pago,
             'TipoDeComprobante': 'I',  # Ingreso
             'LugarExpedicion': self.config.get('lugar_expedicion', '00000'),
-            'SubTotal': f"{sale_data.get('subtotal', 0):.2f}",
-            'Total': f"{sale_data.get('total', 0):.2f}",
+            'SubTotal': f"{subtotal:.2f}",
+            'Total': f"{total:.2f}",
             'Moneda': 'MXN',
             'Exportacion': '01',  # No aplica
             '{' + XSI_NS + '}schemaLocation': SCHEMA_LOCATION
         }
-        
+
         # Add Descuento if applicable
-        if sale_data.get('discount', 0) > 0:
-            attrs['Descuento'] = f"{sale_data['discount']:.2f}"
+        discount = Decimal(str(sale_data.get('discount', 0)))
+        if discount > 0:
+            attrs['Descuento'] = f"{discount:.2f}"
         
         return etree.Element('{' + CFDI_NS + '}Comprobante', nsmap=NSMAP, **attrs)
     
@@ -244,14 +248,18 @@ class CFDIBuilder:
                 'E48': 'Servicio',
             }.get(clave_unidad, 'Pieza')
             
+            qty = Decimal(str(item.get('qty', 1)))
+            price = Decimal(str(item.get('price', 0)))
+            importe = Decimal(str(item.get('subtotal', 0)))
+
             concepto_attrs = {
                 'ClaveProdServ': clave_prod_serv,
-                'Cantidad': f"{item.get('qty', 1):.2f}",
+                'Cantidad': f"{qty:.2f}",
                 'ClaveUnidad': clave_unidad,
                 'Unidad': unidad_desc,
                 'Descripcion': item.get('product_name', 'Producto'),
-                'ValorUnitario': f"{item.get('price', 0):.2f}",
-                'Importe': f"{item.get('subtotal', 0):.2f}",
+                'ValorUnitario': f"{price:.2f}",
+                'Importe': f"{importe:.2f}",
                 'ObjetoImp': '02'  # Sí objeto de impuesto
             }
             
@@ -295,14 +303,14 @@ class CFDIBuilder:
         """Build Impuestos (taxes summary) element."""
         impuestos = etree.Element('{' + CFDI_NS + '}Impuestos')
 
-        total_impuestos = sale_data.get('tax', 0)
+        total_impuestos = Decimal(str(sale_data.get('tax', 0)))
         if total_impuestos > 0:
             impuestos.set('TotalImpuestosTrasladados', f"{total_impuestos:.2f}")
 
         # Traslados
         traslados = etree.Element('{' + CFDI_NS + '}Traslados')
 
-        subtotal = sale_data.get('subtotal', 0)
+        subtotal = Decimal(str(sale_data.get('subtotal', 0)))
         traslado_attrs = {
             'Base': f"{subtotal:.2f}",
             'Impuesto': '002',  # IVA
@@ -419,17 +427,22 @@ class CFDIBuilder:
     
     def _build_comprobante_egreso(self, credit_data: Dict[str, Any]) -> etree.Element:
         """Build root Comprobante element for Egreso (Credit Note)."""
+        # Credit notes use PPD + 99 (refund method is deferred/undefined)
+        # SAT rule: PPD requires FormaPago 99, PUE cannot use 99
+        subtotal = Decimal(str(credit_data.get('subtotal', 0)))
+        total = Decimal(str(credit_data.get('total', 0)))
+
         attrs = {
             'Version': '4.0',
             'Serie': self.config.get('serie_nota_credito', 'NC'),
             'Folio': str(self.config.get('folio_actual', 1)),
             'Fecha': self._format_timestamp(credit_data.get('timestamp')),
             'FormaPago': '99',  # Por definir (refund method varies)
-            'MetodoPago': 'PUE',  # Pago en una sola exhibición
+            'MetodoPago': 'PPD',  # PPD required when FormaPago is 99
             'TipoDeComprobante': 'E',  # Egreso (Credit Note)
             'LugarExpedicion': self.config.get('lugar_expedicion', '00000'),
-            'SubTotal': f"{credit_data.get('subtotal', 0):.2f}",
-            'Total': f"{credit_data.get('total', 0):.2f}",
+            'SubTotal': f"{subtotal:.2f}",
+            'Total': f"{total:.2f}",
             'Moneda': 'MXN',
             'Exportacion': '01',  # No aplica
             '{' + XSI_NS + '}schemaLocation': SCHEMA_LOCATION
@@ -463,14 +476,18 @@ class CFDIBuilder:
         conceptos = etree.Element('{' + CFDI_NS + '}Conceptos')
         
         for item in items:
+            qty = Decimal(str(item.get('qty', 1)))
+            price = Decimal(str(item.get('price', 0)))
+            importe = Decimal(str(item.get('subtotal', item.get('total', 0))))
+
             concepto_attrs = {
                 'ClaveProdServ': '84111506',  # Servicios de facturación
-                'Cantidad': f"{item.get('qty', 1):.2f}",
+                'Cantidad': f"{qty:.2f}",
                 'ClaveUnidad': 'ACT',  # Actividad
                 'Unidad': 'Actividad',
                 'Descripcion': f"{descripcion}: {item.get('product_name', 'Producto')}",
-                'ValorUnitario': f"{item.get('price', 0):.2f}",
-                'Importe': f"{item.get('subtotal', item.get('total', 0)):.2f}",
+                'ValorUnitario': f"{price:.2f}",
+                'Importe': f"{importe:.2f}",
                 'ObjetoImp': '02'  # Sí objeto de impuesto
             }
             

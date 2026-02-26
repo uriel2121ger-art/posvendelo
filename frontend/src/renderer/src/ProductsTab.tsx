@@ -183,7 +183,7 @@ export default function ProductsTab(): ReactElement {
     setSelectedSku(product.sku)
     setSku(product.sku)
     setName(product.name)
-    setPrice(String(product.price))
+    setPrice(product.price.toFixed(2))
     setStock(String(product.stock))
     setMessage(`Producto seleccionado: ${product.sku}`)
   }

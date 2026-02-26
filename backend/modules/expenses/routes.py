@@ -23,49 +23,57 @@ async def get_expense_summary(
     db=Depends(get_db),
 ):
     """Get expense summary — month and year totals."""
-    now = datetime.now(timezone.utc)
-    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    if now.month == 12:
-        month_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
-    else:
-        month_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
-    year_start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
-    year_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+    try:
+        now = datetime.utcnow()
+        month_start = datetime(now.year, now.month, 1)
+        if now.month == 12:
+            month_end = datetime(now.year + 1, 1, 1)
+        else:
+            month_end = datetime(now.year, now.month + 1, 1)
+        year_start = datetime(now.year, 1, 1)
+        year_end = datetime(now.year + 1, 1, 1)
 
-    month_row = await db.fetchrow(
-        """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-           WHERE type = 'expense'
-           AND timestamp >= :month_start AND timestamp < :month_end""",
-        {"month_start": month_start, "month_end": month_end},
-    )
-    year_row = await db.fetchrow(
-        """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-           WHERE type = 'expense'
-           AND timestamp >= :year_start AND timestamp < :year_end""",
-        {"year_start": year_start, "year_end": year_end},
-    )
+        month_row = await db.fetchrow(
+            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
+               WHERE type = 'expense'
+               AND timestamp >= :month_start AND timestamp < :month_end""",
+            {"month_start": month_start, "month_end": month_end},
+        )
+        year_row = await db.fetchrow(
+            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
+               WHERE type = 'expense'
+               AND timestamp >= :year_start AND timestamp < :year_end""",
+            {"year_start": year_start, "year_end": year_end},
+        )
 
-    return {
-        "success": True,
-        "data": {
-            "month": float(month_row["total"]) if month_row else 0.0,
-            "year": float(year_row["total"]) if year_row else 0.0,
-        },
-    }
+        return {
+            "success": True,
+            "data": {
+                "month": float(month_row["total"]) if month_row else 0.0,
+                "year": float(year_row["total"]) if year_row else 0.0,
+            },
+        }
+    except Exception as e:
+        logger.error("Error obteniendo resumen de gastos: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al obtener resumen de gastos")
 
 
 @router.post("/")
 async def register_expense(
     body: ExpenseCreate,
     auth: dict = Depends(verify_token),
-    db=Depends(get_db),
 ):
     """Register a cash expense in cash_movements (linked to open turn if exists)."""
     role = auth.get("role", "")
-    if role not in ("admin", "manager", "owner", "gerente", "dueño"):
+    if role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden registrar gastos")
-    user_id = int(auth["sub"])
-    now = datetime.now(timezone.utc)
+    try:
+        user_id = int(auth.get("sub") or 0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Token sub invalido")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token sin sub claim")
+    now = datetime.utcnow()
 
     async with get_connection() as db_conn:
         conn = db_conn.connection
