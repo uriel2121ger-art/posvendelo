@@ -56,14 +56,29 @@ class GhostCarrier:
                 'weight_kg': product.get('weight_kg', 0.1),
             })
 
-        await self.db.execute("""
-            INSERT INTO ghost_transfers
-            (transfer_code, origin_branch, destination_branch, created_by, items_json, total_items, total_weight_kg, notes)
-            VALUES (:code, :origin, :dest, :uid, :items, :ti, :tw, :notes)
-        """, code=transfer_code, origin=origin, dest=destination, uid=user_id,
-            items=json.dumps(enriched), ti=total_items, tw=total_weight, notes=notes)
+        conn = self.db.connection
+        async with conn.transaction():
+            await self.db.execute("""
+                INSERT INTO ghost_transfers
+                (transfer_code, origin_branch, destination_branch, created_by, items_json, total_items, total_weight_kg, notes)
+                VALUES (:code, :origin, :dest, :uid, :items, :ti, :tw, :notes)
+            """, code=transfer_code, origin=origin, dest=destination, uid=user_id,
+                items=json.dumps(enriched), ti=total_items, tw=total_weight, notes=notes)
 
-        await self._update_origin_stock(items)
+            for item in items:
+                pid, qty = item['product_id'], item['quantity']
+                row = await self.db.fetchrow(
+                    "SELECT stock FROM products WHERE id = :pid FOR UPDATE", pid=pid)
+                if not row or float(row['stock'] or 0) < qty:
+                    raise ValueError(f"Stock insuficiente para producto {pid}")
+                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=qty, pid=pid)
+                try:
+                    await self.db.execute("""
+                        INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                        VALUES (:pid, 'OUT', 'ghost_transfer', :qty, 'Envío ghost_carrier', 'ghost_transfer', NOW(), 0)
+                    """, pid=pid, qty=qty)
+                except Exception:
+                    pass
 
         return {
             'success': True, 'transfer_code': transfer_code, 'origin': origin,

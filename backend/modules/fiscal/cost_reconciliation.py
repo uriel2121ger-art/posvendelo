@@ -38,35 +38,40 @@ class SmartMerge:
                                  supplier: str = None, invoice: str = None) -> Dict[str, Any]:
         total_cost = quantity * unit_cost
 
-        await self.db.execute("""
-            INSERT INTO purchase_costs (product_id, serie, quantity, unit_cost, total_cost, supplier, invoice_number)
-            VALUES (:pid, :serie, :qty, :uc, :tc, :sup, :inv)
-        """, pid=product_id, serie=serie, qty=quantity, uc=unit_cost, tc=total_cost, sup=supplier, inv=invoice)
+        conn = self.db.connection
+        async with conn.transaction():
+            await self.db.fetchrow(
+                "SELECT id FROM products WHERE id = :pid FOR UPDATE", pid=product_id)
 
-        if serie == 'A':
             await self.db.execute("""
-                UPDATE products SET stock = stock + :qty, synced = 0,
-                    cost_a = ((cost_a * qty_from_a) + :tc) / (qty_from_a + :qty),
-                    qty_from_a = qty_from_a + :qty
-                WHERE id = :pid
-            """, qty=quantity, tc=total_cost, pid=product_id)
-        else:
-            await self.db.execute("""
-                UPDATE products SET stock = stock + :qty, synced = 0,
-                    cost_b = ((cost_b * qty_from_b) + :tc) / (qty_from_b + :qty),
-                    qty_from_b = qty_from_b + :qty
-                WHERE id = :pid
-            """, qty=quantity, tc=total_cost, pid=product_id)
+                INSERT INTO purchase_costs (product_id, serie, quantity, unit_cost, total_cost, supplier, invoice_number)
+                VALUES (:pid, :serie, :qty, :uc, :tc, :sup, :inv)
+            """, pid=product_id, serie=serie, qty=quantity, uc=unit_cost, tc=total_cost, sup=supplier, inv=invoice)
 
-        try:
-            await self.db.execute("""
-                INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                VALUES (:pid, 'IN', 'smart_merge', :qty, :reason, 'smart_merge', NOW(), 0)
-            """, pid=product_id, qty=quantity, reason=f"Compra {serie} {invoice or ''}")
-        except Exception:
-            pass
+            if serie == 'A':
+                await self.db.execute("""
+                    UPDATE products SET stock = stock + :qty, synced = 0,
+                        cost_a = ((cost_a * qty_from_a) + :tc) / (qty_from_a + :qty),
+                        qty_from_a = qty_from_a + :qty
+                    WHERE id = :pid
+                """, qty=quantity, tc=total_cost, pid=product_id)
+            else:
+                await self.db.execute("""
+                    UPDATE products SET stock = stock + :qty, synced = 0,
+                        cost_b = ((cost_b * qty_from_b) + :tc) / (qty_from_b + :qty),
+                        qty_from_b = qty_from_b + :qty
+                    WHERE id = :pid
+                """, qty=quantity, tc=total_cost, pid=product_id)
 
-        await self._recalculate_blended_cost(product_id)
+            try:
+                await self.db.execute("""
+                    INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                    VALUES (:pid, 'IN', 'smart_merge', :qty, :reason, 'smart_merge', NOW(), 0)
+                """, pid=product_id, qty=quantity, reason=f"Compra {serie} {invoice or ''}")
+            except Exception:
+                pass
+
+            await self._recalculate_blended_cost(product_id)
 
         return {'success': True, 'product_id': product_id, 'serie': serie, 'quantity': quantity, 'unit_cost': unit_cost, 'total_cost': total_cost}
 
@@ -119,7 +124,8 @@ class SmartMerge:
         total_revenue, total_cost_fiscal, total_cost_real = 0.0, 0.0, 0.0
         for item in items:
             qty, price = round(float(item['qty'] or 0), 2), round(float(item['price'] or 0), 2)
-            cost_real, cost_a = round(float(item['cost'] or 0), 2), round(float(item['cost_a'] or cost_real), 2)
+            cost_real = round(float(item['cost'] or 0), 2)
+            cost_a = round(float(item['cost_a'] or cost_real), 2)
             total_revenue += qty * price
             total_cost_fiscal += qty * cost_a
             total_cost_real += qty * cost_real

@@ -68,7 +68,7 @@ class GhostWallet:
         
         return formatted
     
-    async def add_points(self, hash_id: str, sale_amount: float, 
+    async def add_points(self, hash_id: str, sale_amount: float,
                    sale_id: int = None) -> Dict[str, Any]:
         """
         Acumula puntos por compra en efectivo (Serie B).
@@ -77,26 +77,32 @@ class GhostWallet:
         await self._ensure_tables()
         points_rate = 0.05  # 5%
         points = sale_amount * points_rate
-        
+
         try:
-            await self.db.execute("""
-                UPDATE ghost_wallets 
-                SET balance = balance + :pts,
-                    total_earned = total_earned + :pts,
-                    transactions_count = transactions_count + 1,
-                    last_activity = CURRENT_TIMESTAMP
-                WHERE hash_id = :hid
-            """, pts=points, hid=hash_id)
-            
-            if sale_id:
+            conn = self.db.connection
+            async with conn.transaction():
+                await self.db.fetchrow(
+                    "SELECT balance FROM ghost_wallets WHERE hash_id = :hid FOR UPDATE",
+                    hid=hash_id,
+                )
                 await self.db.execute("""
-                    INSERT INTO ghost_transactions (wallet_hash, type, amount, sale_id)
-                    VALUES (:hid, 'earn', :amt, :sid)
-                """, hid=hash_id, amt=points, sid=sale_id)
-            
-            row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
-            balance = round(float(row['balance']), 2) if row else 0
-            
+                    UPDATE ghost_wallets
+                    SET balance = balance + :pts,
+                        total_earned = total_earned + :pts,
+                        transactions_count = transactions_count + 1,
+                        last_activity = CURRENT_TIMESTAMP
+                    WHERE hash_id = :hid
+                """, pts=points, hid=hash_id)
+
+                if sale_id:
+                    await self.db.execute("""
+                        INSERT INTO ghost_transactions (wallet_hash, type, amount, sale_id)
+                        VALUES (:hid, 'earn', :amt, :sid)
+                    """, hid=hash_id, amt=points, sid=sale_id)
+
+                row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
+                balance = round(float(row['balance']), 2) if row else 0
+
             return {
                 'success': True,
                 'points_added': points,

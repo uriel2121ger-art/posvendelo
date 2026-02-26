@@ -32,38 +32,47 @@ class MaterialityEngine:
 
     async def register_loss(self, product_id: int, quantity: float, reason: str,
                              category: str = 'deterioro', witness_name: str = None) -> Dict[str, Any]:
-        p = await self.db.fetchrow("SELECT name, sku, price FROM products WHERE id = :pid", pid=product_id)
-        if not p:
-            return {'success': False, 'error': 'Producto no encontrado'}
-
-        unit_cost = round(float(p['price'] or 0) * 0.7, 2)
-        total_value = unit_cost * quantity
-        acta_number = await self._generate_acta_number()
-
         try:
-            await self.db.execute("""
-                INSERT INTO loss_records (product_id, product_name, product_sku, quantity, unit_cost, total_value,
-                    reason, category, witness_name, acta_number, status, created_at)
-                VALUES (:pid, :name, :sku, :qty, :uc, :tv, :reason, :cat, :wit, :acta, 'pending', :ts)
-            """, pid=product_id, name=p['name'], sku=p['sku'], qty=quantity, uc=unit_cost, tv=total_value,
-                reason=reason, cat=category, wit=witness_name, acta=acta_number, ts=datetime.now().isoformat())
+            conn = self.db.connection
+            async with conn.transaction():
+                p = await self.db.fetchrow(
+                    "SELECT name, sku, price, stock FROM products WHERE id = :pid FOR UPDATE",
+                    pid=product_id,
+                )
+                if not p:
+                    return {'success': False, 'error': 'Producto no encontrado'}
+                if float(p['stock'] or 0) < quantity:
+                    return {'success': False, 'error': 'Stock insuficiente para merma'}
 
-            await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
+                unit_cost = round(float(p['price'] or 0) * 0.7, 2)
+                total_value = unit_cost * quantity
+                acta_number = await self._generate_acta_number()
 
-            try:
                 await self.db.execute("""
-                    INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                    VALUES (:pid, 'OUT', 'loss', :qty, :reason, 'loss_record', NOW(), 0)
-                """, pid=product_id, qty=quantity, reason=reason or "Merma")
-            except Exception:
-                pass
+                    INSERT INTO loss_records (product_id, product_name, product_sku, quantity, unit_cost, total_value,
+                        reason, category, witness_name, acta_number, status, created_at)
+                    VALUES (:pid, :name, :sku, :qty, :uc, :tv, :reason, :cat, :wit, :acta, 'pending', :ts)
+                """, pid=product_id, name=p['name'], sku=p['sku'], qty=quantity, uc=unit_cost, tv=total_value,
+                    reason=reason, cat=category, wit=witness_name, acta=acta_number, ts=datetime.now().isoformat())
+
+                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
+
+                try:
+                    await self.db.execute("""
+                        INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                        VALUES (:pid, 'OUT', 'loss', :qty, :reason, 'loss_record', NOW(), 0)
+                    """, pid=product_id, qty=quantity, reason=reason or "Merma")
+                except Exception:
+                    pass
 
             return {'success': True, 'acta_number': acta_number, 'product': p['name'], 'quantity': quantity, 'total_value': total_value, 'status': 'pending'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
     async def _generate_acta_number(self) -> str:
+        """Uses advisory lock to prevent duplicate acta numbers under concurrency."""
         now = datetime.now()
+        await self.db.execute("SELECT pg_advisory_xact_lock(738202)")
         count = await self.db.fetchrow("SELECT COUNT(*) as c FROM loss_records WHERE EXTRACT(YEAR FROM created_at::timestamp) = :year", year=now.year)
         seq = (count['c'] or 0) + 1 if count else 1
         return f"MERMA-{now.year}-{seq:05d}"

@@ -62,17 +62,17 @@ class FederationDashboard:
         for branch in branches:
             b_id = branch['id']
             try:
-                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE SUBSTRING(timestamp FROM 1 FOR 10) = :today AND status = 'completed'", today=today)
+                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE SUBSTRING(timestamp FROM 1 FOR 10) = :today AND status = 'completed' AND branch_id = :bid", today=today, bid=b_id)
             except Exception:
                 sales = [{'count': 0, 'total': 0}]
-            
+
             try:
-                open_registers = await self.db.fetch("SELECT id as pos_id, initial_cash as fondo_inicial FROM turns WHERE status = 'open'")
+                open_registers = await self.db.fetch("SELECT id as pos_id, initial_cash as fondo_inicial FROM turns WHERE status = 'open' AND branch_id = :bid", bid=b_id)
             except Exception:
                 open_registers = []
-            
+
             try:
-                low_stock = await self.db.fetch("SELECT COUNT(*) as count FROM products WHERE stock <= min_stock AND is_active = 1")
+                low_stock = await self.db.fetch("SELECT COUNT(*) as count FROM products WHERE stock <= min_stock AND is_active = 1 AND branch_id = :bid", bid=b_id)
             except Exception:
                 low_stock = [{'count': 0}]
             

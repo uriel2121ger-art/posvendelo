@@ -173,7 +173,7 @@ class FiscalNoiseGenerator:
                 RETURNING id
             """, {
                 "total": t['total'], "method": t['payment_method'],
-                "ts": datetime.now(), "rfc": t['rfc']
+                "ts": datetime.now().isoformat(), "rfc": t['rfc']
             })
             if not row: return
             sale_id = row['id']

@@ -83,26 +83,28 @@ class GlobalInvoicingService:
 
             if result.get('success'):
                 cfdi_id = result.get('cfdi_id')
-                for sale in sales:
-                    await self.db.execute(
-                        "UPDATE sales SET serie = 'A', synced = 0, updated_at = CURRENT_TIMESTAMP "
-                        "WHERE id = :sid AND serie = 'B'",
-                        {"sid": sale['id']},
-                    )
-                    if cfdi_id:
-                        existing = await self.db.fetchrow(
-                            "SELECT id FROM sale_cfdi_relation WHERE sale_id = :sid AND cfdi_id = :cid",
-                            {"sid": sale['id'], "cid": cfdi_id},
+                conn = self.db.connection
+                async with conn.transaction():
+                    for sale in sales:
+                        await self.db.execute(
+                            "UPDATE sales SET serie = 'A', synced = 0, updated_at = CURRENT_TIMESTAMP "
+                            "WHERE id = :sid AND serie = 'B'",
+                            {"sid": sale['id']},
                         )
-                        if not existing:
-                            try:
-                                await self.db.execute(
-                                    "INSERT INTO sale_cfdi_relation (sale_id, cfdi_id, is_global) "
-                                    "VALUES (:sid, :cid, 1)",
-                                    {"sid": sale['id'], "cid": cfdi_id},
-                                )
-                            except Exception as e:
-                                logger.warning(f"Could not link sale {sale['id']} to CFDI {cfdi_id}: {e}")
+                        if cfdi_id:
+                            existing = await self.db.fetchrow(
+                                "SELECT id FROM sale_cfdi_relation WHERE sale_id = :sid AND cfdi_id = :cid",
+                                {"sid": sale['id'], "cid": cfdi_id},
+                            )
+                            if not existing:
+                                try:
+                                    await self.db.execute(
+                                        "INSERT INTO sale_cfdi_relation (sale_id, cfdi_id, is_global) "
+                                        "VALUES (:sid, :cid, 1)",
+                                        {"sid": sale['id'], "cid": cfdi_id},
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"Could not link sale {sale['id']} to CFDI {cfdi_id}: {e}")
                 result['sales_count'] = len(sales)
                 result['period'] = f"{start_date} - {end_date}"
             return result
@@ -143,26 +145,28 @@ class GlobalInvoicingService:
             result = await self._generate_cfdi_data(period_type, start_date, end_date, aggregated_data, sales)
             if result.get('success'):
                 cfdi_id = result.get('cfdi_id')
-                for sale in sales:
-                    await self.db.execute(
-                        "UPDATE sales SET serie = 'A', synced = 0, updated_at = CURRENT_TIMESTAMP "
-                        "WHERE id = :sid AND serie = 'B'",
-                        {"sid": sale['id']},
-                    )
-                    if cfdi_id:
-                        existing = await self.db.fetchrow(
-                            "SELECT id FROM sale_cfdi_relation WHERE sale_id = :sid AND cfdi_id = :cid",
-                            {"sid": sale['id'], "cid": cfdi_id},
+                conn = self.db.connection
+                async with conn.transaction():
+                    for sale in sales:
+                        await self.db.execute(
+                            "UPDATE sales SET serie = 'A', synced = 0, updated_at = CURRENT_TIMESTAMP "
+                            "WHERE id = :sid AND serie = 'B'",
+                            {"sid": sale['id']},
                         )
-                        if not existing:
-                            try:
-                                await self.db.execute(
-                                    "INSERT INTO sale_cfdi_relation (sale_id, cfdi_id, is_global) "
-                                    "VALUES (:sid, :cid, 1)",
-                                    {"sid": sale['id'], "cid": cfdi_id},
-                                )
-                            except Exception as e:
-                                logger.warning(f"Could not link sale {sale['id']} to CFDI {cfdi_id}: {e}")
+                        if cfdi_id:
+                            existing = await self.db.fetchrow(
+                                "SELECT id FROM sale_cfdi_relation WHERE sale_id = :sid AND cfdi_id = :cid",
+                                {"sid": sale['id'], "cid": cfdi_id},
+                            )
+                            if not existing:
+                                try:
+                                    await self.db.execute(
+                                        "INSERT INTO sale_cfdi_relation (sale_id, cfdi_id, is_global) "
+                                        "VALUES (:sid, :cid, 1)",
+                                        {"sid": sale['id'], "cid": cfdi_id},
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"Could not link sale {sale['id']} to CFDI {cfdi_id}: {e}")
                 result['sales_count'] = len(sales)
                 result['period'] = f"{start_date} - {end_date}"
             return result
@@ -475,7 +479,7 @@ class GlobalInvoicingService:
                                 {
                                     "uuid": uuid,
                                     "folio": folio,
-                                    "fecha": datetime.now(),
+                                    "fecha": datetime.now().isoformat(),
                                     "total": aggregated['total'],
                                     "subtotal": aggregated['subtotal'],
                                     "tax": aggregated['tax'],

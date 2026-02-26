@@ -37,30 +37,35 @@ class SelfConsumptionEngine:
 
     async def register_consumption(self, product_id: int, quantity: float, category: str,
                                     reason: str = None, beneficiary: str = None) -> Dict[str, Any]:
-        p = await self.db.fetchrow("SELECT id, name, sku, price, stock FROM products WHERE id = :pid", pid=product_id)
-        if not p:
-            return {'success': False, 'error': 'Producto no encontrado'}
-        if float(p['stock'] or 0) < quantity:
-            return {'success': False, 'error': 'Stock insuficiente'}
-
-        unit_cost = round(float(p['price'] or 0) * 0.7, 2)
-        total_value = unit_cost * quantity
-
         try:
-            await self.db.execute("""
-                INSERT INTO self_consumption (product_id, product_name, product_sku, quantity, unit_cost, total_value, category, reason, beneficiary, created_at)
-                VALUES (:pid, :name, :sku, :qty, :uc, :tv, :cat, :reason, :ben, :ts)
-            """, pid=product_id, name=p['name'], sku=p['sku'], qty=quantity, uc=unit_cost, tv=total_value, cat=category, reason=reason, ben=beneficiary, ts=datetime.now().isoformat())
+            conn = self.db.connection
+            async with conn.transaction():
+                p = await self.db.fetchrow(
+                    "SELECT id, name, sku, price, stock FROM products WHERE id = :pid FOR UPDATE",
+                    pid=product_id,
+                )
+                if not p:
+                    return {'success': False, 'error': 'Producto no encontrado'}
+                if float(p['stock'] or 0) < quantity:
+                    return {'success': False, 'error': 'Stock insuficiente'}
 
-            await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
+                unit_cost = round(float(p['price'] or 0) * 0.7, 2)
+                total_value = unit_cost * quantity
 
-            try:
                 await self.db.execute("""
-                    INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                    VALUES (:pid, 'OUT', 'self_consumption', :qty, :reason, 'self_consumption', NOW(), 0)
-                """, pid=product_id, qty=quantity, reason=reason or "Autoconsumo")
-            except Exception:
-                pass
+                    INSERT INTO self_consumption (product_id, product_name, product_sku, quantity, unit_cost, total_value, category, reason, beneficiary, created_at)
+                    VALUES (:pid, :name, :sku, :qty, :uc, :tv, :cat, :reason, :ben, :ts)
+                """, pid=product_id, name=p['name'], sku=p['sku'], qty=quantity, uc=unit_cost, tv=total_value, cat=category, reason=reason, ben=beneficiary, ts=datetime.now().isoformat())
+
+                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
+
+                try:
+                    await self.db.execute("""
+                        INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                        VALUES (:pid, 'OUT', 'self_consumption', :qty, :reason, 'self_consumption', NOW(), 0)
+                    """, pid=product_id, qty=quantity, reason=reason or "Autoconsumo")
+                except Exception:
+                    pass
 
             return {'success': True, 'product': p['name'], 'quantity': quantity, 'value': total_value, 'category': category}
         except Exception as e:

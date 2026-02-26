@@ -101,16 +101,18 @@ class CrossBranchBilling:
             # Asegurar tabla (usualmente esto iria en migraciones, lo mantenemos por robustez)
             await self._ensure_tables()
 
-            await self.db.execute("""
-                INSERT INTO cross_invoices (
-                    sale_id, original_rfc, target_rfc, 
-                    cross_concept, amount, timestamp
-                ) VALUES (:sid, :orig, :targ, :conc, :amt, CURRENT_TIMESTAMP)
-            """, sid=sale_id, orig=original_rfc, targ=target_rfc, conc=cross_concept, amt=sale['total'])
-            
-            await self.db.execute("""
-                UPDATE sales SET rfc_used = :targ, is_cross_billed = 1, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :sid
-            """, targ=target_rfc, sid=sale_id)
+            conn = self.db.connection
+            async with conn.transaction():
+                await self.db.execute("""
+                    INSERT INTO cross_invoices (
+                        sale_id, original_rfc, target_rfc,
+                        cross_concept, amount, timestamp
+                    ) VALUES (:sid, :orig, :targ, :conc, :amt, CURRENT_TIMESTAMP)
+                """, sid=sale_id, orig=original_rfc, targ=target_rfc, conc=cross_concept, amt=sale['total'])
+
+                await self.db.execute("""
+                    UPDATE sales SET rfc_used = :targ, is_cross_billed = 1, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :sid
+                """, targ=target_rfc, sid=sale_id)
             
             return {
                 'success': True,

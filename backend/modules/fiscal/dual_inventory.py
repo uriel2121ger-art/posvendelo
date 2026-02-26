@@ -49,25 +49,30 @@ class ShadowInventory:
         }
 
     async def add_shadow_stock(self, product_id: int, quantity: float, source: str = None, notes: str = None) -> Dict[str, Any]:
-        await self.db.execute("""
-            UPDATE products SET stock = stock + :qty, synced = 0, shadow_stock = COALESCE(shadow_stock, 0) + :qty WHERE id = :pid
-        """, qty=quantity, pid=product_id)
+        conn = self.db.connection
+        async with conn.transaction():
+            await self.db.fetchrow(
+                "SELECT id FROM products WHERE id = :pid FOR UPDATE", pid=product_id)
 
-        try:
             await self.db.execute("""
-                INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                VALUES (:pid, 'IN', 'shadow_add', :qty, :notes, 'shadow_inventory', NOW(), 0)
-            """, pid=product_id, qty=quantity, notes=notes or "Stock sombra")
-        except Exception:
-            pass
+                UPDATE products SET stock = stock + :qty, synced = 0, shadow_stock = COALESCE(shadow_stock, 0) + :qty WHERE id = :pid
+            """, qty=quantity, pid=product_id)
 
-        dual = await self.get_dual_stock(product_id)
+            try:
+                await self.db.execute("""
+                    INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
+                    VALUES (:pid, 'IN', 'shadow_add', :qty, :notes, 'shadow_inventory', NOW(), 0)
+                """, pid=product_id, qty=quantity, notes=notes or "Stock sombra")
+            except Exception:
+                pass
 
-        await self.db.execute("""
-            INSERT INTO shadow_movements (product_id, movement_type, quantity, real_stock_after, fiscal_stock_after, source, notes, created_at)
-            VALUES (:pid, 'ADD_SHADOW', :qty, :real, :fiscal, :src, :notes, :ts)
-        """, pid=product_id, qty=quantity, real=dual['real_stock'], fiscal=dual['fiscal_stock'],
-            src=source, notes=notes, ts=datetime.now().isoformat())
+            dual = await self.get_dual_stock(product_id)
+
+            await self.db.execute("""
+                INSERT INTO shadow_movements (product_id, movement_type, quantity, real_stock_after, fiscal_stock_after, source, notes, created_at)
+                VALUES (:pid, 'ADD_SHADOW', :qty, :real, :fiscal, :src, :notes, :ts)
+            """, pid=product_id, qty=quantity, real=dual['real_stock'], fiscal=dual['fiscal_stock'],
+                src=source, notes=notes, ts=datetime.now().isoformat())
 
         return {'success': True, 'real_stock': dual['real_stock'], 'fiscal_stock': dual['fiscal_stock'], 'shadow_added': quantity}
 
@@ -135,13 +140,19 @@ class ShadowInventory:
         } for p in products]
 
     async def reconcile_fiscal(self, product_id: int, fiscal_stock: float) -> Dict:
-        dual = await self.get_dual_stock(product_id)
-        if not dual['found']:
-            return {'success': False, 'error': 'Producto no encontrado'}
+        conn = self.db.connection
+        async with conn.transaction():
+            row = await self.db.fetchrow(
+                "SELECT stock, shadow_stock FROM products WHERE id = :pid FOR UPDATE",
+                pid=product_id,
+            )
+            if not row:
+                return {'success': False, 'error': 'Producto no encontrado'}
 
-        new_shadow = dual['real_stock'] - fiscal_stock
-        await self.db.execute("UPDATE products SET shadow_stock = :sh, synced = 0 WHERE id = :pid", sh=max(0, new_shadow), pid=product_id)
-        return {'success': True, 'real_stock': dual['real_stock'], 'new_fiscal': fiscal_stock, 'new_shadow': max(0, new_shadow)}
+            real_stock = round(float(row['stock'] or 0), 2)
+            new_shadow = max(0, real_stock - fiscal_stock)
+            await self.db.execute("UPDATE products SET shadow_stock = :sh, synced = 0 WHERE id = :pid", sh=new_shadow, pid=product_id)
+        return {'success': True, 'real_stock': real_stock, 'new_fiscal': fiscal_stock, 'new_shadow': new_shadow}
 
     async def get_discrepancy_report(self) -> Dict[str, Any]:
         products = await self.db.fetch("""
