@@ -76,7 +76,7 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
 
     includes_tax = item.price_includes_tax and price > 0
     if includes_tax:
-        price = price / (1 + TAX_RATE)
+        price = (price / (1 + TAX_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     raw_disc = _dec(item.discount)
     if abs(raw_disc) < Decimal("0.001"):
@@ -89,7 +89,7 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
         )
 
     qty = _dec(item.qty)
-    line_total = (qty * price) - line_discount
+    line_total = ((qty * price) - line_discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     product_name = item.name or prod.get("name", "Producto")
 
     return CalculatedItem(
@@ -290,12 +290,12 @@ async def create_sale(
                                f"Disponible: {current_stock}, Necesario: {demand}",
                     )
 
-            # 4. Calculate totals from pre-calculated items
+            # 4. Calculate totals from pre-calculated items (all quantized to 0.01)
             subtotal = sum((ci.line_total for ci in calculated), Decimal("0"))
             total_discount = sum((ci.line_discount for ci in calculated), Decimal("0"))
 
-            subtotal_after_discount = max(subtotal, Decimal("0"))
-            tax_total = subtotal_after_discount * TAX_RATE
+            subtotal_after_discount = max(subtotal, Decimal("0")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            tax_total = (subtotal_after_discount * TAX_RATE).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             total_val = subtotal_after_discount + tax_total
 
             if total_val <= Decimal("0"):
