@@ -82,7 +82,7 @@ async def create_employee(
     if existing:
         raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     try:
         row = await db.fetchrow(

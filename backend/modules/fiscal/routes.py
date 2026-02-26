@@ -210,6 +210,8 @@ async def run_ticket_shaper(
     db=Depends(get_db),
 ):
     """Run the Autonomous Ticket Shaper Orchestrator."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ejecutar Ticket Shaper")
     try:
         from modules.fiscal.fiscal_forecast import NostradamusFiscal
         orchestrator = NostradamusFiscal(db)
@@ -325,6 +327,8 @@ async def run_general_guerra(
     db=Depends(get_db),
 ):
     """Run the AI Cross-Auditor to evaluate fiscal and materiality blind spots."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ejecutar auditoría")
     try:
         from modules.fiscal.internal_audit import GeneralDeGuerra
         auditor = GeneralDeGuerra(db)
@@ -350,6 +354,8 @@ async def create_ghost_wallet(
     db=Depends(get_db),
 ):
     """Create a new anonymous Ghost Wallet."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar monedero")
     try:
         from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
@@ -368,6 +374,8 @@ async def ghost_wallet_add_points(
     db=Depends(get_db),
 ):
     """Add points to a Ghost Wallet for a Serie B sale."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar monedero")
     try:
         from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
@@ -390,6 +398,8 @@ async def ghost_wallet_redeem(
     db=Depends(get_db),
 ):
     """Redeem points from a Ghost Wallet."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para gestionar monedero")
     try:
         from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
@@ -411,6 +421,8 @@ async def get_ghost_wallet_stats(
     db=Depends(get_db),
 ):
     """Get global stats for the Ghost Wallet program."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver stats de monedero")
     try:
         from modules.fiscal.reserve_wallet import GhostWallet
         wallet = GhostWallet(db)
@@ -433,6 +445,8 @@ async def get_operational_dashboard(
     db=Depends(get_db),
 ):
     """Get real-time operational dashboard across all branches."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard operativo")
     try:
         from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
@@ -447,6 +461,8 @@ async def get_fiscal_intelligence(
     db=Depends(get_db),
 ):
     """Get RESICO capacity and fiscal intelligence across all RFCs."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para inteligencia fiscal")
     try:
         from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
@@ -461,6 +477,8 @@ async def get_wealth_dashboard(
     db=Depends(get_db),
 ):
     """Get the real wealth dashboard (Serie A + B - Extractions)."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para dashboard de riqueza")
     try:
         from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
@@ -476,6 +494,8 @@ async def remote_lockdown(
     db=Depends(get_db),
 ):
     """Order a remote lockdown of a specific branch."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar lockdown")
     try:
         from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
@@ -492,6 +512,8 @@ async def release_lockdown(
     db=Depends(get_db),
 ):
     """Release a branch lockdown with authorization code."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede liberar lockdown")
     try:
         from modules.fiscal.enterprise_dashboard import FederationDashboard
         fd = FederationDashboard(db)
@@ -515,6 +537,8 @@ async def verify_stealth_pin(
     db=Depends(get_db),
 ):
     """Verify PIN and determine access mode (normal, duress, wipe)."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede verificar PIN stealth")
     try:
         from modules.fiscal.data_privacy_layer import StealthLayer
         layer = StealthLayer(db)
@@ -530,6 +554,8 @@ async def configure_stealth_pins(
     db=Depends(get_db),
 ):
     """Configure 3-tier PINs (normal, duress, wipe)."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede configurar PINs")
     try:
         from modules.fiscal.data_privacy_layer import StealthLayer
         layer = StealthLayer(db)
@@ -573,6 +599,8 @@ async def analyze_supplier_purchase(
     db=Depends(get_db),
 ):
     """Analyze whether to buy with invoice (A) or cash (B)."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para análisis de proveedores")
     try:
         from modules.fiscal.supplier_matcher import SupplierMatcher
         matcher = SupplierMatcher(db)
@@ -597,6 +625,8 @@ async def get_extraction_available(
     db=Depends(get_db),
 ):
     """Get available cash for extraction and remaining limits."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ver extracciones")
     try:
         from modules.fiscal.smart_withdrawal import PredictiveExtraction
         pe = PredictiveExtraction(db)
@@ -612,6 +642,8 @@ async def generate_extraction_plan(
     db=Depends(get_db),
 ):
     """Generate a smoothed extraction plan over multiple days."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede generar planes de extracción")
     try:
         from modules.fiscal.smart_withdrawal import PredictiveExtraction
         pe = PredictiveExtraction(db)
@@ -629,6 +661,8 @@ async def get_optimal_daily_extraction(
     db=Depends(get_db),
 ):
     """Get the AI-calculated optimal daily extraction amount."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ver extracción óptima")
     try:
         from modules.fiscal.smart_withdrawal import PredictiveExtraction
         pe = PredictiveExtraction(db)
@@ -648,6 +682,8 @@ async def get_crypto_available(
     db=Depends(get_db),
 ):
     """Get available funds for stablecoin conversion."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ver disponibilidad crypto")
     try:
         from modules.fiscal.liquidity_bridge import CryptoBridge
         bridge = CryptoBridge(db)
@@ -663,6 +699,8 @@ async def create_crypto_conversion(
     db=Depends(get_db),
 ):
     """Create a new MXN -> stablecoin conversion."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede convertir a crypto")
     try:
         from modules.fiscal.liquidity_bridge import CryptoBridge
         bridge = CryptoBridge(db)
@@ -683,6 +721,8 @@ async def get_crypto_wealth(
     db=Depends(get_db),
 ):
     """Get total crypto wealth across all cold wallets."""
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ver riqueza crypto")
     try:
         from modules.fiscal.liquidity_bridge import CryptoBridge
         bridge = CryptoBridge(db)
@@ -720,6 +760,8 @@ async def trigger_fake_screen(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar esta operación")
     try:
         from modules.fiscal.system_maintenance import EvasionMaster
         em = EvasionMaster(db)
@@ -734,6 +776,8 @@ async def simulate_dead_drive(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "owner"):
+        raise HTTPException(status_code=403, detail="Solo admin/owner puede ejecutar esta operación")
     try:
         from modules.fiscal.system_maintenance import EvasionMaster
         em = EvasionMaster(db)
@@ -756,6 +800,8 @@ async def create_ghost_transfer(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para crear traspasos")
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
@@ -773,6 +819,8 @@ async def receive_ghost_transfer(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para recibir traspasos")
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
@@ -790,6 +838,8 @@ async def get_pending_ghost_transfers(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver traspasos")
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
@@ -804,6 +854,8 @@ async def get_warehouse_slip(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver traspasos")
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
@@ -826,6 +878,8 @@ async def get_dual_stock(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver inventario dual")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
@@ -840,6 +894,8 @@ async def add_shadow_stock(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para modificar inventario shadow")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
@@ -857,6 +913,8 @@ async def shadow_sell(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para venta shadow")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
@@ -873,6 +931,8 @@ async def get_audit_view(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para vista de auditoría")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
@@ -886,6 +946,8 @@ async def get_real_view(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para vista real")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
@@ -899,6 +961,8 @@ async def get_discrepancy_report(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver discrepancias")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
@@ -913,6 +977,8 @@ async def reconcile_fiscal(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para reconciliar inventario")
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)

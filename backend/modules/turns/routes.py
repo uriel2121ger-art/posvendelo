@@ -8,7 +8,7 @@ Columns: id, user_id, pos_id, branch_id, terminal_id, start_timestamp, end_times
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -42,7 +42,7 @@ async def open_turn(
                 detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
             )
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         row = await conn.fetchrow(
             """
@@ -84,7 +84,7 @@ async def close_turn(
         if turn["user_id"] != user_id and role not in ("admin", "manager", "owner"):
             raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Calculate expected: initial + cash sales (pure + mixed component) + cash_in - cash_out
         cash_sales = await conn.fetchval(
@@ -313,7 +313,7 @@ async def create_cash_movement(
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno esta cerrado")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         row = await conn.fetchrow(
             """

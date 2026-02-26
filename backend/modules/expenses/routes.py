@@ -24,7 +24,8 @@ async def get_expense_summary(
 ):
     """Get expense summary — month and year totals."""
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — use naive datetimes
         month_start = datetime(now.year, now.month, 1)
         if now.month == 12:
             month_end = datetime(now.year + 1, 1, 1)
@@ -73,7 +74,7 @@ async def register_expense(
         raise HTTPException(status_code=401, detail="Token sub invalido")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token sin sub claim")
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     async with get_connection() as db_conn:
         conn = db_conn.connection

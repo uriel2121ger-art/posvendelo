@@ -6,7 +6,7 @@ Wrappers asyncio.to_thread para wealth/ai/executive (legacy classes).
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -74,10 +74,14 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/quick")
 async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Quick status widget — ventas hoy, mermas pendientes."""
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
     sales = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE timestamp >= CURRENT_DATE::timestamp
-           AND timestamp < (CURRENT_DATE + 1)::timestamp AND status = 'completed'"""
+           FROM sales WHERE timestamp >= :today AND timestamp < :tomorrow
+           AND status = 'completed'""",
+        {"today": today_str, "tomorrow": tomorrow_str},
     )
 
     mermas = await db.fetchrow(
@@ -99,14 +103,14 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
 async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de gastos en efectivo — mes y anio."""
     now = datetime.now(timezone.utc)
-    # cash_movements.timestamp is TIMESTAMP — pass datetime objects
-    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — pass naive datetimes
+    month_start = datetime(now.year, now.month, 1)
     if now.month == 12:
-        month_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+        month_end = datetime(now.year + 1, 1, 1)
     else:
-        month_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
-    year_start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
-    year_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+        month_end = datetime(now.year, now.month + 1, 1)
+    year_start = datetime(now.year, 1, 1)
+    year_end = datetime(now.year + 1, 1, 1)
 
     try:
         month_row = await db.fetchrow(
@@ -129,8 +133,8 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
     return {
         "success": True,
         "data": {
-            "month": float(month_row["total"]) if month_row else 0.0,
-            "year": float(year_row["total"]) if year_row else 0.0,
+            "month": round(float(month_row["total"]), 2) if month_row else 0.0,
+            "year": round(float(year_row["total"]), 2) if year_row else 0.0,
         },
     }
 
@@ -150,9 +154,9 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
         # sales.timestamp is TEXT — use strings
         year_start_str = f"{now.year}-01-01"
         year_end_str = f"{now.year + 1}-01-01"
-        # cash_movements.timestamp is TIMESTAMP — use datetime objects
-        year_start_ts = datetime(now.year, 1, 1, tzinfo=timezone.utc)
-        year_end_ts = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+        # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — use naive datetimes
+        year_start_ts = datetime(now.year, 1, 1)
+        year_end_ts = datetime(now.year + 1, 1, 1)
 
         # Ingresos por serie
         income = await db.fetchrow(
@@ -222,7 +226,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
            WHERE s.status = 'completed'
-           AND s.timestamp >= to_char(NOW() - INTERVAL '30 days', 'YYYY-MM-DD')
+           AND s.timestamp::timestamp >= NOW() - INTERVAL '30 days'
            GROUP BY p.name
            ORDER BY sales_count DESC
            LIMIT 5"""
@@ -254,20 +258,26 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
     if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo admin/manager")
 
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+
     kpis = await db.fetchrow(
         """SELECT COUNT(*) as transactions,
                   COALESCE(SUM(total), 0) as revenue,
                   CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(total), 0) / COUNT(*) ELSE 0 END as avg_ticket
            FROM sales
-           WHERE timestamp >= CURRENT_DATE::timestamp AND timestamp < (CURRENT_DATE + 1)::timestamp AND status = 'completed'"""
+           WHERE timestamp >= :today AND timestamp < :tomorrow AND status = 'completed'""",
+        {"today": today_str, "tomorrow": tomorrow_str},
     )
 
     hourly = await db.fetch(
         """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
-           WHERE timestamp >= CURRENT_DATE::timestamp AND timestamp < (CURRENT_DATE + 1)::timestamp AND status = 'completed'
-           GROUP BY hour ORDER BY hour"""
+           WHERE timestamp >= :today AND timestamp < :tomorrow AND status = 'completed'
+           GROUP BY hour ORDER BY hour""",
+        {"today": today_str, "tomorrow": tomorrow_str},
     )
 
     top = await db.fetch(
@@ -275,8 +285,9 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
            FROM sale_items si
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
-           WHERE s.timestamp >= CURRENT_DATE::timestamp AND s.timestamp < (CURRENT_DATE + 1)::timestamp AND s.status = 'completed'
-           GROUP BY p.name ORDER BY qty DESC LIMIT 5"""
+           WHERE s.timestamp >= :today AND s.timestamp < :tomorrow AND s.status = 'completed'
+           GROUP BY p.name ORDER BY qty DESC LIMIT 5""",
+        {"today": today_str, "tomorrow": tomorrow_str},
     )
 
     return {
