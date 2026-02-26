@@ -1,7 +1,12 @@
 import type { ReactElement } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Banknote, Plus, Search as SearchIcon, ShoppingCart as ShoppingCartIcon } from 'lucide-react'
+import {
+  Banknote,
+  Plus,
+  Search as SearchIcon,
+  ShoppingCart as ShoppingCartIcon
+} from 'lucide-react'
 import {
   type RuntimeConfig,
   type SaleItemPayload,
@@ -166,7 +171,7 @@ async function syncSale(
     const compoundSubtotal = item.subtotal * (1 - globalDisc)
     const discount = parseFloat(Math.max(0, fullPrice - compoundSubtotal).toFixed(2))
     return {
-      product_id: item.isCommon ? null : (Number(item.id) > 0 ? Number(item.id) : null),
+      product_id: item.isCommon ? null : Number(item.id) > 0 ? Number(item.id) : null,
       name: item.name,
       qty: item.qty,
       price: item.price,
@@ -215,7 +220,9 @@ export default function Terminal(): ReactElement {
       }
     }
   )
-  const [selectedCartSku, setSelectedCartSku] = useState<string | null>(_snap?.selectedCartSku ?? null)
+  const [selectedCartSku, setSelectedCartSku] = useState<string | null>(
+    _snap?.selectedCartSku ?? null
+  )
   const ticketCounterRef = useRef(_savedActive?.ticketCounter ?? 1)
   const [ticketLabel, setTicketLabel] = useState('')
   const [query, setQuery] = useState('')
@@ -249,7 +256,9 @@ export default function Terminal(): ReactElement {
       .finally(() => {
         if (!cancelled) setBusy(false)
       })
-    return (): void => { cancelled = true }
+    return (): void => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -257,7 +266,9 @@ export default function Terminal(): ReactElement {
     let raw: string | null = null
     try {
       raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
-    } catch { /* storage inaccessible */ }
+    } catch {
+      /* storage inaccessible */
+    }
     if (!raw) {
       hasLoadedPendingRef.current = true
       return
@@ -317,9 +328,13 @@ export default function Terminal(): ReactElement {
     total: number
   } => {
     // Accumulate in cents to avoid float drift over many cart items
-    const subtotalBeforeDiscountCents = cart.reduce((acc, item) => acc + Math.round(item.subtotal * 100), 0)
+    const subtotalBeforeDiscountCents = cart.reduce(
+      (acc, item) => acc + Math.round(item.subtotal * 100),
+      0
+    )
     const subtotalBeforeDiscount = subtotalBeforeDiscountCents / 100
-    const globalDiscountAmount = Math.round(subtotalBeforeDiscount * (clampDiscount(globalDiscountPct) / 100) * 100) / 100
+    const globalDiscountAmount =
+      Math.round(subtotalBeforeDiscount * (clampDiscount(globalDiscountPct) / 100) * 100) / 100
     // Prices already include IVA — total is the sum minus discount (NOT plus tax)
     const total = Math.round((subtotalBeforeDiscount - globalDiscountAmount) * 100) / 100
     // Extract IVA that's already baked into the prices (informational for display)
@@ -458,7 +473,10 @@ export default function Terminal(): ReactElement {
     const snapshot = ticketSnapshots[ticketId]
     const ticketCart = ticketId === activeTicketId ? cart : (snapshot?.cart ?? [])
     if (ticketCart.length > 0) {
-      if (!window.confirm(`Este ticket tiene ${ticketCart.length} producto(s). ¿Descartar y cerrar?`)) return
+      if (
+        !window.confirm(`Este ticket tiene ${ticketCart.length} producto(s). ¿Descartar y cerrar?`)
+      )
+        return
     }
 
     const remaining = activeTickets.filter((t) => t.id !== ticketId)
@@ -592,13 +610,10 @@ export default function Terminal(): ReactElement {
     setMessage(`Producto comun agregado: ${name}`)
   }, [qty])
 
-  const removeItem = useCallback(
-    (sku: string): void => {
-      setCart((prev) => prev.filter((item) => item.sku !== sku))
-      setSelectedCartSku((current) => (current === sku ? null : current))
-    },
-    []
-  )
+  const removeItem = useCallback((sku: string): void => {
+    setCart((prev) => prev.filter((item) => item.sku !== sku))
+    setSelectedCartSku((current) => (current === sku ? null : current))
+  }, [])
 
   const increaseSelectedQty = useCallback((): void => {
     if (!selectedCartSku) {
@@ -643,9 +658,8 @@ export default function Terminal(): ReactElement {
       return
     }
     // For cash: if no amount entered, assume exact payment
-    const effectiveReceived = paymentMethod === 'cash' && amountReceivedNum === 0
-      ? totals.total
-      : amountReceivedNum
+    const effectiveReceived =
+      paymentMethod === 'cash' && amountReceivedNum === 0 ? totals.total : amountReceivedNum
     if (paymentMethod === 'cash' && effectiveReceived < totals.total) {
       setMessage(`Monto insuficiente. Falta: $${(totals.total - effectiveReceived).toFixed(2)}`)
       return
@@ -678,15 +692,26 @@ export default function Terminal(): ReactElement {
           ...freshShift,
           salesCount: (freshShift.salesCount ?? 0) + 1,
           totalSales: Math.round(((freshShift.totalSales ?? 0) + saleTotal) * 100) / 100,
-          cashSales: Math.round(((freshShift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0)) * 100) / 100,
-          cardSales: Math.round(((freshShift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0)) * 100) / 100,
+          cashSales:
+            Math.round(
+              ((freshShift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0)) * 100
+            ) / 100,
+          cardSales:
+            Math.round(
+              ((freshShift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0)) * 100
+            ) / 100,
           transferSales:
-            Math.round(((freshShift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0)) * 100) / 100,
+            Math.round(
+              ((freshShift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0)) *
+                100
+            ) / 100,
           lastSaleAt: new Date().toISOString()
         }
         try {
           localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
-        } catch { /* storage full — shift counters may drift */ }
+        } catch {
+          /* storage full — shift counters may drift */
+        }
         setCurrentShift(updatedShift)
       }
       setMessage(
@@ -697,7 +722,9 @@ export default function Terminal(): ReactElement {
     } catch (error) {
       const raw = (error as Error).message
       if (raw.includes('fetch') || raw.includes('network') || raw.includes('Failed')) {
-        setMessage('No se pudo conectar al servidor. El ticket sigue intacto, intenta cobrar de nuevo.')
+        setMessage(
+          'No se pudo conectar al servidor. El ticket sigue intacto, intenta cobrar de nuevo.'
+        )
       } else if (raw.includes('Tiempo de espera')) {
         setMessage(`${raw} El ticket sigue intacto.`)
       } else {
@@ -707,15 +734,7 @@ export default function Terminal(): ReactElement {
       chargingRef.current = false
       setBusy(false)
     }
-  }, [
-    amountReceivedNum,
-    cart,
-    config,
-    customerName,
-    globalDiscountPct,
-    paymentMethod,
-    totals
-  ])
+  }, [amountReceivedNum, cart, config, customerName, globalDiscountPct, paymentMethod, totals])
 
   function saveCurrentAsPending(): void {
     if (!cart.length) {
@@ -904,7 +923,10 @@ export default function Terminal(): ReactElement {
             className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2 pl-10 pr-4 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600"
             placeholder="Buscar SKU o nombre (F10)"
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setShowResults(true) }}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setShowResults(true)
+            }}
             onFocus={() => setShowResults(true)}
             onBlur={() => setTimeout(() => setShowResults(false), 150)}
             onKeyDown={(e) => {
@@ -923,12 +945,21 @@ export default function Terminal(): ReactElement {
                   key={`${p.sku}-${p.id ?? ''}`}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-zinc-800/60 transition-colors border-b border-zinc-800/30 last:border-0"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { addProduct(p); setQuery(''); setShowResults(false); searchInputRef.current?.focus() }}
+                  onClick={() => {
+                    addProduct(p)
+                    setQuery('')
+                    setShowResults(false)
+                    searchInputRef.current?.focus()
+                  }}
                 >
                   <span className="font-mono text-xs text-zinc-500 w-20 shrink-0">{p.sku}</span>
                   <span className="flex-1 truncate">{p.name}</span>
-                  <span className="font-semibold text-emerald-400 shrink-0">${p.price.toFixed(2)}</span>
-                  <span className="text-xs text-zinc-500 shrink-0 w-12 text-right">{p.stock ?? 0} uds</span>
+                  <span className="font-semibold text-emerald-400 shrink-0">
+                    ${p.price.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-zinc-500 shrink-0 w-12 text-right">
+                    {p.stock ?? 0} uds
+                  </span>
                 </button>
               ))}
             </div>
@@ -953,14 +984,20 @@ export default function Terminal(): ReactElement {
 
         {/* Shift info compact */}
         <div className="hidden md:flex items-center gap-3 ml-auto text-xs">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${currentShift ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400' : 'border-zinc-700 bg-zinc-900 text-zinc-500'}`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${currentShift ? 'bg-emerald-400' : 'bg-zinc-600'}`}></div>
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${currentShift ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400' : 'border-zinc-700 bg-zinc-900 text-zinc-500'}`}
+          >
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${currentShift ? 'bg-emerald-400' : 'bg-zinc-600'}`}
+            ></div>
             {currentShift ? `Turno: ${currentShift.openedBy}` : 'Sin turno'}
           </div>
           {currentShift && (
             <>
               <span className="text-zinc-500">{currentShift.salesCount ?? 0} ventas</span>
-              <span className="font-semibold text-zinc-300">${(currentShift.totalSales ?? 0).toFixed(2)}</span>
+              <span className="font-semibold text-zinc-300">
+                ${(currentShift.totalSales ?? 0).toFixed(2)}
+              </span>
             </>
           )}
         </div>
@@ -974,7 +1011,9 @@ export default function Terminal(): ReactElement {
               onChange={(e) => switchActiveTicket(e.target.value)}
             >
               {activeTickets.map((ticket) => (
-                <option key={ticket.id} value={ticket.id}>{ticket.label}</option>
+                <option key={ticket.id} value={ticket.id}>
+                  {ticket.label}
+                </option>
               ))}
             </select>
           )}
@@ -1002,7 +1041,6 @@ export default function Terminal(): ReactElement {
       {/* Main: ticket panel full width */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-col flex-1 overflow-hidden bg-zinc-950">
-
           {/* Cart items */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {cart.length === 0 ? (
@@ -1024,7 +1062,9 @@ export default function Terminal(): ReactElement {
                     onClick={() => setSelectedCartSku(item.sku)}
                   >
                     {/* Row number */}
-                    <span className="text-zinc-600 font-mono text-xs w-6 text-right shrink-0">{idx + 1}</span>
+                    <span className="text-zinc-600 font-mono text-xs w-6 text-right shrink-0">
+                      {idx + 1}
+                    </span>
 
                     {/* Product info */}
                     <div className="flex-1 min-w-0">
@@ -1068,7 +1108,11 @@ export default function Terminal(): ReactElement {
                     {/* Remove */}
                     <button
                       className="text-zinc-600 hover:text-rose-400 transition-colors shrink-0 p-1"
-                      onClick={(e) => { e.stopPropagation(); if (window.confirm(`¿Quitar "${item.name}" del ticket?`)) removeItem(item.sku) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (window.confirm(`¿Quitar "${item.name}" del ticket?`))
+                          removeItem(item.sku)
+                      }}
                       title="Quitar"
                     >
                       &times;
@@ -1085,7 +1129,9 @@ export default function Terminal(): ReactElement {
               {/* Left: controls */}
               <div className="flex items-center gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Cliente</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Cliente
+                  </label>
                   <input
                     className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none placeholder:text-zinc-600 w-44"
                     value={customerName}
@@ -1094,11 +1140,16 @@ export default function Terminal(): ReactElement {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Pago</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Pago
+                  </label>
                   <select
                     className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none w-36"
                     value={paymentMethod}
-                    onChange={(e) => { setPaymentMethod(e.target.value as PaymentMethod); setAmountReceived('') }}
+                    onChange={(e) => {
+                      setPaymentMethod(e.target.value as PaymentMethod)
+                      setAmountReceived('')
+                    }}
                   >
                     <option value="cash">Efectivo</option>
                     <option value="card">Tarjeta</option>
@@ -1107,7 +1158,9 @@ export default function Terminal(): ReactElement {
                 </div>
                 {paymentMethod === 'cash' && (
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Recibido</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Recibido
+                    </label>
                     <input
                       className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none w-32 placeholder:text-zinc-600"
                       type="number"
@@ -1133,15 +1186,23 @@ export default function Terminal(): ReactElement {
                 {/* Discount */}
                 {globalDiscountPct > 0 && (
                   <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Descuento {globalDiscountPct}%</div>
-                    <div className="text-rose-400 font-semibold">-${totals.globalDiscountAmount.toFixed(2)}</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      Descuento {globalDiscountPct}%
+                    </div>
+                    <div className="text-rose-400 font-semibold">
+                      -${totals.globalDiscountAmount.toFixed(2)}
+                    </div>
                   </div>
                 )}
 
                 {/* Items count */}
                 <div className="text-right">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Articulos</div>
-                  <div className="text-lg font-bold text-zinc-300">{cart.reduce((a, i) => a + (Number.isFinite(i.qty) ? i.qty : 0), 0)}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Articulos
+                  </div>
+                  <div className="text-lg font-bold text-zinc-300">
+                    {cart.reduce((a, i) => a + (Number.isFinite(i.qty) ? i.qty : 0), 0)}
+                  </div>
                 </div>
 
                 {/* Change / pending */}
@@ -1150,7 +1211,9 @@ export default function Terminal(): ReactElement {
                     <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                       {pendingAmount > 0 ? 'Faltante' : 'Cambio'}
                     </div>
-                    <div className={`text-lg font-bold ${pendingAmount > 0 ? 'text-rose-400' : 'text-amber-300'}`}>
+                    <div
+                      className={`text-lg font-bold ${pendingAmount > 0 ? 'text-rose-400' : 'text-amber-300'}`}
+                    >
                       ${pendingAmount > 0 ? pendingAmount.toFixed(2) : changeDue.toFixed(2)}
                     </div>
                   </div>
@@ -1158,7 +1221,9 @@ export default function Terminal(): ReactElement {
 
                 {/* Total */}
                 <div className="text-right border-l border-zinc-700 pl-6">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Total</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Total
+                  </div>
                   <div className="text-3xl font-black text-emerald-400 tabular-nums">
                     ${totals.total.toFixed(2)}
                   </div>
@@ -1197,11 +1262,15 @@ export default function Terminal(): ReactElement {
             <select
               className="rounded-md border border-amber-700/50 bg-amber-950/30 px-2 py-1 font-semibold text-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer"
               value=""
-              onChange={(e) => { if (e.target.value) loadPendingTicket(e.target.value) }}
+              onChange={(e) => {
+                if (e.target.value) loadPendingTicket(e.target.value)
+              }}
             >
               <option value="">Pendientes ({pendingTickets.length})</option>
               {pendingTickets.map((t) => (
-                <option key={t.id} value={t.id}>{t.label} — {t.cart.length} items</option>
+                <option key={t.id} value={t.id}>
+                  {t.label} — {t.cart.length} items
+                </option>
               ))}
             </select>
           )}
@@ -1221,7 +1290,9 @@ export default function Terminal(): ReactElement {
             { key: 'Ctrl+D', label: 'Desc' }
           ].map((s) => (
             <span key={s.key} className="inline-flex items-center gap-1 text-zinc-600">
-              <kbd className="rounded bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">{s.key}</kbd>
+              <kbd className="rounded bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+                {s.key}
+              </kbd>
               <span className="text-[10px]">{s.label}</span>
             </span>
           ))}

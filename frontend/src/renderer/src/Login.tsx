@@ -44,7 +44,10 @@ export default function Login(): ReactElement {
         if (typeof body.detail === 'string') {
           msg = body.detail
         } else if (Array.isArray(body.detail)) {
-          msg = body.detail.map((e: Record<string, unknown>) => e.msg ?? '').filter(Boolean).join('; ')
+          msg = body.detail
+            .map((e: Record<string, unknown>) => e.msg ?? '')
+            .filter(Boolean)
+            .join('; ')
         } else {
           msg = body.error || 'Credenciales incorrectas. Intenta de nuevo.'
         }
@@ -61,7 +64,11 @@ export default function Login(): ReactElement {
       }
 
       saveRuntimeConfig({ ...cfg, token })
-      try { localStorage.setItem('titan.user', username.trim()) } catch { /* QuotaExceeded */ }
+      try {
+        localStorage.setItem('titan.user', username.trim())
+      } catch {
+        /* QuotaExceeded */
+      }
       navigate('/terminal')
     } catch (err) {
       setError(

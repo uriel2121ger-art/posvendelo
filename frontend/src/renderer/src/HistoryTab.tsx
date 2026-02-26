@@ -141,7 +141,10 @@ export default function HistoryTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
-    return () => { requestIdRef.current++; detailRequestId.current++ }
+    return () => {
+      requestIdRef.current++
+      detailRequestId.current++
+    }
   }, [handleLoad])
 
   return (
@@ -221,7 +224,9 @@ export default function HistoryTab(): ReactElement {
           </div>
           <div className="max-h-[65vh] overflow-y-auto bg-zinc-950">
             {visibleRows.length === 0 && (
-              <div className="py-12 text-center text-zinc-600">Sin ventas para los filtros seleccionados.</div>
+              <div className="py-12 text-center text-zinc-600">
+                Sin ventas para los filtros seleccionados.
+              </div>
             )}
             {visibleRows.map((sale) => (
               <button

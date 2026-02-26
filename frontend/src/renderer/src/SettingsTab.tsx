@@ -54,7 +54,11 @@ export default function SettingsTab(): ReactElement {
 
   function persistProfiles(next: ConfigProfile[]): void {
     setProfiles(next)
-    try { localStorage.setItem(CONFIG_PROFILES_KEY, JSON.stringify(next)) } catch { /* QuotaExceeded */ }
+    try {
+      localStorage.setItem(CONFIG_PROFILES_KEY, JSON.stringify(next))
+    } catch {
+      /* QuotaExceeded */
+    }
   }
 
   function saveProfile(): void {

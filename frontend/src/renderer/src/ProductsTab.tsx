@@ -63,7 +63,9 @@ export default function ProductsTab(): ReactElement {
   }, [filtered, page])
 
   // Reset page when search changes
-  useEffect(() => { setPage(0) }, [query])
+  useEffect(() => {
+    setPage(0)
+  }, [query])
 
   const handleLoad = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
@@ -85,7 +87,9 @@ export default function ProductsTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
-    return () => { requestIdRef.current++ }
+    return () => {
+      requestIdRef.current++
+    }
   }, [handleLoad])
 
   async function handleCreate(): Promise<void> {
@@ -281,9 +285,13 @@ export default function ProductsTab(): ReactElement {
           </thead>
           <tbody>
             {paginated.length === 0 && (
-              <tr><td colSpan={4} className="py-12 text-center text-zinc-600">
-                {query.trim() ? 'Sin resultados para la busqueda.' : 'Sin productos. Haz clic en Cargar.'}
-              </td></tr>
+              <tr>
+                <td colSpan={4} className="py-12 text-center text-zinc-600">
+                  {query.trim()
+                    ? 'Sin resultados para la busqueda.'
+                    : 'Sin productos. Haz clic en Cargar.'}
+                </td>
+              </tr>
             )}
             {paginated.map((p) => (
               <tr
@@ -315,13 +323,19 @@ export default function ProductsTab(): ReactElement {
                 className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-              >&laquo; Ant</button>
-              <span className="text-zinc-400">{page + 1} / {totalPages}</span>
+              >
+                &laquo; Ant
+              </button>
+              <span className="text-zinc-400">
+                {page + 1} / {totalPages}
+              </span>
               <button
                 className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-              >Sig &raquo;</button>
+              >
+                Sig &raquo;
+              </button>
             </>
           )}
         </div>

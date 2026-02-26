@@ -27,7 +27,10 @@ export default function ExpensesTab(): ReactElement {
       const body = await getExpensesSummary(cfg)
       if (requestIdRef.current !== reqId) return
       const data = (body.data ?? body) as Record<string, unknown>
-      const safeNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0 }
+      const safeNum = (v: unknown): number => {
+        const n = Number(v ?? 0)
+        return Number.isFinite(n) ? n : 0
+      }
       setMonthTotal(safeNum(data.month))
       setYearTotal(safeNum(data.year))
     } catch (err) {

@@ -65,9 +65,7 @@ export default function ReportsTab(): ReactElement {
       acc[sale.paymentMethod] = (acc[sale.paymentMethod] ?? 0) + Math.round(sale.total * 100)
       return acc
     }, {})
-    const byMethod = Object.fromEntries(
-      Object.entries(byMethodCents).map(([k, v]) => [k, v / 100])
-    )
+    const byMethod = Object.fromEntries(Object.entries(byMethodCents).map(([k, v]) => [k, v / 100]))
     const productCounter = new Map<string, { qty: number; amountCents: number }>()
     for (const sale of sales) {
       for (const item of sale.items) {
@@ -139,7 +137,9 @@ export default function ReportsTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
-    return () => { requestIdRef.current++ }
+    return () => {
+      requestIdRef.current++
+    }
   }, [handleLoad])
 
   return (

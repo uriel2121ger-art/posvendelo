@@ -73,7 +73,9 @@ function handleExpiredSession(): never {
     localStorage.removeItem('titan.token')
     localStorage.removeItem('titan.user')
     localStorage.removeItem('titan.currentShift')
-  } catch { /* storage inaccessible — proceed with redirect */ }
+  } catch {
+    /* storage inaccessible — proceed with redirect */
+  }
   window.location.hash = '#/login'
   throw new Error('Sesión expirada. Inicia sesión de nuevo.')
 }
@@ -94,7 +96,9 @@ function parseErrorDetail(text: string, fallback: string): string {
     }
     if (typeof body.error === 'string') return body.error
     if (typeof body.message === 'string') return body.message
-  } catch { /* not JSON — use raw text */ }
+  } catch {
+    /* not JSON — use raw text */
+  }
   return text || fallback
 }
 
@@ -151,7 +155,9 @@ export async function pullTable(
         const body = (await fallback.json()) as Record<string, unknown> | null
         if (!body || typeof body !== 'object') return []
         const fallbackCandidate = body[table] ?? body.data ?? body.products ?? body.customers ?? []
-        return Array.isArray(fallbackCandidate) ? (fallbackCandidate as Record<string, unknown>[]) : []
+        return Array.isArray(fallbackCandidate)
+          ? (fallbackCandidate as Record<string, unknown>[])
+          : []
       }
       const detail = await fallback.text()
       throw new Error(parseErrorDetail(detail, 'Fallo cargando datos'))
@@ -307,9 +313,7 @@ export async function closeTurn(
   return (await res.json()) as Record<string, unknown>
 }
 
-export async function getCurrentTurn(
-  cfg: RuntimeConfig
-): Promise<Record<string, unknown> | null> {
+export async function getCurrentTurn(cfg: RuntimeConfig): Promise<Record<string, unknown> | null> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   const body = (await res.json()) as Record<string, unknown>
@@ -379,9 +383,7 @@ export async function createSale(
 
 // ── Dashboard ──────────────────────────────────────
 
-export async function getDashboardQuick(
-  cfg: RuntimeConfig
-): Promise<Record<string, unknown>> {
+export async function getDashboardQuick(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/dashboard/quick`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>
@@ -389,9 +391,7 @@ export async function getDashboardQuick(
 
 // ── Mermas ─────────────────────────────────────────
 
-export async function getMermasPending(
-  cfg: RuntimeConfig
-): Promise<Record<string, unknown>> {
+export async function getMermasPending(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/mermas/pending`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   return (await res.json()) as Record<string, unknown>

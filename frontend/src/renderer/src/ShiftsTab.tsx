@@ -179,7 +179,8 @@ export default function ShiftsTab(): ReactElement {
       return
     }
     const initialCash = Math.max(0, toNumber(openingCash))
-    if (initialCash === 0 && !window.confirm('El efectivo inicial es $0.00. ¿Abrir turno asi?')) return
+    if (initialCash === 0 && !window.confirm('El efectivo inicial es $0.00. ¿Abrir turno asi?'))
+      return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
@@ -229,7 +230,13 @@ export default function ShiftsTab(): ReactElement {
       return
     }
     const closing = Math.max(0, toNumber(closingCash))
-    if (!window.confirm((closing === 0 ? 'El efectivo de cierre es $0.00. ' : '') + '¿Cerrar turno? Esta accion no se puede deshacer.')) return
+    if (
+      !window.confirm(
+        (closing === 0 ? 'El efectivo de cierre es $0.00. ' : '') +
+          '¿Cerrar turno? Esta accion no se puede deshacer.'
+      )
+    )
+      return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
@@ -278,40 +285,40 @@ export default function ShiftsTab(): ReactElement {
       const scoped = backendSales.filter((sale) => {
         const terminal = Number(sale.terminal_id ?? sale._terminal_id ?? 0)
         if (terminal !== 0 && terminal !== shift.terminalId) return false
-        const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '').replace(/^(\d{4}-\d{2}-\d{2}) /, '$1T')
+        const tsRaw = String(sale.timestamp ?? sale.created_at ?? sale._received_at ?? '').replace(
+          /^(\d{4}-\d{2}-\d{2}) /,
+          '$1T'
+        )
         const tsMs = new Date(tsRaw).getTime()
         return Number.isFinite(tsMs) && tsMs >= openedMs && tsMs <= closedMs
       })
 
       // Accumulate in cents to avoid float drift over many sales
       const initial = { salesCount: 0, totalSales: 0, cashSales: 0, cardSales: 0, transferSales: 0 }
-      const backendCents = scoped.reduce<typeof initial>(
-        (acc, sale) => {
-          const totalCents = Math.round(Math.max(0, Number(sale.total ?? 0)) * 100)
-          const method = String(sale.payment_method ?? '')
-          const mixedCashCents = Math.round(Math.max(0, Number(sale.mixed_cash ?? 0)) * 100)
-          acc.salesCount += 1
-          acc.totalSales += totalCents
-          if (method === 'cash') acc.cashSales += totalCents
-          else if (method === 'card') acc.cardSales += totalCents
-          else if (method === 'transfer') acc.transferSales += totalCents
-          else if (method === 'mixed') {
-            acc.cashSales += mixedCashCents
-            const mixedCardCents = Math.round(Math.max(0, Number(sale.mixed_card ?? 0)) * 100)
-            const mixedTransferCents = Math.round(Math.max(0, Number(sale.mixed_transfer ?? 0)) * 100)
-            acc.cardSales += mixedCardCents
-            acc.transferSales += mixedTransferCents
-          }
-          return acc
-        },
-        initial
-      )
+      const backendCents = scoped.reduce<typeof initial>((acc, sale) => {
+        const totalCents = Math.round(Math.max(0, Number(sale.total ?? 0)) * 100)
+        const method = String(sale.payment_method ?? '')
+        const mixedCashCents = Math.round(Math.max(0, Number(sale.mixed_cash ?? 0)) * 100)
+        acc.salesCount += 1
+        acc.totalSales += totalCents
+        if (method === 'cash') acc.cashSales += totalCents
+        else if (method === 'card') acc.cardSales += totalCents
+        else if (method === 'transfer') acc.transferSales += totalCents
+        else if (method === 'mixed') {
+          acc.cashSales += mixedCashCents
+          const mixedCardCents = Math.round(Math.max(0, Number(sale.mixed_card ?? 0)) * 100)
+          const mixedTransferCents = Math.round(Math.max(0, Number(sale.mixed_transfer ?? 0)) * 100)
+          acc.cardSales += mixedCardCents
+          acc.transferSales += mixedTransferCents
+        }
+        return acc
+      }, initial)
       const backend: BackendShiftTotals = {
         salesCount: backendCents.salesCount,
         totalSales: backendCents.totalSales / 100,
         cashSales: backendCents.cashSales / 100,
         cardSales: backendCents.cardSales / 100,
-        transferSales: backendCents.transferSales / 100,
+        transferSales: backendCents.transferSales / 100
       }
 
       const localSalesCount = shift.salesCount ?? 0

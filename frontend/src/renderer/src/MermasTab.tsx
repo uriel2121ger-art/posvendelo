@@ -49,7 +49,9 @@ export default function MermasTab(): ReactElement {
 
   useEffect(() => {
     fetchMermas()
-    return () => { requestIdRef.current++ }
+    return () => {
+      requestIdRef.current++
+    }
   }, [])
 
   const handleAction = async (id: number, approved: boolean): Promise<void> => {
@@ -58,7 +60,12 @@ export default function MermasTab(): ReactElement {
       setError('Merma no encontrada. Recarga la lista.')
       return
     }
-    if (!window.confirm(`¿${approved ? 'Aprobar' : 'Rechazar'} merma de "${target.product}" (${target.quantity} uds)?`)) return
+    if (
+      !window.confirm(
+        `¿${approved ? 'Aprobar' : 'Rechazar'} merma de "${target.product}" (${target.quantity} uds)?`
+      )
+    )
+      return
     setActionId(id)
     try {
       const cfg = loadRuntimeConfig()
@@ -140,7 +147,10 @@ export default function MermasTab(): ReactElement {
                       </td>
                       <td className="px-4 py-3 text-right text-zinc-300">{m.quantity}</td>
                       <td className="px-4 py-3 text-right text-zinc-300">
-                        ${Number(m.total_value).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        $
+                        {Number(m.total_value).toLocaleString('es-MX', {
+                          minimumFractionDigits: 2
+                        })}
                       </td>
                       <td className="px-4 py-3 text-zinc-400">{m.loss_type}</td>
                       <td className="px-4 py-3 text-zinc-400 max-w-[200px] truncate">{m.reason}</td>

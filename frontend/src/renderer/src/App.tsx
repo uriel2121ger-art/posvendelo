@@ -14,7 +14,6 @@ import SettingsTab from './SettingsTab'
 import ShiftsTab from './ShiftsTab'
 import Terminal from './Terminal'
 
-
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
     super(props)
@@ -75,9 +74,7 @@ class TabErrorBoundary extends Component<
       return (
         <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-slate-200 p-8">
           <div className="max-w-md text-center">
-            <h1 className="text-2xl font-bold text-rose-400 mb-4">
-              Error en {this.props.tabName}
-            </h1>
+            <h1 className="text-2xl font-bold text-rose-400 mb-4">Error en {this.props.tabName}</h1>
             <p className="text-zinc-400 mb-4">{this.state.error.message}</p>
             <p className="text-zinc-500 text-sm mb-6">
               Las demas pestanas siguen funcionando. Puedes navegar con las teclas F1-F11.
@@ -109,7 +106,11 @@ class TabErrorBoundary extends Component<
 
 function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   let token: string | null = null
-  try { token = localStorage.getItem('titan.token') } catch { /* storage error */ }
+  try {
+    token = localStorage.getItem('titan.token')
+  } catch {
+    /* storage error */
+  }
   if (!token) return <Navigate to="/login" replace />
   return children
 }
@@ -119,7 +120,11 @@ function RoutedApp(): ReactElement {
 
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      try { if (!localStorage.getItem('titan.token')) return } catch { return }
+      try {
+        if (!localStorage.getItem('titan.token')) return
+      } catch {
+        return
+      }
       const tag = (document.activeElement?.tagName ?? '').toUpperCase()
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
       switch (event.key) {
@@ -177,19 +182,125 @@ function RoutedApp(): ReactElement {
 
   return (
     <Routes>
-      <Route path="/" element={<RequireAuth><Navigate to="/terminal" replace /></RequireAuth>} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <Navigate to="/terminal" replace />
+          </RequireAuth>
+        }
+      />
       <Route path="/login" element={<Login />} />
-      <Route path="/terminal" element={<RequireAuth><TabErrorBoundary tabName="Terminal"><Terminal /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/clientes" element={<RequireAuth><TabErrorBoundary tabName="Clientes"><CustomersTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/productos" element={<RequireAuth><TabErrorBoundary tabName="Productos"><ProductsTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/inventario" element={<RequireAuth><TabErrorBoundary tabName="Inventario"><InventoryTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/turnos" element={<RequireAuth><TabErrorBoundary tabName="Turnos"><ShiftsTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/reportes" element={<RequireAuth><TabErrorBoundary tabName="Reportes"><ReportsTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/historial" element={<RequireAuth><TabErrorBoundary tabName="Historial"><HistoryTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/configuraciones" element={<RequireAuth><TabErrorBoundary tabName="Configuraciones"><SettingsTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/estadisticas" element={<RequireAuth><TabErrorBoundary tabName="Estadisticas"><DashboardStatsTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/mermas" element={<RequireAuth><TabErrorBoundary tabName="Mermas"><MermasTab /></TabErrorBoundary></RequireAuth>} />
-      <Route path="/gastos" element={<RequireAuth><TabErrorBoundary tabName="Gastos"><ExpensesTab /></TabErrorBoundary></RequireAuth>} />
+      <Route
+        path="/terminal"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Terminal">
+              <Terminal />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/clientes"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Clientes">
+              <CustomersTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/productos"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Productos">
+              <ProductsTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/inventario"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Inventario">
+              <InventoryTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/turnos"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Turnos">
+              <ShiftsTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/reportes"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Reportes">
+              <ReportsTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/historial"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Historial">
+              <HistoryTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/configuraciones"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Configuraciones">
+              <SettingsTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/estadisticas"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Estadisticas">
+              <DashboardStatsTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/mermas"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Mermas">
+              <MermasTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/gastos"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Gastos">
+              <ExpensesTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

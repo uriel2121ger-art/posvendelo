@@ -25,7 +25,10 @@ export default function DashboardStatsTab(): ReactElement {
       const raw = await getDashboardQuick(cfg)
       if (requestIdRef.current !== reqId) return
       const d = (raw.data ?? raw) as Record<string, unknown>
-      const safeNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0 }
+      const safeNum = (v: unknown): number => {
+        const n = Number(v ?? 0)
+        return Number.isFinite(n) ? n : 0
+      }
       setStats({
         ventas_hoy: safeNum(d.ventas_hoy),
         total_hoy: safeNum(d.total_hoy),

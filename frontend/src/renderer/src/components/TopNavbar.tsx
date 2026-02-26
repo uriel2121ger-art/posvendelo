@@ -55,7 +55,15 @@ export default function TopNavbar(): ReactElement {
       <div className="ml-auto flex items-center gap-4 bg-zinc-950 px-4 py-1.5 rounded-full border border-zinc-800">
         <div className="text-xs text-zinc-500 text-right">
           <div>Le atiende:</div>
-          <div className="font-bold text-zinc-300">{(() => { try { return localStorage.getItem('titan.user') || 'Usuario' } catch { return 'Usuario' } })()}</div>
+          <div className="font-bold text-zinc-300">
+            {(() => {
+              try {
+                return localStorage.getItem('titan.user') || 'Usuario'
+              } catch {
+                return 'Usuario'
+              }
+            })()}
+          </div>
         </div>
         <button
           onClick={() => {
@@ -65,9 +73,17 @@ export default function TopNavbar(): ReactElement {
                 if (!raw) return false
                 const arr = JSON.parse(raw)
                 return Array.isArray(arr) && arr.length > 0
-              } catch { return false }
+              } catch {
+                return false
+              }
             })()
-            const hasShift = (() => { try { return Boolean(localStorage.getItem('titan.currentShift')) } catch { return false } })()
+            const hasShift = (() => {
+              try {
+                return Boolean(localStorage.getItem('titan.currentShift'))
+              } catch {
+                return false
+              }
+            })()
             const warnings: string[] = []
             if (hasPending) warnings.push('Hay tickets pendientes sin cobrar.')
             if (hasShift) warnings.push('Hay un turno abierto.')
@@ -76,10 +92,16 @@ export default function TopNavbar(): ReactElement {
               : '¿Cerrar sesion?'
             if (!window.confirm(msg)) return
             try {
-              ;['titan.token', 'titan.user', 'titan.currentShift', 'titan.pendingTickets', 'titan.activeTickets'].forEach(
-                (k) => localStorage.removeItem(k)
-              )
-            } catch { /* storage inaccessible — proceed with redirect */ }
+              ;[
+                'titan.token',
+                'titan.user',
+                'titan.currentShift',
+                'titan.pendingTickets',
+                'titan.activeTickets'
+              ].forEach((k) => localStorage.removeItem(k))
+            } catch {
+              /* storage inaccessible — proceed with redirect */
+            }
             navigate('/login')
           }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"
