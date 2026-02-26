@@ -100,93 +100,104 @@ class ReturnsEngine:
             reason: Motivo de devolucion
             processed_by: Usuario que procesa
         """
-        sale = await self.db.fetchrow(
-            "SELECT * FROM sales WHERE id = :sid", {"sid": sale_id}
-        )
-
-        if not sale:
-            return {'success': False, 'error': 'Venta no encontrada'}
-
-        serie = sale['serie']
-        original_folio = sale['folio_visible']
-
-        return_folio = await self._generate_return_folio()
-
-        total_return = Decimal('0')
-        processed_items = []
-
-        for item in items:
-            product_id = item.get('product_id')
-            qty = item.get('quantity', 1)
-
-            original_item = await self.db.fetchrow(
-                """SELECT si.*, p.name
-                   FROM sale_items si
-                   JOIN products p ON si.product_id = p.id
-                   WHERE si.sale_id = :sid AND si.product_id = :pid""",
-                {"sid": sale_id, "pid": product_id},
+        conn = self.db.connection
+        async with conn.transaction():
+            sale = await self.db.fetchrow(
+                "SELECT * FROM sales WHERE id = :sid", {"sid": sale_id}
             )
 
-            if not original_item:
-                continue
+            if not sale:
+                return {'success': False, 'error': 'Venta no encontrada'}
 
-            unit_price = round(float(original_item['price']), 2)
-            subtotal = unit_price * qty
-            tax = subtotal * IVA_RATE
-            total = subtotal + tax
-            total_return += Decimal(str(total))
+            serie = sale['serie']
+            original_folio = sale['folio_visible']
 
-            await self.db.execute(
-                """INSERT INTO returns
-                   (sale_id, original_serie, original_folio, return_folio,
-                    product_id, product_name, quantity, unit_price,
-                    subtotal, tax, total, reason_category, reason_detail,
-                    processed_by, customer_id, created_at)
-                   VALUES (:sale_id, :serie, :folio, :rfolio,
-                    :pid, :pname, :qty, :uprice,
-                    :sub, :tax, :total, 'general', :reason,
-                    :proc_by, :cust_id, NOW())""",
-                {
-                    "sale_id": sale_id,
-                    "serie": serie,
-                    "folio": original_folio,
-                    "rfolio": return_folio,
-                    "pid": product_id,
-                    "pname": original_item['name'],
-                    "qty": qty,
-                    "uprice": unit_price,
-                    "sub": subtotal,
-                    "tax": tax,
-                    "total": total,
-                    "reason": reason,
-                    "proc_by": processed_by,
-                    "cust_id": sale.get('customer_id'),
-                },
-            )
+            return_folio = await self._generate_return_folio()
 
-            # Reintegrar stock
-            await self.db.execute(
-                "UPDATE products SET stock = stock + :qty, synced = 0, "
-                "updated_at = CURRENT_TIMESTAMP WHERE id = :pid",
-                {"qty": qty, "pid": product_id},
-            )
-            try:
-                await self.db.execute(
-                    """INSERT INTO inventory_movements
-                        (product_id, movement_type, type, quantity, reason,
-                         reference_type, reference_id, timestamp, synced)
-                        VALUES (:pid, 'IN', 'return', :qty, :reason,
-                         'return', :ref_id, NOW(), 0)""",
-                    {"pid": product_id, "qty": qty, "reason": reason or "Devolucion", "ref_id": sale_id},
+            total_return = Decimal('0')
+            processed_items = []
+            iva_rate = Decimal(str(IVA_RATE))
+
+            for item in items:
+                product_id = item.get('product_id')
+                qty = Decimal(str(item.get('quantity', 1)))
+
+                original_item = await self.db.fetchrow(
+                    """SELECT si.*, p.name
+                       FROM sale_items si
+                       JOIN products p ON si.product_id = p.id
+                       WHERE si.sale_id = :sid AND si.product_id = :pid""",
+                    {"sid": sale_id, "pid": product_id},
                 )
-            except Exception as e:
-                logger.debug("Could not insert inventory_movement for return: %s", e)
 
-            processed_items.append({
-                'product': original_item['name'],
-                'quantity': qty,
-                'refund': total,
-            })
+                if not original_item:
+                    continue
+
+                # Validate qty does not exceed original sold quantity
+                original_qty = Decimal(str(original_item.get('qty', 0)))
+                if qty > original_qty:
+                    return {
+                        'success': False,
+                        'error': f"Cantidad a devolver ({qty}) excede la vendida ({original_qty}) para producto {original_item['name']}",
+                    }
+
+                unit_price = Decimal(str(original_item['price'])).quantize(Decimal('0.01'))
+                subtotal = (unit_price * qty).quantize(Decimal('0.01'))
+                tax = (subtotal * iva_rate).quantize(Decimal('0.01'))
+                total = subtotal + tax
+                total_return += total
+
+                await self.db.execute(
+                    """INSERT INTO returns
+                       (sale_id, original_serie, original_folio, return_folio,
+                        product_id, product_name, quantity, unit_price,
+                        subtotal, tax, total, reason_category, reason_detail,
+                        processed_by, customer_id, created_at)
+                       VALUES (:sale_id, :serie, :folio, :rfolio,
+                        :pid, :pname, :qty, :uprice,
+                        :sub, :tax, :total, 'general', :reason,
+                        :proc_by, :cust_id, NOW())""",
+                    {
+                        "sale_id": sale_id,
+                        "serie": serie,
+                        "folio": original_folio,
+                        "rfolio": return_folio,
+                        "pid": product_id,
+                        "pname": original_item['name'],
+                        "qty": float(qty),
+                        "uprice": float(unit_price),
+                        "sub": float(subtotal),
+                        "tax": float(tax),
+                        "total": float(total),
+                        "reason": reason,
+                        "proc_by": processed_by,
+                        "cust_id": sale.get('customer_id'),
+                    },
+                )
+
+                # Reintegrar stock
+                await self.db.execute(
+                    "UPDATE products SET stock = stock + :qty, synced = 0, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE id = :pid",
+                    {"qty": float(qty), "pid": product_id},
+                )
+                try:
+                    await self.db.execute(
+                        """INSERT INTO inventory_movements
+                            (product_id, movement_type, type, quantity, reason,
+                             reference_type, reference_id, timestamp, synced)
+                            VALUES (:pid, 'IN', 'return', :qty, :reason,
+                             'return', :ref_id, NOW(), 0)""",
+                        {"pid": product_id, "qty": float(qty), "reason": reason or "Devolucion", "ref_id": sale_id},
+                    )
+                except Exception as e:
+                    logger.debug("Could not insert inventory_movement for return: %s", e)
+
+                processed_items.append({
+                    'product': original_item['name'],
+                    'quantity': float(qty),
+                    'refund': round(float(total), 2),
+                })
 
         requires_cfdi_egreso = serie == 'A'
 

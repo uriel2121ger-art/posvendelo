@@ -66,22 +66,24 @@ class StealthLayer:
         if not sale_ids:
             return {'success': False, 'error': 'No hay IDs provistos'}
 
-        for sid in sale_ids:
-            items = await self.db.fetch("SELECT product_id, qty FROM sale_items WHERE sale_id = :sid", sid=sid)
+        conn = self.db.connection
+        async with conn.transaction():
+            for sid in sale_ids:
+                items = await self.db.fetch("SELECT product_id, qty FROM sale_items WHERE sale_id = :sid", sid=sid)
 
-            for item in items:
-                await self.db.execute("UPDATE products SET stock = stock + :qty WHERE id = :pid", qty=item['qty'], pid=item['product_id'])
-                try:
-                    await self.db.execute("""
-                        INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, reference_id, timestamp, synced)
-                        VALUES (:pid, 'IN', 'black_hole', :qty, 'Reversión black_hole', 'black_hole', :sid, NOW(), 0)
-                    """, pid=item['product_id'], qty=item['qty'], sid=sid)
-                except Exception:
-                    pass
+                for item in items:
+                    await self.db.execute("UPDATE products SET stock = stock + :qty WHERE id = :pid", qty=item['qty'], pid=item['product_id'])
+                    try:
+                        await self.db.execute("""
+                            INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, reference_id, timestamp, synced)
+                            VALUES (:pid, 'IN', 'black_hole', :qty, 'Reversión black_hole', 'black_hole', :sid, NOW(), 0)
+                        """, pid=item['product_id'], qty=item['qty'], sid=sid)
+                    except Exception:
+                        pass
 
-            await self.db.execute("DELETE FROM sale_items WHERE sale_id = :sid", sid=sid)
-            await self.db.execute("DELETE FROM payments WHERE sale_id = :sid", sid=sid)
-            await self.db.execute("DELETE FROM sales WHERE id = :sid AND serie = 'B'", sid=sid)
+                await self.db.execute("DELETE FROM sale_items WHERE sale_id = :sid", sid=sid)
+                await self.db.execute("DELETE FROM payments WHERE sale_id = :sid", sid=sid)
+                await self.db.execute("DELETE FROM sales WHERE id = :sid AND serie = 'B'", sid=sid)
 
         return {'success': True, 'deleted_count': len(sale_ids), 'message': f'{len(sale_ids)} tickets Serie B eliminados'}
 

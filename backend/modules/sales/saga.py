@@ -373,7 +373,7 @@ async def _return_from_destination(context: Dict[str, Any], step_result: Any):
 
     async with get_connection() as db:
         await db.execute(
-            "DELETE FROM inventory_movements WHERE reference_id = :ref AND movement_type = 'transfer_in'",
+            "DELETE FROM inventory_movements WHERE reference_id = :ref AND movement_type = 'IN' AND type = 'transfer'",
             {"ref": transfer_id},
         )
     logger.info(f"Returned stock from destination (transfer {transfer_id})")

@@ -220,16 +220,18 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
            ORDER BY stock ASC LIMIT 10"""
     )
 
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
     top_products = await db.fetch(
         """SELECT p.name, COUNT(*) as sales_count, COALESCE(SUM(si.subtotal), 0) as revenue
            FROM sale_items si
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
            WHERE s.status = 'completed'
-           AND s.timestamp::timestamp >= NOW() - INTERVAL '30 days'
+           AND s.timestamp >= :since
            GROUP BY p.name
            ORDER BY sales_count DESC
-           LIMIT 5"""
+           LIMIT 5""",
+        {"since": thirty_days_ago},
     )
 
     return {
