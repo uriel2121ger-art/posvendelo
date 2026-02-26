@@ -6,10 +6,11 @@ Endpoints for CFDI generation, global invoices, returns, and XML parsing.
 import logging
 import os
 import uuid
+from decimal import Decimal
 
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from db.connection import get_db
 from modules.shared.auth import verify_token
@@ -48,12 +49,12 @@ class GhostWalletCreateRequest(BaseModel):
 
 class GhostWalletAddPointsRequest(BaseModel):
     hash_id: str
-    sale_amount: float
+    sale_amount: Decimal = Field(..., gt=0)
     sale_id: int = None
 
 class GhostWalletRedeemRequest(BaseModel):
     hash_id: str
-    amount: float
+    amount: Decimal = Field(..., gt=0)
 
 # --- Phase 6 Schemas ---
 
@@ -72,16 +73,16 @@ class SurgicalDeleteRequest(BaseModel):
 class SupplierAnalyzeRequest(BaseModel):
     product_id: int
     quantity: int
-    price_a: float
-    price_b: float
+    price_a: Decimal = Field(..., gt=0)
+    price_b: Decimal = Field(..., gt=0)
     supplier_a: str = "Proveedor Factura"
     supplier_b: str = "Proveedor Efectivo"
 
 class ExtractionPlanRequest(BaseModel):
-    target_amount: float
+    target_amount: Decimal = Field(..., gt=0)
 
 class CryptoConversionRequest(BaseModel):
-    amount_mxn: float
+    amount_mxn: Decimal = Field(..., gt=0)
     stablecoin: str = "USDT"
     wallet_address: str = None
     cover_description: str = None
@@ -108,18 +109,18 @@ class GhostTransferReceiveRequest(BaseModel):
 
 class ShadowStockAddRequest(BaseModel):
     product_id: int
-    quantity: float
+    quantity: Decimal = Field(..., gt=0)
     source: str = None
     notes: str = None
 
 class ShadowSellRequest(BaseModel):
     product_id: int
-    quantity: float
+    quantity: Decimal = Field(..., gt=0)
     serie: str = 'B'
 
 class ReconcileFiscalRequest(BaseModel):
     product_id: int
-    fiscal_stock: float
+    fiscal_stock: Decimal = Field(..., ge=0)
 
 class PanicTriggerRequest(BaseModel):
     immediate: bool = False

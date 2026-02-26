@@ -70,12 +70,12 @@ class RESICOMonitor:
 
         return {
             'year': year,
-            'ventas_serie_a': float(ventas_a),
-            'limite_anual': float(self.LIMITE_ANUAL),
-            'restante': float(restante),
+            'ventas_serie_a': round(float(ventas_a), 2),
+            'limite_anual': round(float(self.LIMITE_ANUAL), 2),
+            'restante': round(float(restante), 2),
             'porcentaje_usado': round(float(porcentaje_usado), 2),
-            'proyeccion_anual': float(proyeccion_anual),
-            'promedio_diario': float(daily_average) if days_elapsed > 0 else 0,
+            'proyeccion_anual': round(float(proyeccion_anual), 2),
+            'promedio_diario': round(float(daily_average), 2) if days_elapsed > 0 else 0,
             'dias_transcurridos': days_elapsed,
             'dias_para_limite': dias_para_limite,
             'estado': estado,
@@ -137,21 +137,21 @@ class RESICOMonitor:
             recs.append("Contacta a tu contador para migrar a Regimen General")
             recs.append("Las ventas adicionales tributaran a tasa mayor")
         elif estado['codigo'] == 'CRITICO':
-            recs.append(f"Solo puedes facturar ${float(restante):,.2f} mas este anio")
+            recs.append(f"Solo puedes facturar ${round(float(restante), 2):,.2f} mas este anio")
             recs.append("Considera pausar pagos con tarjeta/transferencia")
             recs.append(f"A este ritmo, llegaras al limite en {dias} dias")
         elif estado['codigo'] == 'PRECAUCION':
-            recs.append(f"Te quedan ${float(restante):,.2f} de capacidad")
+            recs.append(f"Te quedan ${round(float(restante), 2):,.2f} de capacidad")
             recs.append("Revisa tu estrategia de facturacion global")
         else:
             recs.append("Continua con tu operacion normal")
-            recs.append(f"Capacidad restante: ${float(restante):,.2f}")
+            recs.append(f"Capacidad restante: ${round(float(restante), 2):,.2f}")
 
         return recs
 
     def _get_tasa_mensual(self, promedio_mensual: Decimal) -> float:
         """Obtiene tasa ISR segun promedio mensual (pure logic, no DB)."""
-        promedio = float(promedio_mensual)
+        promedio = round(float(promedio_mensual), 2)
         for limite, tasa in self.TASAS_RESICO:
             if promedio <= limite:
                 return tasa
@@ -207,14 +207,14 @@ class RESICOMonitor:
         months = []
         acumulado = 0
         for row in rows:
-            subtotal = float(row['subtotal'] or 0)
+            subtotal = round(float(row['subtotal'] or 0), 2)
             acumulado += subtotal
             months.append({
                 'mes': int(row['mes']),
                 'transacciones': row['transacciones'],
                 'subtotal': subtotal,
-                'iva': float(row['iva'] or 0),
-                'total': float(row['total'] or 0),
+                'iva': round(float(row['iva'] or 0), 2),
+                'total': round(float(row['total'] or 0), 2),
                 'acumulado': acumulado,
                 'porcentaje_limite': round((acumulado / float(self.LIMITE_ANUAL)) * 100, 2),
             })

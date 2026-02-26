@@ -36,7 +36,7 @@ class MaterialityEngine:
         if not p:
             return {'success': False, 'error': 'Producto no encontrado'}
 
-        unit_cost = float(p['price'] or 0) * 0.7
+        unit_cost = round(float(p['price'] or 0) * 0.7, 2)
         total_value = unit_cost * quantity
         acta_number = await self._generate_acta_number()
 
@@ -106,5 +106,5 @@ Estado: {r['status'].upper()}"""
         """, year=year)
 
         by_category = {r['category']: dict(r) for r in result}
-        total_valor = sum(float(r['valor'] or 0) for r in result)
+        total_valor = round(sum(round(float(r['valor'] or 0), 2) for r in result), 2)
         return {'year': year, 'by_category': by_category, 'total_value': total_valor, 'total_records': sum(r['registros'] for r in result)}

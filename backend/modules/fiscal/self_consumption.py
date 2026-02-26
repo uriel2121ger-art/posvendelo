@@ -43,7 +43,7 @@ class SelfConsumptionEngine:
         if float(p['stock'] or 0) < quantity:
             return {'success': False, 'error': 'Stock insuficiente'}
 
-        unit_cost = float(p['price'] or 0) * 0.7
+        unit_cost = round(float(p['price'] or 0) * 0.7, 2)
         total_value = unit_cost * quantity
 
         try:
@@ -84,8 +84,8 @@ class SelfConsumptionEngine:
         by_category = {}
         total_value = 0.0
         for r in result:
-            by_category[r['category']] = {'registros': r['registros'], 'unidades': r['unidades'], 'valor': float(r['valor'] or 0)}
-            total_value += float(r['valor'] or 0)
+            by_category[r['category']] = {'registros': r['registros'], 'unidades': r['unidades'], 'valor': round(float(r['valor'] or 0), 2)}
+            total_value += round(float(r['valor'] or 0), 2)
 
         return {'year': year, 'month': month, 'by_category': by_category, 'total_value': total_value, 'total_registros': sum(c['registros'] for c in by_category.values())}
 
@@ -107,7 +107,7 @@ class SelfConsumptionEngine:
             WHERE EXTRACT(YEAR FROM created_at::timestamp) = :year AND EXTRACT(MONTH FROM created_at::timestamp) = :month
         """, folio=folio, year=year, month=month)
 
-        voucher_items = [{'product': it['product_name'], 'quantity': it['quantity'], 'value': float(it['total_value'] or 0), 'reason': f"{it['category']}: {it.get('reason', '')}"} for it in items]
+        voucher_items = [{'product': it['product_name'], 'quantity': it['quantity'], 'value': round(float(it['total_value'] or 0), 2), 'reason': f"{it['category']}: {it.get('reason', '')}"} for it in items]
 
         return {'success': True, 'folio': folio, 'items_count': len(items), 'items': voucher_items}
 

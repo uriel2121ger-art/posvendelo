@@ -63,7 +63,7 @@ class CashExtractionEngine:
         ext = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye", ys=year_start, ye=year_end)
         total_extracted = Decimal(str(ext['total'] or 0)) if ext else Decimal('0')
 
-        return {'year': year, 'total_serie_b': float(total_b), 'total_extracted': float(total_extracted), 'available': float(total_b - total_extracted), 'transactions': r['transacciones'] if r else 0}
+        return {'year': year, 'total_serie_b': round(float(total_b), 2), 'total_extracted': round(float(total_extracted), 2), 'available': round(float(total_b - total_extracted), 2), 'transactions': r['transacciones'] if r else 0}
 
     async def create_extraction(self, amount: float, document_type: str, related_person_id: int = None, purpose: str = None) -> Dict[str, Any]:
         amount = Decimal(str(amount))
@@ -84,13 +84,13 @@ class CashExtractionEngine:
                 INSERT INTO cash_extractions (amount, extraction_date, document_type, related_person_id,
                     beneficiary_name, purpose, contract_hash, requires_notary, status, created_at)
                 VALUES (:amt, :dt, :dtype, :rpid, :bname, :purpose, :hash, :rn, 'pending', :ts)
-            """, amt=float(amount), dt=datetime.now().strftime('%Y-%m-%d'), dtype=document_type,
+            """, amt=round(float(amount), 2), dt=datetime.now().strftime('%Y-%m-%d'), dtype=document_type,
                 rpid=related_person_id, bname=person['name'] if person else None, purpose=purpose,
                 hash=contract_hash, rn=1 if requires_notary else 0, ts=datetime.now().isoformat())
 
-            result = {'success': True, 'amount': float(amount), 'type': document_type, 'hash': contract_hash[:16] + '...', 'requires_notary': requires_notary}
+            result = {'success': True, 'amount': round(float(amount), 2), 'type': document_type, 'hash': contract_hash[:16] + '...', 'requires_notary': requires_notary}
             if requires_notary:
-                result['warning'] = f'Monto superior a ${float(self.UMBRAL_FECHA_CIERTA):,.0f}. Recomendable fecha cierta ante Notario.'
+                result['warning'] = f'Monto superior a ${round(float(self.UMBRAL_FECHA_CIERTA), 2):,.0f}. Recomendable fecha cierta ante Notario.'
             return result
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -104,7 +104,7 @@ class CashExtractionEngine:
         fecha = datetime.now()
         return f"""CONTRATO DE {e['document_type']}
 Fecha: {fecha.strftime('%d de %B de %Y')}
-Monto: ${float(e['amount']):,.2f} MXN
+Monto: ${round(float(e['amount']), 2):,.2f} MXN
 Donante/Mutuante: {e.get('donor_name', 'N/A')} (RFC: {e.get('donor_rfc', 'N/A')})
 Parentesco: {self.PARENTESCOS.get(e.get('parentesco', ''), 'N/A')}
 Hash: {e['contract_hash']}
@@ -119,6 +119,6 @@ Hash: {e['contract_hash']}
                 COALESCE(SUM(CASE WHEN requires_notary = 1 THEN 1 ELSE 0 END), 0) as notarized
             FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye GROUP BY document_type
         """, ys=year_start, ye=year_end)
-        total = sum(float(r['total'] or 0) for r in result)
+        total = sum(round(float(r['total'] or 0), 2) for r in result)
         return {'year': year, 'by_type': {r['document_type']: dict(r) for r in result}, 'total_extracted': total,
-                'limite_informable': float(self.LIMITE_INFORMABLE), 'requires_annual_declaration': total >= float(self.LIMITE_INFORMABLE)}
+                'limite_informable': round(float(self.LIMITE_INFORMABLE), 2), 'requires_annual_declaration': total >= round(float(self.LIMITE_INFORMABLE), 2)}

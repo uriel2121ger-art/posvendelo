@@ -49,8 +49,8 @@ async def get_expense_summary(
         return {
             "success": True,
             "data": {
-                "month": float(month_row["total"]) if month_row else 0.0,
-                "year": float(year_row["total"]) if year_row else 0.0,
+                "month": round(float(month_row["total"]), 2) if month_row else 0.0,
+                "year": round(float(year_row["total"]), 2) if year_row else 0.0,
             },
         }
     except Exception as e:

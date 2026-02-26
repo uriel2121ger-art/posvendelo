@@ -42,9 +42,9 @@ async def get_pending_mermas(
                 "id": m["id"],
                 "product": m["product_name"],
                 "sku": m.get("product_sku"),
-                "quantity": float(m["quantity"]),
-                "unit_cost": float(m["unit_cost"] or 0),
-                "total_value": float(m["total_value"] or 0),
+                "quantity": round(float(m["quantity"]), 2),
+                "unit_cost": round(float(m["unit_cost"] or 0), 2),
+                "total_value": round(float(m["total_value"] or 0), 2),
                 "loss_type": m["loss_type"],
                 "reason": m["reason"],
                 "category": m["category"],
@@ -95,16 +95,16 @@ async def approve_merma(
         # If approved and has product_id, deduct stock + record inventory movement
         if body.approved and existing.get("product_id"):
             pid = existing["product_id"]
-            qty = float(existing["quantity"] or 0)
+            qty = round(float(existing["quantity"] or 0), 2)
             if qty > 0:
                 product = await db.fetchrow(
                     "SELECT stock FROM products WHERE id = :pid FOR UPDATE",
                     {"pid": pid},
                 )
-                if product and float(product["stock"] or 0) < qty:
+                if product and round(float(product["stock"] or 0), 2) < qty:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Stock insuficiente para merma. Disponible: {float(product['stock'] or 0)}, Requerido: {qty}",
+                        detail=f"Stock insuficiente para merma. Disponible: {round(float(product['stock'] or 0), 2)}, Requerido: {qty}",
                     )
                 await db.execute(
                     "UPDATE products SET stock = stock - :qty, synced = 0, updated_at = NOW() WHERE id = :pid",

@@ -39,7 +39,7 @@ class FiscalDashboard:
             FROM sales WHERE serie = :serie AND EXTRACT(YEAR FROM timestamp::timestamp) = :year AND status != 'cancelled'
         """, serie=serie, year=year)
         if r:
-            return {'ventas': r['ventas'], 'total': float(r['total'] or 0), 'subtotal': float(r['subtotal'] or 0), 'impuestos': float(r['impuestos'] or 0)}
+            return {'ventas': r['ventas'], 'total': round(float(r['total'] or 0), 2), 'subtotal': round(float(r['subtotal'] or 0), 2), 'impuestos': round(float(r['impuestos'] or 0), 2)}
         return {'ventas': 0, 'total': 0, 'subtotal': 0, 'impuestos': 0}
 
     async def _get_gastos_facturados(self, year: int) -> Dict[str, Any]:
@@ -71,7 +71,7 @@ class FiscalDashboard:
         elif facturado >= self.RESICO_WARNING: estado = 'PELIGRO'
         else: estado = 'OK'
 
-        return {'limite': float(self.RESICO_LIMIT), 'facturado': float(facturado), 'restante': float(restante), 'porcentaje': float(round(porcentaje, 2)), 'estado': estado}
+        return {'limite': round(float(self.RESICO_LIMIT), 2), 'facturado': round(float(facturado), 2), 'restante': round(float(restante), 2), 'porcentaje': float(round(porcentaje, 2)), 'estado': estado}
 
     async def _get_pendientes_global(self) -> Dict[str, Any]:
         r = await self.db.fetchrow("""
@@ -80,7 +80,7 @@ class FiscalDashboard:
             WHERE s.serie = 'B' AND scr.id IS NULL AND s.status != 'cancelled'
         """)
         if r and r['tickets']:
-            return {'tickets': r['tickets'], 'total': float(r['total'] or 0), 'mas_antiguo': r['mas_antiguo']}
+            return {'tickets': r['tickets'], 'total': round(float(r['total'] or 0), 2), 'mas_antiguo': r['mas_antiguo']}
         return {'tickets': 0, 'total': 0, 'mas_antiguo': None}
 
     async def _generar_recomendaciones(self, year: int) -> List[str]:
@@ -106,8 +106,8 @@ class FiscalDashboard:
         if max_amount:
             selected, acc = [], 0.0
             for s in rows:
-                if acc + float(s['total']) <= max_amount:
+                if acc + round(float(s['total']), 2) <= max_amount:
                     selected.append(dict(s))
-                    acc += float(s['total'])
+                    acc += round(float(s['total']), 2)
             return selected
         return [dict(r) for r in rows]

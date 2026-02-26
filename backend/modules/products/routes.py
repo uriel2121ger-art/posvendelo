@@ -212,8 +212,8 @@ async def update_product(
         user_id = int(auth["sub"])
         for price_field in ("price", "price_wholesale"):
             if price_field in fields:
-                old_val = float(existing.get(price_field) or 0)
-                new_val = float(fields[price_field])
+                old_val = round(float(existing.get(price_field) or 0), 2)
+                new_val = round(float(fields[price_field]), 2)
                 if round(new_val, 2) != round(old_val, 2):
                     await db.execute(
                         """
@@ -340,7 +340,7 @@ async def update_stock_remote(
             {
                 "pid": product["id"],
                 "mov": mov_type,
-                "qty": abs(float(qty_signed)),
+                "qty": round(abs(float(qty_signed)), 2),
                 "reason": body.reason or "Actualizacion remota",
                 "uid": int(auth["sub"]),
             },
@@ -375,7 +375,7 @@ async def update_price_remote(
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-        old_price = float(product["price"])
+        old_price = round(float(product["price"]), 2)
 
         await conn.execute(
             "UPDATE products SET price = $1, synced = 0, updated_at = NOW() WHERE id = $2",
@@ -431,8 +431,8 @@ async def get_stock_by_branch(product_id: int, auth: dict = Depends(verify_token
         {
             "branch_id": b["id"],
             "branch_name": b["name"],
-            "stock": float(product["stock"] or 0),
-            "price": float(product["price"] or 0),
+            "stock": round(float(product["stock"] or 0), 2),
+            "price": round(float(product["price"] or 0), 2),
         }
         for b in branches
     ]
@@ -441,8 +441,8 @@ async def get_stock_by_branch(product_id: int, auth: dict = Depends(verify_token
         branch_data = [{
             "branch_id": 1,
             "branch_name": "Sucursal Principal",
-            "stock": float(product["stock"] or 0),
-            "price": float(product["price"] or 0),
+            "stock": round(float(product["stock"] or 0), 2),
+            "price": round(float(product["price"] or 0), 2),
         }]
 
     return {

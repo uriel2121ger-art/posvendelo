@@ -31,7 +31,7 @@ ALLOWED_TABLES = {"products", "customers", "sales", "shifts"}
 def _serialize(value):
     """Convert DB values to JSON-safe types."""
     if isinstance(value, Decimal):
-        return float(value)
+        return round(float(value), 2)
     if isinstance(value, datetime):
         return value.isoformat()
     return value
@@ -256,7 +256,7 @@ async def sync_push(
                 parsed = {}
                 for fname, fval in num_fields.items():
                     try:
-                        f = float(fval)
+                        f = round(float(fval), 2)
                     except (ValueError, TypeError):
                         f = 0.0
                     if math.isnan(f) or math.isinf(f):

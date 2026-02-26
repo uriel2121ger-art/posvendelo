@@ -72,8 +72,8 @@ class NostradamusFiscal:
                 {"ms": month_start}
             )
             
-            total_a = float(result_a[0]['total'] or 0) if result_a else 0
-            total_b = float(result_b[0]['total'] or 0) if result_b else 0
+            total_a = round(float(result_a[0]['total'] or 0), 2) if result_a else 0
+            total_b = round(float(result_b[0]['total'] or 0), 2) if result_b else 0
             total = total_a + total_b
             
             ratio_b = (total_b / total * 100) if total > 0 else 0
@@ -111,16 +111,16 @@ class NostradamusFiscal:
             )
             
             total_deductions = (
-                (float(expenses[0]['total'] or 0) if expenses else 0) +
-                (float(purchases[0]['total'] or 0) if purchases else 0) +
-                (float(shrinkage[0]['total'] or 0) if shrinkage else 0)
+                (round(float(expenses[0]['total'] or 0), 2) if expenses else 0) +
+                (round(float(purchases[0]['total'] or 0), 2) if purchases else 0) +
+                (round(float(shrinkage[0]['total'] or 0), 2) if shrinkage else 0)
             )
             
             income_a = await self.db.fetch(
                 "SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp::date >= :ms",
                 {"ms": month_start}
             )
-            total_income = float(income_a[0]['total'] or 0) if income_a else 0
+            total_income = round(float(income_a[0]['total'] or 0), 2) if income_a else 0
             
             taxable_base = max(0, total_income - total_deductions)
             excess_deductions = total_deductions - total_income if total_deductions > total_income else 0
@@ -147,7 +147,7 @@ class NostradamusFiscal:
             total_invoiced = 0
 
             for emp in emitters:
-                amount = float(emp['current_resico_amount'])
+                amount = round(float(emp['current_resico_amount']), 2)
                 total_invoiced += amount
                 remaining = self.RESICO_ANNUAL_LIMIT - amount
                 percentage = (amount / self.RESICO_ANNUAL_LIMIT) * 100

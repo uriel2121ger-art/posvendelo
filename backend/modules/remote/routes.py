@@ -115,10 +115,10 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
             "turn_id": turn["id"],
             "user": turn["username"] or f"Usuario #{turn['user_id']}",
             "started_at": turn["start_timestamp"],
-            "initial_cash": float(turn["initial_cash"] or 0),
-            "cash_sales": float(summary["cash_sales"]) if summary else 0,
-            "card_sales": float(summary["card_sales"]) if summary else 0,
-            "total_sales": float(summary["total_sales"]) if summary else 0,
+            "initial_cash": round(float(turn["initial_cash"] or 0), 2),
+            "cash_sales": round(float(summary["cash_sales"]), 2) if summary else 0,
+            "card_sales": round(float(summary["card_sales"]), 2) if summary else 0,
+            "total_sales": round(float(summary["total_sales"]), 2) if summary else 0,
         },
     }
 
@@ -148,7 +148,7 @@ async def get_live_sales(
             "sales": [{
                 "id": s["id"],
                 "folio": s["folio_visible"] or f"#{s['id']}",
-                "total": float(s["total"] or 0),
+                "total": round(float(s["total"] or 0), 2),
                 "payment": s["payment_method"],
                 "serie": s["serie"],
                 "customer": s["customer_name"] or "Publico General",
@@ -242,7 +242,7 @@ async def remote_change_price(
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-        old_price = float(product["price"])
+        old_price = round(float(product["price"]), 2)
 
         await db.execute(
             "UPDATE products SET price = :price, synced = 0, updated_at = NOW() WHERE id = :id",
@@ -303,7 +303,7 @@ async def get_system_status(auth: dict = Depends(verify_token), db=Depends(get_d
             "pos_online": True,
             "turn_active": (turn_row["c"] > 0) if turn_row else False,
             "sales_today": sales_row["count"] if sales_row else 0,
-            "total_today": float(sales_row["total"]) if sales_row else 0.0,
+            "total_today": round(float(sales_row["total"]), 2) if sales_row else 0.0,
             "low_stock_alerts": low_stock_row["c"] if low_stock_row else 0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },

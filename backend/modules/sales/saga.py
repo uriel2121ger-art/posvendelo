@@ -260,9 +260,9 @@ async def _reserve_source_stock(context: Dict[str, Any]):
             if not row:
                 raise ValueError(f"Producto {product_id} no encontrado")
 
-            current_stock = float(row["stock"])
-            reserved = float(row.get("shadow_stock") or 0)
-            available = current_stock - reserved
+            current_stock = round(float(row["stock"]), 2)
+            reserved = round(float(row.get("shadow_stock") or 0), 2)
+            available = round(current_stock - reserved, 2)
             if available < qty:
                 raise ValueError(
                     f"Stock insuficiente para producto {product_id}: "

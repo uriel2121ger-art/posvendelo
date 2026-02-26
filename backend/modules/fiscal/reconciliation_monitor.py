@@ -80,9 +80,9 @@ class DiscrepancyMonitor:
             estado, semaforo, porcentaje_riesgo = 'SANO', 'VERDE', 0
 
         return {
-            'period': date_filter, 'period_type': period_type, 'ingresos_serie_a': float(total_ingresos),
-            'extracciones_documentadas': float(total_extracciones), 'ingresos_justificados': float(ingresos_justificados),
-            'gastos_visibles_sat': float(total_gastos_visible), 'discrepancia': float(discrepancia),
+            'period': date_filter, 'period_type': period_type, 'ingresos_serie_a': round(float(total_ingresos), 2),
+            'extracciones_documentadas': round(float(total_extracciones), 2), 'ingresos_justificados': round(float(ingresos_justificados), 2),
+            'gastos_visibles_sat': round(float(total_gastos_visible), 2), 'discrepancia': round(float(discrepancia), 2),
             'porcentaje_riesgo': round(float(porcentaje_riesgo), 2), 'estado': estado, 'semaforo': semaforo
         }
 
@@ -112,7 +112,7 @@ class DiscrepancyMonitor:
         for r in result:
             cat = r['category']
             if cat not in breakdown: breakdown[cat] = {'total': 0, 'by_method': {}}
-            breakdown[cat]['total'] += float(r['total'] or 0)
-            breakdown[cat]['by_method'][r['payment_method']] = float(r['total'] or 0)
+            breakdown[cat]['total'] += round(float(r['total'] or 0), 2)
+            breakdown[cat]['by_method'][r['payment_method']] = round(float(r['total'] or 0), 2)
 
         return {'period': f'{year}-{month:02d}' if month else str(year), 'by_category': breakdown, 'total': sum(c['total'] for c in breakdown.values())}

@@ -108,12 +108,12 @@ class CFDIService:
                 sat_code_raw = item.get("sat_code", item.get("sat_clave_prod_serv", "01010101"))
                 items.append(
                     {
-                        "quantity": float(item.get("quantity", item.get("qty", 1))),
+                        "quantity": round(float(item.get("quantity", item.get("qty", 1))), 2),
                         "product": {
                             "description": item.get("name", item.get("product_name", "Producto")),
                             "product_key": normalize_sat_key(sat_code_raw),
                             "unit_key": item.get("sat_unit", item.get("sat_clave_unidad", "H87")),
-                            "price": float(item.get("price", item.get("unit_price", 0))),
+                            "price": round(float(item.get("price", item.get("unit_price", 0))), 2),
                             "taxes": [{"type": "IVA", "rate": IVA_RATE}],
                         },
                     }
@@ -185,9 +185,9 @@ class CFDIService:
                 "nombre_receptor": customer_name or "PUBLICO EN GENERAL",
                 "regimen_receptor": customer_regime,
                 "uso_cfdi": uso_cfdi,
-                "total": float(invoice.get("total", sale_data.get("total", 0))),
-                "subtotal": float(sale_data.get("subtotal", 0)),
-                "impuestos": float(sale_data.get("tax", 0)),
+                "total": round(float(invoice.get("total", sale_data.get("total", 0))), 2),
+                "subtotal": round(float(sale_data.get("subtotal", 0)), 2),
+                "impuestos": round(float(sale_data.get("tax", 0)), 2),
                 "estado": "valid",
                 "facturapi_id": invoice_id,
                 "fecha_emision": datetime.now().isoformat(),
@@ -404,7 +404,7 @@ class CFDIService:
                 try:
                     for item in items:
                         product_id = item.get("product_id")
-                        quantity = float(item.get("quantity", 0))
+                        quantity = round(float(item.get("quantity", 0)), 2)
                         if product_id and quantity > 0:
                             await self.db.execute(
                                 "UPDATE products SET shadow_stock = COALESCE(shadow_stock, 0) + :qty WHERE id = :pid",

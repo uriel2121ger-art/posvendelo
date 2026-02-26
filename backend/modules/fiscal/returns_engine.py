@@ -130,7 +130,7 @@ class ReturnsEngine:
             if not original_item:
                 continue
 
-            unit_price = float(original_item['price'])
+            unit_price = round(float(original_item['price']), 2)
             subtotal = unit_price * qty
             tax = subtotal * IVA_RATE
             total = subtotal + tax
@@ -196,7 +196,7 @@ class ReturnsEngine:
             'original_sale': sale_id,
             'original_serie': serie,
             'items_returned': len(processed_items),
-            'total_refund': float(total_return),
+            'total_refund': round(float(total_return), 2),
             'requires_cfdi_egreso': requires_cfdi_egreso,
             'items': processed_items,
         }
@@ -271,5 +271,5 @@ class ReturnsEngine:
             'period': f'{start} a {end}',
             'by_serie': {r['original_serie']: dict(r) for r in rows},
             'total_returns': sum(r['count'] for r in rows),
-            'total_amount': sum(float(r['total'] or 0) for r in rows),
+            'total_amount': round(sum(round(float(r['total'] or 0), 2) for r in rows), 2),
         }

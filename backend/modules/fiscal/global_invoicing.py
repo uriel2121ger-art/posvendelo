@@ -58,9 +58,9 @@ class GlobalInvoicingService:
             return {
                 'period': f"{start_date} - {end_date}",
                 'count': row['count'],
-                'subtotal': float(row['subtotal'] or 0),
-                'tax': float(row['tax'] or 0),
-                'total': float(row['total'] or 0),
+                'subtotal': round(float(row['subtotal'] or 0), 2),
+                'tax': round(float(row['tax'] or 0), 2),
+                'total': round(float(row['total'] or 0), 2),
             }
         return {'count': 0, 'subtotal': 0, 'tax': 0, 'total': 0}
 
@@ -184,7 +184,7 @@ class GlobalInvoicingService:
             if method not in by_payment:
                 by_payment[method] = {'count': 0, 'total': 0}
             by_payment[method]['count'] += 1
-            by_payment[method]['total'] += float(sale.get('total', 0))
+            by_payment[method]['total'] += round(float(sale.get('total', 0)), 2)
 
         if format == 'text':
             return self._format_report_text(start_date, end_date, sales, aggregated, by_payment)
@@ -295,9 +295,9 @@ class GlobalInvoicingService:
 
     async def _aggregate_sales_detailed(self, sales: List[Dict]) -> Dict[str, Any]:
         total_sales = len(sales)
-        subtotal = sum(float(sale.get('subtotal', 0) or 0) for sale in sales)
-        tax = sum(float(sale.get('tax', 0) or 0) for sale in sales)
-        total = sum(float(sale.get('total', 0) or 0) for sale in sales)
+        subtotal = round(sum(round(float(sale.get('subtotal', 0) or 0), 2) for sale in sales), 2)
+        tax = round(sum(round(float(sale.get('tax', 0) or 0), 2) for sale in sales), 2)
+        total = round(sum(round(float(sale.get('total', 0) or 0), 2) for sale in sales), 2)
 
         sale_ids = [s['id'] for s in sales]
         items = []
@@ -369,7 +369,7 @@ class GlobalInvoicingService:
             if len(aggregated['items']) <= 50:
                 for item in aggregated['items']:
                     qty = float(item.get('qty', 1)) or 1
-                    total_val = float(item.get('total', 0))
+                    total_val = round(float(item.get('total', 0)), 2)
                     unit_price = total_val / qty if qty else total_val
 
                     sat_code_raw = item.get('sat_code', '01010101')

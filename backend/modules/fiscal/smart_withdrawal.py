@@ -31,18 +31,18 @@ class PredictiveExtraction:
         month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
         
         row_b = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :m_start AND status = 'completed'", m_start=month_start)
-        total_serie_b = float(row_b['total'] or 0) if row_b else 0
+        total_serie_b = round(float(row_b['total'] or 0), 2) if row_b else 0
         
         # In case cash_expenses doesn't exist, ignore softly
         try:
             row_exp = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_expenses WHERE expense_date >= :m_start::date", m_start=month_start)
-            total_expenses = float(row_exp['total'] or 0) if row_exp else 0
+            total_expenses = round(float(row_exp['total'] or 0), 2) if row_exp else 0
         except Exception:
             total_expenses = 0
             
         try:
             row_ext = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_extractions WHERE extraction_date >= :m_start", m_start=month_start)
-            total_extracted = float(row_ext['total'] or 0) if row_ext else 0
+            total_extracted = round(float(row_ext['total'] or 0), 2) if row_ext else 0
         except Exception:
             total_extracted = 0
             
@@ -136,7 +136,7 @@ class PredictiveExtraction:
         if not daily_sales:
             return {'optimal_daily': self.MAX_DAILY_CASH / 2, 'basis': 'Sin datos históricos'}
         
-        daily_totals = [float(d['total'] or 0) for d in daily_sales]
+        daily_totals = [round(float(d['total'] or 0), 2) for d in daily_sales]
         avg_daily = statistics.mean(daily_totals) if daily_totals else 0
         optimal = min(avg_daily * 0.9, self.MAX_DAILY_CASH)
         

@@ -76,7 +76,7 @@ class FederationDashboard:
             except Exception:
                 low_stock = [{'count': 0}]
             
-            branch_total = float(sales[0].get('total') or 0) if sales and len(sales) > 0 and sales[0] else 0
+            branch_total = round(float(sales[0].get('total') or 0), 2) if sales and len(sales) > 0 and sales[0] else 0
             total_sales += branch_total
 
             branch_data.append({
@@ -85,13 +85,13 @@ class FederationDashboard:
                 'sales_count': sales[0].get('count', 0) if sales and len(sales) > 0 and sales[0] else 0,
                 'sales_total': branch_total,
                 'open_registers': len(open_registers),
-                'registers': [{'pos_id': r['pos_id'], 'cash': float(r.get('fondo_inicial') or 0)} for r in open_registers],
+                'registers': [{'pos_id': r['pos_id'], 'cash': round(float(r.get('fondo_inicial') or 0), 2)} for r in open_registers],
                 'low_stock_count': low_stock[0].get('count', 0) if low_stock and len(low_stock) > 0 and low_stock[0] else 0,
                 'status': 'active' if open_registers else 'closed'
             })
             
             for reg in open_registers:
-                total_cash += float(reg.get('fondo_inicial') or 0)
+                total_cash += round(float(reg.get('fondo_inicial') or 0), 2)
         
         return {
             'timestamp': datetime.now().isoformat(),
@@ -173,8 +173,8 @@ class FederationDashboard:
             
             rfc_data.append({
                 'rfc': emitter['rfc'], 'razon_social': emitter['razon_social'],
-                'facturado': float(facturado), 'limite': float(self.RESICO_LIMIT),
-                'restante': float(restante), 'porcentaje': round(float(porcentaje), 2), 'status': status
+                'facturado': round(float(facturado), 2), 'limite': round(float(self.RESICO_LIMIT), 2),
+                'restante': round(float(restante), 2), 'porcentaje': round(float(porcentaje), 2), 'status': status
             })
             total_facturado += facturado
             
@@ -182,7 +182,7 @@ class FederationDashboard:
         return {
             'year': int(year), 'rfcs': rfc_data,
             'totals': {
-                'total_facturado': float(total_facturado), 'capacidad_total': float(self.RESICO_LIMIT * len(emitters)),
+                'total_facturado': round(float(total_facturado), 2), 'capacidad_total': round(float(self.RESICO_LIMIT * len(emitters)), 2),
                 'capacidad_usada': round(float(total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100, 2) if emitters else 0
             },
             'recommendation': self._generate_fiscal_recommendation(rfc_data)
@@ -206,18 +206,18 @@ class FederationDashboard:
         year_end = f"{year + 1}-01-01"
         try:
             rb = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
-            tb = float(rb['total'] or 0) if rb else 0
+            tb = round(float(rb['total'] or 0), 2) if rb else 0
             ra = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
-            ta = float(ra['total'] or 0) if ra else 0
+            ta = round(float(ra['total'] or 0), 2) if ra else 0
             re = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye", ys=year_start, ye=year_end)
-            te = float(re['total'] or 0) if re else 0
+            te = round(float(re['total'] or 0), 2) if re else 0
         except Exception:
             tb = ta = te = 0
             re = {'count': 0}
             
         ingresos = ta + tb
         utilidad_bruta = ingresos * 0.20
-        isr_estimado = float((Decimal(str(ta)) * self.ISR_RESICO_RATE).quantize(Decimal('0.01')))
+        isr_estimado = round(float((Decimal(str(ta)) * self.ISR_RESICO_RATE).quantize(Decimal('0.01'))), 2)
         utilidad_neta = utilidad_bruta - isr_estimado
         disponible = utilidad_neta - te
         

@@ -65,7 +65,7 @@ class CryptoBridge:
         
         try:
             row_b = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
-            total_serie_b = float(row_b['total'] or 0) if row_b else 0.0
+            total_serie_b = round(float(row_b['total'] or 0), 2) if row_b else 0.0
         except Exception:
             total_serie_b = 0.0
             
@@ -73,10 +73,10 @@ class CryptoBridge:
         
         try:
             row_c = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at >= :ys::timestamp AND created_at < :ye::timestamp AND status = 'completed'", ys=year_start, ye=year_end)
-            total_converted = float(row_c['total'] or 0) if row_c else 0.0
+            total_converted = round(float(row_c['total'] or 0), 2) if row_c else 0.0
             
             row_e = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_expenses WHERE expense_date >= :ys::date AND expense_date < :ye::date", ys=year_start, ye=year_end)
-            total_expenses = float(row_e['total'] or 0) if row_e else 0.0
+            total_expenses = round(float(row_e['total'] or 0), 2) if row_e else 0.0
         except Exception:
             total_converted = 0.0
             total_expenses = 0.0
@@ -95,12 +95,12 @@ class CryptoBridge:
     async def _get_remaining_daily_limit(self) -> float:
         today = datetime.now().strftime('%Y-%m-%d')
         row = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at::date = :today", today=datetime.strptime(today, '%Y-%m-%d').date())
-        return max(0, self.MAX_DAILY_CONVERSION - (float(row['total'] or 0) if row else 0))
+        return max(0, self.MAX_DAILY_CONVERSION - (round(float(row['total'] or 0), 2) if row else 0))
     
     async def _get_remaining_weekly_limit(self) -> float:
         week_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
         row = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at::date >= :week_start", week_start=datetime.strptime(week_start, '%Y-%m-%d').date())
-        return max(0, self.MAX_WEEKLY_CONVERSION - (float(row['total'] or 0) if row else 0))
+        return max(0, self.MAX_WEEKLY_CONVERSION - (round(float(row['total'] or 0), 2) if row else 0))
     
     async def create_conversion(self, amount_mxn: float, stablecoin: str = 'USDT', wallet_address: str = None, cover_description: str = None) -> Dict[str, Any]:
         await self._ensure_table()
@@ -140,11 +140,11 @@ class CryptoBridge:
     async def get_crypto_wealth(self) -> Dict[str, Any]:
         await self._ensure_table()
         wallets = await self.db.fetch("SELECT name, stablecoin, balance_usd, last_updated FROM cold_wallets ORDER BY balance_usd DESC")
-        total_usd = sum(float(w['balance_usd'] or 0) for w in wallets)
+        total_usd = sum(round(float(w['balance_usd'] or 0), 2) for w in wallets)
         
         conversions = await self.db.fetch("SELECT stablecoin, COALESCE(SUM(amount_usd), 0) as total FROM crypto_conversions WHERE status = 'completed' GROUP BY stablecoin")
         return {
             'wallets': [dict(w) for w in wallets], 'total_usd': total_usd, 'total_mxn': total_usd * self.USD_TO_MXN,
-            'by_stablecoin': {c['stablecoin']: float(c['total']) for c in conversions},
+            'by_stablecoin': {c['stablecoin']: round(float(c['total']), 2) for c in conversions},
             'status': 'Fondos líquidos'
         }

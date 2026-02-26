@@ -219,9 +219,9 @@ async def get_customer_credit(
         "data": {
             "customer_id": customer["id"],
             "name": customer["name"],
-            "credit_limit": float(customer["credit_limit"] or 0),
-            "credit_balance": float(customer["credit_balance"] or 0),
-            "available_credit": max(0.0, float(customer["credit_limit"] or 0) - float(customer["credit_balance"] or 0)),
+            "credit_limit": round(float(customer["credit_limit"] or 0), 2),
+            "credit_balance": round(float(customer["credit_balance"] or 0), 2),
+            "available_credit": round(max(0.0, float(customer["credit_limit"] or 0) - float(customer["credit_balance"] or 0)), 2),
             "pending_sales": pending_sales,
         },
     }

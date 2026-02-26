@@ -38,9 +38,9 @@ class ShadowInventory:
         if not p:
             return {'found': False}
 
-        real = float(p['stock'] or 0)
-        shadow = float(p['shadow_stock'] or 0)
-        fiscal = real - shadow
+        real = round(float(p['stock'] or 0), 2)
+        shadow = round(float(p['shadow_stock'] or 0), 2)
+        fiscal = round(real - shadow, 2)
 
         return {
             'found': True, 'product_id': product_id, 'name': p['name'],
@@ -120,9 +120,9 @@ class ShadowInventory:
         """)
         return [{
             'sku': p['sku'], 'name': p['name'],
-            'stock_real': float(p['stock_real'] or 0), 'stock_shadow': float(p['shadow'] or 0),
-            'stock_fiscal': max(0, float(p['stock_real'] or 0) - float(p['shadow'] or 0)),
-            'price': float(p['price'] or 0)
+            'stock_real': round(float(p['stock_real'] or 0), 2), 'stock_shadow': round(float(p['shadow'] or 0), 2),
+            'stock_fiscal': round(max(0, float(p['stock_real'] or 0) - float(p['shadow'] or 0)), 2),
+            'price': round(float(p['price'] or 0), 2)
         } for p in products]
 
     async def reconcile_fiscal(self, product_id: int, fiscal_stock: float) -> Dict:
@@ -139,10 +139,10 @@ class ShadowInventory:
             SELECT id, sku, name, stock, COALESCE(shadow_stock, 0) as shadow
             FROM products WHERE COALESCE(shadow_stock, 0) > 0 ORDER BY shadow_stock DESC
         """)
-        total_shadow = sum(float(p['shadow'] or 0) for p in products)
+        total_shadow = round(sum(float(p['shadow'] or 0) for p in products), 2)
         return {
             'products_with_shadow': len(products),
             'total_shadow_units': total_shadow,
-            'details': [{'sku': p['sku'], 'name': p['name'], 'real': float(p['stock'] or 0),
-                          'shadow': float(p['shadow'] or 0), 'fiscal': float(p['stock'] or 0) - float(p['shadow'] or 0)} for p in products[:20]]
+            'details': [{'sku': p['sku'], 'name': p['name'], 'real': round(float(p['stock'] or 0), 2),
+                          'shadow': round(float(p['shadow'] or 0), 2), 'fiscal': round(float(p['stock'] or 0) - float(p['shadow'] or 0), 2)} for p in products[:20]]
         }

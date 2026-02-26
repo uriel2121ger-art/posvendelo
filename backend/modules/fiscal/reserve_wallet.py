@@ -95,7 +95,7 @@ class GhostWallet:
                 """, hid=hash_id, amt=points, sid=sale_id)
             
             row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
-            balance = float(row['balance']) if row else 0
+            balance = round(float(row['balance']), 2) if row else 0
             
             return {
                 'success': True,
@@ -115,7 +115,7 @@ class GhostWallet:
         try:
             row = await self.db.fetchrow("SELECT balance FROM ghost_wallets WHERE hash_id = :hid", hid=hash_id)
             
-            if not row or float(row['balance']) < amount:
+            if not row or round(float(row['balance']), 2) < amount:
                 return {'success': False, 'error': 'Saldo insuficiente'}
             
             await self.db.execute("""
@@ -131,7 +131,7 @@ class GhostWallet:
                 VALUES (:hid, 'redeem', :amt)
             """, hid=hash_id, amt=-amount)
             
-            new_balance = float(row['balance']) - amount
+            new_balance = round(float(row['balance']), 2) - amount
             
             return {
                 'success': True,
@@ -163,12 +163,12 @@ class GhostWallet:
                     'total_spent': 0.0, 'total_transactions': 0, 'retention_rate': 0
                 }
 
-            total_earned = float(row.get('total_earned', 0) or 0)
-            total_spent = float(row.get('total_spent', 0) or 0)
+            total_earned = round(float(row.get('total_earned', 0) or 0), 2)
+            total_spent = round(float(row.get('total_spent', 0) or 0), 2)
 
             return {
                 'total_wallets': int(row.get('total_wallets', 0) or 0),
-                'total_balance': float(row.get('total_balance', 0) or 0),
+                'total_balance': round(float(row.get('total_balance', 0) or 0), 2),
                 'total_earned': total_earned,
                 'total_spent': total_spent,
                 'total_transactions': int(row.get('total_transactions', 0) or 0),

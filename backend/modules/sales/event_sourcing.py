@@ -215,7 +215,7 @@ class SaleEventStore:
         state["items"] = sorted(state["items"].values(), key=lambda x: x.get("product_id", 0))
         # Convert Decimal to float for JSON serialization
         for key in ("subtotal", "discount_total", "tax_total", "total"):
-            state[key] = float(state[key])
+            state[key] = round(float(state[key]), 2)
 
         return state
 
@@ -274,7 +274,7 @@ class SaleEventStore:
         elif et == SaleEventTypes.PAYMENT_RECEIVED:
             state["payments"].append({
                 "method": d.get("method", "cash"),
-                "amount": float(d.get("amount", 0)),
+                "amount": round(float(d.get("amount", 0)), 2),
                 "reference": d.get("reference"),
             })
 

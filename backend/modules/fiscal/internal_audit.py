@@ -126,9 +126,9 @@ class GeneralDeGuerra:
                 LIMIT 100
             """)
             for p in rows:
-                sold = float(p['sold'] or 0)
-                shrink = float(p['shrink'] or 0)
-                stock = float(p['stock'] or 0)
+                sold = round(float(p['sold'] or 0), 2)
+                shrink = round(float(p['shrink'] or 0), 2)
+                stock = round(float(p['stock'] or 0), 2)
                 
                 # If there's high shrinkage recorded compared to stock/sales, it's an anomaly 
                 if shrink > (stock * 0.2) + sold:
@@ -154,7 +154,7 @@ class GeneralDeGuerra:
                 AND category = 'CASH_EXTRACTION'
             """)
             if row:
-                total = float(row['total'] or 0)
+                total = round(float(row['total'] or 0), 2)
                 if total > 45000:
                     findings.append({
                         'type': 'ANTI_MONEY_LAUNDERING',

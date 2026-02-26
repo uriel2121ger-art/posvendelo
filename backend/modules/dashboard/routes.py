@@ -37,8 +37,8 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
            AND status = 'completed'""",
         {"year_start": year_start, "year_end": year_end},
     )
-    facturado_a = float(result["total_a"]) if result else 0.0
-    facturado_b = float(result["total_b"]) if result else 0.0
+    facturado_a = round(float(result["total_a"]), 2) if result else 0.0
+    facturado_b = round(float(result["total_b"]), 2) if result else 0.0
 
     limite = 3_500_000.0
     restante = limite - facturado_a
@@ -88,7 +88,7 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
         "success": True,
         "data": {
             "ventas_hoy": sales["count"] if sales else 0,
-            "total_hoy": float(sales["total"]) if sales else 0.0,
+            "total_hoy": round(float(sales["total"]), 2) if sales else 0.0,
             "mermas_pendientes": mermas["c"] if mermas else 0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
@@ -178,14 +178,14 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
             logger.warning("Error consultando gastos wealth: %s", e)
             expenses = None
 
-        ingresos = float(income["total"]) if income else 0.0
-        serie_a = float(income["serie_a"]) if income else 0.0
-        serie_b = float(income["serie_b"]) if income else 0.0
-        gastos = float(expenses["total"]) if expenses else 0.0
+        ingresos = round(float(income["total"]) if income else 0.0, 2)
+        serie_a = round(float(income["serie_a"]) if income else 0.0, 2)
+        serie_b = round(float(income["serie_b"]) if income else 0.0, 2)
+        gastos = round(float(expenses["total"]) if expenses else 0.0, 2)
         impuestos = round(serie_a - serie_a / 1.16, 2)  # IVA extraido de precio IVA-incluido
-        utilidad_bruta = ingresos - gastos
-        utilidad_neta = utilidad_bruta - impuestos
-        disponible = max(0.0, utilidad_neta)
+        utilidad_bruta = round(ingresos - gastos, 2)
+        utilidad_neta = round(utilidad_bruta - impuestos, 2)
+        disponible = round(max(0.0, utilidad_neta), 2)
         ratio = round((utilidad_neta / ingresos * 100) if ingresos > 0 else 0.0, 2)
 
         return {
@@ -233,15 +233,15 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
         "data": {
             "alerts": [{
                 "product_name": p["name"],
-                "urgency": "CRITICAL" if float(p.get("stock") or 0) <= 2 else "WARNING",
-                "current_stock": float(p.get("stock") or 0),
+                "urgency": "CRITICAL" if round(float(p.get("stock") or 0), 2) <= 2 else "WARNING",
+                "current_stock": round(float(p.get("stock") or 0), 2),
                 "days_until_stockout": max(1, int(float(p.get("stock") or 0))),
-                "recommended_order": int((float(p.get("min_stock") or 5)) * 2),
+                "recommended_order": int(float(p.get("min_stock") or 5) * 2),
             } for p in low_stock],
             "top_products": [{
                 "name": t["name"],
                 "sales_count": t["sales_count"],
-                "revenue": float(t["revenue"]),
+                "revenue": round(float(t["revenue"]), 2),
             } for t in top_products],
             "anomalies": [],
         },
@@ -285,10 +285,10 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "kpis": {
                 "transactions": kpis["transactions"] if kpis else 0,
-                "revenue": float(kpis["revenue"]) if kpis else 0.0,
-                "avg_ticket": float(kpis["avg_ticket"]) if kpis else 0.0,
+                "revenue": round(float(kpis["revenue"]), 2) if kpis else 0.0,
+                "avg_ticket": round(float(kpis["avg_ticket"]), 2) if kpis else 0.0,
             },
-            "hourly_sales": [{"hour": h["hour"], "count": h["count"], "total": float(h["total"])} for h in hourly],
-            "top_products": [{"name": t["name"], "qty": t["qty"], "revenue": float(t["revenue"])} for t in top],
+            "hourly_sales": [{"hour": h["hour"], "count": h["count"], "total": round(float(h["total"]), 2)} for h in hourly],
+            "top_products": [{"name": t["name"], "qty": t["qty"], "revenue": round(float(t["revenue"]), 2)} for t in top],
         },
     }

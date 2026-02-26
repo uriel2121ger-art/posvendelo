@@ -66,16 +66,16 @@ class CerebroContable:
             'ingresos': ingresos,
             'gastos': gastos,
             'iva': {
-                'cobrado': float(iva_cobrado),
-                'pagado': float(iva_pagado),
-                'neto': float(iva_neto),
-                'a_pagar': float(max(iva_neto, 0)),
-                'a_favor': float(abs(min(iva_neto, 0)))
+                'cobrado': round(float(iva_cobrado), 2),
+                'pagado': round(float(iva_pagado), 2),
+                'neto': round(float(iva_neto), 2),
+                'a_pagar': round(float(max(iva_neto, 0)), 2),
+                'a_favor': round(float(abs(min(iva_neto, 0))), 2)
             },
             'isr': {
-                'base': float(ingresos['serie_a']['subtotal']),
+                'base': round(float(ingresos['serie_a']['subtotal']), 2),
                 'tasa': await self._get_tasa_resico(ingresos['serie_a']['subtotal']),
-                'a_pagar': float(isr_actual)
+                'a_pagar': round(float(isr_actual), 2)
             },
             'serie_b_pendiente': serie_b_pendiente,
             'optimizacion': optimizacion,
@@ -137,7 +137,7 @@ class CerebroContable:
         
         subtotal_mensual = sum(gastos_mensuales.values())
         subtotal_acum = subtotal_mensual * meses
-        iva_pagado = subtotal_acum * float(self.IVA_RATE)
+        iva_pagado = float(Decimal(str(subtotal_acum)) * self.IVA_RATE)
         
         return {
             'detalle': gastos_mensuales,
@@ -175,9 +175,9 @@ class CerebroContable:
         return {
             'ventas': [dict(v) for v in ventas],
             'count': len(ventas),
-            'subtotal': float(total_subtotal),
-            'iva': float(total_iva),
-            'total': float(total)
+            'subtotal': round(float(total_subtotal), 2),
+            'iva': round(float(total_iva), 2),
+            'total': round(float(total), 2)
         }
     
     async def _calcular_isr_resico(self, ingresos: Decimal) -> Decimal:
@@ -187,7 +187,7 @@ class CerebroContable:
     
     async def _get_tasa_resico(self, ingresos: Decimal) -> float:
         """Obtiene tasa RESICO según nivel de ingresos."""
-        ingresos_float = float(ingresos)
+        ingresos_float = round(float(ingresos), 2)
         tasa = 0.0
         
         for limite, tasa_nivel in sorted(self.RESICO_RATES.items()):
@@ -236,13 +236,13 @@ class CerebroContable:
         return {
             'ventas_seleccionadas': len(seleccionadas),
             'ids_seleccionados': [v['id'] for v in seleccionadas],
-            'subtotal_global': float(subtotal_acumulado),
-            'iva_global': float(iva_acumulado),
-            'iva_a_favor_usado': float(min(iva_a_favor, iva_acumulado)),
-            'iva_a_pagar': float(max(Decimal('0'), iva_acumulado - iva_a_favor)),
-            'isr_adicional': float(isr_adicional),
-            'ahorro_total': float(iva_a_favor - (iva_acumulado - iva_a_favor).quantize(Decimal('0.01'))),
-            'recomendacion': f'Genera factura global por ${float(subtotal_acumulado):,.2f} para optimizar IVA'
+            'subtotal_global': round(float(subtotal_acumulado), 2),
+            'iva_global': round(float(iva_acumulado), 2),
+            'iva_a_favor_usado': round(float(min(iva_a_favor, iva_acumulado)), 2),
+            'iva_a_pagar': round(float(max(Decimal('0'), iva_acumulado - iva_a_favor)), 2),
+            'isr_adicional': round(float(isr_adicional), 2),
+            'ahorro_total': round(float(iva_a_favor - (iva_acumulado - iva_a_favor).quantize(Decimal('0.01'))), 2),
+            'recomendacion': f'Genera factura global por ${round(float(subtotal_acumulado), 2):,.2f} para optimizar IVA'
         }
     
     async def _generar_recomendaciones(self, iva_neto: Decimal, isr: Decimal, 
@@ -253,11 +253,11 @@ class CerebroContable:
         # IVA
         if iva_neto > 0:
             recomendaciones.append(
-                f"💰 Tienes IVA a pagar: ${float(iva_neto):,.2f}"
+                f"💰 Tienes IVA a pagar: ${round(float(iva_neto), 2):,.2f}"
             )
         else:
             recomendaciones.append(
-                f"✅ Tienes IVA a favor: ${float(abs(iva_neto)):,.2f}"
+                f"✅ Tienes IVA a favor: ${round(float(abs(iva_neto)), 2):,.2f}"
             )
         
         # Serie B pendiente
