@@ -346,18 +346,35 @@ export default function Terminal(): ReactElement {
   const changeDue = Math.max(0, amountReceivedNum - totals.total)
   const pendingAmount = Math.max(0, totals.total - amountReceivedNum)
 
+  // Snapshot current ticket AND persist to localStorage atomically.
+  // Previously split into 2 effects with a race condition: if the component
+  // unmounted between them (tab navigation), localStorage never got written.
   useEffect((): void => {
-    setTicketSnapshots((prev) => ({
-      ...prev,
-      [activeTicketId]: {
-        customerName,
-        paymentMethod,
-        globalDiscountPct,
-        cart,
-        selectedCartSku,
-        amountReceived
+    setTicketSnapshots((prev) => {
+      const updated = {
+        ...prev,
+        [activeTicketId]: {
+          customerName,
+          paymentMethod,
+          globalDiscountPct,
+          cart,
+          selectedCartSku,
+          amountReceived
+        }
       }
-    }))
+      try {
+        const state: SavedActiveState = {
+          activeTickets,
+          activeTicketId,
+          ticketSnapshots: updated,
+          ticketCounter: ticketCounterRef.current
+        }
+        localStorage.setItem(ACTIVE_TICKETS_STORAGE_KEY, JSON.stringify(state))
+      } catch {
+        // storage full or inaccessible — silently ignore
+      }
+      return updated
+    })
   }, [
     activeTicketId,
     amountReceived,
@@ -365,23 +382,9 @@ export default function Terminal(): ReactElement {
     customerName,
     globalDiscountPct,
     paymentMethod,
-    selectedCartSku
+    selectedCartSku,
+    activeTickets
   ])
-
-  // Persist active ticket state to localStorage so it survives tab navigation
-  useEffect((): void => {
-    try {
-      const state: SavedActiveState = {
-        activeTickets,
-        activeTicketId,
-        ticketSnapshots,
-        ticketCounter: ticketCounterRef.current
-      }
-      localStorage.setItem(ACTIVE_TICKETS_STORAGE_KEY, JSON.stringify(state))
-    } catch {
-      // storage full or inaccessible — silently ignore
-    }
-  }, [activeTickets, activeTicketId, ticketSnapshots])
 
   function switchActiveTicket(nextTicketId: string): void {
     if (nextTicketId === activeTicketId) return

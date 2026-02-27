@@ -37,3 +37,7 @@ COMMENT ON COLUMN domain_events.data IS 'Event payload as JSONB';
 COMMENT ON COLUMN domain_events.source_module IS 'Module that produced the event';
 COMMENT ON COLUMN domain_events.processed IS 'Whether all handlers have processed this event';
 COMMENT ON COLUMN domain_events.retry_count IS 'Number of failed processing attempts';
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (27, 'add_domain_events_table', NOW())
+ON CONFLICT (version) DO NOTHING;

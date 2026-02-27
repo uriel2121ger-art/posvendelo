@@ -143,3 +143,7 @@ COMMENT ON TABLE saga_steps IS 'Individual steps within a saga with compensation
 COMMENT ON MATERIALIZED VIEW mv_daily_sales_summary IS 'CQRS read model: daily sales aggregates';
 COMMENT ON MATERIALIZED VIEW mv_product_sales_ranking IS 'CQRS read model: product sales ranking';
 COMMENT ON MATERIALIZED VIEW mv_hourly_sales_heatmap IS 'CQRS read model: hourly transaction heatmap';
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (28, 'add_sale_events_and_saga_tables', NOW())
+ON CONFLICT (version) DO NOTHING;

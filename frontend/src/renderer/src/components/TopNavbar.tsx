@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   ShoppingCart,
   Users,
@@ -20,7 +20,6 @@ import {
 
 export default function TopNavbar(): ReactElement {
   const location = useLocation()
-  const navigate = useNavigate()
 
   const navItems = [
     { path: '/terminal', label: 'Ventas', icon: ShoppingCart },
@@ -109,7 +108,7 @@ export default function TopNavbar(): ReactElement {
             } catch {
               /* storage inaccessible — proceed with redirect */
             }
-            navigate('/login')
+            window.location.hash = '#/login'
           }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"
           title="Cerrar Sesion"

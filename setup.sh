@@ -190,6 +190,28 @@ done
 # ═══════════════════════════════════════════════════════════════════════════
 step 5 "Inicializando base de datos..."
 
+PSQL_ERR=$(mktemp)
+trap 'rm -f "$PSQL_ERR"' EXIT
+
+# Helper: run psql and classify errors
+# Returns 0 if OK or only "already exists" warnings, 1 on fatal errors
+run_psql() {
+    local label="$1"
+    if docker compose exec -T postgres psql -U titan_user -d titan_pos 2>"$PSQL_ERR"; then
+        return 0
+    else
+        # Check if errors are only "already exists" (safe to ignore)
+        if grep -qiE 'FATAL|could not connect|authentication failed|permission denied' "$PSQL_ERR"; then
+            fail "$label — error critico de base de datos:"
+            cat "$PSQL_ERR" >&2
+            return 1
+        else
+            # Only "already exists" or similar benign notices
+            return 0
+        fi
+    fi
+}
+
 # Buscar schema SQL (puede estar en varias ubicaciones)
 SCHEMA_FILE=""
 for candidate in \
@@ -203,38 +225,62 @@ for candidate in \
 done
 
 if [ -n "$SCHEMA_FILE" ]; then
-    if docker compose exec -T postgres psql -U titan_user -d titan_pos < "$SCHEMA_FILE" 2>/dev/null; then
+    if run_psql "Schema base" < "$SCHEMA_FILE"; then
         ok "Schema base aplicado ($SCHEMA_FILE)"
     else
-        warn "Schema ya existente o parcialmente aplicado (esto es normal en reinstalaciones)"
+        die "No se pudo aplicar el schema base — revisa 'docker compose logs postgres'"
     fi
 else
     warn "No se encontro schema_postgresql.sql — asegurate de que las tablas existan"
 fi
 
-# Migraciones incrementales (orden alfabetico, idempotentes)
+# Migraciones incrementales (orden numerico, idempotentes)
 MIGRATION_COUNT=0
+MIGRATION_FAIL=0
 if [ -d "backend/migrations" ]; then
-    for f in backend/migrations/*.sql; do
+    for f in $(ls backend/migrations/*.sql 2>/dev/null | sort -V); do
         [ -f "$f" ] || continue
-        if docker compose exec -T postgres psql -U titan_user -d titan_pos < "$f" 2>/dev/null; then
+        if run_psql "Migracion $(basename "$f")" < "$f"; then
             MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
+        else
+            MIGRATION_FAIL=$((MIGRATION_FAIL + 1))
+            fail "Migracion fallida: $(basename "$f")"
         fi
     done
+    if [ "$MIGRATION_FAIL" -gt 0 ]; then
+        die "$MIGRATION_FAIL migraciones fallaron — revisa los errores arriba"
+    fi
     ok "$MIGRATION_COUNT migraciones aplicadas"
 else
     warn "No se encontro directorio de migraciones"
 fi
 
+# Verificar tablas criticas existen
+MISSING_TABLES=""
+for tbl in products users sales schema_version; do
+    COUNT=$(docker compose exec -T postgres psql -U titan_user -d titan_pos -tAc \
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$tbl';" 2>/dev/null)
+    if [ "$COUNT" != "1" ]; then
+        MISSING_TABLES="$MISSING_TABLES $tbl"
+    fi
+done
+if [ -n "$MISSING_TABLES" ]; then
+    die "Tablas criticas faltantes:$MISSING_TABLES — el schema no se aplico correctamente"
+fi
+ok "Tablas criticas presentes (products, users, sales, schema_version)"
+
 # Seed: crear usuario admin si no existe
-docker compose exec -T postgres psql -U titan_user -d titan_pos <<'SEED' 2>/dev/null
+if run_psql "Seed admin" <<'SEED'; then
 INSERT INTO users (username, password_hash, role, is_active, created_at)
 SELECT 'admin',
        '$2b$12$LJ3m4ys3Lk0T/XEVpGmCaOZEgMnUVWxYfPXZBCmO0jH/6YvQe6XAa',
        'admin', 1, NOW()
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin');
 SEED
-ok "Usuario admin verificado"
+    ok "Usuario admin verificado"
+else
+    warn "No se pudo verificar usuario admin (la app pedira crear uno al iniciar)"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FASE 5: Iniciar servidor
