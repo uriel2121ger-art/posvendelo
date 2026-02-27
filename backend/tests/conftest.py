@@ -18,7 +18,7 @@ import os
 # These defaults are ONLY for local dev; CI must provide real values via env vars.
 os.environ.setdefault(
     "DATABASE_URL",
-    os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://titan_user:test_password@localhost:5433/titan_pos"),
+    os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://titan_user:XqaDwbaY6TE9J6OIz7Sodplp@localhost:5433/titan_pos"),
 )
 os.environ.setdefault(
     "JWT_SECRET",

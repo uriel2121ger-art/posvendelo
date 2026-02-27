@@ -197,6 +197,7 @@ async function syncSale(
 export default function Terminal(): ReactElement {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const lastKeystrokeRef = useRef<number>(Date.now())
+  const lastEnterRef = useRef<number>(0)
   const [config] = useState<RuntimeConfig>(() => loadRuntimeConfig())
   const [products, setProducts] = useState<Product[]>([])
   // Restore active ticket state from localStorage (navigation persistence)
@@ -995,6 +996,17 @@ export default function Terminal(): ReactElement {
             onBlur={() => setTimeout(() => setShowResults(false), 150)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
+                e.preventDefault()
+                e.stopPropagation()
+
+                // Debounce: ignore Enter if another fired within 150ms (scanner CR+LF)
+                const now = Date.now()
+                if (now - lastEnterRef.current < 150) return
+                lastEnterRef.current = now
+
+                // Skip if query is empty
+                if (!query.trim()) return
+
                 // Scanner detection: read hw config from cache
                 let scannerMinSpeed = 50
                 let scannerPrefix = ''
@@ -1008,10 +1020,8 @@ export default function Terminal(): ReactElement {
                       scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
                       scannerPrefix = hwCfg.scanner.prefix || ''
                       scannerSuffix = hwCfg.scanner.suffix || ''
-                      // If keystroke interval < min speed, it's a scanner
-                      const elapsed = Date.now() - lastKeystrokeRef.current
-                      const isFast = elapsed < scannerMinSpeed
-                      if (isFast && query.trim().length > 2) {
+                      const elapsed = now - lastKeystrokeRef.current
+                      if (elapsed < scannerMinSpeed && query.trim().length > 2) {
                         isScanner = true
                       }
                     }
@@ -1020,14 +1030,12 @@ export default function Terminal(): ReactElement {
 
                 let searchTerm = query.trim()
                 if (isScanner) {
-                  // Strip prefix/suffix from scanner input
                   if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
                     searchTerm = searchTerm.slice(scannerPrefix.length)
                   }
                   if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
                     searchTerm = searchTerm.slice(0, -scannerSuffix.length)
                   }
-                  // Exact match by SKU/barcode first
                   const exact = products.find(
                     (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
                   )
@@ -1035,15 +1043,17 @@ export default function Terminal(): ReactElement {
                     addProduct(exact)
                     setQuery('')
                     setShowResults(false)
+                    searchInputRef.current?.focus()
                     return
                   }
                 }
-                // Fallback: first match from filtered list (keyboard user or no exact hit)
                 if (firstMatch) {
                   addProduct(firstMatch)
                   setQuery('')
                   setShowResults(false)
+                  searchInputRef.current?.focus()
                 }
+                return
               }
               if (e.key === 'Escape') setShowResults(false)
             }}
