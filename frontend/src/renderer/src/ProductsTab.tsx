@@ -9,6 +9,7 @@ type Product = {
   name: string
   price: number
   stock: number
+  category?: string
 }
 
 function toNumber(value: unknown): number {
@@ -27,7 +28,8 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
     sku,
     name,
     price,
-    stock
+    stock,
+    category: String(raw.category ?? '').trim() || undefined
   }
 }
 
@@ -54,12 +56,21 @@ export default function ProductsTab(): ReactElement {
   const [page, setPage] = useState(0)
 
   const filtered = useMemo(() => {
+    let result = products
+    if (categoryFilter) {
+      result = result.filter((p) => {
+        const raw = p as unknown as Record<string, unknown>
+        return String(raw.category ?? '').toLowerCase() === categoryFilter.toLowerCase()
+      })
+    }
     const q = query.trim().toLowerCase()
-    if (!q) return products
-    return products.filter(
-      (p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
-    )
-  }, [products, query])
+    if (q) {
+      result = result.filter(
+        (p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [products, query, categoryFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = useMemo(() => {
@@ -67,10 +78,10 @@ export default function ProductsTab(): ReactElement {
     return filtered.slice(start, start + PAGE_SIZE)
   }, [filtered, page])
 
-  // Reset page when search changes
+  // Reset page when search or category filter changes
   useEffect(() => {
     setPage(0)
-  }, [query])
+  }, [query, categoryFilter])
 
   const handleLoad = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current

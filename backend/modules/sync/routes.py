@@ -275,7 +275,6 @@ async def sync_push(
                          price = EXCLUDED.price,
                          price_wholesale = EXCLUDED.price_wholesale,
                          cost = EXCLUDED.cost,
-                         stock = EXCLUDED.stock,
                          min_stock = EXCLUDED.min_stock,
                          synced = 0,
                          updated_at = NOW()""",

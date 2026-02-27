@@ -157,47 +157,56 @@ export default function ReportsTab(): ReactElement {
   }, [handleLoad])
 
   async function loadDailySummary(): Promise<void> {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const raw = await getDailySummaryReport(cfg)
+      if (requestIdRef.current !== reqId) return
       const data = (raw.data ?? raw.summaries ?? []) as Record<string, unknown>[]
       setDailyData(Array.isArray(data) ? data : [])
       setMessage(`Resumen diario: ${(Array.isArray(data) ? data : []).length} registros.`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }
 
   async function loadRanking(): Promise<void> {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const raw = await getProductRanking(cfg)
+      if (requestIdRef.current !== reqId) return
       const data = (raw.data ?? raw.ranking ?? []) as Record<string, unknown>[]
       setRankingData(Array.isArray(data) ? data : [])
       setMessage(`Ranking: ${(Array.isArray(data) ? data : []).length} productos.`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }
 
   async function loadHeatmap(): Promise<void> {
+    const reqId = ++requestIdRef.current
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
       const raw = await getHourlyHeatmap(cfg)
+      if (requestIdRef.current !== reqId) return
       const data = (raw.data ?? raw.heatmap ?? []) as Record<string, unknown>[]
       setHeatmapData(Array.isArray(data) ? data : [])
       setMessage(`Heatmap: ${(Array.isArray(data) ? data : []).length} registros.`)
     } catch (error) {
+      if (requestIdRef.current !== reqId) return
       setMessage((error as Error).message)
     } finally {
-      setBusy(false)
+      if (requestIdRef.current === reqId) setBusy(false)
     }
   }
 

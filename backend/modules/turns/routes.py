@@ -9,6 +9,7 @@ Columns: id, user_id, pos_id, branch_id, terminal_id, start_timestamp, end_times
 import json
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -108,10 +109,12 @@ async def close_turn(
             turn_id,
         )
 
-        initial = round(float(turn["initial_cash"] or 0), 2)
-        system_sales_total = round(float(cash_sales), 2)
-        expected_cash = round(initial + system_sales_total + float(movements_in) - float(movements_out), 2)
-        difference = round(float(body.final_cash) - expected_cash, 2)
+        initial = Decimal(str(turn["initial_cash"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        system_sales_total = Decimal(str(cash_sales)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        mov_in = Decimal(str(movements_in)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        mov_out = Decimal(str(movements_out)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        expected_cash = (initial + system_sales_total + mov_in - mov_out).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        difference = (Decimal(str(body.final_cash)) - expected_cash).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         denominations_json = None
         if body.denominations:
@@ -132,7 +135,7 @@ async def close_turn(
                 synced = 0
             WHERE id = $7
             """,
-            body.final_cash, system_sales_total, difference,
+            body.final_cash, float(system_sales_total), float(difference),
             denominations_json, body.notes, now, turn_id,
         )
 
@@ -141,9 +144,9 @@ async def close_turn(
         "data": {
             "id": turn_id,
             "status": "closed",
-            "expected_cash": expected_cash,
+            "expected_cash": float(expected_cash),
             "final_cash": body.final_cash,
-            "difference": difference,
+            "difference": float(difference),
         },
     }
 
@@ -234,10 +237,10 @@ async def get_turn_summary(
         {"tid": turn_id},
     )
 
-    total_sales = round(sum(float(s["total"]) for s in sales_by_method), 2)
-    movements_dict = {m["type"]: round(float(m["total"]), 2) for m in movements}
+    total_sales = sum((Decimal(str(s["total"])) for s in sales_by_method), Decimal("0")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    movements_dict = {m["type"]: Decimal(str(m["total"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for m in movements}
 
-    initial = round(float(turn["initial_cash"] or 0), 2)
+    initial = Decimal(str(turn["initial_cash"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     # Cash in register = pure cash sales + mixed_cash component (must match close_turn logic)
     cash_from_sales = await db.fetchval(
@@ -252,20 +255,24 @@ async def get_turn_summary(
         """,
         {"tid": turn_id},
     )
-    cash_sales = round(float(cash_from_sales), 2)
+    cash_sales_dec = Decimal(str(cash_from_sales)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    mov_in = movements_dict.get("in", Decimal("0"))
+    mov_out = movements_dict.get("out", Decimal("0")) + movements_dict.get("expense", Decimal("0"))
+    expenses = movements_dict.get("expense", Decimal("0"))
+    expected = (initial + cash_sales_dec + mov_in - mov_out).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     return {
         "success": True,
         "data": {
             "turn_id": turn_id,
             "status": turn["status"],
-            "initial_cash": initial,
+            "initial_cash": float(initial),
             "sales_by_method": sales_by_method,
-            "total_sales": total_sales,
-            "cash_in": movements_dict.get("in", 0),
-            "cash_out": movements_dict.get("out", 0) + movements_dict.get("expense", 0),
-            "expenses": movements_dict.get("expense", 0),
-            "expected_cash": round(initial + cash_sales + movements_dict.get("in", 0) - movements_dict.get("out", 0) - movements_dict.get("expense", 0), 2),
+            "total_sales": float(total_sales),
+            "cash_in": float(mov_in),
+            "cash_out": float(mov_out),
+            "expenses": float(expenses),
+            "expected_cash": float(expected),
         },
     }
 

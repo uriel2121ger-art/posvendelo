@@ -144,6 +144,8 @@ async def generate_cfdi(
     db=Depends(get_db),
 ):
     """Generate CFDI (Invoice) for a specific sale."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para generar CFDI")
     try:
         from modules.fiscal.cfdi_service import CFDIService
         service = CFDIService(db)
@@ -237,6 +239,8 @@ async def process_return(
     db=Depends(get_db),
 ):
     """Process a partial or full return."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para procesar devoluciones")
     try:
         from modules.fiscal.returns_engine import ReturnsEngine
         engine = ReturnsEngine(db)

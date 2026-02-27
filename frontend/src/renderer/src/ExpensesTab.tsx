@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { RefreshCw, Plus, Receipt } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getExpensesSummary, registerExpense } from './posApi'
@@ -19,7 +19,7 @@ export default function ExpensesTab(): ReactElement {
   const requestIdRef = useRef(0)
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchExpenses = async (): Promise<void> => {
+  const fetchExpenses = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
     try {
       setError('')
@@ -39,7 +39,7 @@ export default function ExpensesTab(): ReactElement {
     } finally {
       if (requestIdRef.current === reqId) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchExpenses()

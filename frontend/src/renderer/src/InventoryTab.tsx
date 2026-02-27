@@ -129,6 +129,8 @@ export default function InventoryTab(): ReactElement {
         copy[idx] = { ...copy[idx], stock: newStock }
         return copy
       })
+      setSku('')
+      setMovementQty('1')
       setMessage(
         `Movimiento ${movementType === 'in' ? 'entrada' : 'salida'} aplicado a ${targetSku}. Nuevo stock: ${newStock}`
       )

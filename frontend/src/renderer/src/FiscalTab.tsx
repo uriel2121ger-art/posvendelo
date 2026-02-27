@@ -389,10 +389,10 @@ export default function FiscalTab(): ReactElement {
     return (
       <div className="space-y-6">
         <div className="flex gap-2 flex-wrap">
-          <button className={btnPrimary} disabled={busy} onClick={() => void wrap(() => runAudit(cfg()))}>
+          <button className={btnPrimary} disabled={busy || !canAdmin} onClick={() => void wrap(() => runAudit(cfg()))}>
             Ejecutar Auditoria
           </button>
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => runShaper(cfg()))}>
+          <button className={btnSecondary} disabled={busy || !canAdmin} onClick={() => void wrap(() => runShaper(cfg()))}>
             Ejecutar Shaper
           </button>
         </div>

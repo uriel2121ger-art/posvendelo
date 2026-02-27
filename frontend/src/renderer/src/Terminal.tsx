@@ -39,7 +39,7 @@ type CartItem = {
   subtotal: number
 }
 
-type PaymentMethod = 'cash' | 'card' | 'transfer' | 'mixed'
+type PaymentMethod = 'cash' | 'card' | 'transfer'
 
 type PendingTicket = {
   id: string
@@ -183,7 +183,7 @@ async function syncSale(
   const res = await createSale(cfg, {
     items,
     payment_method: paymentMethod,
-    cash_received: paymentMethod === 'cash' ? (amountReceived ?? 0) : 0,
+    cash_received: paymentMethod === 'cash' ? (amountReceived ?? 0) : undefined,
     serie: 'A',
     turn_id: turnId ?? undefined
   })
@@ -795,7 +795,12 @@ export default function Terminal(): ReactElement {
     })
     setCart(restoredCart)
     setCustomerName(found.customerName)
-    setPaymentMethod(found.paymentMethod)
+    const safePm: PaymentMethod = (['cash', 'card', 'transfer'] as const).includes(
+      found.paymentMethod as 'cash' | 'card' | 'transfer'
+    )
+      ? (found.paymentMethod as PaymentMethod)
+      : 'cash'
+    setPaymentMethod(safePm)
     setGlobalDiscountPct(found.globalDiscountPct)
     setPendingTickets((prev) => prev.filter((item) => item.id !== ticketId))
     setSelectedCartSku(restoredCart[0]?.sku ?? null)
@@ -849,6 +854,7 @@ export default function Terminal(): ReactElement {
       }
 
       if (!event.ctrlKey) return
+      if (isInputFocused) return
 
       if (key === 'p') {
         event.preventDefault()

@@ -398,7 +398,8 @@ async def create_sale(
             # 9. Batch INSERT sale_items (executemany — single round-trip)
             items_data = [
                 (sale_id, ci.product_id, ci.qty, ci.unit_price,
-                 ci.line_total, ci.line_total, ci.sat_clave, ci.line_discount, ci.name)
+                 (ci.qty * ci.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+                 ci.line_total, ci.sat_clave, ci.line_discount, ci.name)
                 for ci in calculated
             ]
             await conn.executemany(

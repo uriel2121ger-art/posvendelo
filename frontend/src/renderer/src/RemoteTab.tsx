@@ -23,6 +23,8 @@ export default function RemoteTab(): ReactElement {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Panel remoto: control y monitoreo en tiempo real.')
   const liveRef = useRef(0)
+  const role = (() => { try { return localStorage.getItem('titan.role') ?? 'cashier' } catch { return 'cashier' } })()
+  const canAdmin = role === 'owner' || role === 'admin' || role === 'manager'
 
   // Change price form
   const [cpSku, setCpSku] = useState('')
@@ -80,6 +82,7 @@ export default function RemoteTab(): ReactElement {
   }, [loadTurnStatus, loadLiveSales, loadNotifications])
 
   async function handleOpenDrawer(): Promise<void> {
+    if (!canAdmin) { setMessage('Sin permisos para esta acción.'); return }
     if (!window.confirm('¿Abrir cajon de dinero remotamente?')) return
     setBusy(true)
     try {
@@ -94,6 +97,7 @@ export default function RemoteTab(): ReactElement {
   }
 
   async function handleChangePrice(): Promise<void> {
+    if (!canAdmin) { setMessage('Sin permisos para cambiar precios.'); return }
     if (!cpSku.trim() || !cpPrice.trim() || !cpReason.trim()) {
       setMessage('SKU, precio y razon son obligatorios.')
       return
