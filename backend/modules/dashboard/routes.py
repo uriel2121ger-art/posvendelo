@@ -48,12 +48,14 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
     dias = max(dias, 1)
     proyeccion = (facturado_a / dias) * 365
 
-    if porcentaje < 70:
-        status = "GREEN"
-    elif porcentaje < 90:
+    if porcentaje >= 100:
+        status = "EXCEEDED"
+    elif porcentaje >= 90:
+        status = "RED"
+    elif porcentaje >= 70:
         status = "YELLOW"
     else:
-        status = "RED"
+        status = "GREEN"
 
     return {
         "success": True,
@@ -214,24 +216,32 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/ai")
 async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de IA — alertas de stock inteligentes (asyncpg)."""
+    thirty_days_ago_ts = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
     low_stock = await db.fetch(
-        """SELECT id, name, stock, min_stock FROM products
-           WHERE stock <= min_stock AND stock >= 0 AND is_active = 1
-           ORDER BY stock ASC LIMIT 10"""
+        """SELECT p.id, p.name, p.stock, p.min_stock,
+                  COALESCE(SUM(si.qty), 0) as sold_30d
+           FROM products p
+           LEFT JOIN sale_items si ON si.product_id = p.id
+               AND si.sale_id IN (
+                   SELECT id FROM sales WHERE status = 'completed' AND timestamp >= :since
+               )
+           WHERE p.stock <= p.min_stock AND p.stock >= 0 AND p.is_active = 1
+           GROUP BY p.id, p.name, p.stock, p.min_stock
+           ORDER BY p.stock ASC LIMIT 10""",
+        {"since": thirty_days_ago_ts},
     )
 
-    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
     top_products = await db.fetch(
         """SELECT p.name, COUNT(*) as sales_count, COALESCE(SUM(si.subtotal), 0) as revenue
            FROM sale_items si
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
            WHERE s.status = 'completed'
-           AND s.timestamp >= :since
+           AND s.timestamp >= :since_date
            GROUP BY p.name
            ORDER BY sales_count DESC
            LIMIT 5""",
-        {"since": thirty_days_ago},
+        {"since_date": thirty_days_ago_ts},
     )
 
     return {
@@ -241,7 +251,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
                 "product_name": p["name"],
                 "urgency": "CRITICAL" if round(float(p.get("stock") or 0), 2) <= 2 else "WARNING",
                 "current_stock": round(float(p.get("stock") or 0), 2),
-                "days_until_stockout": max(1, int(float(p.get("stock") or 0))),
+                "days_until_stockout": max(1, int(float(p.get("stock") or 0) / max(float(p.get("sold_30d") or 0) / 30, 0.01))),
                 "recommended_order": int(float(p.get("min_stock") or 5) * 2),
             } for p in low_stock],
             "top_products": [{
@@ -274,10 +284,11 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
     )
 
     hourly = await db.fetch(
-        """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
+        """SELECT CAST(SUBSTRING(timestamp FROM 12 FOR 2) AS int) as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
            WHERE timestamp >= :today AND timestamp < :tomorrow AND status = 'completed'
+           AND LENGTH(timestamp) >= 13
            GROUP BY hour ORDER BY hour""",
         {"today": today_str, "tomorrow": tomorrow_str},
     )

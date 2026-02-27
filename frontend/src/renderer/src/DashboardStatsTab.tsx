@@ -30,17 +30,21 @@ function DashboardPanel({
   const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [panelLoading, setPanelLoading] = useState(false)
   const [panelError, setPanelError] = useState('')
+  const loadIdRef = useRef(0)
 
   async function load(): Promise<void> {
+    const reqId = ++loadIdRef.current
     setPanelLoading(true)
     setPanelError('')
     try {
       const raw = await onLoad()
+      if (loadIdRef.current !== reqId) return
       setData((raw.data ?? raw) as Record<string, unknown>)
     } catch (err) {
+      if (loadIdRef.current !== reqId) return
       setPanelError(err instanceof Error ? err.message : 'Error')
     } finally {
-      setPanelLoading(false)
+      if (loadIdRef.current === reqId) setPanelLoading(false)
     }
   }
 

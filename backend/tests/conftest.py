@@ -117,14 +117,13 @@ async def client(db_conn, monkeypatch):
 
     app.dependency_overrides[get_db] = _override_get_db
 
-    # 2. Monkeypatch get_connection (used by sales, expenses)
+    # 2. Monkeypatch get_connection (used by sales)
     @asynccontextmanager
     async def _override_get_connection():
         yield db
 
     monkeypatch.setattr("db.connection.get_connection", _override_get_connection)
     monkeypatch.setattr("modules.sales.routes.get_connection", _override_get_connection)
-    monkeypatch.setattr("modules.expenses.routes.get_connection", _override_get_connection)
 
     # 3. Monkeypatch get_pool (used by health check)
     mock_pool = _MockPool(db_conn)

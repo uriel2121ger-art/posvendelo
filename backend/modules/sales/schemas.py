@@ -7,7 +7,7 @@ Uses Decimal for all monetary fields to match NUMERIC(12,2) in DB.
 
 import math
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -38,7 +38,7 @@ class SaleItemCreate(BaseModel):
 
 class SaleCreate(BaseModel):
     items: List[SaleItemCreate] = Field(..., min_length=1, max_length=2000)
-    payment_method: str = Field("cash", max_length=20)
+    payment_method: Literal["cash", "card", "transfer", "mixed", "credit"] = "cash"
     customer_id: Optional[int] = None
     turn_id: Optional[int] = None
     branch_id: int = 1

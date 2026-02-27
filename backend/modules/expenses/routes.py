@@ -10,7 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from db.connection import get_db, get_connection
+from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
 from modules.expenses.schemas import ExpenseCreate
 
@@ -68,6 +68,7 @@ async def get_expense_summary(
 async def register_expense(
     body: ExpenseCreate,
     auth: dict = Depends(verify_token),
+    db=Depends(get_db),
 ):
     """Register a cash expense in cash_movements (linked to open turn if exists)."""
     role = auth.get("role", "")
@@ -76,29 +77,28 @@ async def register_expense(
     user_id = get_user_id(auth)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    async with get_connection() as db_conn:
-        conn = db_conn.connection
-        async with conn.transaction():
-            # Lock open turn to prevent race with close_turn
-            turn = await db_conn.fetchrow(
-                "SELECT id FROM turns WHERE user_id = :uid AND status = 'open' LIMIT 1 FOR UPDATE",
-                {"uid": user_id},
-            )
-            turn_id = turn["id"] if turn else None
+    conn = db.connection
+    async with conn.transaction():
+        # Lock open turn to prevent race with close_turn
+        turn = await db.fetchrow(
+            "SELECT id FROM turns WHERE user_id = :uid AND status = 'open' LIMIT 1 FOR UPDATE",
+            {"uid": user_id},
+        )
+        turn_id = turn["id"] if turn else None
 
-            row = await db_conn.fetchrow(
-                """INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
-                   VALUES (:turn_id, 'expense', :amount, :desc, :reason, :uid, :now)
-                   RETURNING id""",
-                {
-                    "turn_id": turn_id,
-                    "amount": body.amount,
-                    "desc": body.description,
-                    "reason": body.reason,
-                    "uid": user_id,
-                    "now": now,
-                },
-            )
+        row = await db.fetchrow(
+            """INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
+               VALUES (:turn_id, 'expense', :amount, :desc, :reason, :uid, :now)
+               RETURNING id""",
+            {
+                "turn_id": turn_id,
+                "amount": body.amount,
+                "desc": body.description,
+                "reason": body.reason,
+                "uid": user_id,
+                "now": now,
+            },
+        )
 
     if not row:
         raise HTTPException(status_code=500, detail="Error al registrar gasto")

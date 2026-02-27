@@ -89,7 +89,7 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
         )
 
     qty = _dec(item.qty)
-    line_total = ((qty * price) - line_discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    line_total = max(Decimal("0"), (qty * price) - line_discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     product_name = item.name or prod.get("name", "Producto")
 
     return CalculatedItem(

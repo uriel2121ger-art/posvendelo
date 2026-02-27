@@ -171,9 +171,14 @@ export default function CustomersTab(): ReactElement {
   }
 
   async function loadCredit(customerId: string): Promise<void> {
+    const numId = Number(customerId)
+    if (!Number.isFinite(numId) || numId <= 0) {
+      setMessage('ID de cliente invalido para consultar credito.')
+      return
+    }
     try {
       const cfg = loadRuntimeConfig()
-      const raw = await getCustomerCredit(cfg, Number(customerId))
+      const raw = await getCustomerCredit(cfg, numId)
       const data = (raw.data ?? raw) as Record<string, unknown>
       setCreditData(data)
       setShowCredit(true)
@@ -185,9 +190,14 @@ export default function CustomersTab(): ReactElement {
   }
 
   async function loadCustomerSalesData(customerId: string): Promise<void> {
+    const numId = Number(customerId)
+    if (!Number.isFinite(numId) || numId <= 0) {
+      setMessage('ID de cliente invalido para consultar ventas.')
+      return
+    }
     try {
       const cfg = loadRuntimeConfig()
-      const raw = await getCustomerSales(cfg, Number(customerId), 20)
+      const raw = await getCustomerSales(cfg, numId, 20)
       const data = (raw.data ?? raw.sales ?? []) as Record<string, unknown>[]
       setCustomerSales(Array.isArray(data) ? data : [])
       setShowSales(true)
