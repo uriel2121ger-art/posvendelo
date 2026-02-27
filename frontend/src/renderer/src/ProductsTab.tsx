@@ -46,6 +46,8 @@ export default function ProductsTab(): ReactElement {
     'Productos (F3): carga, alta, edicion y baja logica funcional.'
   )
   const requestIdRef = useRef(0)
+  const scanInputRef = useRef<HTMLInputElement>(null)
+  const lastScanEnterRef = useRef(0)
   const [categories, setCategories] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState('')
   const [scanSku, setScanSku] = useState('')
@@ -335,11 +337,22 @@ export default function ProductsTab(): ReactElement {
           </select>
         )}
         <input
+          ref={scanInputRef}
           className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 w-36 placeholder:text-zinc-600"
           placeholder="SKU a escanear"
           value={scanSku}
           onChange={(e) => setScanSku(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void handleScan() }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              const now = Date.now()
+              if (now - lastScanEnterRef.current < 150) return
+              lastScanEnterRef.current = now
+              void handleScan()
+              setTimeout(() => scanInputRef.current?.focus(), 0)
+            }
+          }}
         />
         <button
           className="px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-600/40 transition-colors"
