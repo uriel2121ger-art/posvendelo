@@ -16,7 +16,7 @@ import os
 import secrets
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict
+from typing import Dict, Optional
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -44,7 +44,7 @@ SECRET_KEY = _env_secret
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 480  # 8 hours — full cashier shift
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 # ---------------------------------------------------------------------------
@@ -78,8 +78,13 @@ def get_user_id(auth: Dict) -> int:
         raise HTTPException(status_code=401, detail="Token invalido: sub no numerico")
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+def verify_token(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Dict:
     """Verify and decode JWT. Returns payload dict with sub, role, etc."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Token requerido")
+
     try:
         payload = jwt.decode(
             credentials.credentials,

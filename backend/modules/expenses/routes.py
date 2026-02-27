@@ -30,14 +30,14 @@ async def get_expense_summary(
         now = datetime.now(timezone.utc)
         target_month = month if month is not None else now.month
         target_year = year if year is not None else now.year
-        # cash_movements.timestamp is TEXT (ISO 8601) — use .isoformat() strings for comparison
-        month_start = datetime(target_year, target_month, 1).isoformat()
+        # cash_movements.timestamp is TIMESTAMP — pass datetime objects for asyncpg
+        month_start = datetime(target_year, target_month, 1)
         if target_month == 12:
-            month_end = datetime(target_year + 1, 1, 1).isoformat()
+            month_end = datetime(target_year + 1, 1, 1)
         else:
-            month_end = datetime(target_year, target_month + 1, 1).isoformat()
-        year_start = datetime(target_year, 1, 1).isoformat()
-        year_end = datetime(target_year + 1, 1, 1).isoformat()
+            month_end = datetime(target_year, target_month + 1, 1)
+        year_start = datetime(target_year, 1, 1)
+        year_end = datetime(target_year + 1, 1, 1)
 
         month_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
@@ -96,7 +96,7 @@ async def register_expense(
                     "desc": body.description,
                     "reason": body.reason,
                     "uid": user_id,
-                    "now": now.isoformat(),
+                    "now": now,
                 },
             )
 

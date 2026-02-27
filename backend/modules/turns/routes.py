@@ -50,7 +50,7 @@ async def open_turn(
             VALUES ($1, $2, $3, 'open', $4, $5, 0)
             RETURNING id
             """,
-            user_id, body.branch_id, body.initial_cash, body.notes, now.isoformat(),
+            user_id, body.branch_id, body.initial_cash, body.notes, now,
         )
 
     if not row:
@@ -133,7 +133,7 @@ async def close_turn(
             WHERE id = $7
             """,
             body.final_cash, system_sales_total, difference,
-            denominations_json, body.notes, now.isoformat(), turn_id,
+            denominations_json, body.notes, now, turn_id,
         )
 
     return {
@@ -325,7 +325,7 @@ async def create_cash_movement(
             """,
             turn_id, body.movement_type, body.amount,
             f"Movimiento {body.movement_type}: {body.reason}",
-            body.reason, user_id, now.isoformat(),
+            body.reason, user_id, now,
         )
 
     return {"success": True, "data": {"id": row["id"]}}
