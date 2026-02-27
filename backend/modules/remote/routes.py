@@ -8,12 +8,9 @@ FIXED: remote_notifications uses real DB columns (body, notification_type, sent)
 instead of legacy mobile_api.py columns (message, priority, read).
 """
 
-import asyncio
-import functools
 import json
 import logging
 import re
-import subprocess
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,20 +18,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
 from modules.remote.schemas import NotificationCreate, PriceChangeRemote
+from modules.hardware.printer import open_drawer as hw_open_drawer
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _send_drawer_pulse(printer: str, pulse_hex: str) -> None:
-    """Send ESC/POS cash drawer pulse via lp/CUPS."""
-    pulse_bytes = bytes.fromhex(pulse_hex.replace("\\x", "").replace(" ", ""))
-    if not pulse_bytes:
-        pulse_bytes = b"\x1B\x70\x00\x19\xFA"
-    subprocess.run(
-        ["lp", "-d", printer, "-o", "raw", "-"],
-        input=pulse_bytes, check=True, timeout=5,
-    )
 
 
 @router.post("/open-drawer")
@@ -59,9 +46,7 @@ async def remote_open_drawer(
             raise HTTPException(status_code=400, detail="Nombre de impresora inválido")
 
         pulse_str = cfg.get("cash_drawer_pulse_bytes", "1B700019FA")
-        await asyncio.get_running_loop().run_in_executor(
-            None, functools.partial(_send_drawer_pulse, printer, pulse_str)
-        )
+        await hw_open_drawer(printer, pulse_str)
     except HTTPException:
         raise
     except Exception as e:

@@ -1,0 +1,121 @@
+"""
+TITAN POS — CUPS Printer Service
+
+Discover printers, send raw ESC/POS data, open cash drawer.
+All operations run in executor to avoid blocking the async event loop.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import functools
+import logging
+import re
+import subprocess
+
+logger = logging.getLogger(__name__)
+
+_PRINTER_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
+def _validate_printer(name: str) -> str:
+    """Validate printer name to prevent command injection."""
+    name = name.strip()
+    if not name or not _PRINTER_RE.match(name):
+        raise ValueError(f"Nombre de impresora invalido: {name!r}")
+    return name
+
+
+# ---------------------------------------------------------------------------
+# Synchronous helpers (run inside executor)
+# ---------------------------------------------------------------------------
+
+def _list_printers_sync() -> list[dict]:
+    """Parse lpstat -p -d to discover CUPS printers."""
+    printers: list[dict] = []
+    default_printer = ""
+
+    try:
+        result = subprocess.run(
+            ["lpstat", "-p", "-d"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("printer "):
+                parts = line.split()
+                if len(parts) >= 2:
+                    name = parts[1]
+                    is_enabled = "enabled" in line.lower()
+                    printers.append({
+                        "name": name,
+                        "enabled": is_enabled,
+                        "status": "idle" if is_enabled else "disabled",
+                        "is_default": False,
+                    })
+            elif line.startswith("system default destination:"):
+                default_printer = line.split(":", 1)[1].strip()
+    except FileNotFoundError:
+        logger.warning("lpstat not found — CUPS not installed?")
+    except subprocess.TimeoutExpired:
+        logger.warning("lpstat timed out")
+    except Exception as e:
+        logger.error("Error listing printers: %s", e)
+
+    for p in printers:
+        if p["name"] == default_printer:
+            p["is_default"] = True
+
+    return printers
+
+
+def _print_raw_sync(printer: str, data: bytes) -> None:
+    """Send raw bytes to a CUPS printer via lp."""
+    printer = _validate_printer(printer)
+    subprocess.run(
+        ["lp", "-d", printer, "-o", "raw", "-"],
+        input=data, check=True, timeout=10,
+    )
+
+
+def _open_drawer_sync(printer: str, pulse_hex: str) -> None:
+    """Send ESC/POS cash drawer pulse via lp/CUPS."""
+    printer = _validate_printer(printer)
+    cleaned = pulse_hex.replace("\\x", "").replace("0x", "").replace(" ", "").strip()
+    try:
+        pulse_bytes = bytes.fromhex(cleaned) if cleaned else b""
+    except ValueError:
+        logger.warning("Invalid pulse_hex %r, using default", pulse_hex)
+        pulse_bytes = b""
+    if not pulse_bytes:
+        pulse_bytes = b"\x1B\x70\x00\x19\xFA"
+    subprocess.run(
+        ["lp", "-d", printer, "-o", "raw", "-"],
+        input=pulse_bytes, check=True, timeout=10,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Async public API
+# ---------------------------------------------------------------------------
+
+async def list_printers() -> list[dict]:
+    """Discover CUPS printers (async wrapper)."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _list_printers_sync)
+
+
+async def print_raw(printer: str, data: bytes) -> None:
+    """Send raw ESC/POS data to printer (async wrapper)."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None, functools.partial(_print_raw_sync, printer, data)
+    )
+
+
+async def open_drawer(printer: str, pulse_hex: str = "1B700019FA") -> None:
+    """Open cash drawer via ESC/POS pulse (async wrapper)."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None, functools.partial(_open_drawer_sync, printer, pulse_hex)
+    )

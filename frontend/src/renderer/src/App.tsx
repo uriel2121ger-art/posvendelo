@@ -15,6 +15,7 @@ import ShiftsTab from './ShiftsTab'
 import EmployeesTab from './EmployeesTab'
 import FiscalTab from './FiscalTab'
 import RemoteTab from './RemoteTab'
+import HardwareTab from './HardwareTab'
 import Terminal from './Terminal'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -330,6 +331,16 @@ function RoutedApp(): ReactElement {
           <RequireAuth>
             <TabErrorBoundary tabName="Fiscal">
               <FiscalTab />
+            </TabErrorBoundary>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/hardware"
+        element={
+          <RequireAuth>
+            <TabErrorBoundary tabName="Hardware">
+              <HardwareTab />
             </TabErrorBoundary>
           </RequireAuth>
         }

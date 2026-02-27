@@ -129,6 +129,7 @@ from modules.expenses.routes import router as expenses_router
 from modules.remote.routes import router as remote_router
 from modules.sat.routes import router as sat_router
 from modules.fiscal.routes import router as fiscal_router
+from modules.hardware.routes import router as hardware_router
 
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(customers_router, prefix="/api/v1/customers", tags=["customers"])
@@ -144,6 +145,7 @@ app.include_router(expenses_router, prefix="/api/v1/expenses", tags=["expenses"]
 app.include_router(remote_router, prefix="/api/v1/remote", tags=["remote"])
 app.include_router(sat_router, prefix="/api/v1/sat", tags=["sat"])
 app.include_router(fiscal_router, prefix="/api/v1/fiscal", tags=["fiscal"])
+app.include_router(hardware_router, prefix="/api/v1/hardware", tags=["hardware"])
 
 # ---------------------------------------------------------------------------
 # Health check

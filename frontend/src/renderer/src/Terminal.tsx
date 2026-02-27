@@ -10,10 +10,13 @@ import {
 import {
   type RuntimeConfig,
   type SaleItemPayload,
+  type HardwareConfig,
   loadRuntimeConfig,
   saveRuntimeConfig,
   pullTable,
-  createSale
+  createSale,
+  printReceipt,
+  openDrawerForSale
 } from './posApi'
 
 type Product = {
@@ -193,6 +196,7 @@ async function syncSale(
 
 export default function Terminal(): ReactElement {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const lastKeystrokeRef = useRef<number>(Date.now())
   const [config] = useState<RuntimeConfig>(() => loadRuntimeConfig())
   const [products, setProducts] = useState<Product[]>([])
   // Restore active ticket state from localStorage (navigation persistence)
@@ -748,6 +752,29 @@ export default function Terminal(): ReactElement {
           ? `Venta ${folio} registrada. Cambio: $${capturedChange.toFixed(2)}`
           : `Venta ${folio} registrada correctamente.`
       )
+
+      // Auto-print receipt + auto-open drawer (fire-and-forget)
+      try {
+        const hwRaw = localStorage.getItem('titan.hwConfig')
+        if (hwRaw) {
+          const hwCfg: HardwareConfig = JSON.parse(hwRaw)
+          const saleId = saleData.id ?? saleData.sale_id
+          if (hwCfg.printer?.enabled && hwCfg.printer?.auto_print && saleId) {
+            printReceipt(config, Number(saleId)).catch(() => {})
+          }
+          if (hwCfg.drawer?.enabled) {
+            const shouldOpen =
+              (paymentMethod === 'cash' && hwCfg.drawer.auto_open_cash) ||
+              (paymentMethod === 'card' && hwCfg.drawer.auto_open_card) ||
+              (paymentMethod === 'transfer' && hwCfg.drawer.auto_open_transfer)
+            if (shouldOpen) {
+              openDrawerForSale(config).catch(() => {})
+            }
+          }
+        }
+      } catch {
+        /* hw config parse error — non-fatal */
+      }
     } catch (error) {
       const raw = (error as Error).message
       if (raw.includes('fetch') || raw.includes('network') || raw.includes('Failed')) {
@@ -959,16 +986,64 @@ export default function Terminal(): ReactElement {
             placeholder="Buscar SKU o nombre (F10)"
             value={query}
             onChange={(e) => {
+              const now = Date.now()
+              lastKeystrokeRef.current = now
               setQuery(e.target.value)
               setShowResults(true)
             }}
             onFocus={() => setShowResults(true)}
             onBlur={() => setTimeout(() => setShowResults(false), 150)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && firstMatch) {
-                addProduct(firstMatch)
-                setQuery('')
-                setShowResults(false)
+              if (e.key === 'Enter') {
+                // Scanner detection: read hw config from cache
+                let scannerMinSpeed = 50
+                let scannerPrefix = ''
+                let scannerSuffix = ''
+                let isScanner = false
+                try {
+                  const hwRaw = localStorage.getItem('titan.hwConfig')
+                  if (hwRaw) {
+                    const hwCfg: HardwareConfig = JSON.parse(hwRaw)
+                    if (hwCfg.scanner?.enabled) {
+                      scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
+                      scannerPrefix = hwCfg.scanner.prefix || ''
+                      scannerSuffix = hwCfg.scanner.suffix || ''
+                      // If keystroke interval < min speed, it's a scanner
+                      const elapsed = Date.now() - lastKeystrokeRef.current
+                      const isFast = elapsed < scannerMinSpeed
+                      if (isFast && query.trim().length > 2) {
+                        isScanner = true
+                      }
+                    }
+                  }
+                } catch (_e) { /* parse error */ }
+
+                let searchTerm = query.trim()
+                if (isScanner) {
+                  // Strip prefix/suffix from scanner input
+                  if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
+                    searchTerm = searchTerm.slice(scannerPrefix.length)
+                  }
+                  if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
+                    searchTerm = searchTerm.slice(0, -scannerSuffix.length)
+                  }
+                  // Exact match by SKU/barcode first
+                  const exact = products.find(
+                    (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
+                  )
+                  if (exact) {
+                    addProduct(exact)
+                    setQuery('')
+                    setShowResults(false)
+                    return
+                  }
+                }
+                // Fallback: first match from filtered list (keyboard user or no exact hit)
+                if (firstMatch) {
+                  addProduct(firstMatch)
+                  setQuery('')
+                  setShowResults(false)
+                }
               }
               if (e.key === 'Escape') setShowResults(false)
             }}

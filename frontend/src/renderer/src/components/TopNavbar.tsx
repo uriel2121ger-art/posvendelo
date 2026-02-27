@@ -15,7 +15,8 @@ import {
   Receipt,
   UserCheck,
   Radio,
-  FileStack
+  FileStack,
+  Printer
 } from 'lucide-react'
 
 export default function TopNavbar(): ReactElement {
@@ -35,7 +36,8 @@ export default function TopNavbar(): ReactElement {
     { path: '/gastos', label: 'Gastos', icon: Receipt },
     { path: '/empleados', label: 'Empleados', icon: UserCheck },
     { path: '/remoto', label: 'Remoto', icon: Radio },
-    { path: '/fiscal', label: 'Fiscal', icon: FileStack }
+    { path: '/fiscal', label: 'Fiscal', icon: FileStack },
+    { path: '/hardware', label: 'Hardware', icon: Printer }
   ]
 
   return (

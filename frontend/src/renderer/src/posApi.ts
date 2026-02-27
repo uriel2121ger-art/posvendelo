@@ -1218,3 +1218,120 @@ export async function runShaper(cfg: RuntimeConfig): Promise<Record<string, unkn
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error ejecutando shaper'))
   return (await res.json()) as Record<string, unknown>
 }
+
+// ---------------------------------------------------------------------------
+// Hardware
+// ---------------------------------------------------------------------------
+
+export type CupsPrinter = {
+  name: string
+  enabled: boolean
+  status: string
+  is_default: boolean
+}
+
+export type HardwareConfig = {
+  printer: {
+    name: string
+    enabled: boolean
+    paper_width: number
+    char_width: number
+    auto_print: boolean
+    mode: string
+    cut_type: string
+  }
+  business: {
+    name: string
+    address: string
+    rfc: string
+    regimen: string
+    phone: string
+    footer: string
+  }
+  scanner: {
+    enabled: boolean
+    prefix: string
+    suffix: string
+    min_speed_ms: number
+    auto_submit: boolean
+  }
+  drawer: {
+    enabled: boolean
+    printer_name: string
+    auto_open_cash: boolean
+    auto_open_card: boolean
+    auto_open_transfer: boolean
+  }
+}
+
+export async function getHardwareConfig(cfg: RuntimeConfig): Promise<HardwareConfig> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/hardware/config`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando config hardware'))
+  const json = (await res.json()) as { data: HardwareConfig }
+  return json.data
+}
+
+export async function updateHardwareConfig(
+  cfg: RuntimeConfig,
+  section: 'printer' | 'business' | 'scanner' | 'drawer',
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/config/${section}`, {
+    method: 'PUT',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error actualizando config'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function discoverPrinters(cfg: RuntimeConfig): Promise<CupsPrinter[]> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/printers`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error detectando impresoras'))
+  const json = (await res.json()) as { data: { printers: CupsPrinter[] } }
+  return json.data.printers
+}
+
+export async function testPrint(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/test-print`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error imprimiendo prueba'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function testDrawer(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/test-drawer`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error probando cajon'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function printReceipt(
+  cfg: RuntimeConfig,
+  saleId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/print-receipt`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ sale_id: saleId })
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error imprimiendo ticket'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function openDrawerForSale(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/open-drawer`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajon'))
+  return (await res.json()) as Record<string, unknown>
+}
