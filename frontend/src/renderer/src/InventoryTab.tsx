@@ -39,6 +39,8 @@ export default function InventoryTab(): ReactElement {
     'Inventario (F4): carga y movimientos de entrada/salida funcional.'
   )
   const requestIdRef = useRef(0)
+  const skuInputRef = useRef<HTMLInputElement>(null)
+  const lastSkuEnterRef = useRef(0)
   const [alerts, setAlerts] = useState<Record<string, unknown>[]>([])
   const [showAlerts, setShowAlerts] = useState(false)
   const [movements, setMovements] = useState<Record<string, unknown>[]>([])
@@ -184,10 +186,30 @@ export default function InventoryTab(): ReactElement {
 
       <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[1fr_180px_180px_auto_auto]">
         <input
+          ref={skuInputRef}
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="SKU para movimiento"
           value={sku}
           onChange={(e) => setSku(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              const now = Date.now()
+              if (now - lastSkuEnterRef.current < 150) return
+              lastSkuEnterRef.current = now
+              const target = sku.trim()
+              if (!target) return
+              const found = rows.find((r) => r.sku.toLowerCase() === target.toLowerCase())
+              if (found) {
+                setSku(found.sku)
+                setMessage(`Producto encontrado: ${found.name} — Stock: ${found.stock}`)
+              } else {
+                setMessage(`SKU no encontrado en inventario: ${target}`)
+              }
+              skuInputRef.current?.focus()
+            }
+          }}
         />
         <select
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
@@ -305,6 +327,19 @@ export default function InventoryTab(): ReactElement {
           placeholder="Buscar por SKU o nombre"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              const q = query.trim().toLowerCase()
+              if (!q) return
+              const match = rows.find((r) => r.sku.toLowerCase() === q)
+              if (match) {
+                setSku(match.sku)
+                setMessage(`Seleccionado: ${match.name} — Stock: ${match.stock}`)
+              }
+            }
+          }}
         />
       </div>
 

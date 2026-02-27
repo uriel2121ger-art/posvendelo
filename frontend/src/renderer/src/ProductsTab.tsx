@@ -47,6 +47,8 @@ export default function ProductsTab(): ReactElement {
   )
   const requestIdRef = useRef(0)
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const skuFormRef = useRef<HTMLInputElement>(null)
+  const nameFormRef = useRef<HTMLInputElement>(null)
   const lastScanEnterRef = useRef(0)
   const [categories, setCategories] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -265,13 +267,22 @@ export default function ProductsTab(): ReactElement {
 
       <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[1fr_1fr_160px_160px_auto_auto_auto_auto]">
         <input
+          ref={skuFormRef}
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="SKU"
           value={sku}
           onChange={(e) => setSku(e.target.value)}
           disabled={Boolean(selectedSku)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              if (sku.trim()) nameFormRef.current?.focus()
+            }
+          }}
         />
         <input
+          ref={nameFormRef}
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Nombre producto"
           value={name}
@@ -386,9 +397,21 @@ export default function ProductsTab(): ReactElement {
       <div className="border-b border-zinc-800 bg-zinc-900/50 p-4 mx-4 mb-2 rounded-xl mt-4">
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="Buscar producto"
+          placeholder="Buscar producto (escanea o escribe)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              const q = query.trim().toLowerCase()
+              if (!q) return
+              const match = products.find((p) => p.sku.toLowerCase() === q)
+              if (match) {
+                selectProduct(match)
+              }
+            }
+          }}
         />
       </div>
 
