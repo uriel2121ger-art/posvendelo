@@ -123,6 +123,8 @@ async def client(db_conn, monkeypatch):
         yield db
 
     monkeypatch.setattr("db.connection.get_connection", _override_get_connection)
+    monkeypatch.setattr("modules.sales.routes.get_connection", _override_get_connection)
+    monkeypatch.setattr("modules.expenses.routes.get_connection", _override_get_connection)
 
     # 3. Monkeypatch get_pool (used by health check)
     mock_pool = _MockPool(db_conn)

@@ -25,7 +25,7 @@ export default function Login(): ReactElement {
     try {
       const cfg = loadRuntimeConfig()
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 3000)
+      const timeout = setTimeout(() => controller.abort(), 8000)
       let res: Response
       try {
         res = await fetch(`${cfg.baseUrl}/api/v1/auth/login`, {

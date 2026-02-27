@@ -128,7 +128,7 @@ async def sync_pull_sales(
         except (ValueError, AttributeError):
             raise HTTPException(status_code=400, detail="Formato de fecha invalido para 'since'")
         sql += " AND timestamp >= :since"
-        params["since"] = since_dt.isoformat()
+        params["since"] = since_dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit

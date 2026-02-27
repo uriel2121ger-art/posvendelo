@@ -1157,6 +1157,7 @@ export default function Terminal(): ReactElement {
                     <option value="cash">Efectivo</option>
                     <option value="card">Tarjeta</option>
                     <option value="transfer">Transferencia</option>
+                    <option value="mixed">Mixto</option>
                   </select>
                 </div>
                 {paymentMethod === 'cash' && (

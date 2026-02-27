@@ -117,18 +117,20 @@ class TestCreateSale:
     async def test_create_sale_creates_inventory_movement(
         self, client, admin_token, db_conn, seed_all
     ):
-        await client.post(
+        r = await client.post(
             "/api/v1/sales/",
             headers=auth_header(admin_token),
             json=_sale_body(),
         )
+        assert r.status_code == 200
         row = await db_conn.fetchrow(
             "SELECT * FROM inventory_movements "
-            "WHERE product_id = $1 AND movement_type = 'OUT' "
+            "WHERE product_id = $1 AND movement_type = 'OUT' AND type = 'sale' "
             "ORDER BY id DESC LIMIT 1",
             PRODUCT_ID,
         )
         assert row is not None
+        assert row["movement_type"] == "OUT"
         assert row["type"] == "sale"
 
     async def test_create_sale_card_payment(
@@ -364,16 +366,16 @@ class TestSearchSales:
             headers=auth_header(admin_token),
             json=_sale_body(),
         )
+        assert r.status_code == 200
         folio = r.json()["data"]["folio"]
-        # Extract partial folio for search
-        partial = folio[:3]
 
         r2 = await client.get(
-            f"/api/v1/sales/search?folio={partial}",
+            f"/api/v1/sales/search?folio={folio}",
             headers=auth_header(admin_token),
         )
         assert r2.status_code == 200
-        assert len(r2.json()["data"]) >= 1
+        folios = [s["folio"] for s in r2.json()["data"]]
+        assert folio in folios
 
     async def test_search_sales_by_date(self, client, admin_token, seed_all):
         from datetime import date
