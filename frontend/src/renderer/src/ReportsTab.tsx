@@ -45,7 +45,7 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
 }
 
 function toCsvCell(value: string): string {
-  const sanitized = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  const sanitized = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value
   return `"${sanitized.replace(/"/g, '""')}"`
 }
 
@@ -314,7 +314,7 @@ export default function ReportsTab(): ReactElement {
               const entry = heatmapData.find((d) => toNumber(d.hour) === h) as Record<string, unknown> | undefined
               const count = toNumber(entry?.count ?? entry?.sales_count ?? 0)
               const amount = toNumber(entry?.amount ?? entry?.total ?? 0)
-              const intensity = Math.min(1, count / Math.max(1, Math.max(...heatmapData.map((d) => toNumber(d.count ?? d.sales_count ?? 1)))))
+              const intensity = Math.min(1, count / Math.max(1, Math.max(...heatmapData.map((d) => toNumber(d.count ?? d.sales_count ?? 0)))))
               return (
                 <div
                   key={h}

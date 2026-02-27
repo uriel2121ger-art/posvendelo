@@ -272,7 +272,9 @@ async def get_returns_summary(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get returns summary per period."""
+    """Get returns summary per period. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver resumen de devoluciones")
     try:
         from modules.fiscal.returns_engine import ReturnsEngine
         engine = ReturnsEngine(db)
@@ -300,10 +302,15 @@ async def parse_cfdi_xml(
         raise HTTPException(status_code=400, detail="El archivo debe ser XML")
 
     # SECURITY: Use uuid for temp filename to prevent path traversal
+    # Limit upload size to prevent memory exhaustion (DoS)
+    MAX_XML_SIZE = 5 * 1024 * 1024  # 5 MB
+    content = await file.read(MAX_XML_SIZE + 1)
+    if len(content) > MAX_XML_SIZE:
+        raise HTTPException(status_code=413, detail="Archivo XML demasiado grande (max 5MB)")
+
     temp_path = f"/tmp/cfdi_{uuid.uuid4().hex}.xml"
     try:
         async with aiofiles.open(temp_path, 'wb') as out_file:
-            content = await file.read()
             await out_file.write(content)
 
         from modules.fiscal.xml_ingestor import XMLIngestor

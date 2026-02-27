@@ -10,8 +10,13 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 import logging
 
+import re as _re
+
 from lxml import etree
 from modules.fiscal.constants import IVA_RATE, IVA_TASA_STR
+
+# Regex to strip control chars that break CFDI canonical form / Sello computation
+_CONTROL_CHARS_RE = _re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +109,10 @@ def determine_metodo_pago(payment_method: str, is_credit_sale: bool = False) -> 
     Returns:
         'PUE' o 'PPD'
     """
-    # REGLA 1: Si es crédito → SIEMPRE PPD
-    if is_credit_sale or payment_method == 'credit':
+    # REGLA 1: Si es crédito o mixto → SIEMPRE PPD
+    if is_credit_sale or payment_method in ('credit', 'mixed'):
         return 'PPD'
-    
+
     # REGLA 2: Métodos con pago inmediato → PUE
     metodos_pue = ['cash', 'card', 'transfer', 'check', 'usd', 'wallet', 'gift_card']
     if payment_method in metodos_pue:
@@ -119,10 +124,15 @@ def determine_metodo_pago(payment_method: str, is_credit_sale: bool = False) -> 
 class CFDIBuilder:
     """Builds CFDI 4.0 XML documents."""
     
+    @staticmethod
+    def _sanitize_xml_str(value: str) -> str:
+        """Strip control chars that break CFDI canonical form for Sello."""
+        return _CONTROL_CHARS_RE.sub('', str(value)).strip()
+
     def __init__(self, fiscal_config: Dict[str, Any]):
         """
         Initialize CFDI builder with fiscal configuration.
-        
+
         Args:
             fiscal_config: Dictionary from core.get_fiscal_config()
         """
@@ -250,7 +260,8 @@ class CFDIBuilder:
             
             qty = Decimal(str(item.get('qty', 1)))
             price = Decimal(str(item.get('price', 0)))
-            importe = Decimal(str(item.get('subtotal', 0)))
+            # SAT rule: Importe = Cantidad × ValorUnitario (recompute, never trust caller's subtotal)
+            importe = (qty * price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
             # SAT allows up to 6 decimals for Cantidad (important for kg/ltr sales)
             qty_str = f"{qty:.6f}".rstrip('0').rstrip('.')
@@ -264,7 +275,7 @@ class CFDIBuilder:
                 'Cantidad': qty_str,
                 'ClaveUnidad': clave_unidad,
                 'Unidad': unidad_desc,
-                'Descripcion': item.get('product_name', 'Producto'),
+                'Descripcion': self._sanitize_xml_str(item.get('product_name', 'Producto')),
                 'ValorUnitario': f"{price:.2f}",
                 'Importe': f"{importe:.2f}",
                 'ObjetoImp': '02'  # Sí objeto de impuesto
@@ -288,8 +299,10 @@ class CFDIBuilder:
         # Traslados (transferred taxes like IVA)
         traslados = etree.Element('{' + CFDI_NS + '}Traslados')
 
-        # IVA 16%
-        item_subtotal = Decimal(str(item.get('subtotal', 0)))
+        # IVA 16% — recompute base from qty*price to match document-level _build_impuestos
+        item_qty = Decimal(str(item.get('qty', item.get('cantidad', 1))))
+        item_price = Decimal(str(item.get('unit_price', item.get('precio_unitario', item.get('price', 0)))))
+        item_subtotal = (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         iva_amount = (item_subtotal * Decimal(str(IVA_RATE))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         traslado_attrs = {
@@ -307,19 +320,34 @@ class CFDIBuilder:
         return impuestos
     
     def _build_impuestos(self, sale_data: Dict[str, Any]) -> etree.Element:
-        """Build Impuestos (taxes summary) element."""
+        """Build Impuestos (taxes summary) element.
+
+        SAT rule: document-level Importe must equal the arithmetic sum of
+        all per-concept Importe values for the same Impuesto/TipoFactor/TasaOCuota.
+        We recompute from items instead of trusting the stored 'tax' field.
+        """
         impuestos = etree.Element('{' + CFDI_NS + '}Impuestos')
 
-        total_impuestos = Decimal(str(sale_data.get('tax', 0)))
+        # Sum IVA per-item to match per-concept values exactly (avoids CFDI40148 rejection)
+        items = sale_data.get('items', [])
+        total_base = Decimal('0')
+        total_impuestos = Decimal('0')
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            item_price = Decimal(str(item.get('price', 0)))
+            item_importe = (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            item_iva = (item_importe * Decimal(str(IVA_RATE))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_base += item_importe
+            total_impuestos += item_iva
+
         if total_impuestos > 0:
             impuestos.set('TotalImpuestosTrasladados', f"{total_impuestos:.2f}")
 
         # Traslados
         traslados = etree.Element('{' + CFDI_NS + '}Traslados')
 
-        subtotal = Decimal(str(sale_data.get('subtotal', 0)))
         traslado_attrs = {
-            'Base': f"{subtotal:.2f}",
+            'Base': f"{total_base:.2f}",
             'Impuesto': '002',  # IVA
             'TipoFactor': 'Tasa',
             'TasaOCuota': IVA_TASA_STR,
@@ -349,7 +377,8 @@ class CFDIBuilder:
             # Parse the provided timestamp
             dt = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
             return get_cfdi_timestamp(lugar_expedicion, dt)
-        except Exception:
+        except Exception as exc:
+            logger.error("CFDI timestamp error (timezone_handler): %s — using local now()", exc)
             return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     
     def _map_payment_method(self, payment_method: str) -> str:
@@ -493,14 +522,15 @@ class CFDIBuilder:
         for item in items:
             qty = Decimal(str(item.get('qty', 1)))
             price = Decimal(str(item.get('price', 0)))
-            importe = Decimal(str(item.get('subtotal', item.get('total', 0))))
+            # SAT rule: Importe = Cantidad × ValorUnitario (recompute)
+            importe = (qty * price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
             concepto_attrs = {
                 'ClaveProdServ': '84111506',  # Servicios de facturación
                 'Cantidad': f"{qty:.2f}",
                 'ClaveUnidad': 'ACT',  # Actividad
                 'Unidad': 'Actividad',
-                'Descripcion': f"{descripcion}: {item.get('product_name', 'Producto')}",
+                'Descripcion': self._sanitize_xml_str(f"{descripcion}: {item.get('product_name', 'Producto')}"),
                 'ValorUnitario': f"{price:.2f}",
                 'Importe': f"{importe:.2f}",
                 'ObjetoImp': '02'  # Sí objeto de impuesto

@@ -86,6 +86,12 @@ export default function EmployeesTab(): ReactElement {
     setPage(0)
   }, [query])
 
+  // Clamp page when filtered data shrinks (e.g. after delete or reload with fewer items)
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1)
+    setPage((p) => Math.min(p, maxPage))
+  }, [filtered.length])
+
   const handleLoad = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
     setBusy(true)

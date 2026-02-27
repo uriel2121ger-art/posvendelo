@@ -17,6 +17,48 @@ from fastapi.middleware.cors import CORSMiddleware
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Lifespan (event system + auto-migrations)
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(application):
+    # Event bridge (legacy EventBus → DomainEvents)
+    try:
+        from modules.shared.event_bridge import setup_event_bridge
+        await setup_event_bridge()
+    except Exception as e:
+        logger.warning("Event bridge setup failed (non-fatal): %s", e)
+
+    # Sale event hooks (Event Sourcing)
+    try:
+        from modules.sales.event_hooks import register_sale_event_hooks
+        register_sale_event_hooks()
+    except Exception as e:
+        logger.warning("Sale event hooks failed (non-fatal): %s", e)
+
+    # Seed SAT catalog (idempotent — skips if table already has data)
+    try:
+        from db.connection import get_pool, DB
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            db = DB(conn)
+            from modules.sat.sat_catalog import seed_sat_catalog
+            await seed_sat_catalog(db)
+    except Exception as e:
+        logger.warning("SAT catalog seed failed (non-fatal): %s", e)
+
+    yield
+
+    # Teardown: close asyncpg pool
+    try:
+        from db.connection import close_pool
+        await close_pool()
+    except Exception as e:
+        logger.warning("Pool close failed (non-fatal): %s", e)
+
+
+# ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
 
@@ -28,6 +70,7 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs" if debug else None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 # Rate limiting (optional)
@@ -103,53 +146,6 @@ app.include_router(sat_router, prefix="/api/v1/sat", tags=["sat"])
 app.include_router(fiscal_router, prefix="/api/v1/fiscal", tags=["fiscal"])
 
 # ---------------------------------------------------------------------------
-# Lifespan (event system + auto-migrations)
-# ---------------------------------------------------------------------------
-
-
-@asynccontextmanager
-async def lifespan(application):
-    # Event bridge (legacy EventBus → DomainEvents)
-    try:
-        from modules.shared.event_bridge import setup_event_bridge
-        await setup_event_bridge()
-    except Exception as e:
-        logger.warning("Event bridge setup failed (non-fatal): %s", e)
-
-    # Sale event hooks (Event Sourcing)
-    try:
-        from modules.sales.event_hooks import register_sale_event_hooks
-        register_sale_event_hooks()
-    except Exception as e:
-        logger.warning("Sale event hooks failed (non-fatal): %s", e)
-
-    # Note: Auto-migration for sale_items.product_id moved to
-    # migrations/026_sale_items_product_nullable.sql (run via migration runner)
-
-    # Seed SAT catalog (idempotent — skips if table already has data)
-    try:
-        from db.connection import get_pool, DB
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            db = DB(conn)
-            from modules.sat.sat_catalog import seed_sat_catalog
-            await seed_sat_catalog(db)
-    except Exception as e:
-        logger.warning("SAT catalog seed failed (non-fatal): %s", e)
-
-    yield
-
-    # Teardown: close asyncpg pool
-    try:
-        from db.connection import close_pool
-        await close_pool()
-    except Exception as e:
-        logger.warning("Pool close failed (non-fatal): %s", e)
-
-
-app.router.lifespan_context = lifespan
-
-# ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
 
@@ -164,7 +160,7 @@ async def health_check():
         return {"status": "healthy", "service": "titan-pos"}
     except Exception:
         logger.exception("Health check: DB unreachable")
-        return {"status": "unhealthy", "service": "titan-pos"}
+        raise HTTPException(status_code=503, detail="Database unreachable")
 
 
 # ---------------------------------------------------------------------------

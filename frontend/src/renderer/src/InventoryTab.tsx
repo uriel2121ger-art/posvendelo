@@ -64,6 +64,12 @@ export default function InventoryTab(): ReactElement {
     setPage(0)
   }, [query])
 
+  // Clamp page when filtered data shrinks (e.g. after reload with fewer items)
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1)
+    setPage((p) => Math.min(p, maxPage))
+  }, [filtered.length])
+
   const handleLoad = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
     setBusy(true)
@@ -102,6 +108,10 @@ export default function InventoryTab(): ReactElement {
     const current = rows.find((r) => r.sku === targetSku)
     if (!current) {
       setMessage(`SKU no encontrado en inventario: ${targetSku}`)
+      return
+    }
+    if (movementType === 'out' && qty > toNumber(current.stock)) {
+      setMessage(`Stock insuficiente. Actual: ${current.stock}, salida solicitada: ${qty}`)
       return
     }
     const signed = movementType === 'in' ? qty : -qty

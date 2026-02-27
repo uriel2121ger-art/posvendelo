@@ -5,6 +5,7 @@ Pending mermas listing + approval/rejection.
 """
 
 import logging
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -95,16 +96,22 @@ async def approve_merma(
         # If approved and has product_id, deduct stock + record inventory movement
         if body.approved and existing.get("product_id"):
             pid = existing["product_id"]
-            qty = round(float(existing["quantity"] or 0), 2)
+            qty = Decimal(str(existing["quantity"] or 0))
             if qty > 0:
                 product = await db.fetchrow(
                     "SELECT stock FROM products WHERE id = :pid FOR UPDATE",
                     {"pid": pid},
                 )
-                if product and round(float(product["stock"] or 0), 2) < qty:
+                if not product:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Producto ID {pid} no encontrado",
+                    )
+                current_stock = Decimal(str(product["stock"] or 0))
+                if current_stock < qty:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Stock insuficiente para merma. Disponible: {round(float(product['stock'] or 0), 2)}, Requerido: {qty}",
+                        detail=f"Stock insuficiente para merma. Disponible: {current_stock}, Requerido: {qty}",
                     )
                 await db.execute(
                     "UPDATE products SET stock = stock - :qty, synced = 0, updated_at = NOW() WHERE id = :pid",

@@ -254,18 +254,22 @@ async def sync_push(
                     "min_stock": row.get("min_stock", 0),
                 }
                 parsed = {}
+                skip_row = False
                 for fname, fval in num_fields.items():
                     try:
                         f = round(float(fval), 2)
+                        if math.isnan(f) or math.isinf(f):
+                            raise ValueError("NaN or Inf")
                     except (ValueError, TypeError):
-                        f = 0.0
-                    if math.isnan(f) or math.isinf(f):
-                        logger.warning("Sync push: NaN/Inf en campo %s del producto %s, saltando", fname, row.get("sku", "?"))
-                        continue  # skip entire product row
+                        logger.warning(
+                            "Sync push: campo numerico invalido '%s'=%r en SKU '%s', saltando fila",
+                            fname, fval, row.get("sku", "?"),
+                        )
+                        skip_row = True
+                        break
                     parsed[fname] = f
-                if len(parsed) < len(num_fields):
-                    logger.warning("Sync push: datos numéricos incompletos para producto %s, saltando", row.get("sku", "?"))
-                    continue  # skip row with invalid numeric data
+                if skip_row or len(parsed) < len(num_fields):
+                    continue
 
                 await db.execute(
                     """INSERT INTO products (sku, name, price, price_wholesale, cost, stock, min_stock, is_active, synced, created_at, updated_at)
@@ -280,7 +284,7 @@ async def sync_push(
                          updated_at = NOW()""",
                     {
                         "sku": sku,
-                        "name": row.get("name", ""),
+                        "name": str(row.get("name", ""))[:300],
                         "price": parsed["price"],
                         "pw": parsed["price_wholesale"],
                         "cost": parsed["cost"],

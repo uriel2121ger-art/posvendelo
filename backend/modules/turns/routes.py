@@ -135,7 +135,7 @@ async def close_turn(
                 synced = 0
             WHERE id = $7
             """,
-            body.final_cash, float(system_sales_total), float(difference),
+            body.final_cash, system_sales_total, difference,
             denominations_json, body.notes, now, turn_id,
         )
 

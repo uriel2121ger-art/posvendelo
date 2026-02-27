@@ -83,7 +83,7 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
         string_literals.append(match.group(0))
         return f"\x00STR{len(string_literals) - 1}\x00"
 
-    sql = re.sub(r"'(?:[^'\\]|\\.)*'", _save_literal, sql)
+    sql = re.sub(r"'(?:''|[^'])*'", _save_literal, sql)
 
     param_order: list = []
 

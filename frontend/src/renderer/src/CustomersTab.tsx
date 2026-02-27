@@ -91,6 +91,7 @@ export default function CustomersTab(): ReactElement {
 
   async function handleCreate(): Promise<void> {
     if (busy) return
+    requestIdRef.current++ // invalidate any in-flight load
     if (!name.trim()) {
       setMessage('Nombre de cliente es obligatorio.')
       return
@@ -131,6 +132,7 @@ export default function CustomersTab(): ReactElement {
 
   async function handleDelete(): Promise<void> {
     if (busy) return
+    requestIdRef.current++ // invalidate any in-flight load
     if (!selectedId) {
       setMessage('Selecciona un cliente para eliminar.')
       return

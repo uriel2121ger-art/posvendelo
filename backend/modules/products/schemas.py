@@ -28,13 +28,21 @@ class ProductCreate(BaseModel):
     barcode: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = Field(None, max_length=2000)
 
+    @model_validator(mode='after')
+    def _reject_nan_inf(self):
+        for fname in ('price', 'price_wholesale', 'cost', 'stock', 'min_stock', 'max_stock', 'tax_rate'):
+            v = getattr(self, fname, None)
+            if v is not None and (not v.is_finite() or math.isnan(v) or math.isinf(v)):
+                raise ValueError(f"{fname} no puede ser NaN o Infinity")
+        return self
+
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=300)
     price: Optional[Decimal] = Field(None, ge=0)
     price_wholesale: Optional[Decimal] = Field(None, ge=0)
     cost: Optional[Decimal] = Field(None, ge=0)
-    stock: Optional[Decimal] = None
+    stock: Optional[Decimal] = Field(None, ge=0)
     category: Optional[str] = Field(None, max_length=100)
     department: Optional[str] = Field(None, max_length=100)
     provider: Optional[str] = Field(None, max_length=200)
@@ -45,6 +53,14 @@ class ProductUpdate(BaseModel):
     barcode: Optional[str] = Field(None, max_length=100)
     is_active: Optional[int] = Field(None, ge=0, le=1)
     description: Optional[str] = Field(None, max_length=2000)
+
+    @model_validator(mode='after')
+    def _reject_nan_inf(self):
+        for fname in ('price', 'price_wholesale', 'cost', 'stock', 'min_stock', 'max_stock', 'tax_rate'):
+            v = getattr(self, fname, None)
+            if v is not None and (not v.is_finite() or math.isnan(v) or math.isinf(v)):
+                raise ValueError(f"{fname} no puede ser NaN o Infinity")
+        return self
 
 
 class ProductResponse(BaseModel):
@@ -63,14 +79,17 @@ class ProductResponse(BaseModel):
 
 class StockUpdateRemote(BaseModel):
     sku: str = Field(..., max_length=100)
-    quantity: Decimal = Field(..., gt=0)
+    quantity: Decimal = Field(..., ge=0)
     operation: str  # 'add', 'subtract', 'set'
     reason: Optional[str] = Field(None, max_length=500)
 
     @model_validator(mode='after')
-    def _reject_special_values(self):
+    def _validate_operation_and_quantity(self):
         if self.operation not in ('add', 'subtract', 'set'):
             raise ValueError("operation debe ser 'add', 'subtract' o 'set'")
+        # add/subtract require quantity > 0; set allows 0
+        if self.operation in ('add', 'subtract') and self.quantity <= 0:
+            raise ValueError("quantity debe ser mayor a 0 para add/subtract")
         return self
 
 

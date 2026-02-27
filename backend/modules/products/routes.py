@@ -138,15 +138,15 @@ async def create_product(
                 "sku": body.sku,
                 "name": body.name,
                 "price": body.price,
-                "price_wholesale": body.price_wholesale or 0.0,
-                "cost": body.cost or 0.0,
-                "stock": body.stock or 0.0,
+                "price_wholesale": body.price_wholesale if body.price_wholesale is not None else Decimal("0"),
+                "cost": body.cost if body.cost is not None else Decimal("0"),
+                "stock": body.stock if body.stock is not None else Decimal("0"),
                 "category": body.category,
                 "department": body.department,
                 "provider": body.provider,
-                "min_stock": body.min_stock if body.min_stock is not None else 5.0,
-                "max_stock": body.max_stock if body.max_stock is not None else 1000.0,
-                "tax_rate": body.tax_rate if body.tax_rate is not None else 0.16,
+                "min_stock": body.min_stock if body.min_stock is not None else Decimal("5"),
+                "max_stock": body.max_stock if body.max_stock is not None else Decimal("1000"),
+                "tax_rate": body.tax_rate if body.tax_rate is not None else Decimal("0.16"),
                 "sale_type": body.sale_type or "unit",
                 "barcode": body.barcode,
                 "description": body.description,
@@ -171,13 +171,9 @@ async def update_product(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Update a product. Only non-null fields are updated. Price changes require manager+ role."""
-    # RBAC: price/cost fields require manager+ role
-    _PRICE_FIELDS = {"price", "price_wholesale", "cost", "tax_rate"}
-    submitted = body.model_dump(exclude_none=True)
-    if _PRICE_FIELDS & submitted.keys():
-        if auth.get("role") not in ("admin", "manager", "owner"):
-            raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
+    """Update a product. Only non-null fields are updated. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para modificar productos")
 
     # Build dynamic SET clause from non-null fields (allowlist validates keys)
     _ALLOWED_COLUMNS = {
@@ -340,7 +336,7 @@ async def update_stock_remote(
             {
                 "pid": product["id"],
                 "mov": mov_type,
-                "qty": round(abs(float(qty_signed)), 2),
+                "qty": abs(qty_signed),
                 "reason": body.reason or "Actualizacion remota",
                 "uid": get_user_id(auth),
             },

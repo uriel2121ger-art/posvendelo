@@ -39,15 +39,38 @@ VALUES (1, 'Sistema', 'sistema', 'SYSTEM_USER_NO_LOGIN', 'admin', 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- Step 2.2: Ensure turn with ID=1 exists (system turn fallback)
-INSERT INTO turns (id, user_id, start_timestamp, start_cash, status)
+INSERT INTO turns (id, user_id, start_timestamp, initial_cash, status)
 VALUES (1, 1, NOW(), 0.0, 'closed')
 ON CONFLICT (id) DO NOTHING;
+
+-- Step 2.2b: Advance sequences past manually-inserted IDs to avoid conflicts
+SELECT setval('users_id_seq', GREATEST((SELECT MAX(id) FROM users), 1));
+SELECT setval('turns_id_seq', GREATEST((SELECT MAX(id) FROM turns), 1));
 
 -- Step 2.3: Update sales with NULL user_id to use system user (ID=1)
 UPDATE sales SET user_id = 1 WHERE user_id IS NULL;
 
 -- Step 2.4: Update sales with NULL turn_id to use system turn (ID=1)
 UPDATE sales SET turn_id = 1 WHERE turn_id IS NULL;
+
+-- Step 2.5: Now enforce NOT NULL constraints (safe — all NULLs have been filled above)
+DO $$
+BEGIN
+    -- Only alter if column is currently nullable
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'sales' AND column_name = 'user_id' AND is_nullable = 'YES'
+    ) THEN
+        ALTER TABLE sales ALTER COLUMN user_id SET NOT NULL;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'sales' AND column_name = 'turn_id' AND is_nullable = 'YES'
+    ) THEN
+        ALTER TABLE sales ALTER COLUMN turn_id SET NOT NULL;
+    END IF;
+END $$;
 
 -- =============================================================================
 -- SCHEMA VERSION

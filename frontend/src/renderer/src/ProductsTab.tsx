@@ -123,8 +123,8 @@ export default function ProductsTab(): ReactElement {
       return
     }
     const parsedPrice = toNumber(price)
-    if (parsedPrice <= 0) {
-      setMessage('El precio debe ser mayor a 0.')
+    if (parsedPrice < 0) {
+      setMessage('El precio no puede ser negativo.')
       return
     }
     setBusy(true)

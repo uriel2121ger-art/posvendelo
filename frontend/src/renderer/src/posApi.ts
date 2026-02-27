@@ -146,16 +146,24 @@ export function getUserRole(): string {
 
 async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Response> {
   for (const path of paths) {
-    const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
-    if (res.status === 404 || res.status === 405) {
-      void res.body?.cancel().catch(() => {})
-      continue
+    try {
+      const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
+      if (res.status === 404 || res.status === 405) {
+        void res.body?.cancel().catch(() => {})
+        continue
+      }
+      if (!res.ok) {
+        const detail = await res.text()
+        throw new Error(parseErrorDetail(detail, 'Error del servidor'))
+      }
+      return res
+    } catch (err) {
+      // Timeout on this path — try next fallback endpoint
+      if (err instanceof Error && err.message.includes('Tiempo de espera')) {
+        continue
+      }
+      throw err
     }
-    if (!res.ok) {
-      const detail = await res.text()
-      throw new Error(parseErrorDetail(detail, 'Error del servidor'))
-    }
-    return res
   }
 
   throw new Error('Sin endpoint compatible disponible')

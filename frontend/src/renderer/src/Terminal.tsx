@@ -232,7 +232,6 @@ export default function Terminal(): ReactElement {
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
   const [message, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
-  const hasLoadedPendingRef = useRef(false)
 
   useEffect((): void => {
     saveRuntimeConfig(config)
@@ -270,13 +269,13 @@ export default function Terminal(): ReactElement {
       /* storage inaccessible */
     }
     if (!raw) {
-      hasLoadedPendingRef.current = true
+  
       return
     }
     try {
       const parsed = JSON.parse(raw) as PendingTicket[]
       if (!Array.isArray(parsed)) {
-        hasLoadedPendingRef.current = true
+    
         return
       }
       // Validate each ticket has required fields before loading
@@ -287,7 +286,7 @@ export default function Terminal(): ReactElement {
     } catch {
       // ignore invalid stored payload
     }
-    hasLoadedPendingRef.current = true
+
   }, [])
 
   const isFirstPendingPersist = useRef(true)
@@ -709,7 +708,7 @@ export default function Terminal(): ReactElement {
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
       const saleTotal = saleData.total != null ? Number(saleData.total) : totals.total
-      const capturedChange = Math.max(0, effectiveReceived - totals.total)
+      const capturedChange = Math.max(0, effectiveReceived - saleTotal)
       setCart([])
       setGlobalDiscountPct(0)
       setSelectedCartSku(null)
@@ -848,7 +847,7 @@ export default function Terminal(): ReactElement {
       if (key === 'f12') {
         event.preventDefault()
         event.stopImmediatePropagation()
-        if (!busy) {
+        if (!busy && !isInputFocused) {
           void handleCharge()
         }
         return
@@ -1182,6 +1181,7 @@ export default function Terminal(): ReactElement {
                   <select
                     className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none w-36"
                     value={paymentMethod}
+                    disabled={busy}
                     onChange={(e) => {
                       setPaymentMethod(e.target.value as PaymentMethod)
                       setAmountReceived('')

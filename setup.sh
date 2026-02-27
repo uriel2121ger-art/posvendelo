@@ -194,19 +194,24 @@ PSQL_ERR=$(mktemp)
 trap 'rm -f "$PSQL_ERR"' EXIT
 
 # Helper: run psql and classify errors
-# Returns 0 if OK or only "already exists" warnings, 1 on fatal errors
+# Returns 0 if OK or only benign notices, 1 on fatal/SQL errors
+# ON_ERROR_STOP=1 makes psql exit on first ERROR (NOTICEs like "already exists" are fine)
 run_psql() {
     local label="$1"
-    if docker compose exec -T postgres psql -U titan_user -d titan_pos 2>"$PSQL_ERR"; then
+    if docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U titan_user -d titan_pos 2>"$PSQL_ERR"; then
         return 0
     else
-        # Check if errors are only "already exists" (safe to ignore)
+        # Check if errors are only benign "already exists" notices
         if grep -qiE 'FATAL|could not connect|authentication failed|permission denied' "$PSQL_ERR"; then
             fail "$label — error critico de base de datos:"
             cat "$PSQL_ERR" >&2
             return 1
+        elif grep -qiE 'ERROR:' "$PSQL_ERR"; then
+            fail "$label — error SQL:"
+            cat "$PSQL_ERR" >&2
+            return 1
         else
-            # Only "already exists" or similar benign notices
+            # Only benign notices (e.g., "table already exists")
             return 0
         fi
     fi

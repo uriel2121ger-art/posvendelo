@@ -35,6 +35,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -260,10 +261,11 @@ async def _reserve_source_stock(context: Dict[str, Any]):
             if not row:
                 raise ValueError(f"Producto {product_id} no encontrado")
 
-            current_stock = round(float(row["stock"]), 2)
-            reserved = round(float(row.get("shadow_stock") or 0), 2)
-            available = round(current_stock - reserved, 2)
-            if available < qty:
+            current_stock = Decimal(str(row["stock"] or 0))
+            reserved = Decimal(str(row.get("shadow_stock") or 0))
+            available = current_stock - reserved
+            qty_dec = Decimal(str(qty))
+            if available < qty_dec:
                 raise ValueError(
                     f"Stock insuficiente para producto {product_id}: "
                     f"disponible {available} (stock={current_stock}, reservado={reserved}), necesita {qty}"
@@ -271,7 +273,7 @@ async def _reserve_source_stock(context: Dict[str, Any]):
 
             await db.execute(
                 "UPDATE products SET shadow_stock = shadow_stock + :qty WHERE id = :pid",
-                {"qty": qty, "pid": product_id},
+                {"qty": qty_dec, "pid": product_id},
             )
 
     logger.info(f"Reserved {qty} units of product {product_id}")

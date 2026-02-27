@@ -136,7 +136,7 @@ class CFDIService:
                 payment_method = sale_data.get("payment_method", "cash")
                 payment_form_map = {
                     "cash": "01", "card": "04", "debit": "28", "transfer": "03",
-                    "check": "02", "mixed": "01", "wallet": "01", "voucher": "01",
+                    "check": "02", "mixed": "01", "wallet": "05", "voucher": "08",
                     "usd": "01", "credit": "99",
                 }
                 payment_form = payment_form_map.get(payment_method, "01")
@@ -424,7 +424,7 @@ class CFDIService:
                 try:
                     for item in items:
                         product_id = item.get("product_id")
-                        quantity = round(float(item.get("quantity", 0)), 2)
+                        quantity = Decimal(str(item.get("quantity", 0)))
                         if product_id and quantity > 0:
                             await self.db.execute(
                                 "UPDATE products SET shadow_stock = COALESCE(shadow_stock, 0) + :qty WHERE id = :pid",

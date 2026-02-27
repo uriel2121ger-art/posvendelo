@@ -96,7 +96,7 @@ function saveHistory(history: ShiftRecord[]): void {
 }
 
 function toCsvCell(value: string): string {
-  const sanitized = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  const sanitized = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value
   return `"${sanitized.replace(/"/g, '""')}"`
 }
 

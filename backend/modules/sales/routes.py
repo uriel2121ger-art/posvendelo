@@ -175,6 +175,11 @@ async def create_sale(
     """Create a complete sale transaction (atomic: folio + items + stock + credit)."""
     user_id = get_user_id(auth)
 
+    # ── Validate serie ──
+    _VALID_SERIES = {"A", "B"}
+    if body.serie not in _VALID_SERIES:
+        raise HTTPException(status_code=400, detail=f"Serie invalida: '{body.serie}'")
+
     # ── Validate payment method ──
     pm = body.payment_method.strip().lower()
     if pm not in VALID_PAYMENT_METHODS:
@@ -202,7 +207,22 @@ async def create_sale(
         conn = db.connection
         async with conn.transaction():
 
-            # 1. Lock products + validate stock
+            # 1. Verify open turn (first lock — global order: TURNS → PRODUCTS → CUSTOMERS)
+            turn_row = await db.fetchrow(
+                "SELECT id, terminal_id FROM turns "
+                "WHERE user_id = :uid AND status = 'open' "
+                "ORDER BY id DESC LIMIT 1 FOR UPDATE",
+                {"uid": user_id},
+            )
+            if not turn_row:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No hay turno abierto. Debe abrir un turno antes de crear ventas.",
+                )
+            turn_id = turn_row["id"]
+            terminal_id = turn_row.get("terminal_id", 1) or 1
+
+            # 2. Lock products + validate stock
             product_ids = [item.product_id for item in body.items if item.product_id]
 
             kit_comp_rows = []
@@ -237,12 +257,12 @@ async def create_sale(
                         detail=f"Producto ID {item.product_id} no encontrado",
                     )
 
-            # 2. Calculate all items (single source of truth)
+            # 3. Calculate all items (single source of truth)
             calculated: List[CalculatedItem] = [
                 _calculate_item(item, locked_map) for item in body.items
             ]
 
-            # 3. Validate stock — aggregate demand per product
+            # 4. Validate stock — aggregate demand per product
             demand_by_pid: Dict[int, Decimal] = {}
             for ci in calculated:
                 if ci.is_common or ci.is_kit or not ci.product_id:
@@ -288,7 +308,7 @@ async def create_sale(
                                f"Disponible: {current_stock}, Necesario: {demand}",
                     )
 
-            # 4. Calculate totals from pre-calculated items (all quantized to 0.01)
+            # 5. Calculate totals from pre-calculated items (all quantized to 0.01)
             subtotal = sum((ci.line_total for ci in calculated), Decimal("0"))
             total_discount = sum((ci.line_discount for ci in calculated), Decimal("0"))
 
@@ -302,7 +322,16 @@ async def create_sale(
                     detail="El total de la venta debe ser mayor a $0.00",
                 )
 
-            # 5. Validate mixed payment sums
+            # 6. Validate payment amounts
+            if pm == "cash":
+                cash_recv = _dec(body.cash_received or 0)
+                if cash_recv < total_val:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Efectivo recibido (${cash_recv:.2f}) insuficiente. "
+                               f"Total: ${total_val:.2f}",
+                    )
+
             if pm == "mixed":
                 mixed_sum = (
                     _dec(body.mixed_cash) + _dec(body.mixed_card) +
@@ -316,21 +345,6 @@ async def create_sale(
                         detail=f"Suma de pagos mixtos (${_f(mixed_sum):.2f}) "
                                f"no coincide con total (${_f(total_val):.2f})",
                     )
-
-            # 6. Verify open turn
-            turn_row = await db.fetchrow(
-                "SELECT id, terminal_id FROM turns "
-                "WHERE user_id = :uid AND status = 'open' "
-                "ORDER BY id DESC LIMIT 1 FOR UPDATE",
-                {"uid": user_id},
-            )
-            if not turn_row:
-                raise HTTPException(
-                    status_code=400,
-                    detail="No hay turno abierto. Debe abrir un turno antes de crear ventas.",
-                )
-            turn_id = turn_row["id"]
-            terminal_id = turn_row.get("terminal_id", 1) or 1
 
             # 7. Ensure sequence exists
             await db.execute(
@@ -632,10 +646,16 @@ async def cancel_sale(
 
             locked_map: Dict = {}
             if all_lock_pids:
-                locked_rows = await conn.fetch(
-                    "SELECT id, sku, sale_type, is_kit FROM products WHERE id = ANY($1) FOR UPDATE",
-                    all_lock_pids,
-                )
+                try:
+                    locked_rows = await conn.fetch(
+                        "SELECT id, sku, sale_type, is_kit FROM products WHERE id = ANY($1) FOR UPDATE NOWAIT",
+                        all_lock_pids,
+                    )
+                except asyncpg.exceptions.LockNotAvailableError:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Productos bloqueados por otra operación en proceso. Intenta de nuevo.",
+                    )
                 locked_map = {r["id"]: dict(r) for r in locked_rows}
 
             # Pre-fetch kit components (avoid N+1)
@@ -665,12 +685,18 @@ async def cancel_sale(
                 is_kit = prod.get("is_kit", 0) == 1
                 qty = Decimal(str(item["qty"]))
 
+                sale_type = prod.get("sale_type", "unit") or "unit"
+
                 if is_kit:
                     for comp in kit_comp_map.get(pid, []):
                         cid = comp["component_product_id"]
+                        comp_prod = locked_map.get(cid, {})
+                        comp_sale_type = comp_prod.get("sale_type", "unit") or "unit"
+                        if comp_sale_type in ("granel", "weight"):
+                            continue
                         comp_qty = Decimal(str(comp["quantity"])) * qty
                         stock_restorations[cid] = stock_restorations.get(cid, Decimal(0)) + comp_qty
-                elif not is_common:
+                elif not is_common and sale_type not in ("granel", "weight"):
                     stock_restorations[pid] = stock_restorations.get(pid, Decimal(0)) + qty
 
             # Batch UPDATE stock restore (single query)
@@ -760,6 +786,70 @@ async def cancel_sale(
     }
 
 
+# ── Report endpoints (CQRS views) — MUST be before /{sale_id} wildcard ─
+
+@router.get("/reports/daily-summary")
+async def daily_sales_summary(
+    branch_id: Optional[int] = None,
+    limit: int = Query(30, ge=1, le=365),
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Get daily sales summary from CQRS materialized view."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver reportes")
+    sql = "SELECT * FROM mv_daily_sales_summary WHERE 1=1"
+    params: dict = {}
+
+    if branch_id:
+        sql += " AND branch_id = :branch_id"
+        params["branch_id"] = branch_id
+
+    sql += " ORDER BY sale_date DESC LIMIT :limit"
+    params["limit"] = limit
+
+    rows = await db.fetch(sql, params)
+    return {"success": True, "data": rows}
+
+
+@router.get("/reports/product-ranking")
+async def product_sales_ranking(
+    limit: int = Query(50, ge=1, le=500),
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Get product sales ranking from CQRS materialized view."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver reportes")
+    rows = await db.fetch(
+        "SELECT * FROM mv_product_sales_ranking ORDER BY total_revenue DESC LIMIT :limit",
+        {"limit": limit}
+    )
+    return {"success": True, "data": rows}
+
+
+@router.get("/reports/hourly-heatmap")
+async def hourly_heatmap(
+    branch_id: Optional[int] = None,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Get hourly sales heatmap from CQRS materialized view."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver reportes")
+    sql = "SELECT * FROM mv_hourly_sales_heatmap WHERE 1=1"
+    params: dict = {}
+
+    if branch_id:
+        sql += " AND branch_id = :branch_id"
+        params["branch_id"] = branch_id
+
+    sql += " ORDER BY day_of_week, hour_of_day"
+
+    rows = await db.fetch(sql, params)
+    return {"success": True, "data": rows}
+
+
 # ── GET /{sale_id} — Get sale detail ──────────────────────────────
 
 @router.get("/{sale_id}")
@@ -799,62 +889,4 @@ async def get_sale_events(sale_id: int, auth: dict = Depends(verify_token), db=D
         """,
         {"sale_id": sale_id}
     )
-    return {"success": True, "data": rows}
-
-
-# ── Report endpoints (CQRS views) ─────────────────────────────────
-
-@router.get("/reports/daily-summary")
-async def daily_sales_summary(
-    branch_id: Optional[int] = None,
-    limit: int = Query(30, ge=1, le=365),
-    auth: dict = Depends(verify_token),
-    db=Depends(get_db),
-):
-    """Get daily sales summary from CQRS materialized view."""
-    sql = "SELECT * FROM mv_daily_sales_summary WHERE 1=1"
-    params: dict = {}
-
-    if branch_id:
-        sql += " AND branch_id = :branch_id"
-        params["branch_id"] = branch_id
-
-    sql += " ORDER BY sale_date DESC LIMIT :limit"
-    params["limit"] = limit
-
-    rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
-
-
-@router.get("/reports/product-ranking")
-async def product_sales_ranking(
-    limit: int = Query(50, ge=1, le=500),
-    auth: dict = Depends(verify_token),
-    db=Depends(get_db),
-):
-    """Get product sales ranking from CQRS materialized view."""
-    rows = await db.fetch(
-        "SELECT * FROM mv_product_sales_ranking ORDER BY total_revenue DESC LIMIT :limit",
-        {"limit": limit}
-    )
-    return {"success": True, "data": rows}
-
-
-@router.get("/reports/hourly-heatmap")
-async def hourly_heatmap(
-    branch_id: Optional[int] = None,
-    auth: dict = Depends(verify_token),
-    db=Depends(get_db),
-):
-    """Get hourly sales heatmap from CQRS materialized view."""
-    sql = "SELECT * FROM mv_hourly_sales_heatmap WHERE 1=1"
-    params: dict = {}
-
-    if branch_id:
-        sql += " AND branch_id = :branch_id"
-        params["branch_id"] = branch_id
-
-    sql += " ORDER BY day_of_week, hour_of_day"
-
-    rows = await db.fetch(sql, params)
     return {"success": True, "data": rows}

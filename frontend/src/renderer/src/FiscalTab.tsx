@@ -225,7 +225,7 @@ export default function FiscalTab(): ReactElement {
               disabled={busy || !retSaleId.trim()}
               onClick={() => {
                 let items: unknown[] = []
-                try { items = JSON.parse(retItems) } catch { /* empty */ }
+                try { const parsed = JSON.parse(retItems); if (Array.isArray(parsed)) items = parsed } catch { /* empty */ }
                 void wrap(() => processReturn(cfg(), {
                   sale_id: retSaleId.trim(),
                   items,

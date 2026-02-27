@@ -32,7 +32,9 @@ async def list_movements(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """List inventory movements."""
+    """List inventory movements. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver movimientos de inventario")
     sql = "SELECT * FROM inventory_movements WHERE 1=1"
     params: dict = {}
 
@@ -53,7 +55,9 @@ async def list_movements(
 
 @router.get("/alerts")
 async def stock_alerts(auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get products below minimum stock (low stock alerts)."""
+    """Get products below minimum stock (low stock alerts). Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver alertas de stock")
     rows = await db.fetch("""
         SELECT id, sku, name, stock, min_stock, category,
                CASE WHEN stock <= 0 THEN 'out_of_stock'
@@ -138,8 +142,8 @@ async def adjust_stock(
         "success": True,
         "data": {
             "product_id": body.product_id,
-            "previous_stock": current_stock,
-            "adjustment": adjustment,
-            "new_stock": new_stock,
+            "previous_stock": round(float(current_stock), 2),
+            "adjustment": round(float(adjustment), 2),
+            "new_stock": round(float(new_stock), 2),
         },
     }

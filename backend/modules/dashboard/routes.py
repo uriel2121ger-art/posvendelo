@@ -24,6 +24,8 @@ router = APIRouter()
 @router.get("/resico")
 async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de monitoreo RESICO - acumulado anual serie A vs B."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard RESICO")
     year = datetime.now(timezone.utc).year
     year_start = f"{year}-01-01"
     year_end = f"{year + 1}-01-01"
@@ -76,6 +78,8 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/quick")
 async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Quick status widget — ventas hoy, mermas pendientes."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard")
     now = datetime.now(timezone.utc)
     today_str = now.strftime("%Y-%m-%d")
     tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -104,6 +108,8 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
 @router.get("/expenses")
 async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de gastos en efectivo — mes y anio."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver gastos")
     now = datetime.now(timezone.utc)
     # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — pass naive datetimes
     month_start = datetime(now.year, now.month, 1)
@@ -216,6 +222,8 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/ai")
 async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de IA — alertas de stock inteligentes (asyncpg)."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard IA")
     thirty_days_ago_ts = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
     low_stock = await db.fetch(
         """SELECT p.id, p.name, p.stock, p.min_stock,

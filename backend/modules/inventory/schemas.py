@@ -4,7 +4,7 @@ TITAN POS - Inventory Module Schemas
 
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class StockAdjustment(BaseModel):
@@ -13,6 +13,15 @@ class StockAdjustment(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500)
     reference_id: Optional[str] = Field(None, max_length=100)
 
+    @field_validator("quantity")
+    @classmethod
+    def quantity_not_zero_and_finite(cls, v: Decimal) -> Decimal:
+        if not v.is_finite():
+            raise ValueError("La cantidad debe ser un numero finito")
+        if v == 0:
+            raise ValueError("La cantidad no puede ser cero")
+        return v
+
 
 class InventoryTransfer(BaseModel):
     product_id: int
@@ -20,6 +29,13 @@ class InventoryTransfer(BaseModel):
     source_branch_id: int
     dest_branch_id: int
     notes: Optional[str] = None
+
+    @field_validator("quantity")
+    @classmethod
+    def quantity_finite(cls, v: Decimal) -> Decimal:
+        if not v.is_finite():
+            raise ValueError("La cantidad debe ser un numero finito")
+        return v
 
 
 class StockMovementResponse(BaseModel):

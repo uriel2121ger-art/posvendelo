@@ -67,7 +67,7 @@ class TestCreateSale:
     async def test_create_sale_price_includes_tax(
         self, client, admin_token, seed_all
     ):
-        body = _sale_body()
+        body = _sale_body(cash_received=300)
         body["items"][0]["price_includes_tax"] = True
         body["items"][0]["price"] = 232.00
         body["items"][0]["qty"] = 1

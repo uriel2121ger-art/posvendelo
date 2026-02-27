@@ -271,7 +271,6 @@ class XMLIngestor:
             logger.debug("xml_ingestor movement: %s", e)
 
     def _generate_sku(self) -> str:
-        """Genera SKU unico."""
-        import random
-        import string
-        return 'IMP-' + ''.join(random.choices(string.digits, k=8))
+        """Genera SKU unico usando UUID para evitar colisiones."""
+        import uuid
+        return 'IMP-' + uuid.uuid4().hex[:10].upper()

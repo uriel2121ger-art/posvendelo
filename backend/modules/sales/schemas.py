@@ -38,7 +38,7 @@ class SaleItemCreate(BaseModel):
 
 class SaleCreate(BaseModel):
     items: List[SaleItemCreate] = Field(..., min_length=1, max_length=2000)
-    payment_method: Literal["cash", "card", "transfer", "mixed", "credit"] = "cash"
+    payment_method: Literal["cash", "card", "transfer", "mixed", "credit", "wallet"] = "cash"
     customer_id: Optional[int] = None
     turn_id: Optional[int] = None
     branch_id: int = 1

@@ -37,7 +37,7 @@ function normalizeSale(raw: Record<string, unknown>): SaleRow {
 }
 
 function sanitizeCsvValue(value: string): string {
-  if (/^[=+\-@\t\r]/.test(value)) return `'${value}`
+  if (/^[=+\-@\t\r\n]/.test(value)) return `'${value}`
   return value
 }
 
