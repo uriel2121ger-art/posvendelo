@@ -429,7 +429,7 @@ export default function ShiftsTab(): ReactElement {
 
   async function handleCashMovement(): Promise<void> {
     if (!currentShift?.backendTurnId) return
-    const amount = Math.max(0, Number(cashMovAmount))
+    const amount = Math.max(0, toNumber(cashMovAmount))
     if (amount <= 0) {
       setMessage('Monto debe ser mayor a 0.')
       return

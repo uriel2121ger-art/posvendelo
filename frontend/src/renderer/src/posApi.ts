@@ -22,7 +22,7 @@ export function loadRuntimeConfig(): RuntimeConfig {
     return {
       baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://127.0.0.1:8000',
       token: localStorage.getItem('titan.token') ?? '',
-      terminalId: Number(localStorage.getItem('titan.terminalId') ?? '1')
+      terminalId: Math.max(1, parseInt(localStorage.getItem('titan.terminalId') ?? '1', 10) || 1)
     }
   } catch {
     return { baseUrl: 'http://127.0.0.1:8000', token: '', terminalId: 1 }
@@ -147,7 +147,10 @@ export function getUserRole(): string {
 async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Response> {
   for (const path of paths) {
     const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
-    if (res.status === 404 || res.status === 405) continue
+    if (res.status === 404 || res.status === 405) {
+      void res.body?.cancel()
+      continue
+    }
     if (!res.ok) {
       const detail = await res.text()
       throw new Error(parseErrorDetail(detail, 'Error del servidor'))
@@ -205,7 +208,7 @@ export async function syncTable(
     terminal_id: cfg.terminalId,
     request_id: `sync_${table}_${Date.now()}`
   }
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sync/${table}`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sync/${table}`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(payload)
@@ -326,7 +329,7 @@ export async function closeTurn(
   turnId: number,
   body: { final_cash: number; notes?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/close`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/turns/${turnId}/close`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify({
@@ -341,7 +344,8 @@ export async function closeTurn(
 export async function getCurrentTurn(cfg: RuntimeConfig): Promise<Record<string, unknown> | null> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
-  const body = (await res.json()) as Record<string, unknown>
+  const body = (await res.json()) as Record<string, unknown> | null
+  if (!body || typeof body !== 'object') return null
   const data = body.data as Record<string, unknown> | null
   return data
 }
@@ -394,7 +398,7 @@ export async function createSale(
   cfg: RuntimeConfig,
   sale: CreateSalePayload
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sales/`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(sale)

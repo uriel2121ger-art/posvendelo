@@ -46,6 +46,7 @@ export default function TopNavbar(): ReactElement {
           <Link
             key={item.path}
             to={item.path}
+            aria-current={isActive ? 'page' : undefined}
             className={`flex items-center gap-2 px-4 py-2 rounded font-medium transition-colors ${
               isActive
                 ? 'bg-zinc-800 shadow-sm border border-zinc-700 font-bold text-blue-400'
@@ -89,7 +90,22 @@ export default function TopNavbar(): ReactElement {
                 return false
               }
             })()
+            const hasActiveItems = (() => {
+              try {
+                const raw = localStorage.getItem('titan.activeTickets')
+                if (!raw) return false
+                const state = JSON.parse(raw)
+                if (!state?.ticketSnapshots) return false
+                return Object.values(state.ticketSnapshots).some(
+                  (snap: unknown) => {
+                    const s = snap as Record<string, unknown>
+                    return Array.isArray(s?.cart) && (s.cart as unknown[]).length > 0
+                  }
+                )
+              } catch { return false }
+            })()
             const warnings: string[] = []
+            if (hasActiveItems) warnings.push('Hay productos en el ticket activo sin cobrar.')
             if (hasPending) warnings.push('Hay tickets pendientes sin cobrar.')
             if (hasShift) warnings.push('Hay un turno abierto.')
             const msg = warnings.length
@@ -111,6 +127,7 @@ export default function TopNavbar(): ReactElement {
             window.location.hash = '#/login'
           }}
           className="text-rose-500/80 hover:text-rose-400 transition-colors"
+          aria-label="Cerrar sesión"
           title="Cerrar Sesion"
         >
           <LogOut className="w-5 h-5" />

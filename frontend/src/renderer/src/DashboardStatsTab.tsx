@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { RefreshCw, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import {
@@ -70,16 +70,14 @@ function DashboardPanel({
 function ExtendedPanels(): ReactElement {
   const role = getUserRole()
   const canManage = role === 'manager' || role === 'owner' || role === 'admin'
-  const cfg = loadRuntimeConfig()
-
   return (
     <div className="mt-8 space-y-4">
       <h2 className="text-lg font-bold text-zinc-300">Paneles Avanzados</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <DashboardPanel title="RESICO" onLoad={() => getDashboardResico(cfg)} />
-        <DashboardPanel title="Wealth" onLoad={() => getDashboardWealth(cfg)} restricted={!canManage} />
-        <DashboardPanel title="AI Insights" onLoad={() => getDashboardAI(cfg)} />
-        <DashboardPanel title="Executive" onLoad={() => getDashboardExecutive(cfg)} restricted={!canManage} />
+        <DashboardPanel title="RESICO" onLoad={() => getDashboardResico(loadRuntimeConfig())} />
+        <DashboardPanel title="Wealth" onLoad={() => getDashboardWealth(loadRuntimeConfig())} restricted={!canManage} />
+        <DashboardPanel title="AI Insights" onLoad={() => getDashboardAI(loadRuntimeConfig())} />
+        <DashboardPanel title="Executive" onLoad={() => getDashboardExecutive(loadRuntimeConfig())} restricted={!canManage} />
       </div>
     </div>
   )
@@ -92,7 +90,7 @@ export default function DashboardStatsTab(): ReactElement {
   const [lastUpdate, setLastUpdate] = useState('')
   const requestIdRef = useRef(0)
 
-  const fetchStats = async (): Promise<void> => {
+  const fetchStats = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
     try {
       setError('')
@@ -116,16 +114,16 @@ export default function DashboardStatsTab(): ReactElement {
     } finally {
       if (requestIdRef.current === reqId) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchStats()
-    const interval = setInterval(() => fetchStats(), 30_000)
+    void fetchStats()
+    const interval = setInterval(() => void fetchStats(), 30_000)
     return () => {
       requestIdRef.current++
       clearInterval(interval)
     }
-  }, [])
+  }, [fetchStats])
 
   const handleRefresh = (): void => {
     setLoading(true)

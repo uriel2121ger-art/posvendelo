@@ -107,13 +107,8 @@ export default function Login(): ReactElement {
               turno.
             </p>
 
-            <div className="mt-12 flex items-center gap-4 text-xs font-mono text-zinc-500">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Servidor Online
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Base de Datos Local
-              </div>
+            <div className="mt-12 text-xs font-mono text-zinc-600">
+              TITAN POS v0.1.0
             </div>
           </div>
         </div>

@@ -290,8 +290,14 @@ export default function Terminal(): ReactElement {
     hasLoadedPendingRef.current = true
   }, [])
 
+  const isFirstPendingPersist = useRef(true)
   useEffect((): void => {
-    if (!hasLoadedPendingRef.current) return
+    // Skip the mount-time execution to avoid overwriting localStorage with []
+    // before the load effect's state update has re-rendered
+    if (isFirstPendingPersist.current) {
+      isFirstPendingPersist.current = false
+      return
+    }
     try {
       localStorage.setItem(PENDING_TICKETS_STORAGE_KEY, JSON.stringify(pendingTickets))
     } catch {
@@ -1157,7 +1163,6 @@ export default function Terminal(): ReactElement {
                     <option value="cash">Efectivo</option>
                     <option value="card">Tarjeta</option>
                     <option value="transfer">Transferencia</option>
-                    <option value="mixed">Mixto</option>
                   </select>
                 </div>
                 {paymentMethod === 'cash' && (
@@ -1175,6 +1180,9 @@ export default function Terminal(): ReactElement {
                         if (e.target.value === '' || (Number.isFinite(n) && n >= 0)) {
                           setAmountReceived(e.target.value)
                         }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !busy) void handleCharge()
                       }}
                       placeholder="$0.00"
                     />

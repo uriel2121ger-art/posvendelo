@@ -38,7 +38,15 @@ export default function MermasTab(): ReactElement {
       const raw = inner.mermas
       const data = Array.isArray(raw) ? (raw as MermaRecord[]) : []
       setMermas(data)
-      setNotesMap({})
+      // Preserve notes for IDs still in the refreshed list
+      const refreshedIds = new Set(data.map((m) => m.id))
+      setNotesMap((prev) => {
+        const kept: Record<number, string> = {}
+        for (const [k, v] of Object.entries(prev)) {
+          if (refreshedIds.has(Number(k))) kept[Number(k)] = v
+        }
+        return kept
+      })
     } catch (err) {
       if (requestIdRef.current !== reqId) return
       setError(err instanceof Error ? err.message : 'Error cargando mermas')
