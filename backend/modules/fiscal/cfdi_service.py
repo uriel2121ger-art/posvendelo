@@ -11,21 +11,22 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 import aiofiles
 
-from modules.fiscal.constants import IVA_RATE
+from modules.fiscal.constants import IVA_RATE, IVA_RATE_FLOAT
 
 logger = logging.getLogger(__name__)
 
 
 class CFDIService:
-    def __init__(self, db):
+    def __init__(self, db, branch_id: int = 1):
         self.db = db
+        self.branch_id = branch_id
         self._facturapi = None
 
     async def _get_fiscal_config(self) -> dict:
         """Fetch fiscal config directly from DB."""
         row = await self.db.fetchrow(
             "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
-            {"bid": 1},
+            {"bid": self.branch_id},
         )
         return row or {}
 
@@ -80,6 +81,12 @@ class CFDIService:
         payment_form_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            # Validate RFC format before any processing
+            from modules.fiscal.rfc_validator import validate_rfc
+            rfc_result = validate_rfc(customer_rfc)
+            if not rfc_result.get('valid'):
+                return {"success": False, "error": f"RFC invalido: {rfc_result.get('error', 'Formato incorrecto')}"}
+
             facturapi = await self._get_facturapi()
             if not facturapi:
                 return {"success": False, "error": "Facturapi no configurado"}
@@ -114,7 +121,7 @@ class CFDIService:
                             "product_key": normalize_sat_key(sat_code_raw),
                             "unit_key": item.get("sat_unit", item.get("sat_clave_unidad", "H87")),
                             "price": round(float(item.get("price", item.get("unit_price", 0))), 2),
-                            "taxes": [{"type": "IVA", "rate": IVA_RATE}],
+                            "taxes": [{"type": "IVA", "rate": IVA_RATE_FLOAT}],
                         },
                     }
                 )
@@ -324,11 +331,14 @@ class CFDIService:
 
             cfdi_id = await self._save_cfdi(cfdi_record)
 
-            new_folio = fiscal_config.get("folio_actual", 1) + 1
-            await self.db.execute(
-                "UPDATE fiscal_config SET folio_actual = :folio WHERE branch_id = :bid",
-                {"folio": new_folio, "bid": 1},
+            # Atomic folio increment to prevent race conditions
+            folio_row = await self.db.fetchrow(
+                "UPDATE fiscal_config SET folio_actual = folio_actual + 1 "
+                "WHERE branch_id = :bid RETURNING folio_actual",
+                {"bid": self.branch_id},
             )
+            if folio_row:
+                logger.debug(f"Folio incremented to {folio_row.get('folio_actual')}")
 
             xml_path = await self._save_xml_file(uuid, xml_timbrado)
             await self._promote_sale_to_serie_a(sale_id, uuid, sale_data)
@@ -360,11 +370,21 @@ class CFDIService:
         return row["id"] if row else 0
 
     async def _save_xml_file(self, uuid: str, xml_content: str) -> str:
+        import re
         from modules.fiscal.utils import DATA_DIR
+
+        # Validate UUID format to prevent path traversal
+        if not re.match(r'^[a-fA-F0-9\-]{32,36}$', uuid):
+            raise ValueError(f"Invalid UUID format for file save: {uuid}")
 
         cfdi_dir = Path(DATA_DIR) / "cfdis"
         cfdi_dir.mkdir(exist_ok=True, parents=True)
-        xml_path = cfdi_dir / f"{uuid}.xml"
+        xml_path = (cfdi_dir / f"{uuid}.xml").resolve()
+
+        # Ensure resolved path is still under cfdi_dir
+        if not str(xml_path).startswith(str(cfdi_dir.resolve())):
+            raise ValueError("Path traversal detected in UUID")
+
         async with aiofiles.open(xml_path, "w", encoding="utf-8") as f:
             await f.write(xml_content)
         return str(xml_path)
@@ -478,11 +498,19 @@ class CFDIService:
             if not items:
                 return {"success": False, "error": "No hay productos para la nota de credito"}
 
-            subtotal = sum(
-                (Decimal(str(item.get("total", 0))) for item in items),
-                Decimal("0"),
-            )
-            tax = (subtotal * Decimal(str(IVA_RATE))).quantize(
+            # Use item subtotals (pre-tax) if available, otherwise back-calculate from total
+            raw_subtotal = Decimal("0")
+            for item in items:
+                if item.get("subtotal") is not None:
+                    raw_subtotal += Decimal(str(item["subtotal"]))
+                else:
+                    # item["total"] likely includes tax; back-calculate pre-tax amount
+                    item_total = Decimal(str(item.get("total", 0)))
+                    raw_subtotal += (item_total / (1 + IVA_RATE)).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+            subtotal = raw_subtotal
+            tax = (subtotal * IVA_RATE).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
             total = subtotal + tax
@@ -543,11 +571,14 @@ class CFDIService:
 
             cfdi_id = await self._save_cfdi(cfdi_record)
 
-            new_folio = fiscal_config.get("folio_actual", 1) + 1
-            await self.db.execute(
-                "UPDATE fiscal_config SET folio_actual = :folio WHERE branch_id = :bid",
-                {"folio": new_folio, "bid": 1},
+            # Atomic folio increment to prevent race conditions
+            folio_row = await self.db.fetchrow(
+                "UPDATE fiscal_config SET folio_actual = folio_actual + 1 "
+                "WHERE branch_id = :bid RETURNING folio_actual",
+                {"bid": self.branch_id},
             )
+            if folio_row:
+                logger.debug(f"Credit note folio incremented to {folio_row.get('folio_actual')}")
 
             xml_path = await self._save_xml_file(uuid, xml_timbrado)
 

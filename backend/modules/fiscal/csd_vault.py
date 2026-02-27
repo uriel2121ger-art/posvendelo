@@ -166,28 +166,36 @@ class CSDVault:
             logger.error(f"Error desencriptando password: {e}")
             raise ValueError("No se pudo desencriptar la contraseña del CSD")
     
+    def _ensure_initialized_sync(self):
+        """Synchronous initialization for non-async methods."""
+        if self._fernet is None:
+            self._salt = self._salt_param or self._get_installation_salt()
+            self._fernet = self._create_fernet(self._master_password)
+
     def encrypt_file(self, file_path: str) -> bytes:
         """
         Encripta un archivo completo (.key o .cer).
-        
+
         Args:
             file_path: Ruta al archivo
-        
+
         Returns:
             Bytes encriptados para almacenar
         """
+        self._ensure_initialized_sync()
         with open(file_path, 'rb') as f:
             data = f.read()
-        
+
         return self._fernet.encrypt(data)
-    
+
     def decrypt_file(self, encrypted_data: bytes) -> bytes:
         """
         Desencripta un archivo en memoria.
-        
+
         Returns:
             Bytes originales del archivo
         """
+        self._ensure_initialized_sync()
         try:
             return self._fernet.decrypt(encrypted_data)
         except InvalidToken:
@@ -233,9 +241,10 @@ class CSDVault:
         """
         Carga un archivo encriptado y lo desencripta en memoria.
         """
+        self._ensure_initialized_sync()
         with open(encrypted_path, 'rb') as f:
             encrypted = f.read()
-        
+
         return self._fernet.decrypt(encrypted)
 
 class CSDManager:

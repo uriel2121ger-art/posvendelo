@@ -25,12 +25,12 @@ router = APIRouter()
 
 class CFDIRequest(BaseModel):
     sale_id: int
-    customer_rfc: str
+    customer_rfc: str = Field(..., min_length=12, max_length=13, pattern=r'^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$')
     customer_name: str = None
-    customer_regime: str = "616"
-    uso_cfdi: str = "G03"
-    forma_pago: str = "01"
-    customer_zip: str = "00000"
+    customer_regime: str = Field(default="616", pattern=r'^\d{3}$')
+    uso_cfdi: str = Field(default="G03", pattern=r'^[A-Z]{1,2}\d{2}$')
+    forma_pago: str = Field(default="01", pattern=r'^\d{2}$')
+    customer_zip: str = Field(default="00000", pattern=r'^\d{5}$')
 
 
 class GlobalCFDIRequest(BaseModel):
@@ -182,6 +182,8 @@ async def generate_global_cfdi(
     db=Depends(get_db),
 ):
     """Generate Global CFDI for public sales."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para generar factura global")
     try:
         from modules.fiscal.global_invoicing import GlobalInvoicingService
         service = GlobalInvoicingService(db)

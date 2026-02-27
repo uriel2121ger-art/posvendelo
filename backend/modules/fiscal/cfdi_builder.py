@@ -252,9 +252,16 @@ class CFDIBuilder:
             price = Decimal(str(item.get('price', 0)))
             importe = Decimal(str(item.get('subtotal', 0)))
 
+            # SAT allows up to 6 decimals for Cantidad (important for kg/ltr sales)
+            qty_str = f"{qty:.6f}".rstrip('0').rstrip('.')
+            if '.' not in qty_str:
+                qty_str += '.00'
+            elif len(qty_str.split('.')[1]) < 2:
+                qty_str = f"{qty:.2f}"
+
             concepto_attrs = {
                 'ClaveProdServ': clave_prod_serv,
-                'Cantidad': f"{qty:.2f}",
+                'Cantidad': qty_str,
                 'ClaveUnidad': clave_unidad,
                 'Unidad': unidad_desc,
                 'Descripcion': item.get('product_name', 'Producto'),
@@ -326,14 +333,22 @@ class CFDIBuilder:
         return impuestos
     
     def _format_timestamp(self, timestamp_str: str) -> str:
-        """Format datetime to CFDI format: YYYY-MM-DDTHH:MM:SS"""
+        """Format datetime to CFDI format: YYYY-MM-DDTHH:MM:SS
+
+        Uses timezone_handler to produce SAT-correct local time
+        based on the emitter's postal code (LugarExpedicion).
+        """
         try:
+            from modules.fiscal.timezone_handler import get_cfdi_timestamp
+            lugar_expedicion = self.config.get('lugar_expedicion', '')
+
             if not timestamp_str:
-                timestamp_str = datetime.now().isoformat()
-            
-            # Parse and format
+                # Generate timestamp in the correct timezone for the emitter's CP
+                return get_cfdi_timestamp(lugar_expedicion)
+
+            # Parse the provided timestamp
             dt = datetime.fromisoformat(timestamp_str.replace(' ', 'T'))
-            return dt.strftime('%Y-%m-%dT%H:%M:%S')
+            return get_cfdi_timestamp(lugar_expedicion, dt)
         except Exception:
             return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     

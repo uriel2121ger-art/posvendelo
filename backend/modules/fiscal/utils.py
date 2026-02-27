@@ -207,8 +207,8 @@ def sanitize_filename(filename: str) -> str:
     Returns:
         Sanitized filename
     """
-    # Remove invalid chars for filenames
-    invalid_chars = '<>:"/\\|%*'
+    # Remove invalid chars for filenames (including ? for Windows compatibility)
+    invalid_chars = '<>:"/\\|%*?'
     for char in invalid_chars:
         filename = filename.replace(char, '_')
     
@@ -216,16 +216,20 @@ def sanitize_filename(filename: str) -> str:
 
 def calculate_iva(subtotal: float, rate: float = 0.16) -> float:
     """
-    Calculate IVA amount.
-    
+    Calculate IVA amount using Decimal for precision.
+
     Args:
         subtotal: Subtotal amount
         rate: IVA rate (default 16%)
-        
+
     Returns:
         IVA amount
     """
-    return round(subtotal * rate, 2)
+    from decimal import Decimal, ROUND_HALF_UP
+    result = (Decimal(str(subtotal)) * Decimal(str(rate))).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    return float(result)
 
 def truncate_string(text: str, max_length: int, suffix: str = '...') -> str:
     """

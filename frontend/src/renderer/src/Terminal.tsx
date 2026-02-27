@@ -496,7 +496,7 @@ export default function Terminal(): ReactElement {
     setTicketSnapshots(restSnapshots)
 
     if (ticketId !== activeTicketId) {
-      setMessage('Ticket activo cerrado.')
+      setMessage('Ticket cerrado.')
       return
     }
 
@@ -629,20 +629,41 @@ export default function Terminal(): ReactElement {
       setMessage('Selecciona un producto del carrito.')
       return
     }
-    const current = cart.find((item) => item.sku === selectedCartSku)
-    if (!current) return
-    updateItemQty(selectedCartSku, current.qty + 1)
-  }, [cart, selectedCartSku])
+    setCart((prev) => {
+      const idx = prev.findIndex((item) => item.sku === selectedCartSku)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      const nextQty = current.qty + 1
+      const copy = [...prev]
+      copy[idx] = {
+        ...current,
+        qty: nextQty,
+        subtotal: calculateLineSubtotal(current.price, nextQty, current.discountPct)
+      }
+      return copy
+    })
+  }, [selectedCartSku])
 
   const decreaseSelectedQty = useCallback((): void => {
     if (!selectedCartSku) {
       setMessage('Selecciona un producto del carrito.')
       return
     }
-    const current = cart.find((item) => item.sku === selectedCartSku)
-    if (!current) return
-    updateItemQty(selectedCartSku, Math.max(1, current.qty - 1))
-  }, [cart, selectedCartSku])
+    setCart((prev) => {
+      const idx = prev.findIndex((item) => item.sku === selectedCartSku)
+      if (idx < 0) return prev
+      const current = prev[idx]
+      const nextQty = Math.max(1, current.qty - 1)
+      if (nextQty === current.qty) return prev
+      const copy = [...prev]
+      copy[idx] = {
+        ...current,
+        qty: nextQty,
+        subtotal: calculateLineSubtotal(current.price, nextQty, current.discountPct)
+      }
+      return copy
+    })
+  }, [selectedCartSku])
 
   const deleteSelectedItem = useCallback((): void => {
     if (!selectedCartSku) {
@@ -827,7 +848,7 @@ export default function Terminal(): ReactElement {
       if (key === 'f12') {
         event.preventDefault()
         event.stopImmediatePropagation()
-        if (!busy && !isInputFocused) {
+        if (!busy) {
           void handleCharge()
         }
         return

@@ -65,7 +65,7 @@ async def remote_open_drawer(
         raise HTTPException(status_code=500, detail="Error abriendo cajon")
 
     await db.execute(
-        """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
+        """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
            VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, NOW())""",
         {
             "uid": get_user_id(auth),

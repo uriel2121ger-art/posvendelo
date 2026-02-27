@@ -148,7 +148,7 @@ async function getWithFallback(cfg: RuntimeConfig, paths: string[]): Promise<Res
   for (const path of paths) {
     const res = await apiFetch(`${cfg.baseUrl}${path}`, { headers: headers(cfg) })
     if (res.status === 404 || res.status === 405) {
-      void res.body?.cancel()
+      void res.body?.cancel().catch(() => {})
       continue
     }
     if (!res.ok) {
@@ -432,7 +432,7 @@ export async function approveMerma(
   approved: boolean,
   notes?: string
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/mermas/approve`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/mermas/approve`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify({ merma_id: id, approved, notes: notes || undefined })
@@ -463,7 +463,7 @@ export async function registerExpense(
   cfg: RuntimeConfig,
   expense: { amount: number; description: string; reason?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/expenses/`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/expenses/`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(expense)
@@ -496,7 +496,7 @@ export async function createEmployee(
   cfg: RuntimeConfig,
   body: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/employees/`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)
@@ -510,7 +510,7 @@ export async function updateEmployee(
   id: number,
   body: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/${id}`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/employees/${id}`, {
     method: 'PUT',
     headers: headers(cfg),
     body: JSON.stringify(body)
@@ -523,7 +523,7 @@ export async function deleteEmployee(
   cfg: RuntimeConfig,
   id: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/employees/${id}`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/employees/${id}`, {
     method: 'DELETE',
     headers: headers(cfg)
   })
@@ -554,7 +554,7 @@ export async function getTurnStatusRemote(cfg: RuntimeConfig): Promise<Record<st
 }
 
 export async function remoteOpenDrawer(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/open-drawer`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/remote/open-drawer`, {
     method: 'POST',
     headers: headers(cfg)
   })
@@ -566,7 +566,7 @@ export async function remoteChangePrice(
   cfg: RuntimeConfig,
   body: { sku: string; new_price: number; reason: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/change-price`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/remote/change-price`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)
@@ -579,7 +579,7 @@ export async function sendNotification(
   cfg: RuntimeConfig,
   body: { title: string; body: string; notification_type: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/notification`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/remote/notification`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)
@@ -667,7 +667,7 @@ export async function getDailySummaryReport(
   if (branchId) params.set('branch_id', String(branchId))
   if (limit) params.set('limit', String(limit))
   const qs = params.toString()
-  const res = await apiFetch(
+  const res = await apiFetchLong(
     `${cfg.baseUrl}/api/v1/sales/reports/daily-summary${qs ? `?${qs}` : ''}`,
     { headers: headers(cfg) }
   )
@@ -680,7 +680,7 @@ export async function getProductRanking(
   limit?: number
 ): Promise<Record<string, unknown>> {
   const qs = limit ? `?limit=${limit}` : ''
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/reports/product-ranking${qs}`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sales/reports/product-ranking${qs}`, {
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando ranking'))
@@ -692,7 +692,7 @@ export async function getHourlyHeatmap(
   branchId?: number
 ): Promise<Record<string, unknown>> {
   const qs = branchId ? `?branch_id=${branchId}` : ''
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/reports/hourly-heatmap${qs}`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sales/reports/hourly-heatmap${qs}`, {
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando heatmap'))
@@ -712,7 +712,7 @@ export async function getInventoryMovements(
   if (type) params.set('movement_type', type)
   if (limit) params.set('limit', String(limit))
   const qs = params.toString()
-  const res = await apiFetch(
+  const res = await apiFetchLong(
     `${cfg.baseUrl}/api/v1/inventory/movements${qs ? `?${qs}` : ''}`,
     { headers: headers(cfg) }
   )
@@ -820,7 +820,7 @@ export async function remoteStockUpdate(
   cfg: RuntimeConfig,
   body: { sku: string; quantity: number; operation: string; reason: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/products/stock`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/products/stock`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)

@@ -172,9 +172,16 @@ class PaymentReceiptService:
         fiscal_config: Dict[str, Any],
     ) -> str:
         """Build base CFDI for payment type (sync, no I/O operations)."""
+        fecha = xml_escape(
+            payment_data.get("payment_date", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"))
+        )
         xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
         xml += '<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" '
         xml += 'Version="4.0" '
+        xml += f'Fecha="{fecha}" '
+        xml += 'SubTotal="0" '
+        xml += 'Total="0" '
+        xml += 'Moneda="XXX" '
         xml += 'TipoDeComprobante="P" '
         xml += 'Exportacion="01" '
         xml += 'LugarExpedicion="' + xml_escape(fiscal_config.get('lugar_expedicion', '00000')) + '">\n'

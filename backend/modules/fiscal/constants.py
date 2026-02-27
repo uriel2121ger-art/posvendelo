@@ -29,7 +29,8 @@ PAYMENT_METHODS = {
     'wallet': '05',  # Monedero electrónico
     'money_order': '06',  # Dinero electrónico
     'voucher': '08',  # Vales de despensa
-    'credit': '12',  # Dación en pago
+    'dacion': '12',  # Dación en pago
+    'credit': '99',  # Venta a crédito = Por definir (PPD)
     'payment_subrogation': '13',  # Pago por subrogación
     'payment_consignment': '14',  # Pago por consignación
     'condonation': '15',  # Condonación
@@ -77,7 +78,9 @@ TAX_TYPES = {
 }
 
 # Tax rates
-IVA_RATE = 0.16
+from decimal import Decimal
+IVA_RATE = Decimal("0.16")
+IVA_RATE_FLOAT = 0.16  # For APIs that require float (e.g. Facturapi)
 IVA_TASA_STR = "0.160000"  # 6 decimal places per SAT spec
 IVA_TASA_CUOTA = '0.160000'  # Legacy alias
 

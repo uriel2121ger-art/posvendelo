@@ -64,11 +64,11 @@ class CFDISyncService:
             result = {'success': True, 'cfdi_id': cfdi_id, 'uuid': uuid, 'files': {}}
 
             try:
-                pdf_result = await facturapi.invoices.download_pdf(facturapi_id)
-                if pdf_result.get('success'):
+                pdf_content = await facturapi.invoices.download_pdf(facturapi_id)
+                if pdf_content and isinstance(pdf_content, bytes):
                     pdf_path = cfdi_dir / f"{uuid}.pdf"
                     async with aiofiles.open(pdf_path, 'wb') as f:
-                        await f.write(pdf_result['content'])
+                        await f.write(pdf_content)
                     result['files']['pdf'] = str(pdf_path)
                     logger.info(f"PDF guardado: {pdf_path}")
             except Exception as e:
@@ -76,11 +76,11 @@ class CFDISyncService:
                 result['files']['pdf_error'] = str(e)
 
             try:
-                xml_result = await facturapi.invoices.download_xml(facturapi_id)
-                if xml_result.get('success'):
+                xml_content = await facturapi.invoices.download_xml(facturapi_id)
+                if xml_content and isinstance(xml_content, str):
                     xml_path = cfdi_dir / f"{uuid}.xml"
-                    async with aiofiles.open(xml_path, 'wb') as f:
-                        await f.write(xml_result['content'])
+                    async with aiofiles.open(xml_path, 'w', encoding='utf-8') as f:
+                        await f.write(xml_content)
                     result['files']['xml'] = str(xml_path)
                     logger.info(f"XML guardado: {xml_path}")
             except Exception as e:
