@@ -14,13 +14,15 @@ Usage:
 import os
 
 # ── Environment (MUST be set before importing app modules) ───────
+# Real credentials come from environment or .env.test — DO NOT hardcode production secrets.
+# These defaults are ONLY for local dev; CI must provide real values via env vars.
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+asyncpg://titan_user:XqaDwbaY6TE9J6OIz7Sodplp@localhost:5433/titan_pos",
+    os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://titan_user:test_password@localhost:5433/titan_pos"),
 )
 os.environ.setdefault(
     "JWT_SECRET",
-    "43ac79b9031e3d5ca50db87d77eed47f5a358bd1938f5ac77dd0b0a513f1cf2a",
+    os.getenv("TEST_JWT_SECRET", "test-only-secret-do-not-use-in-production"),
 )
 os.environ.setdefault("DEBUG", "true")
 

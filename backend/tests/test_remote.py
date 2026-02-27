@@ -99,7 +99,7 @@ class TestNotifications:
 
 class TestChangePrice:
     async def test_change_price(
-        self, client, admin_token, db_conn, seed_product
+        self, client, admin_token, db_conn, seed_product, seed_users
     ):
         r = await client.post(
             "/api/v1/remote/change-price",

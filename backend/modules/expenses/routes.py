@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, get_connection
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.expenses.schemas import ExpenseCreate
 
 logger = logging.getLogger(__name__)
@@ -30,14 +30,14 @@ async def get_expense_summary(
         now = datetime.now(timezone.utc)
         target_month = month if month is not None else now.month
         target_year = year if year is not None else now.year
-        # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — use naive datetimes
-        month_start = datetime(target_year, target_month, 1)
+        # cash_movements.timestamp is TEXT (ISO 8601) — use .isoformat() strings for comparison
+        month_start = datetime(target_year, target_month, 1).isoformat()
         if target_month == 12:
-            month_end = datetime(target_year + 1, 1, 1)
+            month_end = datetime(target_year + 1, 1, 1).isoformat()
         else:
-            month_end = datetime(target_year, target_month + 1, 1)
-        year_start = datetime(target_year, 1, 1)
-        year_end = datetime(target_year + 1, 1, 1)
+            month_end = datetime(target_year, target_month + 1, 1).isoformat()
+        year_start = datetime(target_year, 1, 1).isoformat()
+        year_end = datetime(target_year + 1, 1, 1).isoformat()
 
         month_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
@@ -73,12 +73,7 @@ async def register_expense(
     role = auth.get("role", "")
     if role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Solo gerentes pueden registrar gastos")
-    try:
-        user_id = int(auth.get("sub") or 0)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Token sub invalido")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Token sin sub claim")
+    user_id = get_user_id(auth)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     async with get_connection() as db_conn:
@@ -101,7 +96,7 @@ async def register_expense(
                     "desc": body.description,
                     "reason": body.reason,
                     "uid": user_id,
-                    "now": now,
+                    "now": now.isoformat(),
                 },
             )
 

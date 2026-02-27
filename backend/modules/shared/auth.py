@@ -67,6 +67,17 @@ def create_token(user_id: str, role: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def get_user_id(auth: Dict) -> int:
+    """Safely extract numeric user_id from JWT payload.
+
+    Raises HTTPException(401) if sub is missing or non-numeric.
+    """
+    try:
+        return int(auth["sub"])
+    except (KeyError, ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Token invalido: sub no numerico")
+
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
     """Verify and decode JWT. Returns payload dict with sub, role, etc."""
     try:

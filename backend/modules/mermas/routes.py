@@ -9,7 +9,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.mermas.schemas import MermaApproval
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def approve_merma(
     if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para aprobar mermas")
 
-    user_id = int(auth["sub"])
+    user_id = get_user_id(auth)
 
     async with db.connection.transaction():
         existing = await db.fetchrow(

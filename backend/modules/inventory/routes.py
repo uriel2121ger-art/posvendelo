@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from decimal import Decimal
 
 from db.connection import get_db
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.inventory.schemas import StockAdjustment
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ async def adjust_stock(
 
         # Record movement
         mov_type = "IN" if adjustment >= 0 else "OUT"
-        user_id = int(auth["sub"])
+        user_id = get_user_id(auth)
 
         await conn.execute(
             """

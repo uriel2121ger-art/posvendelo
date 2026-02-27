@@ -14,7 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ async def open_turn(
     db=Depends(get_db),
 ):
     """Open a new turn. Validates no open turn exists for the user (atomic)."""
-    user_id = int(auth["sub"])
+    user_id = get_user_id(auth)
     conn = db.connection
 
     async with conn.transaction():
@@ -50,7 +50,7 @@ async def open_turn(
             VALUES ($1, $2, $3, 'open', $4, $5, 0)
             RETURNING id
             """,
-            user_id, body.branch_id, body.initial_cash, body.notes, now,
+            user_id, body.branch_id, body.initial_cash, body.notes, now.isoformat(),
         )
 
     if not row:
@@ -79,7 +79,7 @@ async def close_turn(
             raise HTTPException(status_code=400, detail="El turno ya esta cerrado")
 
         # Ownership check: only the turn owner or manager+ can close
-        user_id = int(auth.get("sub", 0))
+        user_id = get_user_id(auth)
         role = auth.get("role", "")
         if turn["user_id"] != user_id and role not in ("admin", "manager", "owner"):
             raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
@@ -133,7 +133,7 @@ async def close_turn(
             WHERE id = $7
             """,
             body.final_cash, system_sales_total, difference,
-            denominations_json, body.notes, now, turn_id,
+            denominations_json, body.notes, now.isoformat(), turn_id,
         )
 
     return {
@@ -156,7 +156,7 @@ async def get_current_turn(
     db=Depends(get_db),
 ):
     """Get the active (open) turn for a user or branch."""
-    uid = int(auth["sub"])
+    uid = get_user_id(auth)
     if user_id and user_id != uid:
         role = auth.get("role", "")
         if role not in ("admin", "manager", "owner"):
@@ -190,7 +190,7 @@ async def get_turn(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
-    uid = int(auth.get("sub", 0))
+    uid = get_user_id(auth)
     role = auth.get("role", "")
     if row["user_id"] != uid and role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
@@ -209,7 +209,7 @@ async def get_turn_summary(
     )
     if not turn:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
-    uid = int(auth.get("sub", 0))
+    uid = get_user_id(auth)
     role = auth.get("role", "")
     if turn["user_id"] != uid and role not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
@@ -278,7 +278,7 @@ async def create_cash_movement(
     db=Depends(get_db),
 ):
     """Register a cash movement (in/out) for a turn. Requires manager PIN for non-managers."""
-    user_id = int(auth["sub"])
+    user_id = get_user_id(auth)
     role = auth.get("role", "")
     is_manager = role in ("admin", "manager", "owner")
 
@@ -325,7 +325,7 @@ async def create_cash_movement(
             """,
             turn_id, body.movement_type, body.amount,
             f"Movimiento {body.movement_type}: {body.reason}",
-            body.reason, user_id, now,
+            body.reason, user_id, now.isoformat(),
         )
 
     return {"success": True, "data": {"id": row["id"]}}

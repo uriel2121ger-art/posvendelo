@@ -123,22 +123,8 @@ async def lifespan(application):
     except Exception as e:
         logger.warning("Sale event hooks failed (non-fatal): %s", e)
 
-    # Auto-migrations (idempotent)
-    try:
-        from db.connection import get_pool
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            col_info = await conn.fetchrow(
-                "SELECT is_nullable FROM information_schema.columns "
-                "WHERE table_name = 'sale_items' AND column_name = 'product_id'"
-            )
-            if col_info and col_info["is_nullable"] == "NO":
-                await conn.execute(
-                    "ALTER TABLE sale_items ALTER COLUMN product_id DROP NOT NULL"
-                )
-                logger.info("Migration: sale_items.product_id now nullable")
-    except Exception as e:
-        logger.warning("Auto-migration failed (non-fatal): %s", e)
+    # Note: Auto-migration for sale_items.product_id moved to
+    # migrations/026_sale_items_product_nullable.sql (run via migration runner)
 
     # Seed SAT catalog (idempotent — skips if table already has data)
     try:

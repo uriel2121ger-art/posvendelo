@@ -23,7 +23,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, get_connection, escape_like
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.sales.schemas import SaleCreate, SaleItemCreate
 
 logger = logging.getLogger(__name__)
@@ -173,9 +173,7 @@ async def create_sale(
     auth: dict = Depends(verify_token),
 ):
     """Create a complete sale transaction (atomic: folio + items + stock + credit)."""
-    user_id = int(auth.get("sub", 0))
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Token sin user ID")
+    user_id = get_user_id(auth)
 
     # ── Validate payment method ──
     pm = body.payment_method.strip().lower()
@@ -596,7 +594,7 @@ async def cancel_sale(
     """Cancel a sale: revert stock and credit. RBAC: manager/admin/owner."""
     if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para cancelar ventas")
-    user_id = int(auth.get("sub", 0))
+    user_id = get_user_id(auth)
 
     async with get_connection() as db:
         conn = db.connection

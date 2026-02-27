@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.remote.schemas import NotificationCreate, PriceChangeRemote
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ async def remote_open_drawer(
         """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
            VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, NOW())""",
         {
-            "uid": int(auth["sub"]),
+            "uid": get_user_id(auth),
             "details": '{"source": "PWA Remote Command v2"}',
         },
     )
@@ -179,7 +179,7 @@ async def send_notification(
             "title": body.title,
             "body": body.body,
             "ntype": body.notification_type,
-            "uid": int(auth["sub"]),
+            "uid": get_user_id(auth),
         },
     )
 
@@ -257,7 +257,7 @@ async def remote_change_price(
             await db.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES (:pid, 'price', :old, :new, :uid, NOW())""",
-                {"pid": product["id"], "old": old_price, "new": body.new_price, "uid": int(auth["sub"])},
+                {"pid": product["id"], "old": old_price, "new": body.new_price, "uid": get_user_id(auth)},
             )
 
         # Audit log
@@ -269,7 +269,7 @@ async def remote_change_price(
         await db.execute(
             """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
                VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, NOW())""",
-            {"pid": product["id"], "uid": int(auth["sub"]), "details": details},
+            {"pid": product["id"], "uid": get_user_id(auth), "details": details},
         )
 
     return {

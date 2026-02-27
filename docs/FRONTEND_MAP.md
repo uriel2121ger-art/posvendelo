@@ -1,7 +1,7 @@
 # TITAN POS — Mapa Completo del Frontend
 
-> Actualizado: 2026-02-26
-> Cubre: 16 vistas, ~70 endpoints, ~80 botones, ~60 campos, ~20 filtros
+> Actualizado: 2026-02-26 (audit cruzado backend↔frontend)
+> Cubre: 16 vistas, ~81 funciones API, ~96 endpoints backend, ~80 botones, ~60 campos, ~20 filtros
 
 ---
 
@@ -780,7 +780,41 @@ Todos los endpoints fiscales usan `apiFetchLong` (15s timeout).
 | GET | `/api/v1/remote/system-status` | Configuraciones |
 | GET | `/api/v1/sync/status` | Configuraciones |
 
-**Total**: ~70 endpoints únicos (~35 GET, ~35 POST/PUT/DELETE)
+**Total frontend**: ~81 funciones API → ~70 endpoints únicos (~37 GET, ~38 POST, 1 PUT, 1 DELETE)
+
+### Endpoints Backend-Only (sin función frontend)
+> Endpoints existentes en el backend sin wrapper en posApi.ts. No son bugs — son features backend-ready pendientes de wiring al UI.
+
+| Método | Endpoint | Módulo | Nota |
+|--------|----------|--------|------|
+| GET | `/health` | system | Health check — usado por Docker/infra |
+| GET | `/api/v1/terminals` | system | Lista sucursales — backend-only |
+| GET | `/api/v1/auth/verify` | auth | Verificación token (usado como fallback por getSyncStatus) |
+| GET | `/api/v1/products/` | products | CRUD directo (frontend usa sync) |
+| POST | `/api/v1/products/` | products | CRUD directo (frontend usa sync) |
+| PUT | `/api/v1/products/{id}` | products | CRUD directo (frontend usa sync) |
+| DELETE | `/api/v1/products/{id}` | products | CRUD directo (frontend usa sync) |
+| GET | `/api/v1/products/sku/{sku}` | products | Búsqueda por SKU (frontend usa scan) |
+| GET | `/api/v1/products/{id}/stock-by-branch` | products | Stock multi-sucursal |
+| POST | `/api/v1/products/price` | products | Cambio precio (frontend usa remote/change-price) |
+| GET | `/api/v1/customers/` | customers | CRUD directo (frontend usa sync) |
+| POST | `/api/v1/customers/` | customers | CRUD directo (frontend usa sync) |
+| PUT | `/api/v1/customers/{id}` | customers | CRUD directo (frontend usa sync) |
+| DELETE | `/api/v1/customers/{id}` | customers | CRUD directo (frontend usa sync) |
+| GET | `/api/v1/sales/` | sales | Lista ventas con filtros (frontend usa search) |
+| GET | `/api/v1/turns/current` | turns | Turno actual (posApi.ts lo tiene pero no se usa mucho) |
+| GET | `/api/v1/turns/{id}` | turns | Detalle turno individual |
+| GET | `/api/v1/dashboard/expenses` | dashboard | Duplica expenses/summary |
+| GET | `/api/v1/fiscal/federation/wealth` | fiscal | Wealth multi-branch |
+| POST | `/api/v1/fiscal/federation/lockdown` | fiscal | Bloqueo remoto sucursal |
+| POST | `/api/v1/fiscal/federation/release` | fiscal | Liberación bloqueo |
+| POST | `/api/v1/fiscal/evasion/dead-drive` | fiscal | Simular disco muerto |
+| GET | `/api/v1/fiscal/ghost/transfer/slip/{code}` | fiscal | Remisión warehouse |
+| GET | `/api/v1/fiscal/shadow/dual-stock/{id}` | fiscal | Vista dual stock |
+| POST | `/api/v1/fiscal/shadow/add` | fiscal | Agregar shadow stock |
+| POST | `/api/v1/fiscal/shadow/sell` | fiscal | Venta shadow |
+
+**Total backend**: ~96 endpoints (70 con frontend + 26 backend-only)
 
 ---
 

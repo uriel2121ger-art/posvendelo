@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 from modules.products.schemas import ProductCreate, ProductUpdate, StockUpdateRemote, SimplePriceUpdate
 
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ async def update_product(
         )
 
         # Record price changes in price_history (inside transaction)
-        user_id = int(auth["sub"])
+        user_id = get_user_id(auth)
         for price_field in ("price", "price_wholesale"):
             if price_field in fields:
                 old_val = round(float(existing.get(price_field) or 0), 2)
@@ -342,7 +342,7 @@ async def update_stock_remote(
                 "mov": mov_type,
                 "qty": round(abs(float(qty_signed)), 2),
                 "reason": body.reason or "Actualizacion remota",
-                "uid": int(auth["sub"]),
+                "uid": get_user_id(auth),
             },
         )
 
@@ -386,7 +386,7 @@ async def update_price_remote(
             await conn.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES ($1, 'price', $2, $3, $4, NOW())""",
-                product["id"], old_price, body.new_price, int(auth["sub"]),
+                product["id"], old_price, body.new_price, get_user_id(auth),
             )
 
     return {

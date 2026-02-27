@@ -705,7 +705,7 @@ export async function getInventoryMovements(
 ): Promise<Record<string, unknown>> {
   const params = new URLSearchParams()
   if (productId) params.set('product_id', String(productId))
-  if (type) params.set('type', type)
+  if (type) params.set('movement_type', type)
   if (limit) params.set('limit', String(limit))
   const qs = params.toString()
   const res = await apiFetch(

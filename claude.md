@@ -40,8 +40,8 @@ backend/
 │   ├── remote/             # Control remoto: drawer, notifications, prices
 │   ├── sat/                # Catálogos SAT (búsqueda códigos)
 │   ├── fiscal/             # CFDI 4.0, Facturapi (40 endpoints)
-│   └── shared/             # auth.py (verify_token), rate_limit.py
-├── migrations/             # 18 SQL files (001→025 + extras)
+│   └── shared/             # auth.py (verify_token, get_user_id), rate_limit.py
+├── migrations/             # 19 SQL files (001→026 + extras)
 ├── tests/                  # 164 tests de integración (16 archivos)
 └── docker-compose → PostgreSQL 15 (port 5433) + API (port 8000)
 ```
@@ -74,3 +74,7 @@ DATABASE_URL="postgresql+asyncpg://..." JWT_SECRET="..." python3 -m pytest tests
 - Transacciones: `async with db.connection.transaction():` + `FOR UPDATE`
 - Timestamps: `datetime.now(timezone.utc).replace(tzinfo=None)` (columnas sin tz)
 - RBAC check: `if auth.get("role") not in ("admin", "manager", "owner"): raise 403`
+- User ID: `get_user_id(auth)` (helper centralizado en shared/auth.py, no int(auth["sub"]))
+- Timezone fiscal: `datetime.now()` (hora local, requerimiento SAT para CFDIs)
+- Timezone core: `datetime.now(timezone.utc).replace(tzinfo=None)` (UTC para columnas TIMESTAMP)
+- Tests: no hardcodear credenciales — usar env vars o TEST_DATABASE_URL/TEST_JWT_SECRET
