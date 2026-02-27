@@ -1,0 +1,112 @@
+name: TITAN POS CI/CD
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ─── Job 1: Lint ──────────────────────────────────────────
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Compile all .py files
+        run: |
+          find backend/ -name "*.py" -print0 | xargs -0 python3 -m py_compile
+          echo "All Python files compiled successfully"
+
+  # ─── Job 2: Test ──────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: titan_pos
+          POSTGRES_USER: titan_user
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U titan_user -d titan_pos"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql+asyncpg://titan_user:ci_test_password@localhost:5432/titan_pos"
+      JWT_SECRET: "ci-test-secret-not-for-production"
+      ADMIN_API_USER: "admin"
+      ADMIN_API_PASSWORD: "ci_admin_pass"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Apply base schema
+        run: |
+          psql "postgresql://titan_user:ci_test_password@localhost:5432/titan_pos" \
+            -v ON_ERROR_STOP=1 -f backend/db/schema.sql
+
+      - name: Run migrations
+        working-directory: backend
+        run: python3 db/migrate.py
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          PYTHONPATH: "."
+        run: pytest tests/ -v --tb=short
+
+  # ─── Job 3: Build & Push (only on push to master) ────────
+  build-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

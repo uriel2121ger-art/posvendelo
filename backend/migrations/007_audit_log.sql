@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     user_id INTEGER,
     username TEXT,
     action TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL DEFAULT '',
     entity_id INTEGER,
     entity_name TEXT,
     old_value TEXT,
@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
     error_message TEXT,
     details TEXT
 );
+
+-- Ensure columns exist (handles DBs created with older schema)
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS entity_id INTEGER;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS entity_name TEXT;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS turn_id INTEGER;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS branch_id INTEGER;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS error_message TEXT;
 
 -- Performance indexes for fast queries
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp DESC);

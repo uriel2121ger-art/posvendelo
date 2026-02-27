@@ -4,27 +4,43 @@
 Sistema de Punto de Venta (POS) para retail en México. Multi-sucursal, facturación CFDI 4.0,
 control de inventario, turnos de caja, crédito a clientes, sincronización bidireccional.
 
-## Arquitectura actual (v2.0)
+## Arquitectura
 ```
-frontend/   → Electron + React (Vite) — app de escritorio para las cajas
+frontend/   → Electron + React 19 (Vite) — app de escritorio para las cajas
 backend/    → FastAPI + asyncpg (SQL directo, sin ORM) + PostgreSQL 15
-docker-compose.yml → PostgreSQL (5433) + API (8000)
 ```
 
 **NO es PyQt6.** La versión PyQt6 fue reemplazada por Electron + FastAPI.
 
 ## Stack
 - **Backend**: Python 3.12, FastAPI, asyncpg (raw SQL), Pydantic v2, PostgreSQL 15
-- **Frontend**: Electron, React, Vite, TypeScript
+- **Frontend**: Electron, React 19, Vite, TypeScript strict, Zustand, TailwindCSS
 - **Auth**: JWT (PyJWT), bcrypt, roles: admin/manager/cashier/owner
-- **Deploy**: Docker Compose (postgres + api), o directo con `.venv`
+- **Deploy**: Docker Compose + auto-deploy (GHCR + Watchtower)
+- **CI/CD**: GitHub Actions → lint + test + build-push a GHCR
 - **Tests**: pytest + pytest-asyncio + httpx (164 tests, DB real con rollback)
+
+## Deploy & Auto-Update
+```
+git push master → GitHub Actions (lint→test→build) → GHCR image
+    → Watchtower (30min poll) → pull → restart → entrypoint.sh (migrate→uvicorn)
+```
+- **Dev**: `docker-compose.yml` (build local, postgres:5433 + api:8000)
+- **Prod**: `docker-compose.prod.yml` (GHCR image + Watchtower auto-pull)
+- **Cada sucursal tiene su DB independiente** — migraciones se aplican localmente al arrancar
+- **Entrypoint**: wait PG → bootstrap schema si DB nueva → migrate.py → exec uvicorn
+- **Migraciones**: `db/migrate.py` (standalone asyncpg, tabla `schema_version`, idempotentes)
+- Docs completas: `docs/DEPLOY_AUTO_UPDATE.md`
 
 ## Estructura backend
 ```
 backend/
 ├── main.py                 # App factory, routers, CORS, lifespan
-├── db/connection.py        # Pool asyncpg, clase DB, named→positional SQL
+├── db/
+│   ├── connection.py       # Pool asyncpg, clase DB, named→positional SQL
+│   ├── migrate.py          # Auto-migrador standalone (asyncpg directo)
+│   └── schema.sql          # Schema base para bootstrap de DB nueva
+├── entrypoint.sh           # Container ENTRYPOINT (wait pg→schema→migrate→uvicorn)
 ├── modules/                # 14 módulos (cada uno: routes.py, schemas.py)
 │   ├── auth/               # Login, verify token
 │   ├── products/           # CRUD, scan, stock, categories, low-stock
@@ -41,16 +57,25 @@ backend/
 │   ├── sat/                # Catálogos SAT (búsqueda códigos)
 │   ├── fiscal/             # CFDI 4.0, Facturapi (40 endpoints)
 │   └── shared/             # auth.py (verify_token, get_user_id), rate_limit.py
-├── migrations/             # 19 SQL files (001→026 + extras)
-├── tests/                  # 164 tests de integración (16 archivos)
-└── docker-compose → PostgreSQL 15 (port 5433) + API (port 8000)
+├── migrations/             # 18 SQL files (001→028, con gaps) — idempotentes
+└── tests/                  # 164 tests de integración (16 archivos)
 ```
 
 ## Base de datos
-- PostgreSQL 15 en Docker, puerto 5433
+- PostgreSQL 15 en Docker, puerto 5433 (dev) / 5432 (prod)
 - ~107 tablas (productos, ventas, sale_items, turnos, clientes, inventario, etc.)
 - SQL directo con asyncpg — NO usa SQLAlchemy
 - `db/connection.py` convierte `:named` params a `$N` positional (asyncpg nativo)
+- Migraciones: `migrations/NNN_desc.sql` + `schema_version` table, v1→v28
+
+## Cómo agregar una migración
+```sql
+-- backend/migrations/029_descripcion.sql
+ALTER TABLE x ADD COLUMN IF NOT EXISTS y TYPE DEFAULT val;
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (29, 'descripcion corta', NOW()) ON CONFLICT (version) DO NOTHING;
+```
+Push a master → CI valida → imagen nueva → Watchtower despliega → cada sucursal la aplica.
 
 ## API
 - 110 endpoints (108 en módulos + 2 en main: /health, /api/v1/terminals)
@@ -60,21 +85,22 @@ backend/
 
 ## Tests
 ```bash
-cd backend && source .venv/bin/activate
+cd backend
 DATABASE_URL="postgresql+asyncpg://..." JWT_SECRET="..." python3 -m pytest tests/ -v
 ```
 - 164 tests, 16 archivos, DB real con transacción+rollback por test
-- Cobertura: auth, products, customers, sales, inventory, turns, employees,
-  expenses, mermas, dashboard, sync, remote, sat, health, db_utils
+- CI ejecuta: schema.sql → migrate.py → pytest (PostgreSQL 15 service container)
 
 ## Convenciones
 - Respuestas: `{"success": true, "data": {...}}`
 - Errores: `HTTPException(status_code=N, detail="mensaje en español")`
 - SQL: parámetros con `:nombre` (convertidos internamente a $N)
 - Transacciones: `async with db.connection.transaction():` + `FOR UPDATE`
-- Timestamps: `datetime.now(timezone.utc).replace(tzinfo=None)` (columnas sin tz)
+- Lock ordering: TURNS → SALES → PRODUCTS → CUSTOMERS
+- Dinero: Decimal/NUMERIC(12,2) — nunca float
 - RBAC check: `if auth.get("role") not in ("admin", "manager", "owner"): raise 403`
-- User ID: `get_user_id(auth)` (helper centralizado en shared/auth.py, no int(auth["sub"]))
+- User ID: `get_user_id(auth)` (helper centralizado en shared/auth.py)
 - Timezone fiscal: `datetime.now()` (hora local, requerimiento SAT para CFDIs)
-- Timezone core: `datetime.now(timezone.utc).replace(tzinfo=None)` (UTC para columnas TIMESTAMP)
-- Tests: no hardcodear credenciales — usar env vars o TEST_DATABASE_URL/TEST_JWT_SECRET
+- Timezone core: `datetime.now(timezone.utc).replace(tzinfo=None)` (UTC para TIMESTAMP)
+- Migraciones: siempre idempotentes (IF NOT EXISTS, ON CONFLICT DO NOTHING, ADD COLUMN IF NOT EXISTS)
+- Tests: no hardcodear credenciales — usar env vars
