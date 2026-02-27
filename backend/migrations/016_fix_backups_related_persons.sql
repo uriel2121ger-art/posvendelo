@@ -22,4 +22,8 @@ ALTER TABLE backups ADD COLUMN IF NOT EXISTS notes TEXT;
 -- Add missing column to related_persons table
 ALTER TABLE related_persons ADD COLUMN IF NOT EXISTS relationship TEXT;
 
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (16, 'Fix backups and related_persons columns', NOW())
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

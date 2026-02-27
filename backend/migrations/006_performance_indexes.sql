@@ -41,3 +41,7 @@ CREATE INDEX IF NOT EXISTS idx_loans_status ON employee_loans(status);
 -- ANALYZE sales;
 -- ANALYZE customers;
 -- ANALYZE turns;
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (6, 'Performance optimization indexes', NOW())
+ON CONFLICT (version) DO NOTHING;

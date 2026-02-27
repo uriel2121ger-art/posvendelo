@@ -22,4 +22,8 @@ CREATE INDEX IF NOT EXISTS idx_price_history_changed_at ON price_history(changed
 -- secuencias.synced column for multi-node sync propagation
 ALTER TABLE secuencias ADD COLUMN IF NOT EXISTS synced INTEGER DEFAULT 0;
 
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (24, 'Price history table and secuencias synced column', NOW())
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

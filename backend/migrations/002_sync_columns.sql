@@ -14,3 +14,7 @@
 -- sales.branch_id INTEGER
 
 -- Nota: El código de migración detecta si la columna existe antes de agregarla
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (2, 'Sync columns for multi-terminal support', NOW())
+ON CONFLICT (version) DO NOTHING;

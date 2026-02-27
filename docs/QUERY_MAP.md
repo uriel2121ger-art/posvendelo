@@ -1,6 +1,6 @@
 # TITAN POS — Mapeo Completo de Queries SQL y Cadenas de Llamado
 
-**Generado:** 2026-02-26
+**Actualizado:** 2026-02-27
 **Stack:** FastAPI + asyncpg (sin ORM) + PostgreSQL
 **DB Wrapper:** `db/connection.py` — convierte `:name` a `$N` posicional
 
@@ -46,28 +46,29 @@
 
 #### `POST /` — create_sale (Transaction: FULL ACID)
 Cadena: route → `get_connection()` → `conn.transaction()` → 12 pasos
+**Orden global de locks: TURNS → PRODUCTS → CUSTOMERS** (previene deadlocks)
 
 | Paso | SQL | Tabla | Lock |
 |------|-----|-------|------|
-| 1 | `SELECT kit_product_id,component_product_id,quantity FROM kit_components WHERE kit_product_id = ANY($1)` | kit_components | — |
-| 2 | `SELECT id,name,stock,sku,sale_type,is_kit FROM products WHERE id = ANY($1) AND is_active=1 FOR UPDATE NOWAIT` | products | **FOR UPDATE NOWAIT** |
-| 3 | `SELECT id,terminal_id FROM turns WHERE user_id=:uid AND status='open' ORDER BY id DESC LIMIT 1 FOR UPDATE` | turns | **FOR UPDATE** |
-| 4 | `INSERT INTO secuencias ... ON CONFLICT DO NOTHING` | secuencias | — |
-| 5 | CTE: `UPDATE secuencias SET ultimo_numero=ultimo_numero+1 ... RETURNING` + `INSERT INTO sales ... RETURNING id,folio_visible` | secuencias, sales | Atómico |
-| 6 | `INSERT INTO sale_items ...` (executemany batch) | sale_items | — |
-| 7 | `UPDATE products SET stock=stock-d.qty FROM unnest($1::int[],$2::numeric[]) AS d(pid,qty)` | products | Batch |
-| 8 | `INSERT INTO inventory_movements ...` (executemany batch) | inventory_movements | — |
-| 9 | `SELECT credit_balance,credit_limit FROM customers WHERE id=:id FOR UPDATE` | customers | **FOR UPDATE** |
-| 10 | `UPDATE customers SET credit_balance=credit_balance+:amount` | customers | — |
-| 11 | `INSERT INTO credit_history ...` | credit_history | — |
-| 12 | wallet: `SELECT wallet_balance FROM customers WHERE id=:cid FOR UPDATE` + `UPDATE wallet_balance` | customers | **FOR UPDATE** |
+| 1 | `SELECT id,terminal_id FROM turns WHERE user_id=:uid AND status='open' ORDER BY id DESC LIMIT 1 FOR UPDATE` | turns | **FOR UPDATE** |
+| 2 | `SELECT kit_product_id,component_product_id,quantity FROM kit_components WHERE kit_product_id = ANY($1)` | kit_components | — |
+| 2b | `SELECT id,name,stock,sku,sale_type,is_kit FROM products WHERE id = ANY($1) AND is_active=1 FOR UPDATE NOWAIT` | products | **FOR UPDATE NOWAIT** |
+| 3-6 | Calculate items, validate stock, calculate totals, validate payment | — | — |
+| 7 | `INSERT INTO secuencias ... ON CONFLICT DO NOTHING` | secuencias | — |
+| 8 | CTE: `UPDATE secuencias SET ultimo_numero=ultimo_numero+1 ... RETURNING` + `INSERT INTO sales ... RETURNING id,folio_visible` | secuencias, sales | Atómico |
+| 9 | `INSERT INTO sale_items ...` (executemany batch) | sale_items | — |
+| 10 | `UPDATE products SET stock=stock-d.qty FROM unnest($1::int[],$2::numeric[]) AS d(pid,qty)` + `INSERT INTO inventory_movements` | products, inventory_movements | Batch |
+| 11 | Credit: `SELECT credit_balance,credit_limit FROM customers WHERE id=:id FOR UPDATE` + UPDATE + INSERT credit_history | customers, credit_history | **FOR UPDATE** |
+| 12 | Wallet: `SELECT wallet_balance FROM customers WHERE id=:cid FOR UPDATE` + `UPDATE wallet_balance` | customers | **FOR UPDATE** |
 
 #### `POST /{id}/cancel` — cancel_sale (Transaction: FULL)
+**Orden de locks: SALES → PRODUCTS → CUSTOMERS** (consistente con global ordering)
+
 | Paso | SQL | Tabla | Lock |
 |------|-----|-------|------|
 | 1 | `SELECT * FROM sales WHERE id=:id FOR UPDATE` | sales | **FOR UPDATE** |
 | 2 | `SELECT * FROM sale_items WHERE sale_id=:id` | sale_items | — |
-| 3-5 | kit_components lookup + `SELECT id,sku FROM products WHERE id=ANY($1) FOR UPDATE` | kit_components, products | **FOR UPDATE** |
+| 3-5 | kit_components lookup + `SELECT id,sku FROM products WHERE id=ANY($1) FOR UPDATE NOWAIT` | kit_components, products | **FOR UPDATE NOWAIT** |
 | 6 | `UPDATE products SET stock=stock+d.qty FROM unnest(...)` | products | Batch |
 | 7 | `INSERT INTO inventory_movements` (cancellation) | inventory_movements | — |
 | 8 | Credit reversal: `SELECT credit_balance FROM customers FOR UPDATE` + UPDATE + INSERT credit_history | customers, credit_history | **FOR UPDATE** |
@@ -639,6 +640,14 @@ Cadena: route → `get_connection()` → `conn.transaction()` → 12 pasos
 
 ## 4. Seguridad de Transacciones
 
+### Orden Global de Locks (Deadlock Prevention)
+
+**Convención:** Todas las transacciones adquieren locks en este orden:
+```
+TURNS → SALES → PRODUCTS → CUSTOMERS
+```
+Esto previene deadlocks circulares entre operaciones concurrentes.
+
 ### Patrón: FOR UPDATE + Transaction
 
 ```python
@@ -653,10 +662,12 @@ async with conn.transaction():
 
 | Operación | Lock | Advisory Lock |
 |-----------|------|---------------|
-| create_sale (products) | **FOR UPDATE NOWAIT** | — |
-| create_sale (turns) | **FOR UPDATE** | — |
-| create_sale (customers credit/wallet) | **FOR UPDATE** | — |
-| cancel_sale (sale + products + customers) | **FOR UPDATE** | — |
+| create_sale (turns) | **FOR UPDATE** (paso 1) | — |
+| create_sale (products) | **FOR UPDATE NOWAIT** (paso 2) | — |
+| create_sale (customers credit/wallet) | **FOR UPDATE** (paso 11-12) | — |
+| cancel_sale (sale) | **FOR UPDATE** (paso 1) | — |
+| cancel_sale (products) | **FOR UPDATE NOWAIT** (paso 3-5) | — |
+| cancel_sale (customers) | **FOR UPDATE** (paso 8-9) | — |
 | register_loss | **FOR UPDATE** (products) | **738202** (acta_number) |
 | process_return | — | **738201** (folio DEV-) |
 | register_consumption | **FOR UPDATE** (products) | — |
@@ -696,4 +707,23 @@ async with conn.transaction():
 
 ---
 
-*Documento generado automáticamente durante auditoría de TITAN POS — Feb 2026*
+### Migraciones y Schema Version
+
+Todas las 19 migraciones registran su versión en `schema_version`:
+```sql
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (XX, 'Description', NOW())
+ON CONFLICT (version) DO NOTHING;
+```
+
+### Precisión Decimal en Módulo Fiscal
+
+Las tasas RESICO y cálculos fiscales usan `Decimal` (no `float`) para precisión:
+- `accounting_engine.py`: RESICO_RATES como `list[tuple[Decimal, Decimal]]`
+- `resico_monitor.py`: TASAS_RESICO como `list[tuple[Decimal, Decimal]]`
+- `cash_flow_manager.py`: Acumulaciones en `Decimal`, conversión a `float` solo en JSON output
+- Promedio mensual RESICO: `(ventas_ytd / dias_transcurridos) * 30` (no `ventas / month_number`)
+
+---
+
+*Documento actualizado durante auditoría de TITAN POS — Feb 27, 2026*

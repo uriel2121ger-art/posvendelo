@@ -34,4 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_products_barcode_trgm ON products USING gin(barco
 -- Customers: phone trigram for search
 CREATE INDEX IF NOT EXISTS idx_customers_phone_trgm ON customers USING gin(phone gin_trgm_ops);
 
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (20, 'Performance indexes from deep audit', NOW())
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

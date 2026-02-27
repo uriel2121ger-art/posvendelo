@@ -234,3 +234,7 @@ INSERT INTO sat_clave_prod_serv (clave, descripcion) VALUES
     ('10121600', 'Alimento para gatos'),
     ('10151700', 'Accesorios para mascotas')
 ON CONFLICT DO NOTHING;
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (21, 'SAT catalogs in PostgreSQL', NOW())
+ON CONFLICT (version) DO NOTHING;

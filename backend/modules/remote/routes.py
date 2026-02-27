@@ -8,6 +8,8 @@ FIXED: remote_notifications uses real DB columns (body, notification_type, sent)
 instead of legacy mobile_api.py columns (message, priority, read).
 """
 
+import asyncio
+import functools
 import json
 import logging
 import re
@@ -57,21 +59,26 @@ async def remote_open_drawer(
             raise HTTPException(status_code=400, detail="Nombre de impresora inválido")
 
         pulse_str = cfg.get("cash_drawer_pulse_bytes", "1B700019FA")
-        _send_drawer_pulse(printer, pulse_str)
+        await asyncio.get_running_loop().run_in_executor(
+            None, functools.partial(_send_drawer_pulse, printer, pulse_str)
+        )
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Remote drawer open error: %s", e)
         raise HTTPException(status_code=500, detail="Error abriendo cajon")
 
-    await db.execute(
-        """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
-           VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, NOW())""",
-        {
-            "uid": get_user_id(auth),
-            "details": '{"source": "PWA Remote Command v2"}',
-        },
-    )
+    try:
+        await db.execute(
+            """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
+               VALUES ('REMOTE_DRAWER_OPEN', 'cash_drawer', 0, :uid, :details, NOW())""",
+            {
+                "uid": get_user_id(auth),
+                "details": '{"source": "PWA Remote Command v2"}',
+            },
+        )
+    except Exception as audit_err:
+        logger.error("Audit log failed for REMOTE_DRAWER_OPEN: %s", audit_err)
 
     return {"success": True, "data": {"message": "Cajon abierto remotamente"}}
 
@@ -245,15 +252,15 @@ async def remote_change_price(
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-        old_price = round(float(product["price"]), 2)
+        old_price = product["price"]  # asyncpg returns Decimal for NUMERIC
 
         await db.execute(
             "UPDATE products SET price = :price, synced = 0, updated_at = NOW() WHERE id = :id",
             {"price": body.new_price, "id": product["id"]},
         )
 
-        # Price history
-        if round(body.new_price, 2) != round(old_price, 2):
+        # Price history — compare as Decimal to avoid float imprecision
+        if body.new_price != old_price:
             await db.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES (:pid, 'price', :old, :new, :uid, NOW())""",
@@ -262,7 +269,7 @@ async def remote_change_price(
 
         # Audit log
         details = json.dumps({
-            "old_price": old_price,
+            "old_price": float(old_price),
             "new_price": float(body.new_price),
             "reason": body.reason or "PWA Remote v2",
         })

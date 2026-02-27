@@ -23,4 +23,8 @@ ALTER TABLE emitters ADD COLUMN IF NOT EXISTS updated_at TEXT;
 -- Actualizar is_primary basado en is_default si existe
 UPDATE emitters SET is_primary = is_default WHERE is_default = 1;
 
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (15, 'Multi-emitter engine columns', NOW())
+ON CONFLICT (version) DO NOTHING;
+
 COMMIT;

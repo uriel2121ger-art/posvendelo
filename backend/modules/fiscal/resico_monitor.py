@@ -26,15 +26,15 @@ class RESICOMonitor:
     ALERTA_AMARILLA = Decimal('3000000.00')  # 85%
     ALERTA_ROJA = Decimal('3250000.00')      # 93%
 
-    # Tasas ISR RESICO por nivel de ingresos mensuales
+    # Tasas ISR RESICO por nivel de ingresos mensuales (Decimal para precisión fiscal)
     TASAS_RESICO = [
-        (25000, 0.0100),
-        (50000, 0.0110),
-        (83333.33, 0.0120),
-        (208333.33, 0.0140),
-        (291666.67, 0.0170),
-        (416666.67, 0.0210),
-        (float('inf'), 0.0250),
+        (Decimal('25000'), Decimal('0.0100')),
+        (Decimal('50000'), Decimal('0.0110')),
+        (Decimal('83333.33'), Decimal('0.0120')),
+        (Decimal('208333.33'), Decimal('0.0140')),
+        (Decimal('291666.67'), Decimal('0.0170')),
+        (Decimal('416666.67'), Decimal('0.0210')),
+        (Decimal('999999999'), Decimal('0.0250')),
     ]
 
     def __init__(self, db):
@@ -80,7 +80,7 @@ class RESICOMonitor:
             'dias_para_limite': dias_para_limite,
             'estado': estado,
             'recomendaciones': self._generar_recomendaciones(estado, ventas_a, restante, dias_para_limite),
-            'tasa_isr_actual': self._get_tasa_mensual(ventas_a / max(1, today.month)),
+            'tasa_isr_actual': float(self._get_tasa_mensual((ventas_a / Decimal(str(max(1, days_elapsed)))) * Decimal('30'))),
             'timestamp': datetime.now().isoformat(),
         }
 
@@ -149,13 +149,12 @@ class RESICOMonitor:
 
         return recs
 
-    def _get_tasa_mensual(self, promedio_mensual: Decimal) -> float:
+    def _get_tasa_mensual(self, promedio_mensual: Decimal) -> Decimal:
         """Obtiene tasa ISR segun promedio mensual (pure logic, no DB)."""
-        promedio = round(float(promedio_mensual), 2)
         for limite, tasa in self.TASAS_RESICO:
-            if promedio <= limite:
+            if promedio_mensual <= limite:
                 return tasa
-        return 0.025
+        return Decimal('0.0250')
 
     async def should_pause_fiscal(self) -> Dict[str, Any]:
         """
@@ -205,18 +204,18 @@ class RESICOMonitor:
         )
 
         months = []
-        acumulado = 0
+        acumulado = Decimal('0')
         for row in rows:
-            subtotal = round(float(row['subtotal'] or 0), 2)
+            subtotal = Decimal(str(row['subtotal'] or 0))
             acumulado += subtotal
             months.append({
                 'mes': int(row['mes']),
                 'transacciones': row['transacciones'],
-                'subtotal': subtotal,
-                'iva': round(float(row['iva'] or 0), 2),
-                'total': round(float(row['total'] or 0), 2),
-                'acumulado': acumulado,
-                'porcentaje_limite': round((acumulado / float(self.LIMITE_ANUAL)) * 100, 2),
+                'subtotal': round(float(subtotal), 2),
+                'iva': round(float(Decimal(str(row['iva'] or 0))), 2),
+                'total': round(float(Decimal(str(row['total'] or 0))), 2),
+                'acumulado': round(float(acumulado), 2),
+                'porcentaje_limite': round(float((acumulado / self.LIMITE_ANUAL) * 100), 2),
             })
 
         return months

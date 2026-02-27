@@ -20,6 +20,10 @@ CREATE INDEX IF NOT EXISTS idx_sync_queue_synced_created
 ON sync_queue (synced, created_at)
 WHERE synced = FALSE;
 
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (18, 'Persistent synchronization queue', NOW())
+ON CONFLICT (version) DO NOTHING;
+
 -- SQLite (si se aplica en entorno SQLite)
 -- CREATE TABLE IF NOT EXISTS sync_queue (
 --     id INTEGER PRIMARY KEY AUTOINCREMENT,

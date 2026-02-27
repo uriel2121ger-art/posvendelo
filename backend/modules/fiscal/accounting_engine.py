@@ -17,16 +17,16 @@ class CerebroContable:
     Calcula el balance óptimo entre Serie A y B.
     """
     
-    # Tasas RESICO 2024-2025
-    RESICO_RATES = {
-        25000: 0.01,      # 1.00%
-        50000: 0.011,     # 1.10%
-        83333.33: 0.012,  # 1.20%
-        208333.33: 0.014, # 1.40%
-        291666.67: 0.017, # 1.70%
-        416666.67: 0.021, # 2.10%
-        3500000: 0.025,   # 2.50%
-    }
+    # Tasas RESICO 2024-2025 (Decimal para precisión fiscal)
+    RESICO_RATES = [
+        (Decimal('25000'), Decimal('0.0100')),       # 1.00%
+        (Decimal('50000'), Decimal('0.0110')),       # 1.10%
+        (Decimal('83333.33'), Decimal('0.0120')),    # 1.20%
+        (Decimal('208333.33'), Decimal('0.0140')),   # 1.40%
+        (Decimal('291666.67'), Decimal('0.0170')),   # 1.70%
+        (Decimal('416666.67'), Decimal('0.0210')),   # 2.10%
+        (Decimal('3500000'), Decimal('0.0250')),     # 2.50%
+    ]
     
     IVA_RATE = Decimal('0.16')
     
@@ -74,7 +74,7 @@ class CerebroContable:
             },
             'isr': {
                 'base': round(float(ingresos['serie_a']['subtotal']), 2),
-                'tasa': await self._get_tasa_resico(ingresos['serie_a']['subtotal']),
+                'tasa': float(await self._get_tasa_resico(ingresos['serie_a']['subtotal'])),
                 'a_pagar': round(float(isr_actual), 2)
             },
             'serie_b_pendiente': serie_b_pendiente,
@@ -137,7 +137,7 @@ class CerebroContable:
         
         subtotal_mensual = sum(gastos_mensuales.values())
         subtotal_acum = subtotal_mensual * meses
-        iva_pagado = float(Decimal(str(subtotal_acum)) * self.IVA_RATE)
+        iva_pagado = (Decimal(str(subtotal_acum)) * self.IVA_RATE).quantize(Decimal('0.01'))
         
         return {
             'detalle': gastos_mensuales,
@@ -183,19 +183,14 @@ class CerebroContable:
     async def _calcular_isr_resico(self, ingresos: Decimal) -> Decimal:
         """Calcula ISR según tabla RESICO."""
         tasa = await self._get_tasa_resico(ingresos)
-        return (ingresos * Decimal(str(tasa))).quantize(Decimal('0.01'))
-    
-    async def _get_tasa_resico(self, ingresos: Decimal) -> float:
+        return (ingresos * tasa).quantize(Decimal('0.01'))
+
+    async def _get_tasa_resico(self, ingresos: Decimal) -> Decimal:
         """Obtiene tasa RESICO según nivel de ingresos."""
-        ingresos_float = round(float(ingresos), 2)
-        tasa = 0.0
-        
-        for limite, tasa_nivel in sorted(self.RESICO_RATES.items()):
-            if ingresos_float <= limite:
-                return tasa_nivel
-            tasa = tasa_nivel
-        
-        return 0.025  # Tasa máxima
+        for limite, tasa in self.RESICO_RATES:
+            if ingresos <= limite:
+                return tasa
+        return Decimal('0.0250')  # Tasa máxima
     
     async def _calcular_optimizacion(self, iva_pagado: Decimal, 
                                 serie_b_disponible: Dict,

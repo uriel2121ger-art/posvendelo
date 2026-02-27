@@ -31,3 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)
 CREATE INDEX IF NOT EXISTS idx_audit_turn ON audit_log(turn_id);
 CREATE INDEX IF NOT EXISTS idx_audit_success ON audit_log(success);
 CREATE INDEX IF NOT EXISTS idx_audit_composite ON audit_log(timestamp DESC, user_id, action);
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (7, 'Comprehensive audit log system', NOW())
+ON CONFLICT (version) DO NOTHING;

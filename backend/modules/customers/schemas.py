@@ -41,6 +41,13 @@ class CustomerCreate(BaseModel):
     def validate_rfc(cls, v: Optional[str]) -> Optional[str]:
         return _validate_rfc(v)
 
+    @field_validator("credit_limit")
+    @classmethod
+    def credit_limit_finite(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        if v is not None and not v.is_finite():
+            raise ValueError("El limite de credito debe ser un numero finito")
+        return v
+
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=200)
@@ -56,6 +63,13 @@ class CustomerUpdate(BaseModel):
     @classmethod
     def validate_rfc(cls, v: Optional[str]) -> Optional[str]:
         return _validate_rfc(v)
+
+    @field_validator("credit_limit")
+    @classmethod
+    def credit_limit_finite(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        if v is not None and not v.is_finite():
+            raise ValueError("El limite de credito debe ser un numero finito")
+        return v
 
 
 class CustomerResponse(BaseModel):

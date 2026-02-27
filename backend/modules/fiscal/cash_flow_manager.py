@@ -84,7 +84,7 @@ class CashExtractionEngine:
                 INSERT INTO cash_extractions (amount, extraction_date, document_type, related_person_id,
                     beneficiary_name, purpose, contract_hash, requires_notary, status, created_at)
                 VALUES (:amt, :dt, :dtype, :rpid, :bname, :purpose, :hash, :rn, 'pending', :ts)
-            """, amt=round(float(amount), 2), dt=datetime.now().strftime('%Y-%m-%d'), dtype=document_type,
+            """, amt=amount.quantize(Decimal('0.01')), dt=datetime.now().strftime('%Y-%m-%d'), dtype=document_type,
                 rpid=related_person_id, bname=person['name'] if person else None, purpose=purpose,
                 hash=contract_hash, rn=1 if requires_notary else 0, ts=datetime.now().isoformat())
 
@@ -119,6 +119,6 @@ Hash: {e['contract_hash']}
                 COALESCE(SUM(CASE WHEN requires_notary = 1 THEN 1 ELSE 0 END), 0) as notarized
             FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye GROUP BY document_type
         """, ys=year_start, ye=year_end)
-        total = sum(round(float(r['total'] or 0), 2) for r in result)
-        return {'year': year, 'by_type': {r['document_type']: dict(r) for r in result}, 'total_extracted': total,
-                'limite_informable': round(float(self.LIMITE_INFORMABLE), 2), 'requires_annual_declaration': total >= round(float(self.LIMITE_INFORMABLE), 2)}
+        total = sum((Decimal(str(r['total'] or 0)) for r in result), Decimal('0'))
+        return {'year': year, 'by_type': {r['document_type']: dict(r) for r in result}, 'total_extracted': round(float(total), 2),
+                'limite_informable': float(self.LIMITE_INFORMABLE), 'requires_annual_declaration': total >= self.LIMITE_INFORMABLE}

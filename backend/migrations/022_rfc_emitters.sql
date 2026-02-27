@@ -15,3 +15,7 @@ CREATE TABLE IF NOT EXISTS rfc_emitters (
 
 CREATE INDEX IF NOT EXISTS idx_rfc_emitters_active ON rfc_emitters(is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_rfc_emitters_resico ON rfc_emitters(current_resico_amount);
+
+INSERT INTO schema_version (version, description, applied_at)
+VALUES (22, 'Multi-emitters RFC table', NOW())
+ON CONFLICT (version) DO NOTHING;

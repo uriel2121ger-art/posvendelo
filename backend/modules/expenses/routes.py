@@ -25,7 +25,9 @@ async def get_expense_summary(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get expense summary — month and year totals. Accepts optional month/year filters."""
+    """Get expense summary — month and year totals. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver resumen de gastos")
     try:
         now = datetime.now(timezone.utc)
         target_month = month if month is not None else now.month

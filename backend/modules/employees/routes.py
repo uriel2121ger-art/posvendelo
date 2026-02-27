@@ -30,7 +30,9 @@ async def list_employees(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """List employees with search and filters."""
+    """List employees with search and filters. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver empleados")
     sql = "SELECT id, employee_code, name, position, base_salary, phone, email, is_active, created_at FROM employees WHERE 1=1"
     params: dict = {}
 
@@ -55,7 +57,9 @@ async def get_employee(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get employee by ID."""
+    """Get employee by ID. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver empleados")
     row = await db.fetchrow(
         "SELECT id, employee_code, name, position, base_salary, commission_rate, phone, email, notes, is_active, created_at FROM employees WHERE id = :id",
         {"id": employee_id},
