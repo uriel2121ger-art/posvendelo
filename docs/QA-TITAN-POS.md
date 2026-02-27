@@ -2,9 +2,13 @@
 
 Cobertura exhaustiva de toda la aplicacion: cada pantalla, boton, campo, filtro, endpoint y caso borde.
 
-**Version:** 1.0
-**Ultima actualizacion:** 2026-02-25
+**Version:** 1.1
+**Ultima actualizacion:** 2026-02-26
 **Archivos bajo prueba:** Frontend (Electron + React), Backend (FastAPI), Instalador (setup.sh)
+
+> **Nota 2026-02-26:** Bugs criticos BUG-001 (turnos datetime), BUG-004 (ventas bloqueadas) y BUG-006 (gastos summary) corregidos.
+> Tests desbloqueados: T3.17-T3.24, T7.01-T7.12, T9.02-T9.06, T15.07-T15.11 — pendientes re-test manual.
+> Ver `QA-REPORTE-BUGS-2026-02-25.md` para detalles completos. 164/164 tests automatizados pasando.
 
 ---
 
