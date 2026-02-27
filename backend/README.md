@@ -1,189 +1,189 @@
-# TITAN POS v3.0.2
+# TITAN POS Backend — API v2.0
 
-Sistema de Punto de Venta profesional con soporte multi-sucursal, facturación electrónica CFDI 4.0, y sincronización en tiempo real.
+Sistema de Punto de Venta para retail. Backend FastAPI con asyncpg (SQL directo) y PostgreSQL 15.
 
-## Características Principales
+## Stack
 
-### Ventas y Facturación
-- **Punto de Venta Intuitivo**: Interfaz táctil optimizada para operación rápida
-- **Facturación CFDI 4.0**: Integración con PAC para timbrado automático
-- **Múltiples Métodos de Pago**: Efectivo, tarjeta, crédito, mixto
-- **Descuentos Flexibles**: Por porcentaje o monto fijo, a nivel producto o venta
-- **Tickets Personalizables**: Diseño configurable con logo y datos fiscales
+| Componente | Tecnología |
+|-----------|-----------|
+| Framework | FastAPI (Python 3.12) |
+| Base de datos | PostgreSQL 15 (Docker, puerto 5433) |
+| Driver DB | asyncpg (raw SQL, sin ORM) |
+| Validación | Pydantic v2 |
+| Auth | JWT (PyJWT) + bcrypt |
+| Tests | pytest + pytest-asyncio + httpx (164 tests) |
+| Rate limit | slowapi (opcional) |
 
-### Inventario
-- **Control de Stock**: Seguimiento en tiempo real por sucursal
-- **Alertas de Inventario**: Notificaciones de stock bajo
-- **Códigos de Barras**: Soporte EAN-13, generación automática de SKU
-- **Importación Masiva**: CSV/Excel para productos, clientes, ventas históricas
+## Inicio rápido
 
-### Clientes y Fidelización
-- **Sistema MIDAS**: Programa de puntos con acumulación y redención
-- **Crédito a Clientes**: Control de límites y saldos
-- **Historial Completo**: Todas las transacciones por cliente
-- **Tarjetas de Regalo**: Sistema integrado de gift cards
+### Con Docker Compose (recomendado)
 
-### Multi-Sucursal
-- **Sincronización Bidireccional**: Datos sincronizados entre sucursales
-- **Gateway Central**: Servidor de sincronización para múltiples puntos
-- **Modo Offline**: Operación continua sin conexión, sincronización posterior
-- **Reportes Consolidados**: Vista unificada de todas las sucursales
-
-### Administración
-- **Turnos de Caja**: Apertura, cortes parciales, cierre con arqueo
-- **Reportes Detallados**: Ventas, inventario, clientes, fiscal
-- **Usuarios y Permisos**: Control de acceso granular
-- **Respaldos Automáticos**: Protección de datos configurable
-
----
-
-## Instalación Rápida
-
-### Requisitos
-- **Sistema Operativo**: Windows 10/11, Ubuntu 20.04+, macOS 10.15+
-- **Python**: 3.10 o superior
-- **PostgreSQL**: 14 o superior
-- **RAM**: 4GB mínimo, 8GB recomendado
-
-### Pasos
-
-1. **Extraer el archivo ZIP**
-   ```bash
-   unzip TITAN_POS_v3.0.2_*.zip
-   cd TITAN_POS_v3.0.2_*
-   ```
-
-2. **Crear entorno virtual**
-   ```bash
-   # Linux/macOS
-   python3 -m venv venv
-   source venv/bin/activate
-
-   # Windows
-   python -m venv venv
-   venv\Scripts\activate
-   ```
-
-3. **Instalar dependencias**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configurar PostgreSQL**
-   ```sql
-   CREATE DATABASE titan_pos;
-   CREATE USER titan_user WITH PASSWORD 'tu_password';
-   GRANT ALL PRIVILEGES ON DATABASE titan_pos TO titan_user;
-   ```
-
-5. **Configurar conexión**
-   ```bash
-   cp data/config/database.json.template data/config/database.json
-   # Editar con tus credenciales
-   ```
-
-6. **Iniciar aplicación**
-   ```bash
-   # Linux/macOS
-   ./TITAN_POS.sh
-
-   # Windows
-   TITAN_POS.bat
-
-   # O directamente
-   python -m app.main
-   ```
-
----
-
-## Primer Inicio
-
-1. La aplicación detectará que no hay configuración y mostrará el **Wizard de Configuración**
-2. Ingresa los datos de conexión a PostgreSQL
-3. El sistema creará las tablas automáticamente
-4. Usuario por defecto: `admin` / `admin123`
-5. **Cambiar la contraseña inmediatamente** desde Configuración > Usuarios
-
----
-
-## Estructura del Proyecto
-
-```
-TITAN_POS/
-├── app/                    # Código principal de la aplicación
-│   ├── core.py            # Lógica de negocio central
-│   ├── main.py            # Punto de entrada
-│   ├── dialogs/           # Ventanas de diálogo
-│   ├── ui/                # Componentes de interfaz
-│   ├── wizards/           # Asistentes (importación, configuración)
-│   ├── services/          # Servicios (sync, backup, offline)
-│   ├── fiscal/            # Módulo de facturación CFDI
-│   └── utils/             # Utilidades generales
-├── src/
-│   └── infra/             # Infraestructura (base de datos, migraciones)
-├── data/
-│   └── config/            # Archivos de configuración
-├── docs/                  # Documentación técnica
-├── server/                # Gateway de sincronización
-└── requirements.txt       # Dependencias Python
-```
-
----
-
-## Documentación
-
-| Documento | Descripción |
-|-----------|-------------|
-| [MANUAL_USUARIO.md](docs/MANUAL_USUARIO.md) | Guía completa para usuarios |
-| [GUIA_INSTALACION.md](docs/installation/GUIA_INSTALACION.md) | Instalación detallada |
-| [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Guía para desarrolladores |
-| [ARQUITECTURA.md](docs/ARQUITECTURA_COMPLETA.md) | Arquitectura del sistema |
-| [API.md](docs/API.md) | Referencia de API interna |
-| [SECURITY.md](docs/SECURITY.md) | Guía de seguridad |
-| [CHANGELOG.md](CHANGELOG.md) | Historial de cambios |
-
----
-
-## Soporte
-
-### Problemas Comunes
-
-**Error: psycopg2 no instalado**
 ```bash
-pip install psycopg2-binary
+cd "/home/uriel/Documentos/PUNTO DE VENTA"
+cp .env.example .env   # Editar credenciales
+docker compose up -d   # Levanta PostgreSQL + API
 ```
 
-**Error de conexión a PostgreSQL**
-- Verificar que PostgreSQL esté corriendo: `sudo systemctl status postgresql`
-- Verificar credenciales en `data/config/database.json`
-- Verificar que el usuario tenga permisos sobre la base de datos
+Servicios:
+- **PostgreSQL**: `localhost:5433`
+- **API**: `localhost:8000`
+- **Docs**: `localhost:8000/docs` (solo con `DEBUG=true`)
 
-**La aplicación no inicia**
-- Verificar versión de Python: `python3 --version` (requiere 3.10+)
-- Verificar dependencias: `pip install -r requirements.txt`
-- Revisar logs en `logs/` para más detalles
+### Desarrollo local (sin Docker para la API)
 
-### Logs
+```bash
+cd backend
+source .venv/bin/activate
+pip install -r requirements.txt
 
-Los logs se guardan en:
-- `logs/titan_pos.log` - Log principal de la aplicación
-- `logs/sync.log` - Log de sincronización
-- `logs/fiscal.log` - Log de facturación
+# Asegurar que PostgreSQL esté corriendo (Docker o local)
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
 
----
+## Estructura
 
-## Licencia
+```
+backend/
+├── main.py                  # App factory, CORS, routers, lifespan
+├── db/
+│   └── connection.py        # Pool asyncpg, clase DB, conversión :named → $N
+├── modules/                 # 14 módulos de negocio
+│   ├── auth/                # POST /login, GET /verify (1 endpoint)
+│   ├── products/            # CRUD, scan barcode, stock, categories (12)
+│   ├── customers/           # CRUD, crédito, historial ventas (7)
+│   ├── sales/               # Crear venta (saga), cancelar, search (9)
+│   ├── inventory/           # Movimientos, alertas, ajuste stock (3)
+│   ├── turns/               # Abrir/cerrar turno, cash movements (6)
+│   ├── employees/           # CRUD empleados (5)
+│   ├── expenses/            # Summary mensual, registrar gasto (2)
+│   ├── mermas/              # Pérdidas: pendientes, aprobar/rechazar (2)
+│   ├── dashboard/           # Quick, RESICO, wealth, AI, executive (6)
+│   ├── sync/                # Pull/push con cursor, bulk upsert (6)
+│   ├── remote/              # Control remoto PWA: drawer, notif, prices (7)
+│   ├── sat/                 # Búsqueda catálogos SAT (2)
+│   ├── fiscal/              # CFDI 4.0, Facturapi, emisores, facturas (40)
+│   └── shared/              # auth.py (verify_token), rate_limit.py
+├── migrations/              # 18 archivos SQL (001→025)
+├── tests/                   # 164 tests de integración
+│   ├── conftest.py          # Fixtures: DB, auth, seeds
+│   ├── test_sales.py        # 25 tests (saga, cancel, search)
+│   ├── test_products.py     # 25 tests (CRUD, stock, scan)
+│   └── ... (14 archivos más)
+├── fiscal/                  # Utilidades fiscales (CFDI)
+├── assets/                  # Recursos estáticos
+├── Dockerfile               # Build de producción
+├── pyproject.toml           # Config pytest
+└── requirements.txt         # Dependencias Python
+```
 
-TITAN POS es software propietario. Todos los derechos reservados.
+## API
 
----
+**Base URL**: `http://localhost:8000`
 
-## Versión
+### Endpoints principales (110 total)
 
-- **Versión**: 3.0.2
-- **Fecha**: 2026-01-30
-- **Build**: 20260130_230954
+| Prefijo | Módulo | Endpoints | Descripción |
+|---------|--------|-----------|-------------|
+| `/health` | main | 1 | Health check |
+| `/api/v1/terminals` | main | 1 | Lista de sucursales |
+| `/api/v1/auth` | auth | 1 | Login (POST /login) |
+| `/api/v1/products` | products | 12 | CRUD, scan, stock, categories |
+| `/api/v1/customers` | customers | 7 | CRUD, crédito, historial |
+| `/api/v1/sales` | sales | 9 | Venta, cancelación, búsqueda |
+| `/api/v1/inventory` | inventory | 3 | Movimientos, alertas, ajuste |
+| `/api/v1/turns` | turns | 6 | Turnos de caja |
+| `/api/v1/employees` | employees | 5 | CRUD empleados |
+| `/api/v1/expenses` | expenses | 2 | Gastos |
+| `/api/v1/mermas` | mermas | 2 | Pérdidas/mermas |
+| `/api/v1/dashboard` | dashboard | 6 | Dashboards y KPIs |
+| `/api/v1/sync` | sync | 6 | Sincronización multi-sucursal |
+| `/api/v1/remote` | remote | 7 | Control remoto (PWA) |
+| `/api/v1/sat` | sat | 2 | Catálogos SAT |
+| `/api/v1/fiscal` | fiscal | 40 | Facturación CFDI 4.0 |
 
----
+### Autenticación
 
-*TITAN POS © 2026 - Sistema de Punto de Venta Profesional*
+Todos los endpoints (excepto `/health` y `/api/v1/auth/login`) requieren JWT:
+
+```
+Authorization: Bearer <token>
+```
+
+Roles: `admin` > `manager` > `cashier` > `owner`
+
+### Formato de respuesta
+
+```json
+// Éxito
+{"success": true, "data": { ... }}
+
+// Error
+{"detail": "Mensaje de error en español"}
+```
+
+## Base de datos
+
+- **PostgreSQL 15** en Docker (puerto 5433)
+- ~107 tablas
+- SQL directo con asyncpg (sin ORM)
+- Parámetros nombrados `:param` convertidos internamente a `$N`
+- Transacciones explícitas con `FOR UPDATE` para operaciones críticas
+
+### Migraciones
+
+18 archivos SQL en `migrations/`. Se aplican automáticamente al iniciar la app (lifespan).
+
+## Tests
+
+```bash
+cd backend && source .venv/bin/activate
+
+# Correr todos (164 tests)
+DATABASE_URL="postgresql+asyncpg://titan_user:PASSWORD@localhost:5433/titan_pos" \
+JWT_SECRET="tu-secret" \
+python3 -m pytest tests/ -v
+
+# Un módulo específico
+python3 -m pytest tests/test_sales.py -v
+
+# Con output detallado
+python3 -m pytest tests/ -v --tb=long -s
+```
+
+### Cobertura por módulo
+
+| Archivo | Tests | Qué prueba |
+|---------|-------|-----------|
+| test_db_utils.py | 13 | Conversión SQL :named→$N, escape_like |
+| test_health.py | 3 | Health check, terminals |
+| test_auth.py | 11 | Login, verify, RBAC |
+| test_products.py | 25 | CRUD, scan, stock, categories, price history |
+| test_customers.py | 12 | CRUD, crédito, historial ventas |
+| test_sales.py | 25 | Saga completa, cancelación, IVA, folio |
+| test_turns.py | 14 | Abrir/cerrar, cash movements, summary |
+| test_inventory.py | 8 | Movimientos, alertas, ajuste stock |
+| test_employees.py | 9 | CRUD empleados |
+| test_expenses.py | 7 | Summary mensual, registro |
+| test_mermas.py | 6 | Pending, approve/reject con stock |
+| test_dashboard.py | 8 | Quick, RESICO, wealth, AI, executive |
+| test_sync.py | 10 | Pull cursor, push upsert |
+| test_remote.py | 9 | Live sales, notifications, change price |
+| test_sat.py | 4 | Búsqueda catálogos SAT |
+| **Total** | **164** | |
+
+### Aislamiento
+
+Cada test corre dentro de una transacción que se revierte al finalizar (BEGIN → test → ROLLBACK).
+Los datos de la DB real no se contaminan.
+
+## Variables de entorno
+
+| Variable | Descripción | Ejemplo |
+|----------|-------------|---------|
+| `DATABASE_URL` | Conexión PostgreSQL | `postgresql+asyncpg://user:pass@host:5433/titan_pos` |
+| `JWT_SECRET` | Secreto para firmar JWT | (cadena larga aleatoria) |
+| `DEBUG` | Habilita /docs Swagger | `true` / `false` |
+| `CORS_ALLOWED_ORIGINS` | Orígenes permitidos (CSV) | `http://localhost:3000,http://localhost:5173` |
+| `ADMIN_API_USER` | Usuario admin API | `admin` |
+| `ADMIN_API_PASSWORD` | Password admin API | (secreto) |
+| `POSTGRES_PASSWORD` | Password PostgreSQL (Docker) | (secreto) |

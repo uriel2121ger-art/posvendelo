@@ -1,24 +1,76 @@
-# PUNTO DE VENTA — TITAN POS
+# TITAN POS — Contexto del Proyecto
 
-Archivo de contexto inicial del proyecto. Lee esto al cargar el proyecto por primera vez.
+## Qué es
+Sistema de Punto de Venta (POS) para retail en México. Multi-sucursal, facturación CFDI 4.0,
+control de inventario, turnos de caja, crédito a clientes, sincronización bidireccional.
 
-## Cómo se instala (importante)
+## Arquitectura actual (v2.0)
+```
+frontend/   → Electron + React (Vite) — app de escritorio para las cajas
+backend/    → FastAPI + asyncpg (SQL directo, sin ORM) + PostgreSQL 15
+docker-compose.yml → PostgreSQL (5433) + API (8000)
+```
 
-**Todas las PCs instalan el mismo software.** Una máquina se designa como **servidor** y el resto como **clientes**. No hay dos aplicaciones distintas: es la misma app, con el rol (servidor o cliente) definido por configuración en cada equipo.
-
-## Estructura del repo
-
-- **frontend/** y **backend/** — Contienen la misma base de código (TITAN POS). Se duplicó por el origen de los zips (cliente vs servidor); en la práctica es un solo proyecto.
-- **CLIENTE/**, **SERVIDOR/** — Zips de respaldo (mismo contenido que frontend/backend, solo que uno trae .venv).
-
-## Objetivo
-
-Sistema de punto de venta (POS) en producción: ventas, inventario, reportes, fiscal (CFDI México), multi-sucursal. Una PC = servidor (API, BD, sync); las demás = clientes (cajas) que se conectan a ese servidor.
+**NO es PyQt6.** La versión PyQt6 fue reemplazada por Electron + FastAPI.
 
 ## Stack
+- **Backend**: Python 3.12, FastAPI, asyncpg (raw SQL), Pydantic v2, PostgreSQL 15
+- **Frontend**: Electron, React, Vite, TypeScript
+- **Auth**: JWT (PyJWT), bcrypt, roles: admin/manager/cashier/owner
+- **Deploy**: Docker Compose (postgres + api), o directo con `.venv`
+- **Tests**: pytest + pytest-asyncio + httpx (164 tests, DB real con rollback)
 
-- Python 3.10+, PyQt6, FastAPI, Uvicorn, PostgreSQL 14+. Fiscal: CFDI 4.0, Facturapi, PAC, SAT.
+## Estructura backend
+```
+backend/
+├── main.py                 # App factory, routers, CORS, lifespan
+├── db/connection.py        # Pool asyncpg, clase DB, named→positional SQL
+├── modules/                # 14 módulos (cada uno: routes.py, schemas.py)
+│   ├── auth/               # Login, verify token
+│   ├── products/           # CRUD, scan, stock, categories, low-stock
+│   ├── customers/          # CRUD, crédito, historial ventas
+│   ├── sales/              # Saga (venta + stock + folio + crédito), cancel
+│   ├── inventory/          # Movimientos, alertas, ajuste stock
+│   ├── turns/              # Abrir/cerrar turno, cash movements, summary
+│   ├── employees/          # CRUD empleados
+│   ├── expenses/           # Summary mensual, registrar gasto
+│   ├── mermas/             # Pérdidas: pending, approve/reject
+│   ├── dashboard/          # Quick, resico, wealth, AI, executive
+│   ├── sync/               # Pull/push cursor, bulk upsert
+│   ├── remote/             # Control remoto: drawer, notifications, prices
+│   ├── sat/                # Catálogos SAT (búsqueda códigos)
+│   ├── fiscal/             # CFDI 4.0, Facturapi (40 endpoints)
+│   └── shared/             # auth.py (verify_token), rate_limit.py
+├── migrations/             # 18 SQL files (001→025 + extras)
+├── tests/                  # 164 tests de integración (16 archivos)
+└── docker-compose → PostgreSQL 15 (port 5433) + API (port 8000)
+```
 
-## Notas
+## Base de datos
+- PostgreSQL 15 en Docker, puerto 5433
+- ~107 tablas (productos, ventas, sale_items, turnos, clientes, inventario, etc.)
+- SQL directo con asyncpg — NO usa SQLAlchemy
+- `db/connection.py` convierte `:named` params a `$N` positional (asyncpg nativo)
 
-- Este archivo sirve como punto de entrada de contexto para el asistente.
+## API
+- 110 endpoints (108 en módulos + 2 en main: /health, /api/v1/terminals)
+- Prefijo: `/api/v1/{module}`
+- Auth: Bearer JWT en header Authorization
+- RBAC: admin > manager > cashier (verify_token dependency)
+
+## Tests
+```bash
+cd backend && source .venv/bin/activate
+DATABASE_URL="postgresql+asyncpg://..." JWT_SECRET="..." python3 -m pytest tests/ -v
+```
+- 164 tests, 16 archivos, DB real con transacción+rollback por test
+- Cobertura: auth, products, customers, sales, inventory, turns, employees,
+  expenses, mermas, dashboard, sync, remote, sat, health, db_utils
+
+## Convenciones
+- Respuestas: `{"success": true, "data": {...}}`
+- Errores: `HTTPException(status_code=N, detail="mensaje en español")`
+- SQL: parámetros con `:nombre` (convertidos internamente a $N)
+- Transacciones: `async with db.connection.transaction():` + `FOR UPDATE`
+- Timestamps: `datetime.now(timezone.utc).replace(tzinfo=None)` (columnas sin tz)
+- RBAC check: `if auth.get("role") not in ("admin", "manager", "owner"): raise 403`
