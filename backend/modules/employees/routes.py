@@ -82,27 +82,27 @@ async def create_employee(
     if existing:
         raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     try:
         row = await db.fetchrow(
             """
             INSERT INTO employees (employee_code, name, position, hire_date, base_salary,
-                                   commission_rate, phone, email, notes, is_active, created_at, synced)
-            VALUES (:code, :name, :position, :hire_date, :salary, :commission, :phone, :email, :notes, 1, :now, 0)
+                                   commission_rate, phone, email, notes, is_active, created_at)
+            VALUES (:code, :name, :position, :hire_date, :salary, :commission, :phone, :email, :notes, 1, :now)
             RETURNING id
             """,
             {
                 "code": body.employee_code,
                 "name": body.name,
                 "position": body.position,
-                "hire_date": body.hire_date if body.hire_date is not None else now.date(),
+                "hire_date": body.hire_date if body.hire_date is not None else now.strftime("%Y-%m-%d"),
                 "salary": body.base_salary if body.base_salary is not None else 0.0,
                 "commission": body.commission_rate if body.commission_rate is not None else 0.0,
                 "phone": body.phone,
                 "email": body.email,
                 "notes": body.notes,
-                "now": now,
+                "now": now.isoformat(),
             },
         )
     except Exception as e:
@@ -154,7 +154,7 @@ async def update_employee(
                 raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
 
         set_parts = [f"{k} = :{k}" for k in fields]
-        set_parts.append("synced = 0")
+        # Note: employees table has no 'synced' column
         params = {**fields, "id": employee_id}
 
         try:
@@ -190,7 +190,7 @@ async def delete_employee(
             raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
         await db.execute(
-            "UPDATE employees SET is_active = 0, synced = 0 WHERE id = :id",
+            "UPDATE employees SET is_active = 0 WHERE id = :id",
             {"id": employee_id},
         )
 

@@ -263,11 +263,11 @@ async def remote_change_price(
         # Audit log
         details = json.dumps({
             "old_price": old_price,
-            "new_price": body.new_price,
+            "new_price": float(body.new_price),
             "reason": body.reason or "PWA Remote v2",
         })
         await db.execute(
-            """INSERT INTO audit_log (action, entity_type, entity_id, user_id, details, timestamp)
+            """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
                VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, NOW())""",
             {"pid": product["id"], "uid": int(auth["sub"]), "details": details},
         )

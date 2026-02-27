@@ -120,7 +120,7 @@ async def approve_merma(
                         "pid": pid,
                         "qty": qty,
                         "reason": f"Merma aprobada #{body.merma_id}",
-                        "merma_id": str(body.merma_id),
+                        "merma_id": body.merma_id,
                         "uid": user_id,
                     },
                 )

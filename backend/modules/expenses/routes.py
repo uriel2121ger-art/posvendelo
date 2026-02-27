@@ -6,8 +6,9 @@ Cash expense tracking via cash_movements table.
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, get_connection
 from modules.shared.auth import verify_token
@@ -19,20 +20,24 @@ router = APIRouter()
 
 @router.get("/summary")
 async def get_expense_summary(
+    month: Optional[int] = Query(None, ge=1, le=12),
+    year: Optional[int] = Query(None, ge=2020, le=2100),
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get expense summary — month and year totals."""
+    """Get expense summary — month and year totals. Accepts optional month/year filters."""
     try:
         now = datetime.now(timezone.utc)
+        target_month = month if month is not None else now.month
+        target_year = year if year is not None else now.year
         # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — use naive datetimes
-        month_start = datetime(now.year, now.month, 1)
-        if now.month == 12:
-            month_end = datetime(now.year + 1, 1, 1)
+        month_start = datetime(target_year, target_month, 1)
+        if target_month == 12:
+            month_end = datetime(target_year + 1, 1, 1)
         else:
-            month_end = datetime(now.year, now.month + 1, 1)
-        year_start = datetime(now.year, 1, 1)
-        year_end = datetime(now.year + 1, 1, 1)
+            month_end = datetime(target_year, target_month + 1, 1)
+        year_start = datetime(target_year, 1, 1)
+        year_end = datetime(target_year + 1, 1, 1)
 
         month_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
@@ -74,7 +79,7 @@ async def register_expense(
         raise HTTPException(status_code=401, detail="Token sub invalido")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token sin sub claim")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     async with get_connection() as db_conn:
         conn = db_conn.connection

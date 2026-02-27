@@ -294,7 +294,7 @@ async def _create_transfer_record(context: Dict[str, Any]):
     from db.connection import get_connection
     from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     transfer_id = f"TRF-{uuid.uuid4().hex[:8].upper()}"
 
     async with get_connection() as db:
@@ -339,7 +339,7 @@ async def _receive_at_destination(context: Dict[str, Any]):
     from db.connection import get_connection
     from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     transfer_id = context.get("_step_create_transfer_result", {}).get("transfer_id", "")
 
     async with get_connection() as db:
