@@ -303,6 +303,8 @@ export default function ShiftsTab(): ReactElement {
       // Accumulate in cents to avoid float drift over many sales
       const initial = { salesCount: 0, totalSales: 0, cashSales: 0, cardSales: 0, transferSales: 0 }
       const backendCents = scoped.reduce<typeof initial>((acc, sale) => {
+        const status = String(sale.status ?? '')
+        if (status === 'cancelled' || status === 'canceled') return acc
         const totalCents = Math.round(Math.max(0, Number(sale.total ?? 0)) * 100)
         const method = String(sale.payment_method ?? '')
         const mixedCashCents = Math.round(Math.max(0, Number(sale.mixed_cash ?? 0)) * 100)

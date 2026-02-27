@@ -188,11 +188,11 @@ async def create_sale(
         raise HTTPException(status_code=400, detail="Maximo 2000 items por venta")
 
     for idx, item in enumerate(body.items):
-        if math.isnan(item.qty) or math.isinf(item.qty):
+        if item.qty.is_nan() or item.qty.is_infinite():
             raise HTTPException(status_code=400, detail=f"Cantidad invalida en item {idx+1}")
-        if math.isnan(item.price) or math.isinf(item.price):
+        if item.price.is_nan() or item.price.is_infinite():
             raise HTTPException(status_code=400, detail=f"Precio invalido en item {idx+1}")
-        if math.isnan(item.discount) or math.isinf(item.discount):
+        if item.discount.is_nan() or item.discount.is_infinite():
             raise HTTPException(status_code=400, detail=f"Descuento invalido en item {idx+1}")
 
     # ── Start atomic transaction ──

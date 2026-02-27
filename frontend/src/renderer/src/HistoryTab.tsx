@@ -143,6 +143,9 @@ export default function HistoryTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       await cancelSale(cfg, selectedId)
       setMessage(`Venta ${selectedId} cancelada.`)
+      setSelectedId(null)
+      setDetail(null)
+      setEvents([])
       void handleLoad()
     } catch (error) {
       setMessage((error as Error).message)

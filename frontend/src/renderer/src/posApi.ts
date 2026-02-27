@@ -311,7 +311,7 @@ export async function openTurn(
   cfg: RuntimeConfig,
   body: { initial_cash: number; branch_id?: number; notes?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/open`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/turns/open`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify({
@@ -356,7 +356,7 @@ export async function adjustStock(
   cfg: RuntimeConfig,
   body: { product_id: number; quantity: number; reason: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/inventory/adjust`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/inventory/adjust`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)
@@ -639,7 +639,7 @@ export async function cancelSale(
   cfg: RuntimeConfig,
   saleId: string
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`, {
     method: 'POST',
     headers: headers(cfg)
   })
@@ -746,7 +746,7 @@ export async function createCashMovement(
   turnId: number,
   body: { movement_type: string; amount: number; reason: string; manager_pin?: string }
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/${turnId}/movements`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/turns/${turnId}/movements`, {
     method: 'POST',
     headers: headers(cfg),
     body: JSON.stringify(body)
