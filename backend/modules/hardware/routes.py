@@ -29,8 +29,8 @@ _HW_COLUMNS = [
     "receipt_printer_name", "receipt_printer_enabled", "receipt_paper_width",
     "receipt_char_width", "receipt_auto_print", "receipt_mode", "receipt_cut_type",
     # business
-    "business_name", "business_address", "business_rfc", "business_regimen",
-    "business_phone", "business_footer",
+    "business_name", "business_legal_name", "business_address", "business_rfc",
+    "business_regimen", "business_phone", "business_footer",
     # scanner
     "scanner_enabled", "scanner_prefix", "scanner_suffix",
     "scanner_min_speed_ms", "scanner_auto_submit",
@@ -82,6 +82,7 @@ async def get_hardware_config(
             },
             "business": {
                 "name": cfg.get("business_name", ""),
+                "legal_name": cfg.get("business_legal_name", ""),
                 "address": cfg.get("business_address", ""),
                 "rfc": cfg.get("business_rfc", ""),
                 "regimen": cfg.get("business_regimen", ""),

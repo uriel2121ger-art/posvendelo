@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from './shiftTypes'
 import {
   Banknote,
   Plus,
@@ -69,7 +70,6 @@ type ActiveTicketSnapshot = {
 
 const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
-import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from './shiftTypes'
 const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
 
 
@@ -267,13 +267,13 @@ export default function Terminal(): ReactElement {
       /* storage inaccessible */
     }
     if (!raw) {
-  
+
       return
     }
     try {
       const parsed = JSON.parse(raw) as PendingTicket[]
       if (!Array.isArray(parsed)) {
-    
+
         return
       }
       // Validate each ticket has required fields before loading
@@ -512,7 +512,7 @@ export default function Terminal(): ReactElement {
 
   function updateItemQty(sku: string, nextQty: number): void {
     if (!Number.isFinite(nextQty)) return
-    const safeQty = Math.max(1, Math.floor(nextQty))
+    const safeQty = Math.min(9999, Math.max(1, Math.floor(nextQty)))
     setCart((prev) =>
       prev.map((item) =>
         item.sku === sku
@@ -543,7 +543,7 @@ export default function Terminal(): ReactElement {
 
   const addProduct = useCallback(
     (product: Product): void => {
-      const safeQty = Math.max(1, Math.floor(qty))
+      const safeQty = Math.min(9999, Math.max(1, Math.floor(qty)))
       const effectivePrice = wholesaleMode && product.priceWholesale ? product.priceWholesale : product.price
       setCart((prev) => {
         const idx = prev.findIndex((item) => item.sku === product.sku)

@@ -144,6 +144,10 @@ def build_sale_receipt(
     if biz_name:
         rb.double_size(biz_name)
 
+    legal_name = config.get("business_legal_name", "")
+    if legal_name:
+        rb.center(legal_name)
+
     if mode == "fiscal":
         rfc = config.get("business_rfc", "")
         regimen = config.get("business_regimen", "")

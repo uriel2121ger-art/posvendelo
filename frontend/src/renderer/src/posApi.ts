@@ -17,6 +17,29 @@ const FALLBACKS: Record<string, string> = {
   inventory: '/api/v1/inventory/'
 }
 
+const _DISCOVER_PORTS = [8000, 8080, 8090, 3000]
+
+export async function autoDiscoverBackend(): Promise<string | null> {
+  const saved = localStorage.getItem('titan.baseUrl')
+  if (saved) {
+    try {
+      const r = await fetch(`${saved}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1500) })
+      if (r.status === 401 || r.ok) return saved
+    } catch { /* saved URL unreachable, try discovery */ }
+  }
+  for (const port of _DISCOVER_PORTS) {
+    const url = `http://127.0.0.1:${port}`
+    try {
+      const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
+      if (r.status === 401 || r.ok) {
+        localStorage.setItem('titan.baseUrl', url)
+        return url
+      }
+    } catch { /* port not responding */ }
+  }
+  return null
+}
+
 export function loadRuntimeConfig(): RuntimeConfig {
   try {
     return {
@@ -1242,6 +1265,7 @@ export type HardwareConfig = {
   }
   business: {
     name: string
+    legal_name: string
     address: string
     rfc: string
     regimen: string

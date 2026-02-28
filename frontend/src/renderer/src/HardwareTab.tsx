@@ -297,6 +297,15 @@ export default function HardwareTab(): ReactElement {
                   }
                 />
               </Field>
+              <Field label="Razon social" full>
+                <input
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-3 text-sm focus:border-blue-500 focus:outline-none transition-all"
+                  value={hw.business.legal_name}
+                  onChange={(e) =>
+                    setHw({ ...hw, business: { ...hw.business, legal_name: e.target.value } })
+                  }
+                />
+              </Field>
               <Field label="RFC">
                 <input
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-3 text-sm focus:border-blue-500 focus:outline-none transition-all"
@@ -350,6 +359,7 @@ export default function HardwareTab(): ReactElement {
                 onClick={() =>
                   handleSave('business', {
                     business_name: hw.business.name,
+                    business_legal_name: hw.business.legal_name,
                     business_address: hw.business.address,
                     business_rfc: hw.business.rfc,
                     business_regimen: hw.business.regimen,

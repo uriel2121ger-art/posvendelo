@@ -276,11 +276,11 @@ class ReturnsEngine:
                 original_serie,
                 COUNT(*) as count,
                 COALESCE(SUM(total), 0) as total,
-                COALESCE(SUM(CASE WHEN cfdi_egreso_status = 'pending' THEN 1 ELSE 0 END), 0) as pending_cfdi
+                0 as pending_cfdi
                FROM returns
-               WHERE created_at::date BETWEEN :d1::date AND :d2::date
+               WHERE created_at::date BETWEEN :d1 AND :d2
                GROUP BY original_serie""",
-            {"d1": start, "d2": end},
+            {"d1": datetime.strptime(start, '%Y-%m-%d').date(), "d2": datetime.strptime(end, '%Y-%m-%d').date()},
         )
 
         return {

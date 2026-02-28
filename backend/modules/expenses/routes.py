@@ -44,13 +44,13 @@ async def get_expense_summary(
         month_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                WHERE type = 'expense'
-               AND timestamp >= :month_start AND timestamp < :month_end""",
+               AND timestamp::timestamptz >= :month_start AND timestamp::timestamptz < :month_end""",
             {"month_start": month_start, "month_end": month_end},
         )
         year_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                WHERE type = 'expense'
-               AND timestamp >= :year_start AND timestamp < :year_end""",
+               AND timestamp::timestamptz >= :year_start AND timestamp::timestamptz < :year_end""",
             {"year_start": year_start, "year_end": year_end},
         )
 

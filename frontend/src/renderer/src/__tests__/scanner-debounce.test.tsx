@@ -85,7 +85,8 @@ function ScannerInput({ onAdd }: { onAdd: (p: Product) => void }): ReactElement 
 async function simulateScan(
   input: HTMLInputElement,
   barcode: string,
-  onAdd: ReturnType<typeof vi.fn>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onAdd: any
 ): Promise<void> {
   // Scanner types all chars at once (nearly instant)
   await act(async () => {

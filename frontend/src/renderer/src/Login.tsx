@@ -1,15 +1,25 @@
 import type { ReactElement } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, Terminal as TerminalIcon, LogIn } from 'lucide-react'
-import { loadRuntimeConfig, saveRuntimeConfig } from './posApi'
+import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 
 export default function Login(): ReactElement {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [discovering, setDiscovering] = useState(true)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let cancelled = false
+    autoDiscoverBackend().then((url) => {
+      if (cancelled) return
+      if (!url) setError('No se encontró el servidor. Verifica que esté encendido.')
+    }).finally(() => { if (!cancelled) setDiscovering(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -176,7 +186,7 @@ export default function Login(): ReactElement {
 
               <button
                 type="submit"
-                disabled={loading || password.length === 0 || username.trim().length === 0}
+                disabled={loading || discovering || password.length === 0 || username.trim().length === 0}
                 className="w-full flex justify-center items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-4 py-4 font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all hover:-translate-y-0.5 mt-8 relative z-10"
               >
                 {loading ? (
@@ -191,7 +201,11 @@ export default function Login(): ReactElement {
             </form>
 
             <p className="mt-8 text-center text-xs text-zinc-600 font-medium">
-              V 0.1.0 • TITAN POS DEMO
+              {discovering ? (
+                <span className="text-blue-400 animate-pulse">Buscando servidor...</span>
+              ) : (
+                <>V 0.1.0 • TITAN POS DEMO</>
+              )}
             </p>
           </div>
         </div>

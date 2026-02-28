@@ -27,6 +27,7 @@ class PrinterConfigUpdate(BaseModel):
 
 class BusinessInfoUpdate(BaseModel):
     business_name: Optional[str] = Field(None, max_length=100)
+    business_legal_name: Optional[str] = Field(None, max_length=200)
     business_address: Optional[str] = Field(None, max_length=200)
     business_rfc: Optional[str] = Field(None, max_length=13)
     business_regimen: Optional[str] = Field(None, max_length=200)
