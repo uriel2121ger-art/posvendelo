@@ -131,6 +131,46 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Terminal-Id"],
 )
 
+
+# Null-byte sanitizer — pure ASGI middleware to strip \x00 and %00 from
+# query strings and request bodies before they reach asyncpg (PG TEXT rejects \x00)
+class NullByteSanitizer:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        # Sanitize query string (%00 is URL-encoded null, \x00 is raw null)
+        qs = scope.get("query_string", b"")
+        if b"%00" in qs or b"\x00" in qs:
+            scope["query_string"] = qs.replace(b"%00", b"").replace(b"\x00", b"")
+
+        # Wrap receive to sanitize body — strip raw \x00 and JSON \u0000 escapes
+        body_done = False
+
+        async def sanitized_receive():
+            nonlocal body_done
+            if body_done:
+                return {"type": "http.disconnect"}
+            msg = await receive()
+            if msg["type"] == "http.request":
+                chunk = msg.get("body", b"")
+                if b"\x00" in chunk:
+                    chunk = chunk.replace(b"\x00", b"")
+                if b"\\u0000" in chunk:
+                    chunk = chunk.replace(b"\\u0000", b"")
+                msg["body"] = chunk
+                if not msg.get("more_body", False):
+                    body_done = True
+            return msg
+
+        return await self.app(scope, sanitized_receive, send)
+
+
+app.add_middleware(NullByteSanitizer)
+
 # ---------------------------------------------------------------------------
 # Module routers
 # ---------------------------------------------------------------------------

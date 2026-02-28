@@ -169,22 +169,26 @@ async def seed_branch(db_conn):
     )
 
 
+TEST_MANAGER_PIN = "1234"
+TEST_MANAGER_PIN_HASH = __import__("hashlib").sha256(b"1234").hexdigest()
+
+
 @pytest.fixture
 async def seed_users(db_conn, seed_branch):
-    """Insert admin + cashier + manager users with known bcrypt hash."""
+    """Insert admin + cashier + manager users with known bcrypt hash and PIN."""
     import bcrypt
 
     pw = bcrypt.hashpw(b"test1234", bcrypt.gensalt(rounds=4)).decode()
-    for uid, uname, role in [
-        (ADMIN_ID, "test_admin_90001", "admin"),
-        (CASHIER_ID, "test_cajero_90002", "cashier"),
-        (MANAGER_ID, "test_mgr_90003", "manager"),
+    for uid, uname, role, pin, pin_hash in [
+        (ADMIN_ID, "test_admin_90001", "admin", TEST_MANAGER_PIN, TEST_MANAGER_PIN_HASH),
+        (CASHIER_ID, "test_cajero_90002", "cashier", None, None),
+        (MANAGER_ID, "test_mgr_90003", "manager", TEST_MANAGER_PIN, TEST_MANAGER_PIN_HASH),
     ]:
         await db_conn.execute(
             "INSERT INTO users "
-            "(id, username, password_hash, role, is_active, branch_id, created_at, updated_at) "
-            "VALUES ($1, $2, $3, $4, 1, $5, NOW(), NOW())",
-            uid, uname, pw, role, BRANCH_ID,
+            "(id, username, password_hash, role, is_active, branch_id, pin, pin_hash, created_at, updated_at) "
+            "VALUES ($1, $2, $3, $4, 1, $5, $6, $7, NOW(), NOW())",
+            uid, uname, pw, role, BRANCH_ID, pin, pin_hash,
         )
 
 

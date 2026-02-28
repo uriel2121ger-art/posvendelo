@@ -306,8 +306,8 @@ async def create_cash_movement(
         # Verify PIN inside transaction to prevent TOCTOU race
         if pin_hash:
             mgr_check = await conn.fetchrow(
-                "SELECT id FROM employees WHERE pin_hash = $1 AND is_active = 1 "
-                "AND position IN ('admin', 'manager', 'owner')",
+                "SELECT id FROM users WHERE pin_hash = $1 AND is_active = 1 "
+                "AND role IN ('admin', 'manager', 'owner')",
                 pin_hash,
             )
             if not mgr_check:

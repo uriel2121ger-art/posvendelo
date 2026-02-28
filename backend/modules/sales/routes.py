@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, get_connection, escape_like
 from modules.shared.auth import verify_token, get_user_id
-from modules.sales.schemas import SaleCreate, SaleItemCreate
+from modules.sales.schemas import SaleCreate, SaleItemCreate, SaleCancelRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -64,15 +64,25 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
     """Calculate a single item's price, discount, and total.
 
     Single source of truth — used by both totals calculation and item insertion.
+    Non-common products ALWAYS use the DB price to prevent price forgery.
+    Common products (no product_id, SKU COM-/COMUN-) use the client-provided price.
     """
     prod = locked_map.get(item.product_id, {}) if item.product_id else {}
     sku = prod.get("sku", "") or ""
     is_common = (not item.product_id) or sku.startswith("COM-") or sku.startswith("COMUN-")
     is_kit = prod.get("is_kit", 0) == 1
 
-    price = _dec(item.price)
-    if item.is_wholesale and item.price_wholesale is not None:
-        price = _dec(item.price_wholesale)
+    if is_common:
+        # Common/misc products: trust client price (no DB record to look up)
+        price = _dec(item.price)
+        if item.is_wholesale and item.price_wholesale is not None:
+            price = _dec(item.price_wholesale)
+    else:
+        # Regular products: ALWAYS use DB price to prevent price forgery
+        if item.is_wholesale:
+            price = _dec(prod.get("price_wholesale") or prod.get("price") or 0)
+        else:
+            price = _dec(prod.get("price") or 0)
 
     includes_tax = item.price_includes_tax and price > 0
     if includes_tax:
@@ -239,7 +249,7 @@ async def create_sale(
             if all_ids_to_lock:
                 try:
                     locked_products = await conn.fetch(
-                        "SELECT id, name, stock, sku, sale_type, is_kit "
+                        "SELECT id, name, stock, sku, sale_type, is_kit, price, price_wholesale "
                         "FROM products WHERE id = ANY($1) AND is_active = 1 FOR UPDATE NOWAIT",
                         all_ids_to_lock,
                     )
@@ -604,16 +614,28 @@ async def search_sales(
 @router.post("/{sale_id}/cancel")
 async def cancel_sale(
     sale_id: int,
+    body: SaleCancelRequest,
     auth: dict = Depends(verify_token),
 ):
-    """Cancel a sale: revert stock and credit. RBAC: manager/admin/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
-        raise HTTPException(status_code=403, detail="Sin permisos para cancelar ventas")
+    """Cancel a sale: revert stock and credit. Requires manager PIN."""
     user_id = get_user_id(auth)
+
+    # Validate manager PIN (pre-compute hash before transaction)
+    import hashlib
+    pin_hash = hashlib.sha256(body.manager_pin.encode()).hexdigest()
 
     async with get_connection() as db:
         conn = db.connection
         async with conn.transaction():
+            # Verify manager PIN inside transaction
+            mgr_check = await conn.fetchrow(
+                "SELECT id FROM users WHERE pin_hash = $1 AND is_active = 1 "
+                "AND role IN ('admin', 'manager', 'owner')",
+                pin_hash,
+            )
+            if not mgr_check:
+                raise HTTPException(status_code=403, detail="PIN de gerente invalido")
+
             # Lock the sale
             sale = await db.fetchrow(
                 "SELECT * FROM sales WHERE id = :id FOR UPDATE",

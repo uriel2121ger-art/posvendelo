@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT,
     phone TEXT,
     pin TEXT,
+    pin_hash TEXT,
     last_login TEXT,
     status TEXT DEFAULT 'active',
     created_at TIMESTAMP DEFAULT NOW(),

@@ -10,6 +10,7 @@ from conftest import (
     ADMIN_ID, CASHIER_ID,
     PRODUCT_ID, PRODUCT_NOSTOCK_ID,
     CUSTOMER_ID, BRANCH_ID, TURN_ID,
+    TEST_MANAGER_PIN,
 )
 
 
@@ -67,10 +68,10 @@ class TestCreateSale:
     async def test_create_sale_price_includes_tax(
         self, client, admin_token, seed_all
     ):
+        # DB price=116 (IVA incl), qty=2 → base=200, tax=32, total=232
         body = _sale_body(cash_received=300)
         body["items"][0]["price_includes_tax"] = True
-        body["items"][0]["price"] = 232.00
-        body["items"][0]["qty"] = 1
+        body["items"][0]["qty"] = 2
         r = await client.post(
             "/api/v1/sales/",
             headers=auth_header(admin_token),
@@ -84,9 +85,9 @@ class TestCreateSale:
     async def test_create_sale_price_excludes_tax(
         self, client, admin_token, seed_all
     ):
-        body = _sale_body()
+        # DB price=116, price_includes_tax=False → treated as base, tax=18.56
+        body = _sale_body(cash_received=200)
         body["items"][0]["price_includes_tax"] = False
-        body["items"][0]["price"] = 100.00  # price without tax
         body["items"][0]["qty"] = 1
         r = await client.post(
             "/api/v1/sales/",
@@ -95,10 +96,10 @@ class TestCreateSale:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        # subtotal = 100, tax = 16, total = 116
-        assert d["subtotal"] == 100.0
-        assert d["tax"] == 16.0
-        assert d["total"] == 116.0
+        # price=116 (not tax-stripped), tax=116*0.16=18.56, total=134.56
+        assert d["subtotal"] == 116.0
+        assert d["tax"] == 18.56
+        assert d["total"] == 134.56
 
     async def test_create_sale_deducts_stock(
         self, client, admin_token, db_conn, seed_all
@@ -277,6 +278,7 @@ class TestCancelSale:
         r = await client.post(
             f"/api/v1/sales/{sale_id}/cancel",
             headers=auth_header(admin_token),
+            json={"manager_pin": TEST_MANAGER_PIN},
         )
         assert r.status_code == 200
         assert r.json()["data"]["status"] == "cancelled"
@@ -296,19 +298,21 @@ class TestCancelSale:
         await client.post(
             f"/api/v1/sales/{sale_id}/cancel",
             headers=auth_header(admin_token),
+            json={"manager_pin": TEST_MANAGER_PIN},
         )
         stock_after_cancel = await db_conn.fetchval(
             "SELECT stock FROM products WHERE id = $1", PRODUCT_ID
         )
         assert float(stock_after_cancel) == float(stock_before)
 
-    async def test_cancel_sale_cashier_forbidden(
+    async def test_cancel_sale_invalid_pin_forbidden(
         self, client, cashier_token, admin_token, seed_all
     ):
         sale_id = await self._create_sale(client, admin_token)
         r = await client.post(
             f"/api/v1/sales/{sale_id}/cancel",
             headers=auth_header(cashier_token),
+            json={"manager_pin": "9999"},
         )
         assert r.status_code == 403
 
@@ -320,12 +324,14 @@ class TestCancelSale:
         r1 = await client.post(
             f"/api/v1/sales/{sale_id}/cancel",
             headers=auth_header(admin_token),
+            json={"manager_pin": TEST_MANAGER_PIN},
         )
         assert r1.status_code == 200
         # Second cancel
         r2 = await client.post(
             f"/api/v1/sales/{sale_id}/cancel",
             headers=auth_header(admin_token),
+            json={"manager_pin": TEST_MANAGER_PIN},
         )
         assert r2.status_code == 400
 

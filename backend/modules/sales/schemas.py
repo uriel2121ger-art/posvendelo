@@ -54,6 +54,11 @@ class SaleCreate(BaseModel):
     mixed_gift_card: Optional[Decimal] = Field(Decimal("0"), ge=0)
 
 
+class SaleCancelRequest(BaseModel):
+    manager_pin: str = Field(..., min_length=1, max_length=20)
+    reason: Optional[str] = Field(None, max_length=500)
+
+
 class SaleResponse(BaseModel):
     id: int
     uuid: Optional[str] = None
