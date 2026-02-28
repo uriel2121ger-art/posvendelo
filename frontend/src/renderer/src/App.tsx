@@ -1,7 +1,7 @@
 import type { ReactElement, FormEvent } from 'react'
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { type RuntimeConfig, loadRuntimeConfig, createCashMovement, pullTable } from './posApi'
+import { type RuntimeConfig, loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
 import CustomersTab from './CustomersTab'
 import DashboardStatsTab from './DashboardStatsTab'
 import ExpensesTab from './ExpensesTab'
@@ -176,6 +176,7 @@ function CashMovementModal({
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
   const amountRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { amountRef.current?.focus() }, [])
@@ -204,7 +205,19 @@ function CashMovementModal({
         reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo'),
         ...(pin.trim() ? { manager_pin: pin.trim() } : {})
       })
-      onClose()
+      // Auto-open cash drawer (fire-and-forget)
+      try {
+        const hwRaw = localStorage.getItem('titan.hwConfig')
+        if (hwRaw) {
+          const hwCfg = JSON.parse(hwRaw) as { drawer?: { enabled?: boolean } }
+          if (hwCfg.drawer?.enabled) {
+            openDrawerForSale(cfg).catch(() => {})
+          }
+        }
+      } catch { /* hw config parse error — non-fatal */ }
+      // Show success briefly before closing
+      setSuccess(true)
+      setTimeout(() => onClose(), 1500)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -215,6 +228,22 @@ function CashMovementModal({
   const title = mode === 'in' ? 'Entrada de Efectivo' : 'Retiro de Efectivo'
   const fKey = mode === 'in' ? 'F7' : 'F8'
   const accent = mode === 'in' ? 'emerald' : 'rose'
+
+  if (success) {
+    const successMsg = mode === 'in'
+      ? `Entrada de $${parseFloat(amount).toFixed(2)} registrada`
+      : `Retiro de $${parseFloat(amount).toFixed(2)} registrado`
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="w-full max-w-sm rounded-2xl border border-emerald-700 bg-zinc-900 p-8 shadow-2xl text-center">
+          <div className="text-5xl mb-4">&#9989;</div>
+          <h2 className="text-lg font-bold text-emerald-400 mb-2">Operacion exitosa</h2>
+          <p className="text-zinc-300 font-semibold mb-1">{successMsg}</p>
+          <p className="text-zinc-500 text-sm">Cajon de dinero abierto</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
