@@ -18,6 +18,7 @@ import FiscalTab from './FiscalTab'
 import RemoteTab from './RemoteTab'
 import HardwareTab from './HardwareTab'
 import Terminal from './Terminal'
+import ShiftStartupModal from './ShiftStartupModal'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -124,20 +125,7 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
 
 type CashMovModalState = 'hidden' | 'in' | 'out'
 
-const CURRENT_SHIFT_KEY = 'titan.currentShift'
-
-type ShiftSnap = { backendTurnId?: number; status?: string; openedBy?: string }
-
-function readShiftSnap(): ShiftSnap | null {
-  try {
-    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
-    if (!raw) return null
-    const p = JSON.parse(raw) as ShiftSnap
-    return p?.status === 'open' ? p : null
-  } catch {
-    return null
-  }
-}
+import { readCurrentShift as readShiftSnap } from './shiftTypes'
 
 type PriceCheckProduct = {
   sku: string
@@ -358,6 +346,16 @@ function RoutedApp(): ReactElement {
   const navigate = useNavigate()
   const [cashMovModal, setCashMovModal] = useState<CashMovModalState>('hidden')
   const [priceCheckModal, setPriceCheckModal] = useState(false)
+  const [shiftResolved, setShiftResolved] = useState(false)
+
+  // Reset shiftResolved when user logs out (token removed)
+  useEffect((): (() => void) => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === 'titan.token' && !e.newValue) setShiftResolved(false)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -366,6 +364,7 @@ function RoutedApp(): ReactElement {
       } catch {
         return
       }
+      if (!shiftResolved) return
       const tag = (document.activeElement?.tagName ?? '').toUpperCase()
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
       switch (event.key) {
@@ -412,10 +411,18 @@ function RoutedApp(): ReactElement {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate])
+  }, [navigate, shiftResolved])
+
+  const hasToken = (() => { try { return Boolean(localStorage.getItem('titan.token')) } catch { return false } })()
 
   return (
     <>
+    {hasToken && !shiftResolved && (
+      <ShiftStartupModal
+        onComplete={() => setShiftResolved(true)}
+        onExit={() => { try { window.close() } catch { /* noop */ } }}
+      />
+    )}
     {cashMovModal !== 'hidden' && (
       <CashMovementModal mode={cashMovModal} onClose={() => setCashMovModal('hidden')} />
     )}

@@ -69,24 +69,9 @@ type ActiveTicketSnapshot = {
 
 const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
-const CURRENT_SHIFT_KEY = 'titan.currentShift'
+import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from './shiftTypes'
 const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
 
-type ShiftState = {
-  id: string
-  backendTurnId?: number
-  terminalId: number
-  openedAt: string
-  openedBy: string
-  openingCash: number
-  status: 'open' | 'closed'
-  salesCount?: number
-  totalSales?: number
-  cashSales?: number
-  cardSales?: number
-  transferSales?: number
-  lastSaleAt?: string
-}
 
 function toNumber(value: unknown): number {
   const parsed = Number(value)
@@ -116,17 +101,6 @@ function readSavedActiveState(): SavedActiveState | null {
   }
 }
 
-function readCurrentShift(): ShiftState | null {
-  try {
-    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as ShiftState
-    if (!parsed || parsed.status !== 'open') return null
-    return parsed
-  } catch {
-    return null
-  }
-}
 
 function calculateLineSubtotal(price: number, qty: number, discountPct: number): number {
   const safeQty = Math.max(1, Math.floor(qty))

@@ -2,30 +2,7 @@ import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, searchSales, openTurn, closeTurn, getTurnSummary, createCashMovement, getUserRole } from './posApi'
-
-type ShiftRecord = {
-  id: string
-  backendTurnId?: number
-  terminalId: number
-  openedAt: string
-  openedBy: string
-  openingCash: number
-  status: 'open' | 'closed'
-  salesCount?: number
-  totalSales?: number
-  cashSales?: number
-  cardSales?: number
-  transferSales?: number
-  lastSaleAt?: string
-  closedAt?: string
-  closingCash?: number
-  expectedCash?: number
-  cashDifference?: number
-  notes?: string
-}
-
-const CURRENT_SHIFT_KEY = 'titan.currentShift'
-const SHIFT_HISTORY_KEY = 'titan.shiftHistory'
+import { type ShiftRecord, CURRENT_SHIFT_KEY, SHIFT_HISTORY_KEY, readCurrentShift, saveCurrentShift, readShiftHistory, saveShiftHistory } from './shiftTypes'
 
 type ShiftReconciliation = {
   shiftId: string
@@ -53,47 +30,6 @@ function toNumber(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function readCurrentShift(): ShiftRecord | null {
-  try {
-    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as ShiftRecord
-    return parsed?.status === 'open' ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-function readHistory(): ShiftRecord[] {
-  try {
-    const raw = localStorage.getItem(SHIFT_HISTORY_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as ShiftRecord[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function saveCurrentShift(shift: ShiftRecord | null): void {
-  try {
-    if (!shift) {
-      localStorage.removeItem(CURRENT_SHIFT_KEY)
-      return
-    }
-    localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(shift))
-  } catch {
-    // QuotaExceededError — shift stays in memory state only
-  }
-}
-
-function saveHistory(history: ShiftRecord[]): void {
-  try {
-    localStorage.setItem(SHIFT_HISTORY_KEY, JSON.stringify(history.slice(0, 100)))
-  } catch {
-    // QuotaExceededError — history stays in memory state only
-  }
-}
 
 function toCsvCell(value: string): string {
   const sanitized = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value
@@ -117,7 +53,7 @@ function toMoney(value: number): string {
 
 export default function ShiftsTab(): ReactElement {
   const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(() => readCurrentShift())
-  const [history, setHistory] = useState<ShiftRecord[]>(() => readHistory())
+  const [history, setHistory] = useState<ShiftRecord[]>(() => readShiftHistory())
   const [operator, setOperator] = useState('Cajero 1')
   const [openingCash, setOpeningCash] = useState('0')
   const [closingCash, setClosingCash] = useState('0')
@@ -139,7 +75,7 @@ export default function ShiftsTab(): ReactElement {
     const refresh = (): void => setCurrentShift(readCurrentShift())
     const onStorage = (event: StorageEvent): void => {
       if (event.key === CURRENT_SHIFT_KEY) refresh()
-      if (event.key === SHIFT_HISTORY_KEY) setHistory(readHistory())
+      if (event.key === SHIFT_HISTORY_KEY) setHistory(readShiftHistory())
     }
     window.addEventListener('focus', refresh)
     window.addEventListener('storage', onStorage)
@@ -264,7 +200,7 @@ export default function ShiftsTab(): ReactElement {
         notes: notes.trim()
       }
       const nextHistory = [closed, ...history]
-      saveHistory(nextHistory)
+      saveShiftHistory(nextHistory)
       setHistory(nextHistory)
       setCurrentShift(null)
       saveCurrentShift(null)

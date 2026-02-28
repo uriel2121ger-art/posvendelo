@@ -22,6 +22,16 @@ vi.mock('../RemoteTab', () => ({ default: () => <div data-testid="remote-tab">Re
 vi.mock('../FiscalTab', () => ({ default: () => <div data-testid="fiscal-tab">Fiscal</div> }))
 vi.mock('../HardwareTab', () => ({ default: () => <div data-testid="hardware-tab">Hardware</div> }))
 
+// Mock ShiftStartupModal — auto-resolve para no bloquear tests
+vi.mock('../ShiftStartupModal', () => ({
+  default: ({ onComplete }: { onComplete: () => void }) => {
+    // Use useEffect to avoid React setState-during-render warning
+    const { useEffect } = require('react')
+    useEffect(() => { onComplete() }, [onComplete])
+    return null
+  }
+}))
+
 // Mock autoDiscoverBackend para Login
 vi.mock('../posApi', () => ({
   autoDiscoverBackend: vi.fn().mockResolvedValue('http://127.0.0.1:8090'),
