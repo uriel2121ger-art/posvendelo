@@ -99,10 +99,14 @@ export default function HistoryTab(): ReactElement {
 
   const handleLoad = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
+    const { folio: f, dateFrom: df, dateTo: dt } = filtersRef.current
+    if (df && dt && df > dt) {
+      setMessage('Error: La fecha inicio no puede ser posterior a la fecha fin.')
+      return
+    }
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const { folio: f, dateFrom: df, dateTo: dt } = filtersRef.current
       const sales = await searchSales(cfg, { folio: f, dateFrom: df, dateTo: dt, limit: 200 })
       if (requestIdRef.current !== reqId) return
       const normalized = sales.map(normalizeSale)
@@ -278,7 +282,7 @@ export default function HistoryTab(): ReactElement {
                 }`}
                 onClick={() => void loadDetail(sale.id)}
               >
-                <div className="col-span-3 font-mono">{sale.folio}</div>
+                <div className="col-span-3 font-mono truncate">{sale.folio}</div>
                 <div className="col-span-3">{sale.timestamp.slice(0, 19).replace('T', ' ')}</div>
                 <div className="col-span-3 truncate">{sale.customerName}</div>
                 <div className="col-span-3 text-right">${sale.total.toFixed(2)}</div>

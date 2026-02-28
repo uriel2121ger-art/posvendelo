@@ -8,7 +8,7 @@ Uses Decimal for all monetary/quantity fields to match NUMERIC in DB.
 import math
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ProductCreate(BaseModel):
@@ -28,12 +28,22 @@ class ProductCreate(BaseModel):
     barcode: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = Field(None, max_length=2000)
 
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("nombre no puede estar vacio")
+        return stripped
+
     @model_validator(mode='after')
     def _reject_nan_inf(self):
         for fname in ('price', 'price_wholesale', 'cost', 'stock', 'min_stock', 'max_stock', 'tax_rate'):
             v = getattr(self, fname, None)
             if v is not None and (not v.is_finite() or math.isnan(v) or math.isinf(v)):
                 raise ValueError(f"{fname} no puede ser NaN o Infinity")
+        if self.min_stock is not None and self.max_stock is not None and self.min_stock > self.max_stock:
+            raise ValueError("min_stock no puede ser mayor que max_stock")
         return self
 
 
@@ -60,6 +70,8 @@ class ProductUpdate(BaseModel):
             v = getattr(self, fname, None)
             if v is not None and (not v.is_finite() or math.isnan(v) or math.isinf(v)):
                 raise ValueError(f"{fname} no puede ser NaN o Infinity")
+        if self.min_stock is not None and self.max_stock is not None and self.min_stock > self.max_stock:
+            raise ValueError("min_stock no puede ser mayor que max_stock")
         return self
 
 

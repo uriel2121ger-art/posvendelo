@@ -13,6 +13,14 @@ class StockAdjustment(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500)
     reference_id: Optional[str] = Field(None, max_length=100)
 
+    @field_validator("reason")
+    @classmethod
+    def strip_reason(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("La razon no puede estar vacia")
+        return stripped
+
     @field_validator("quantity")
     @classmethod
     def quantity_not_zero_and_finite(cls, v: Decimal) -> Decimal:

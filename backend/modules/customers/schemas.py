@@ -36,6 +36,26 @@ class CustomerCreate(BaseModel):
             raise ValueError("nombre no puede estar vacío")
         return stripped
 
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return v
+        v = v.strip()
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', v):
+            raise ValueError("Email invalido")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return v
+        v = v.strip()
+        if not re.match(r'^[\d\s()+\-]{7,30}$', v):
+            raise ValueError("Telefono invalido: solo digitos, espacios, parentesis, + y -")
+        return v
+
     @field_validator("rfc")
     @classmethod
     def validate_rfc(cls, v: Optional[str]) -> Optional[str]:
@@ -58,6 +78,26 @@ class CustomerUpdate(BaseModel):
     notes: Optional[str] = Field(None, max_length=2000)
     credit_limit: Optional[Decimal] = Field(None, ge=0)
     is_active: Optional[int] = Field(None, ge=0, le=1)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return v
+        v = v.strip()
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', v):
+            raise ValueError("Email invalido")
+        return v
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return v
+        v = v.strip()
+        if not re.match(r'^[\d\s()+\-]{7,30}$', v):
+            raise ValueError("Telefono invalido: solo digitos, espacios, parentesis, + y -")
+        return v
 
     @field_validator("rfc")
     @classmethod

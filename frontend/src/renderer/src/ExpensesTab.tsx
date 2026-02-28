@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { RefreshCw, Plus, Receipt } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
 import { loadRuntimeConfig, getExpensesSummary, registerExpense } from './posApi'
+import { readCurrentShift } from './shiftTypes'
 
 export default function ExpensesTab(): ReactElement {
   const [monthTotal, setMonthTotal] = useState(0)
@@ -53,6 +54,10 @@ export default function ExpensesTab(): ReactElement {
     e.preventDefault()
     if (submitting) return
     const numAmount = parseFloat(amount)
+    if (!readCurrentShift()?.backendTurnId) {
+      setError('No hay turno abierto. Abre uno en la pestana Turnos (F5) antes de registrar gastos.')
+      return
+    }
     if (!Number.isFinite(numAmount) || numAmount <= 0) {
       setError('Ingresa un monto válido mayor a 0')
       return

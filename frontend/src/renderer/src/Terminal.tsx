@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from './shiftTypes'
 import {
   Banknote,
   Plus,
@@ -70,6 +69,7 @@ type ActiveTicketSnapshot = {
 
 const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
+import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from './shiftTypes'
 const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
 
 
@@ -512,7 +512,7 @@ export default function Terminal(): ReactElement {
 
   function updateItemQty(sku: string, nextQty: number): void {
     if (!Number.isFinite(nextQty)) return
-    const safeQty = Math.min(9999, Math.max(1, Math.floor(nextQty)))
+    const safeQty = Math.max(1, Math.floor(nextQty))
     setCart((prev) =>
       prev.map((item) =>
         item.sku === sku
@@ -543,7 +543,7 @@ export default function Terminal(): ReactElement {
 
   const addProduct = useCallback(
     (product: Product): void => {
-      const safeQty = Math.min(9999, Math.max(1, Math.floor(qty)))
+      const safeQty = Math.max(1, Math.floor(qty))
       const effectivePrice = wholesaleMode && product.priceWholesale ? product.priceWholesale : product.price
       setCart((prev) => {
         const idx = prev.findIndex((item) => item.sku === product.sku)
@@ -1200,7 +1200,7 @@ export default function Terminal(): ReactElement {
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-zinc-100 truncate">{item.name}</div>
                       {item.isCommon && item.commonNote && (
-                        <div className="text-xs text-amber-400/70 mt-0.5">{item.commonNote}</div>
+                        <div className="text-xs text-amber-400/70 mt-0.5 truncate">{item.commonNote}</div>
                       )}
                     </div>
 

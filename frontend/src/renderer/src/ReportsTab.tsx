@@ -105,10 +105,14 @@ export default function ReportsTab(): ReactElement {
 
   const handleLoad = useCallback(async (): Promise<void> => {
     const reqId = ++requestIdRef.current
+    const { dateFrom: df, dateTo: dt } = filtersRef.current
+    if (df && dt && df > dt) {
+      setMessage('Error: La fecha inicio no puede ser posterior a la fecha fin.')
+      return
+    }
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const { dateFrom: df, dateTo: dt } = filtersRef.current
       const rows = await searchSales(cfg, { dateFrom: df, dateTo: dt, limit: 500 })
       if (requestIdRef.current !== reqId) return
       const normalized = rows.map(normalizeSale)

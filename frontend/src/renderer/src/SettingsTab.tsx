@@ -48,7 +48,22 @@ export default function SettingsTab(): ReactElement {
   const [systemInfo, setSystemInfo] = useState<Record<string, unknown> | null>(null)
 
   function persistConfig(): void {
-    saveRuntimeConfig(form)
+    const url = form.baseUrl.trim()
+    if (!url) {
+      setMessage('Error: Base URL no puede estar vacia.')
+      return
+    }
+    try {
+      new URL(url)
+    } catch {
+      setMessage('Error: Base URL invalida. Ejemplo: http://127.0.0.1:8000')
+      return
+    }
+    if (!Number.isFinite(form.terminalId) || form.terminalId < 1) {
+      setMessage('Error: Terminal ID debe ser un numero entero >= 1.')
+      return
+    }
+    saveRuntimeConfig({ ...form, baseUrl: url })
     setMessage('Configuracion guardada en localStorage.')
   }
 

@@ -270,6 +270,7 @@ export default function ProductsTab(): ReactElement {
           ref={skuFormRef}
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="SKU"
+          maxLength={100}
           value={sku}
           onChange={(e) => setSku(e.target.value)}
           disabled={Boolean(selectedSku)}
@@ -285,6 +286,7 @@ export default function ProductsTab(): ReactElement {
           ref={nameFormRef}
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Nombre producto"
+          maxLength={300}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -295,6 +297,7 @@ export default function ProductsTab(): ReactElement {
           min={0}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
+          onKeyDown={(e) => { if ('eE+-'.includes(e.key)) e.preventDefault() }}
         />
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
@@ -303,6 +306,7 @@ export default function ProductsTab(): ReactElement {
           min={0}
           value={stock}
           onChange={(e) => setStock(e.target.value)}
+          onKeyDown={(e) => { if ('eE+-'.includes(e.key)) e.preventDefault() }}
         />
         <button
           className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
@@ -445,8 +449,8 @@ export default function ProductsTab(): ReactElement {
                 }`}
                 onClick={() => selectProduct(p)}
               >
-                <td className="py-4 px-6 font-medium">{p.sku}</td>
-                <td className="py-4 px-6 font-medium">{p.name}</td>
+                <td className="py-4 px-6 font-medium max-w-[140px] truncate">{p.sku}</td>
+                <td className="py-4 px-6 font-medium max-w-xs truncate">{p.name}</td>
                 <td className="py-4 px-6 font-medium">${p.price.toFixed(2)}</td>
                 <td className="py-4 px-6 font-medium">{p.stock}</td>
               </tr>

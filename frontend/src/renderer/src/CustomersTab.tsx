@@ -10,6 +10,9 @@ type Customer = {
   email?: string
 }
 
+const PHONE_RE = /^[\d\s()+-]{7,20}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
 function normalizeCustomer(raw: Record<string, unknown>): Customer | null {
   const name = String(raw.name ?? raw.nombre ?? '').trim()
   if (!name) return null
@@ -94,6 +97,14 @@ export default function CustomersTab(): ReactElement {
     requestIdRef.current++ // invalidate any in-flight load
     if (!name.trim()) {
       setMessage('Nombre de cliente es obligatorio.')
+      return
+    }
+    if (phone.trim() && !PHONE_RE.test(phone.trim())) {
+      setMessage('Telefono invalido. Usa solo digitos, espacios, +, - o parentesis (7-20 chars).')
+      return
+    }
+    if (email.trim() && !EMAIL_RE.test(email.trim())) {
+      setMessage('Email invalido. Ejemplo: usuario@dominio.com')
       return
     }
     setBusy(true)
@@ -241,18 +252,21 @@ export default function CustomersTab(): ReactElement {
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Nombre cliente"
+          maxLength={200}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Telefono"
+          maxLength={20}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Email"
+          maxLength={200}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -324,9 +338,9 @@ export default function CustomersTab(): ReactElement {
                 }`}
                 onClick={() => selectCustomer(c)}
               >
-                <td className="py-4 px-6 font-medium">{c.name}</td>
-                <td className="py-4 px-6 font-medium">{c.phone || '-'}</td>
-                <td className="py-4 px-6 font-medium">{c.email || '-'}</td>
+                <td className="py-4 px-6 font-medium max-w-xs truncate">{c.name}</td>
+                <td className="py-4 px-6 font-medium max-w-[200px] truncate">{c.phone || '-'}</td>
+                <td className="py-4 px-6 font-medium max-w-xs truncate">{c.email || '-'}</td>
               </tr>
             ))}
           </tbody>

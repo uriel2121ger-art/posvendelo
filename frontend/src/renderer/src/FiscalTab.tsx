@@ -166,12 +166,12 @@ export default function FiscalTab(): ReactElement {
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">CFDI Individual</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input className={inputCls} placeholder="Sale ID" value={cfdiSaleId} onChange={(e) => setCfdiSaleId(e.target.value)} />
-            <input className={inputCls} placeholder="RFC Cliente" value={cfdiRfc} onChange={(e) => setCfdiRfc(e.target.value)} />
-            <input className={inputCls} placeholder="Nombre Cliente" value={cfdiName} onChange={(e) => setCfdiName(e.target.value)} />
+            <input className={inputCls} placeholder="RFC Cliente" maxLength={13} value={cfdiRfc} onChange={(e) => setCfdiRfc(e.target.value.toUpperCase())} />
+            <input className={inputCls} placeholder="Nombre Cliente" maxLength={300} value={cfdiName} onChange={(e) => setCfdiName(e.target.value)} />
             <input className={inputCls} placeholder="Regimen Fiscal" value={cfdiRegimen} onChange={(e) => setCfdiRegimen(e.target.value)} />
             <input className={inputCls} placeholder="Uso CFDI (G03)" value={cfdiUso} onChange={(e) => setCfdiUso(e.target.value)} />
             <input className={inputCls} placeholder="Forma Pago (01)" value={cfdiFormaPago} onChange={(e) => setCfdiFormaPago(e.target.value)} />
-            <input className={inputCls} placeholder="Codigo Postal" value={cfdiZip} onChange={(e) => setCfdiZip(e.target.value)} />
+            <input className={inputCls} placeholder="Codigo Postal" maxLength={5} value={cfdiZip} onChange={(e) => setCfdiZip(e.target.value)} />
             <button
               className={btnPrimary}
               disabled={busy || !cfdiSaleId.trim()}

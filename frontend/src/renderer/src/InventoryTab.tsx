@@ -33,7 +33,7 @@ export default function InventoryTab(): ReactElement {
   const [query, setQuery] = useState('')
   const [sku, setSku] = useState('')
   const [movementQty, setMovementQty] = useState('1')
-  const [movementType, setMovementType] = useState<'in' | 'out'>('in')
+  const [movementType, setMovementType] = useState<'in' | 'out' | 'shrinkage'>('in')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(
     'Inventario (F4): carga y movimientos de entrada/salida funcional.'
@@ -112,14 +112,16 @@ export default function InventoryTab(): ReactElement {
       setMessage(`SKU no encontrado en inventario: ${targetSku}`)
       return
     }
-    if (movementType === 'out' && qty > toNumber(current.stock)) {
-      setMessage(`Stock insuficiente. Actual: ${current.stock}, salida solicitada: ${qty}`)
+    const isOut = movementType === 'out' || movementType === 'shrinkage'
+    if (isOut && qty > toNumber(current.stock)) {
+      setMessage(`Stock insuficiente. Actual: ${current.stock}, ${movementType === 'shrinkage' ? 'merma' : 'salida'} solicitada: ${qty}`)
       return
     }
     const signed = movementType === 'in' ? qty : -qty
+    const typeLabel = movementType === 'in' ? 'entrada' : movementType === 'shrinkage' ? 'merma' : 'salida'
     if (
       !window.confirm(
-        `¿Aplicar ${movementType === 'in' ? 'entrada' : 'salida'} de ${qty} unidades a ${targetSku}?`
+        `¿Aplicar ${typeLabel} de ${qty} unidades a ${targetSku}?`
       )
     )
       return
@@ -129,7 +131,7 @@ export default function InventoryTab(): ReactElement {
       const result = await adjustStock(cfg, {
         product_id: current.id,
         quantity: signed,
-        reason: `Ajuste manual ${movementType === 'in' ? 'entrada' : 'salida'}`
+        reason: movementType === 'shrinkage' ? `Merma: ${targetSku}` : `Ajuste manual ${typeLabel}`
       })
       const data = result.data as Record<string, unknown>
       const rawNew = Number(data?.new_stock ?? current.stock + signed)
@@ -144,7 +146,7 @@ export default function InventoryTab(): ReactElement {
       setSku('')
       setMovementQty('1')
       setMessage(
-        `Movimiento ${movementType === 'in' ? 'entrada' : 'salida'} aplicado a ${targetSku}. Nuevo stock: ${newStock}`
+        `Movimiento ${typeLabel} aplicado a ${targetSku}. Nuevo stock: ${newStock}`
       )
     } catch (error) {
       setMessage((error as Error).message)
@@ -214,10 +216,11 @@ export default function InventoryTab(): ReactElement {
         <select
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           value={movementType}
-          onChange={(e) => setMovementType(e.target.value as 'in' | 'out')}
+          onChange={(e) => setMovementType(e.target.value as 'in' | 'out' | 'shrinkage')}
         >
           <option value="in">Entrada</option>
           <option value="out">Salida</option>
+          <option value="shrinkage">Merma</option>
         </select>
         <input
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
