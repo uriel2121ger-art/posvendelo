@@ -32,7 +32,7 @@ async def get_expense_summary(
         now = datetime.now(timezone.utc)
         target_month = month if month is not None else now.month
         target_year = year if year is not None else now.year
-        # cash_movements.timestamp is TIMESTAMP — pass datetime objects for asyncpg
+        # cash_movements.timestamp es TIMESTAMP (migración 032 corrige TEXT→TIMESTAMP)
         month_start = datetime(target_year, target_month, 1)
         if target_month == 12:
             month_end = datetime(target_year + 1, 1, 1)
@@ -44,13 +44,13 @@ async def get_expense_summary(
         month_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                WHERE type = 'expense'
-               AND timestamp::timestamptz >= :month_start AND timestamp::timestamptz < :month_end""",
+               AND "timestamp" >= :month_start AND "timestamp" < :month_end""",
             {"month_start": month_start, "month_end": month_end},
         )
         year_row = await db.fetchrow(
             """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                WHERE type = 'expense'
-               AND timestamp::timestamptz >= :year_start AND timestamp::timestamptz < :year_end""",
+               AND "timestamp" >= :year_start AND "timestamp" < :year_end""",
             {"year_start": year_start, "year_end": year_end},
         )
 

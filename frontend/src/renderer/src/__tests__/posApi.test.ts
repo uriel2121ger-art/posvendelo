@@ -18,7 +18,7 @@ describe('loadRuntimeConfig', () => {
 
   it('devuelve defaults cuando localStorage vacío', () => {
     const cfg = loadRuntimeConfig()
-    expect(cfg.baseUrl).toBe('http://127.0.0.1:8000')
+    expect(cfg.baseUrl).toBe('http://localhost:8000')
     expect(cfg.token).toBe('')
     expect(cfg.terminalId).toBe(1)
   })
@@ -122,8 +122,8 @@ describe('autoDiscoverBackend', () => {
     })
 
     const result = await autoDiscoverBackend()
-    expect(result).toBe('http://127.0.0.1:8090')
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://127.0.0.1:8090')
+    expect(result).toBe('http://localhost:8090')
+    expect(localStorage.getItem('titan.baseUrl')).toBe('http://localhost:8090')
   })
 
   it('devuelve null si ningún puerto responde', async () => {
@@ -150,7 +150,7 @@ describe('autoDiscoverBackend', () => {
     })
 
     const result = await autoDiscoverBackend()
-    expect(result).toBe('http://127.0.0.1:8000')
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://127.0.0.1:8000')
+    expect(result).toBe('http://localhost:8000')
+    expect(localStorage.getItem('titan.baseUrl')).toBe('http://localhost:8000')
   })
 })

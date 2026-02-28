@@ -96,9 +96,29 @@ if not origins:
         "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
     ]
+
+# Electron producción carga desde file:// → el navegador envía Origin: null
+if "null" not in origins:
+    origins.append("null")
+
+# POS LAN: detectar IP local y agregar orígenes para terminales en red
+try:
+    import socket
+    _lan_ip = socket.gethostbyname(socket.gethostname())
+    if not _lan_ip.startswith("127."):
+        for _p in (3000, 5173, 5174, 8080):
+            _o = f"http://{_lan_ip}:{_p}"
+            if _o not in origins:
+                origins.append(_o)
+except Exception:
+    pass
+
+logger.info("CORS allowed origins: %s", origins)
 
 # Wildcard "*" + credentials=True is a browser spec violation — reject it
 _use_credentials = "*" not in origins

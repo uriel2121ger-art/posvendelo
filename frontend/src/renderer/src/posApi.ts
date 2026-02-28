@@ -28,7 +28,7 @@ export async function autoDiscoverBackend(): Promise<string | null> {
     } catch { /* saved URL unreachable, try discovery */ }
   }
   for (const port of _DISCOVER_PORTS) {
-    const url = `http://127.0.0.1:${port}`
+    const url = `http://localhost:${port}`
     try {
       const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
       if (r.status === 401 || r.ok) {
@@ -43,12 +43,12 @@ export async function autoDiscoverBackend(): Promise<string | null> {
 export function loadRuntimeConfig(): RuntimeConfig {
   try {
     return {
-      baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://127.0.0.1:8000',
+      baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://localhost:8000',
       token: localStorage.getItem('titan.token') ?? '',
       terminalId: Math.max(1, parseInt(localStorage.getItem('titan.terminalId') ?? '1', 10) || 1)
     }
   } catch {
-    return { baseUrl: 'http://127.0.0.1:8000', token: '', terminalId: 1 }
+    return { baseUrl: 'http://localhost:8000', token: '', terminalId: 1 }
   }
 }
 
