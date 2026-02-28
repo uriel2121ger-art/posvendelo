@@ -31,7 +31,7 @@ def _validate_printer(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _list_printers_sync() -> list[dict]:
-    """Parse lpstat -p -d to discover CUPS printers."""
+    """Parse lpstat -p -d to discover CUPS printers (EN/ES locale)."""
     printers: list[dict] = []
     default_printer = ""
 
@@ -42,18 +42,24 @@ def _list_printers_sync() -> list[dict]:
         )
         for line in result.stdout.splitlines():
             line = line.strip()
-            if line.startswith("printer "):
+            low = line.lower()
+            # EN: "printer NAME ..." / ES: "la impresora NAME ..."
+            if low.startswith("printer ") or low.startswith("la impresora "):
                 parts = line.split()
-                if len(parts) >= 2:
-                    name = parts[1]
-                    is_enabled = "enabled" in line.lower()
+                # Name is always the word after "printer" or "impresora"
+                name_idx = 1 if low.startswith("printer ") else 2
+                if len(parts) > name_idx:
+                    name = parts[name_idx]
+                    is_enabled = "enabled" in low or "activada" in low
+                    is_disabled = "disabled" in low or "deshabilitada" in low
                     printers.append({
                         "name": name,
-                        "enabled": is_enabled,
-                        "status": "idle" if is_enabled else "disabled",
+                        "enabled": is_enabled and not is_disabled,
+                        "status": "idle" if (is_enabled and not is_disabled) else "disabled",
                         "is_default": False,
                     })
-            elif line.startswith("system default destination:"):
+            # EN: "system default destination:" / ES: "destino predeterminado del sistema:"
+            elif "default destination:" in low or "destino predeterminado" in low:
                 default_printer = line.split(":", 1)[1].strip()
     except FileNotFoundError:
         logger.warning("lpstat not found — CUPS not installed?")
