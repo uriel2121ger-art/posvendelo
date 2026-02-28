@@ -1,6 +1,7 @@
-import type { ReactElement } from 'react'
-import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
+import type { ReactElement, FormEvent } from 'react'
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { type RuntimeConfig, loadRuntimeConfig, createCashMovement, pullTable } from './posApi'
 import CustomersTab from './CustomersTab'
 import DashboardStatsTab from './DashboardStatsTab'
 import ExpensesTab from './ExpensesTab'
@@ -119,8 +120,215 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   return children
 }
 
+/* ── Helpers for global modals ────────────────────────────── */
+
+type CashMovModalState = 'hidden' | 'in' | 'out'
+
+const CURRENT_SHIFT_KEY = 'titan.currentShift'
+
+type ShiftSnap = { backendTurnId?: number; status?: string; openedBy?: string }
+
+function readShiftSnap(): ShiftSnap | null {
+  try {
+    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as ShiftSnap
+    return p?.status === 'open' ? p : null
+  } catch {
+    return null
+  }
+}
+
+type PriceCheckProduct = {
+  sku: string
+  name: string
+  price: number
+  priceWholesale?: number
+  stock?: number
+}
+
+function toNumber(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function normalizePriceCheckProduct(raw: Record<string, unknown>): PriceCheckProduct | null {
+  const sku = String(raw.sku ?? raw.code ?? raw.codigo ?? '').trim()
+  const name = String(raw.name ?? raw.nombre ?? '').trim()
+  if (!sku || !name) return null
+  const priceFields = [raw.price, raw.sale_price, raw.precio, raw.cost]
+  const price = toNumber(priceFields.find((v) => v != null && toNumber(v) > 0) ?? 0)
+  const pw = toNumber(raw.price_wholesale ?? raw.priceWholesale ?? 0)
+  return { sku, name, price, priceWholesale: pw > 0 ? pw : undefined, stock: toNumber(raw.stock) }
+}
+
+/* ── Cash Movement Modal (F7 / F8) ──────────────────────── */
+
+function CashMovementModal({
+  mode,
+  onClose
+}: {
+  mode: 'in' | 'out'
+  onClose: () => void
+}): ReactElement {
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [pin, setPin] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const amountRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { amountRef.current?.focus() }, [])
+
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose() }
+    }
+    window.addEventListener('keydown', onEsc, true)
+    return () => window.removeEventListener('keydown', onEsc, true)
+  }, [onClose])
+
+  const handleSubmit = useCallback(async (e: FormEvent): Promise<void> => {
+    e.preventDefault()
+    const num = parseFloat(amount)
+    if (!Number.isFinite(num) || num <= 0) { setError('Ingresa un monto valido'); return }
+    const shift = readShiftSnap()
+    if (!shift?.backendTurnId) { setError('No hay turno abierto. Abre uno en la pestana Turnos.'); return }
+    setBusy(true)
+    setError('')
+    try {
+      const cfg = loadRuntimeConfig()
+      await createCashMovement(cfg, shift.backendTurnId, {
+        movement_type: mode === 'in' ? 'cash_in' : 'cash_out',
+        amount: num,
+        reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo'),
+        ...(pin.trim() ? { manager_pin: pin.trim() } : {})
+      })
+      onClose()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }, [amount, reason, pin, mode, onClose])
+
+  const title = mode === 'in' ? 'Entrada de Efectivo' : 'Retiro de Efectivo'
+  const fKey = mode === 'in' ? 'F7' : 'F8'
+  const accent = mode === 'in' ? 'emerald' : 'rose'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => void handleSubmit(e)}
+        className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
+      >
+        <h2 className={`text-lg font-bold text-${accent}-400 mb-4 flex items-center gap-2`}>
+          {title}
+          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">{fKey}</kbd>
+        </h2>
+        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Monto</label>
+        <input ref={amountRef} className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none" type="number" min={0.01} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="$0.00" />
+        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Motivo</label>
+        <input className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'in' ? 'Fondo de caja' : 'Pago a proveedor'} />
+        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">PIN gerente (opcional)</label>
+        <input className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none" type="password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value)} placeholder="****" />
+        {error && <p className="text-rose-400 text-sm mb-3">{error}</p>}
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors">Cancelar</button>
+          <button type="submit" disabled={busy} className={`flex-1 rounded-xl bg-${accent}-600 py-2.5 font-bold text-white hover:bg-${accent}-500 transition-colors disabled:opacity-40`}>{busy ? 'Registrando...' : 'Registrar'}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+/* ── Price Checker Modal (F9) ────────────────────────────── */
+
+function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
+  const [query, setQuery] = useState('')
+  const [products, setProducts] = useState<PriceCheckProduct[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose() }
+    }
+    window.addEventListener('keydown', onEsc, true)
+    return () => window.removeEventListener('keydown', onEsc, true)
+  }, [onClose])
+
+  useEffect(() => {
+    let cancelled = false
+    const cfg = loadRuntimeConfig()
+    if (!cfg.token) return
+    pullTable('products', cfg)
+      .then((raw) => {
+        if (cancelled) return
+        setProducts(raw.map(normalizePriceCheckProduct).filter((p): p is PriceCheckProduct => p !== null))
+        setLoaded(true)
+      })
+      .catch(() => { if (!cancelled) setLoaded(true) })
+    return () => { cancelled = true }
+  }, [])
+
+  const results = useMemo((): PriceCheckProduct[] => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return products.filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 10)
+  }, [products, query])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+        <h2 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+          Verificador de Precios
+          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">F9</kbd>
+        </h2>
+        <input
+          ref={inputRef}
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={loaded ? 'SKU o nombre del producto...' : 'Cargando productos...'}
+        />
+        {results.length > 0 && (
+          <div className="max-h-72 overflow-y-auto space-y-2">
+            {results.map((p) => (
+              <div key={p.sku} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                <div className="font-semibold text-zinc-100 truncate">{p.name}</div>
+                <div className="text-xs text-zinc-500 font-mono mt-0.5">SKU: {p.sku}</div>
+                <div className="flex items-center gap-4 mt-2">
+                  <span className="text-emerald-400 font-bold">${p.price.toFixed(2)}</span>
+                  {p.priceWholesale && (
+                    <span className="text-amber-400 text-sm">Mayoreo: ${p.priceWholesale.toFixed(2)}</span>
+                  )}
+                  <span className="text-zinc-500 text-sm ml-auto">{p.stock ?? 0} uds</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {query.trim() && results.length === 0 && loaded && (
+          <p className="text-zinc-500 text-sm text-center py-4">Sin resultados</p>
+        )}
+        <button onClick={onClose} className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── RoutedApp ───────────────────────────────────────────── */
+
 function RoutedApp(): ReactElement {
   const navigate = useNavigate()
+  const [cashMovModal, setCashMovModal] = useState<CashMovModalState>('hidden')
+  const [priceCheckModal, setPriceCheckModal] = useState(false)
 
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -158,24 +366,17 @@ function RoutedApp(): ReactElement {
           break
         case 'F7':
           event.preventDefault()
-          navigate('/historial')
+          setCashMovModal('in')
           break
         case 'F8':
           event.preventDefault()
-          navigate('/configuraciones')
+          setCashMovModal('out')
           break
         case 'F9':
           event.preventDefault()
-          navigate('/estadisticas')
+          setPriceCheckModal(true)
           break
-        case 'F10':
-          event.preventDefault()
-          navigate('/mermas')
-          break
-        case 'F11':
-          event.preventDefault()
-          navigate('/gastos')
-          break
+        // F10, F11, F12 — handled by Terminal.tsx (capture phase)
         default:
           break
       }
@@ -185,6 +386,13 @@ function RoutedApp(): ReactElement {
   }, [navigate])
 
   return (
+    <>
+    {cashMovModal !== 'hidden' && (
+      <CashMovementModal mode={cashMovModal} onClose={() => setCashMovModal('hidden')} />
+    )}
+    {priceCheckModal && (
+      <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />
+    )}
     <Routes>
       <Route
         path="/"
@@ -347,6 +555,7 @@ function RoutedApp(): ReactElement {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }
 

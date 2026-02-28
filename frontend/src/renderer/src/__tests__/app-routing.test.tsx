@@ -1,0 +1,341 @@
+/**
+ * App.tsx — Tests de routing, RequireAuth, y ErrorBoundary.
+ */
+import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { clearAuth, setAuthToken } from './test-utils'
+
+// Mock todos los tabs pesados para que no hagan fetch real
+vi.mock('../Terminal', () => ({ default: () => <div data-testid="terminal-tab">Terminal</div> }))
+vi.mock('../CustomersTab', () => ({ default: () => <div data-testid="customers-tab">Clientes</div> }))
+vi.mock('../ProductsTab', () => ({ default: () => <div data-testid="products-tab">Productos</div> }))
+vi.mock('../InventoryTab', () => ({ default: () => <div data-testid="inventory-tab">Inventario</div> }))
+vi.mock('../ShiftsTab', () => ({ default: () => <div data-testid="shifts-tab">Turnos</div> }))
+vi.mock('../ReportsTab', () => ({ default: () => <div data-testid="reports-tab">Reportes</div> }))
+vi.mock('../HistoryTab', () => ({ default: () => <div data-testid="history-tab">Historial</div> }))
+vi.mock('../SettingsTab', () => ({ default: () => <div data-testid="settings-tab">Configuraciones</div> }))
+vi.mock('../DashboardStatsTab', () => ({ default: () => <div data-testid="stats-tab">Estadisticas</div> }))
+vi.mock('../MermasTab', () => ({ default: () => <div data-testid="mermas-tab">Mermas</div> }))
+vi.mock('../ExpensesTab', () => ({ default: () => <div data-testid="expenses-tab">Gastos</div> }))
+vi.mock('../EmployeesTab', () => ({ default: () => <div data-testid="employees-tab">Empleados</div> }))
+vi.mock('../RemoteTab', () => ({ default: () => <div data-testid="remote-tab">Remoto</div> }))
+vi.mock('../FiscalTab', () => ({ default: () => <div data-testid="fiscal-tab">Fiscal</div> }))
+vi.mock('../HardwareTab', () => ({ default: () => <div data-testid="hardware-tab">Hardware</div> }))
+
+// Mock autoDiscoverBackend para Login
+vi.mock('../posApi', () => ({
+  autoDiscoverBackend: vi.fn().mockResolvedValue('http://127.0.0.1:8090'),
+  loadRuntimeConfig: vi.fn().mockReturnValue({ baseUrl: 'http://127.0.0.1:8090', token: 'test', terminalId: 1 }),
+  saveRuntimeConfig: vi.fn(),
+  createCashMovement: vi.fn().mockResolvedValue({}),
+  pullTable: vi.fn().mockResolvedValue([]),
+}))
+
+// App usa HashRouter internamente, así que importamos directo
+import App from '../App'
+
+describe('App Routing', () => {
+  beforeEach(() => {
+    clearAuth()
+    vi.restoreAllMocks()
+  })
+
+  afterEach(() => {
+    clearAuth()
+  })
+
+  it('redirige a /login sin token', async () => {
+    window.location.hash = '#/'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/login')
+    })
+  })
+
+  it('redirige / a /terminal con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/terminal')
+    })
+  })
+
+  it('muestra Terminal en /terminal con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/terminal'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Productos en /productos con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/productos'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('products-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Clientes en /clientes con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/clientes'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('customers-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Inventario en /inventario con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/inventario'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('inventory-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Turnos en /turnos con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/turnos'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('shifts-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Reportes en /reportes con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/reportes'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('reports-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Historial en /historial con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/historial'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('history-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Configuraciones en /configuraciones con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/configuraciones'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Estadisticas en /estadisticas con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/estadisticas'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('stats-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Mermas en /mermas con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/mermas'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mermas-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Gastos en /gastos con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/gastos'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('expenses-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Empleados en /empleados con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/empleados'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('employees-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Remoto en /remoto con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/remoto'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('remote-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Fiscal en /fiscal con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/fiscal'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('fiscal-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Hardware en /hardware con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/hardware'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('hardware-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('ruta desconocida redirige a / → /terminal con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/esta-ruta-no-existe'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/terminal')
+    })
+  })
+
+  it('ruta protegida sin token redirige a /login', async () => {
+    // Sin setAuthToken()
+    window.location.hash = '#/productos'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/login')
+    })
+  })
+})
+
+describe('F-key Navigation', () => {
+  beforeEach(() => {
+    clearAuth()
+    setAuthToken()
+  })
+
+  afterEach(() => {
+    clearAuth()
+  })
+
+  // F1-F6: navigation keys (navigate to tab routes)
+  const fKeyNavMap: Array<[string, string, string]> = [
+    ['F1', '#/terminal', 'terminal-tab'],
+    ['F2', '#/clientes', 'customers-tab'],
+    ['F3', '#/productos', 'products-tab'],
+    ['F4', '#/inventario', 'inventory-tab'],
+    ['F5', '#/turnos', 'shifts-tab'],
+    ['F6', '#/reportes', 'reports-tab'],
+  ]
+
+  for (const [key, expectedHash, testId] of fKeyNavMap) {
+    it(`${key} navega a ${expectedHash}`, async () => {
+      window.location.hash = '#/terminal'
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
+      })
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+
+      await waitFor(() => {
+        expect(window.location.hash).toBe(expectedHash)
+      })
+    })
+  }
+
+  // F7-F9: operational keys (open modals, do NOT navigate)
+  const fKeyModalMap: Array<[string, string]> = [
+    ['F7', 'Entrada de Efectivo'],
+    ['F8', 'Retiro de Efectivo'],
+    ['F9', 'Verificador de Precios'],
+  ]
+
+  for (const [key, modalTitle] of fKeyModalMap) {
+    it(`${key} abre modal "${modalTitle}" sin cambiar ruta`, async () => {
+      window.location.hash = '#/terminal'
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
+      })
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+
+      // Route must NOT change
+      expect(window.location.hash).toBe('#/terminal')
+
+      // Modal must appear
+      await waitFor(() => {
+        expect(screen.getByText(modalTitle)).toBeInTheDocument()
+      })
+    })
+  }
+
+  // F10-F11: handled by Terminal.tsx (capture phase), App does nothing
+  for (const key of ['F10', 'F11']) {
+    it(`${key} no navega (manejado por Terminal)`, async () => {
+      window.location.hash = '#/terminal'
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
+      })
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+
+      // Route must NOT change
+      expect(window.location.hash).toBe('#/terminal')
+    })
+  }
+
+  it('F-keys no navegan cuando hay focus en input', async () => {
+    window.location.hash = '#/terminal'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
+    })
+
+    // Simular focus en input
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.focus()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3', bubbles: true }))
+
+    // Debería seguir en terminal, no navegar a productos
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/terminal')
+    })
+
+    document.body.removeChild(input)
+  })
+})

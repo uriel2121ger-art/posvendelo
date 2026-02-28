@@ -163,7 +163,8 @@ async function syncSale(
   paymentMethod: PaymentMethod,
   globalDiscountPct: number,
   amountReceived?: number,
-  turnId?: number | null
+  turnId?: number | null,
+  isWholesale?: boolean
 ): Promise<Record<string, unknown>> {
   const globalDisc = clampDiscount(globalDiscountPct) / 100
   const items: SaleItemPayload[] = cart.map((item) => {
@@ -179,7 +180,7 @@ async function syncSale(
       qty: item.qty,
       price: item.price,
       discount,
-      is_wholesale: false,
+      is_wholesale: isWholesale ?? false,
       price_includes_tax: true
     }
   })
@@ -235,6 +236,7 @@ export default function Terminal(): ReactElement {
   const [qty, setQty] = useState(1)
   const [busy, setBusy] = useState(false)
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
+  const [wholesaleMode, setWholesaleMode] = useState(false)
   const [message, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
 
@@ -265,6 +267,23 @@ export default function Terminal(): ReactElement {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Recalculate cart prices when wholesale mode toggles
+  useEffect(() => {
+    setCart((prev) =>
+      prev.map((item) => {
+        const effectivePrice =
+          wholesaleMode && item.priceWholesale ? item.priceWholesale : (products.find((p) => p.sku === item.sku)?.price ?? item.price)
+        if (effectivePrice === item.price) return item
+        return {
+          ...item,
+          price: effectivePrice,
+          subtotal: calculateLineSubtotal(effectivePrice, item.qty, item.discountPct)
+        }
+      })
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wholesaleMode])
 
   useEffect((): void => {
     let raw: string | null = null
@@ -551,6 +570,7 @@ export default function Terminal(): ReactElement {
   const addProduct = useCallback(
     (product: Product): void => {
       const safeQty = Math.max(1, Math.floor(qty))
+      const effectivePrice = wholesaleMode && product.priceWholesale ? product.priceWholesale : product.price
       setCart((prev) => {
         const idx = prev.findIndex((item) => item.sku === product.sku)
         if (idx >= 0) {
@@ -567,17 +587,18 @@ export default function Terminal(): ReactElement {
           ...prev,
           {
             ...product,
+            price: effectivePrice,
             qty: safeQty,
             discountPct: 0,
             isCommon: false,
-            subtotal: calculateLineSubtotal(product.price, safeQty, 0)
+            subtotal: calculateLineSubtotal(effectivePrice, safeQty, 0)
           }
         ]
       })
       setSelectedCartSku(product.sku)
       setMessage(`Agregado: ${product.name}`)
     },
-    [qty]
+    [qty, wholesaleMode]
   )
 
   const addCommonProduct = useCallback((): void => {
@@ -709,7 +730,8 @@ export default function Terminal(): ReactElement {
         paymentMethod,
         globalDiscountPct,
         paymentMethod === 'cash' ? effectiveReceived : undefined,
-        turnId
+        turnId,
+        wholesaleMode
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
       const saleTotal = saleData.total != null ? Number(saleData.total) : totals.total
@@ -791,7 +813,7 @@ export default function Terminal(): ReactElement {
       chargingRef.current = false
       setBusy(false)
     }
-  }, [amountReceivedNum, cart, config, customerName, globalDiscountPct, paymentMethod, totals])
+  }, [amountReceivedNum, cart, config, customerName, globalDiscountPct, paymentMethod, totals, wholesaleMode])
 
   function saveCurrentAsPending(): void {
     if (!cart.length) {
@@ -869,6 +891,13 @@ export default function Terminal(): ReactElement {
         event.stopImmediatePropagation()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
+        return
+      }
+
+      if (key === 'f11') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        setWholesaleMode((prev) => !prev)
         return
       }
 
@@ -1101,6 +1130,13 @@ export default function Terminal(): ReactElement {
             }}
           />
         </div>
+
+        {/* Wholesale mode indicator */}
+        {wholesaleMode && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-600 bg-amber-950/50 text-amber-400 text-xs font-bold animate-pulse">
+            MAYOREO
+          </div>
+        )}
 
         {/* Shift info compact */}
         <div className="hidden md:flex items-center gap-3 ml-auto text-xs">
@@ -1407,6 +1443,7 @@ export default function Terminal(): ReactElement {
         <div className="hidden md:flex items-center gap-1.5 shrink-0">
           {[
             { key: 'F10', label: 'Buscar' },
+            { key: 'F11', label: 'Mayoreo' },
             { key: 'F12', label: 'Cobrar' },
             { key: '+/-', label: 'Cant' },
             { key: 'Del', label: 'Quitar' },
