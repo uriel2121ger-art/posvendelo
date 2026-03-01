@@ -1,6 +1,6 @@
 import type { ReactElement, FormEvent } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type RuntimeConfig, loadRuntimeConfig, openTurn, closeTurn, getTurnSummary } from './posApi'
+import { type RuntimeConfig, loadRuntimeConfig, openTurn, closeTurn, getTurnSummary, getCurrentTurn } from './posApi'
 import { type ShiftRecord, readCurrentShift, saveCurrentShift, readShiftHistory, saveShiftHistory } from './shiftTypes'
 
 type Phase =
@@ -51,15 +51,43 @@ export default function ShiftStartupModal({
     return () => window.removeEventListener('keydown', block, true)
   }, [])
 
-  // Check shift on mount
+  // Check shift on mount — sync with backend if localStorage is empty
   useEffect(() => {
-    const shift = readCurrentShift()
-    if (shift) {
-      setExistingShift(shift)
+    const localShift = readCurrentShift()
+    if (localShift) {
+      setExistingShift(localShift)
       setPhase('existing_shift')
-    } else {
-      setPhase('no_shift')
+      return
     }
+    // localStorage empty — ask backend for active turn (disaster recovery)
+    const cfg = loadRuntimeConfig()
+    getCurrentTurn(cfg)
+      .then((result) => {
+        const turn = (result?.data ?? result) as Record<string, unknown> | null
+        if (turn && turn.id && turn.status === 'open') {
+          // Hydrate local state from backend turn
+          const recovered: ShiftRecord = {
+            id: `shift-recovered-${turn.id}`,
+            backendTurnId: Number(turn.id),
+            terminalId: Number(turn.terminal_id ?? turn.branch_id ?? cfg.terminalId),
+            openedAt: String(turn.start_timestamp ?? new Date().toISOString()),
+            openedBy: operator,
+            openingCash: Number(turn.initial_cash ?? 0),
+            status: 'open',
+            salesCount: 0,
+            totalSales: 0,
+          }
+          saveCurrentShift(recovered)
+          setExistingShift(recovered)
+          setPhase('existing_shift')
+        } else {
+          setPhase('no_shift')
+        }
+      })
+      .catch(() => {
+        // Network error — fall back to no_shift (user can retry)
+        setPhase('no_shift')
+      })
   }, [])
 
   // Auto-focus input when phase changes
