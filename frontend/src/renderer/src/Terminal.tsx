@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm, usePrompt } from './components/ConfirmDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Banknote,
@@ -170,6 +171,8 @@ async function syncSale(
 }
 
 export default function Terminal(): ReactElement {
+  const confirm = useConfirm()
+  const prompt = usePrompt()
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const lastKeystrokeRef = useRef<number>(Date.now())
   const lastEnterRef = useRef<number>(0)
@@ -218,26 +221,40 @@ export default function Terminal(): ReactElement {
     saveRuntimeConfig(config)
   }, [config])
 
-  // Auto-load products on mount
+  // Auto-load products on mount + refresh on window focus (fixes stale cache)
   useEffect(() => {
     if (!config.token.trim()) return
     let cancelled = false
-    setBusy(true)
-    fetchProducts(config)
-      .then((data) => {
-        if (cancelled) return
-        setProducts(data)
-        setMessage(data.length ? `${data.length} productos cargados` : 'Sin productos')
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setMessage((err as Error).message)
-      })
-      .finally(() => {
-        if (!cancelled) setBusy(false)
-      })
+    let lastFetch = 0
+
+    function loadProducts(silent?: boolean): void {
+      const now = Date.now()
+      if (now - lastFetch < 5000) return // throttle: 5s min between fetches
+      lastFetch = now
+      if (!silent) setBusy(true)
+      fetchProducts(config)
+        .then((data) => {
+          if (cancelled) return
+          setProducts(data)
+          if (!silent) setMessage(data.length ? `${data.length} productos cargados` : 'Sin productos')
+        })
+        .catch((err) => {
+          if (cancelled) return
+          if (!silent) setMessage((err as Error).message)
+        })
+        .finally(() => {
+          if (!cancelled && !silent) setBusy(false)
+        })
+    }
+
+    loadProducts()
+
+    // Re-fetch when window regains focus (user returns from Products tab, etc.)
+    const onFocus = (): void => { loadProducts(true) }
+    window.addEventListener('focus', onFocus)
     return (): void => {
       cancelled = true
+      window.removeEventListener('focus', onFocus)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -471,7 +488,7 @@ export default function Terminal(): ReactElement {
     ticketSnapshots
   ])
 
-  function closeActiveTicket(ticketId: string): void {
+  async function closeActiveTicket(ticketId: string): Promise<void> {
     if (activeTickets.length <= 1) {
       setMessage('Debe existir al menos un ticket activo.')
       return
@@ -480,7 +497,7 @@ export default function Terminal(): ReactElement {
     const ticketCart = ticketId === activeTicketId ? cart : (snapshot?.cart ?? [])
     if (ticketCart.length > 0) {
       if (
-        !window.confirm(`Este ticket tiene ${ticketCart.length} producto(s). ¿Descartar y cerrar?`)
+        !await confirm(`Este ticket tiene ${ticketCart.length} producto(s). ¿Descartar y cerrar?`, { variant: 'warning', title: 'Cerrar ticket' })
       )
         return
     }
@@ -575,8 +592,8 @@ export default function Terminal(): ReactElement {
     [qty, wholesaleMode]
   )
 
-  const addCommonProduct = useCallback((): void => {
-    const nameRaw = window.prompt('Nombre del producto comun:')
+  const addCommonProduct = useCallback(async (): Promise<void> => {
+    const nameRaw = await prompt('Nombre del producto comun:', { title: 'Producto comun', placeholder: 'Ej: Servicio de reparacion' })
     if (!nameRaw) return
     const name = nameRaw.trim()
     if (!name) {
@@ -584,7 +601,7 @@ export default function Terminal(): ReactElement {
       return
     }
 
-    const priceRaw = window.prompt('Precio unitario del producto comun:', '0')
+    const priceRaw = await prompt('Precio unitario del producto comun:', { title: 'Precio', defaultValue: '0', inputType: 'number', placeholder: '$0.00' })
     if (priceRaw == null) return
     const price = Number(priceRaw)
     if (!Number.isFinite(price) || price <= 0) {
@@ -592,14 +609,14 @@ export default function Terminal(): ReactElement {
       return
     }
 
-    const qtyRaw = window.prompt('Cantidad del producto comun:', String(Math.max(1, qty)))
+    const qtyRaw = await prompt('Cantidad del producto comun:', { title: 'Cantidad', defaultValue: String(Math.max(1, qty)), inputType: 'number', placeholder: '1' })
     if (qtyRaw == null) return
     const commonQty = Math.max(1, Math.floor(Number(qtyRaw)))
     if (!Number.isFinite(commonQty) || commonQty <= 0) {
       setMessage('Cantidad invalida para producto comun.')
       return
     }
-    const commonNote = window.prompt('Nota opcional del producto comun:', '') ?? ''
+    const commonNote = await prompt('Nota opcional del producto comun:', { title: 'Nota (opcional)', defaultValue: '', placeholder: 'Descripcion adicional...' }) ?? ''
 
     const sku = `COMUN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     const item: CartItem = {
@@ -616,7 +633,7 @@ export default function Terminal(): ReactElement {
     setCart((prev) => [...prev, item])
     setSelectedCartSku(sku)
     setMessage(`Producto comun agregado: ${name}`)
-  }, [qty])
+  }, [qty, prompt])
 
   const removeItem = useCallback((sku: string): void => {
     setCart((prev) => prev.filter((item) => item.sku !== sku))
@@ -664,15 +681,15 @@ export default function Terminal(): ReactElement {
     })
   }, [selectedCartSku])
 
-  const deleteSelectedItem = useCallback((): void => {
+  const deleteSelectedItem = useCallback(async (): Promise<void> => {
     if (!selectedCartSku) {
       setMessage('Selecciona un producto del carrito.')
       return
     }
     const item = cart.find((i) => i.sku === selectedCartSku)
-    if (item && !window.confirm(`¿Quitar "${item.name}" del ticket?`)) return
+    if (item && !await confirm(`¿Quitar "${item.name}" del ticket?`, { variant: 'warning', title: 'Quitar producto' })) return
     removeItem(selectedCartSku)
-  }, [cart, removeItem, selectedCartSku])
+  }, [cart, removeItem, selectedCartSku, confirm])
 
   const handleCharge = useCallback(async (): Promise<void> => {
     if (chargingRef.current) return
@@ -855,7 +872,7 @@ export default function Terminal(): ReactElement {
   const firstMatch = filtered[0]
 
   useEffect((): (() => void) => {
-    const onKeyDown = (event: KeyboardEvent): void => {
+    const onKeyDown = async (event: KeyboardEvent): Promise<void> => {
       const key = event.key.toLowerCase()
       const tag = (document.activeElement?.tagName ?? '').toUpperCase()
       const isInputFocused = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
@@ -924,9 +941,9 @@ export default function Terminal(): ReactElement {
           setMessage('El producto seleccionado ya no esta en el carrito.')
           return
         }
-        const raw = window.prompt(
+        const raw = await prompt(
           'Descuento de producto seleccionado (%):',
-          String(current.discountPct ?? 0)
+          { title: 'Descuento individual', defaultValue: String(current.discountPct ?? 0), inputType: 'number', placeholder: '0' }
         )
         if (raw == null) return
         const parsed = Number(raw)
@@ -941,7 +958,7 @@ export default function Terminal(): ReactElement {
 
       if (key === 'g') {
         event.preventDefault()
-        const raw = window.prompt('Descuento global de la nota (%):', String(globalDiscountPct))
+        const raw = await prompt('Descuento global de la nota (%):', { title: 'Descuento global', defaultValue: String(globalDiscountPct), inputType: 'number', placeholder: '0' })
         if (raw == null) return
         const parsed = Number(raw)
         if (!Number.isFinite(parsed)) {
@@ -970,6 +987,7 @@ export default function Terminal(): ReactElement {
     globalDiscountPct,
     handleCharge,
     increaseSelectedQty,
+    prompt,
     selectedCartSku,
     updateItemDiscount
   ])
@@ -992,7 +1010,9 @@ export default function Terminal(): ReactElement {
             onChange={(e) => {
               const now = Date.now()
               lastKeystrokeRef.current = now
-              setQuery(e.target.value)
+              // Strip control characters from scanner input (\t, \x00, \n, etc.)
+              const clean = e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+              setQuery(clean)
               setShowResults(true)
             }}
             onFocus={() => setShowResults(true)}
@@ -1238,9 +1258,9 @@ export default function Terminal(): ReactElement {
                     {/* Remove */}
                     <button
                       className="text-zinc-600 hover:text-rose-400 transition-colors shrink-0 p-1"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation()
-                        if (window.confirm(`¿Quitar "${item.name}" del ticket?`))
+                        if (await confirm(`¿Quitar "${item.name}" del ticket?`, { variant: 'warning', title: 'Quitar producto' }))
                           removeItem(item.sku)
                       }}
                       title="Quitar"

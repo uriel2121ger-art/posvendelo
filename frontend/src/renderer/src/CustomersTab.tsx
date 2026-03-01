@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import { loadRuntimeConfig, pullTable, syncTable, getCustomerCredit, getCustomerSales } from './posApi'
 
 type Customer = {
@@ -25,6 +26,7 @@ function normalizeCustomer(raw: Record<string, unknown>): Customer | null {
 }
 
 export default function CustomersTab(): ReactElement {
+  const confirm = useConfirm()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -153,7 +155,7 @@ export default function CustomersTab(): ReactElement {
       setMessage('Cliente no encontrado. Recarga la lista.')
       return
     }
-    if (!window.confirm(`¿Eliminar cliente "${target.name}"?`)) return
+    if (!await confirm(`¿Eliminar cliente "${target.name}"?`, { variant: 'danger', title: 'Eliminar cliente' })) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
@@ -305,7 +307,7 @@ export default function CustomersTab(): ReactElement {
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Buscar cliente"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
         />
       </div>
 

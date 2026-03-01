@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Check, X, AlertTriangle } from 'lucide-react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import { loadRuntimeConfig, getMermasPending, approveMerma } from './posApi'
 
 interface MermaRecord {
@@ -20,6 +21,7 @@ interface MermaRecord {
 }
 
 export default function MermasTab(): ReactElement {
+  const confirm = useConfirm()
   const [mermas, setMermas] = useState<MermaRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -69,8 +71,9 @@ export default function MermasTab(): ReactElement {
       return
     }
     if (
-      !window.confirm(
-        `¿${approved ? 'Aprobar' : 'Rechazar'} merma de "${target.product}" (${target.quantity} uds)?`
+      !await confirm(
+        `¿${approved ? 'Aprobar' : 'Rechazar'} merma de "${target.product}" (${target.quantity} uds)?`,
+        { variant: approved ? 'warning' : 'danger', title: approved ? 'Aprobar merma' : 'Rechazar merma' }
       )
     )
       return

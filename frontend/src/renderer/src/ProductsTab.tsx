@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, scanProduct, getLowStockProducts } from './posApi'
 
 type Product = {
@@ -34,6 +35,7 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
 }
 
 export default function ProductsTab(): ReactElement {
+  const confirm = useConfirm()
   const [products, setProducts] = useState<Product[]>([])
   const [query, setQuery] = useState('')
   const [selectedSku, setSelectedSku] = useState<string | null>(null)
@@ -179,7 +181,7 @@ export default function ProductsTab(): ReactElement {
       setMessage('Producto no encontrado. Recarga la lista.')
       return
     }
-    if (!window.confirm(`¿Eliminar producto "${target.name}" (${target.sku})?`)) return
+    if (!await confirm(`¿Eliminar producto "${target.name}" (${target.sku})?`, { variant: 'danger', title: 'Eliminar producto' })) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
@@ -403,7 +405,7 @@ export default function ProductsTab(): ReactElement {
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Buscar producto (escanea o escribe)"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()

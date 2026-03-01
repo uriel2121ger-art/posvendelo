@@ -19,6 +19,7 @@ import RemoteTab from './RemoteTab'
 import HardwareTab from './HardwareTab'
 import Terminal from './Terminal'
 import ShiftStartupModal from './ShiftStartupModal'
+import { ConfirmProvider } from './components/ConfirmDialog'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -309,7 +310,7 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
           ref={inputRef}
           className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
           placeholder={loaded ? 'SKU o nombre del producto...' : 'Cargando productos...'}
         />
         {results.length > 0 && (
@@ -598,9 +599,11 @@ function RoutedApp(): ReactElement {
 function App(): ReactElement {
   return (
     <ErrorBoundary>
-      <HashRouter>
-        <RoutedApp />
-      </HashRouter>
+      <ConfirmProvider>
+        <HashRouter>
+          <RoutedApp />
+        </HashRouter>
+      </ConfirmProvider>
     </ErrorBoundary>
   )
 }

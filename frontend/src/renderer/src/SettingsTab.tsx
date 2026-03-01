@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import { getSyncStatus, getSystemInfo, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 
 type RuntimeState = {
@@ -26,6 +27,7 @@ function parseTerminalId(value: string): number {
 }
 
 export default function SettingsTab(): ReactElement {
+  const confirm = useConfirm()
   const [form, setForm] = useState<RuntimeState>(() => {
     const cfg = loadRuntimeConfig()
     return { baseUrl: cfg.baseUrl, token: cfg.token, terminalId: cfg.terminalId }
@@ -107,13 +109,13 @@ export default function SettingsTab(): ReactElement {
     setMessage(`Perfil cargado: ${found.name}`)
   }
 
-  function deleteProfile(): void {
+  async function deleteProfile(): Promise<void> {
     if (!selectedProfileId) {
       setMessage('Selecciona un perfil para eliminar.')
       return
     }
     const target = profiles.find((p) => p.id === selectedProfileId)
-    if (!window.confirm(`¿Eliminar perfil "${target?.name ?? selectedProfileId}"?`)) return
+    if (!await confirm(`¿Eliminar perfil "${target?.name ?? selectedProfileId}"?`, { variant: 'danger', title: 'Eliminar perfil' })) return
     const next = profiles.filter((p) => p.id !== selectedProfileId)
     persistProfiles(next)
     setSelectedProfileId('')

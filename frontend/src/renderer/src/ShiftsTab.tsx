@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import { loadRuntimeConfig, searchSales, openTurn, closeTurn, getTurnSummary, createCashMovement, getUserRole } from './posApi'
 import { type ShiftRecord, CURRENT_SHIFT_KEY, SHIFT_HISTORY_KEY, readCurrentShift, saveCurrentShift, readShiftHistory, saveShiftHistory } from './shiftTypes'
 
@@ -52,6 +53,7 @@ function toMoney(value: number): string {
 }
 
 export default function ShiftsTab(): ReactElement {
+  const confirm = useConfirm()
   const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(() => readCurrentShift())
   const [history, setHistory] = useState<ShiftRecord[]>(() => readShiftHistory())
   const [operator, setOperator] = useState('Cajero 1')
@@ -122,7 +124,7 @@ export default function ShiftsTab(): ReactElement {
       return
     }
     const initialCash = Math.max(0, toNumber(openingCash))
-    if (initialCash === 0 && !window.confirm('El efectivo inicial es $0.00. ¿Abrir turno asi?'))
+    if (initialCash === 0 && !await confirm('El efectivo inicial es $0.00. ¿Abrir turno asi?', { variant: 'warning', title: 'Abrir turno' }))
       return
     setBusy(true)
     try {
@@ -174,9 +176,10 @@ export default function ShiftsTab(): ReactElement {
     }
     const closing = Math.max(0, toNumber(closingCash))
     if (
-      !window.confirm(
+      !await confirm(
         (closing === 0 ? 'El efectivo de cierre es $0.00. ' : '') +
-          '¿Cerrar turno? Esta accion no se puede deshacer.'
+          '¿Cerrar turno? Esta accion no se puede deshacer.',
+        { variant: 'danger', title: 'Cerrar turno' }
       )
     )
       return
@@ -376,7 +379,7 @@ export default function ShiftsTab(): ReactElement {
       setMessage('La razon del movimiento es obligatoria.')
       return
     }
-    if (!window.confirm(`¿Registrar ${cashMovType} de $${amount.toFixed(2)}?`)) return
+    if (!await confirm(`¿Registrar ${cashMovType} de $${amount.toFixed(2)}?`, { variant: 'warning', title: 'Movimiento de efectivo' })) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()

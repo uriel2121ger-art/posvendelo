@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import { loadRuntimeConfig, pullTable, adjustStock, getStockAlerts, getInventoryMovements } from './posApi'
 
 type InventoryRow = {
@@ -29,6 +30,7 @@ function normalizeProduct(raw: Record<string, unknown>): InventoryRow | null {
 }
 
 export default function InventoryTab(): ReactElement {
+  const confirm = useConfirm()
   const [rows, setRows] = useState<InventoryRow[]>([])
   const [query, setQuery] = useState('')
   const [sku, setSku] = useState('')
@@ -120,8 +122,9 @@ export default function InventoryTab(): ReactElement {
     const signed = movementType === 'in' ? qty : -qty
     const typeLabel = movementType === 'in' ? 'entrada' : movementType === 'shrinkage' ? 'merma' : 'salida'
     if (
-      !window.confirm(
-        `¿Aplicar ${typeLabel} de ${qty} unidades a ${targetSku}?`
+      !await confirm(
+        `¿Aplicar ${typeLabel} de ${qty} unidades a ${targetSku}?`,
+        { variant: 'warning', title: 'Confirmar movimiento' }
       )
     )
       return
@@ -329,7 +332,7 @@ export default function InventoryTab(): ReactElement {
           className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
           placeholder="Buscar por SKU o nombre"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()

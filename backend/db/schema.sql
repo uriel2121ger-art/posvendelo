@@ -1792,8 +1792,42 @@ CREATE TABLE IF NOT EXISTS app_config (
     key TEXT UNIQUE NOT NULL,
     value TEXT,
     category TEXT,
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    -- Hardware: Printer
+    receipt_printer_name TEXT DEFAULT '',
+    receipt_printer_enabled BOOLEAN DEFAULT FALSE,
+    receipt_paper_width INTEGER DEFAULT 80,
+    receipt_char_width INTEGER DEFAULT 48,
+    receipt_auto_print BOOLEAN DEFAULT FALSE,
+    receipt_mode TEXT DEFAULT 'basic',
+    receipt_cut_type TEXT DEFAULT 'partial',
+    -- Hardware: Business info
+    business_name TEXT DEFAULT '',
+    business_legal_name TEXT DEFAULT '',
+    business_address TEXT DEFAULT '',
+    business_rfc TEXT DEFAULT '',
+    business_regimen TEXT DEFAULT '',
+    business_phone TEXT DEFAULT '',
+    business_footer TEXT DEFAULT 'Gracias por su compra',
+    -- Hardware: Scanner
+    scanner_enabled BOOLEAN DEFAULT FALSE,
+    scanner_prefix TEXT DEFAULT '',
+    scanner_suffix TEXT DEFAULT '',
+    scanner_min_speed_ms INTEGER DEFAULT 50,
+    scanner_auto_submit BOOLEAN DEFAULT TRUE,
+    -- Hardware: Cash drawer
+    cash_drawer_enabled BOOLEAN DEFAULT FALSE,
+    printer_name TEXT DEFAULT '',
+    cash_drawer_pulse_bytes TEXT DEFAULT '1B700019FA',
+    cash_drawer_auto_open_cash BOOLEAN DEFAULT TRUE,
+    cash_drawer_auto_open_card BOOLEAN DEFAULT FALSE,
+    cash_drawer_auto_open_transfer BOOLEAN DEFAULT FALSE
 );
+
+-- Seed default hardware config row
+INSERT INTO app_config (key, value, category, updated_at)
+VALUES ('hardware', 'default', 'system', NOW())
+ON CONFLICT (key) DO NOTHING;
 
 -- =============================================================================
 -- 69. CACHE DE SESIÓN

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useConfirm } from './ConfirmDialog'
 import {
   ShoppingCart,
   Users,
@@ -21,6 +22,7 @@ import {
 
 export default function TopNavbar(): ReactElement {
   const location = useLocation()
+  const confirm = useConfirm()
 
   const navItems = [
     { path: '/terminal', label: 'Ventas', icon: ShoppingCart },
@@ -74,7 +76,7 @@ export default function TopNavbar(): ReactElement {
           </div>
         </div>
         <button
-          onClick={() => {
+          onClick={async () => {
             const hasPending = (() => {
               try {
                 const raw = localStorage.getItem('titan.pendingTickets')
@@ -113,7 +115,7 @@ export default function TopNavbar(): ReactElement {
             const msg = warnings.length
               ? `${warnings.join(' ')} ¿Cerrar sesion de todas formas?`
               : '¿Cerrar sesion?'
-            if (!window.confirm(msg)) return
+            if (!await confirm(msg, { variant: 'warning', title: 'Cerrar sesion' })) return
             try {
               ;[
                 'titan.token',

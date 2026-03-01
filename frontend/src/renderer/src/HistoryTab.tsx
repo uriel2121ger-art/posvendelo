@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import {
   getSaleDetail,
   loadRuntimeConfig,
@@ -60,6 +61,7 @@ function getIsoDateDaysAgo(days: number): string {
 }
 
 export default function HistoryTab(): ReactElement {
+  const confirm = useConfirm()
   const [rows, setRows] = useState<SaleRow[]>([])
   const [folio, setFolio] = useState('')
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'card' | 'transfer'>('all')
@@ -140,8 +142,8 @@ export default function HistoryTab(): ReactElement {
 
   async function handleCancelSale(): Promise<void> {
     if (!selectedId || !canManage) return
-    if (!window.confirm('¿Cancelar esta venta? Esta accion no se puede deshacer.')) return
-    if (!window.confirm('SEGUNDA CONFIRMACION: ¿Estas seguro de cancelar?')) return
+    if (!await confirm('¿Cancelar esta venta? Esta accion no se puede deshacer.', { variant: 'danger', title: 'Cancelar venta' })) return
+    if (!await confirm('SEGUNDA CONFIRMACION: ¿Estas seguro de cancelar?', { variant: 'danger', title: 'Confirmar cancelacion' })) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()

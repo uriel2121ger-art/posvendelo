@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getUserRole,
@@ -65,6 +66,7 @@ const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5'
 const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1'
 
 export default function FiscalTab(): ReactElement {
+  const confirm = useConfirm()
   const [tab, setTab] = useState<SubTab>('facturacion')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Panel fiscal: facturacion, auditoria y operaciones avanzadas.')
@@ -518,8 +520,8 @@ export default function FiscalTab(): ReactElement {
           <button
             className={`${btnPrimary} mt-2`}
             disabled={busy || !cryptoAmount.trim()}
-            onClick={() => {
-              if (!window.confirm('¿Confirmar conversion crypto? Esta operacion es irreversible.')) return
+            onClick={async () => {
+              if (!await confirm('¿Confirmar conversion crypto? Esta operacion es irreversible.', { variant: 'danger', title: 'Conversion crypto' })) return
               void wrap(() => convertCrypto(cfg(), {
                 amount_mxn: toNumber(cryptoAmount),
                 stablecoin: cryptoCoin,
@@ -564,8 +566,8 @@ export default function FiscalTab(): ReactElement {
             <button
               className={btnDanger}
               disabled={busy || !canAdmin}
-              onClick={() => {
-                if (!window.confirm('¿Reconfigurar PINs de seguridad?')) return
+              onClick={async () => {
+                if (!await confirm('¿Reconfigurar PINs de seguridad?', { variant: 'danger', title: 'Reconfigurar PINs' })) return
                 void wrap(() => configureStealthPins(cfg(), {
                   normal_pin: confNormal.trim(),
                   duress_pin: confDuress.trim(),
@@ -587,9 +589,9 @@ export default function FiscalTab(): ReactElement {
             <button
               className={btnDanger}
               disabled={busy || !sdSaleIds.trim() || !sdConfirm.trim() || !canAdmin}
-              onClick={() => {
-                if (!window.confirm('ADVERTENCIA: Esta accion elimina ventas permanentemente. ¿Continuar?')) return
-                if (!window.confirm('SEGUNDA CONFIRMACION: ¿Estas absolutamente seguro?')) return
+              onClick={async () => {
+                if (!await confirm('ADVERTENCIA: Esta accion elimina ventas permanentemente. ¿Continuar?', { variant: 'danger', title: 'Eliminacion quirurgica' })) return
+                if (!await confirm('SEGUNDA CONFIRMACION: ¿Estas absolutamente seguro?', { variant: 'danger', title: 'Confirmar eliminacion' })) return
                 const ids = sdSaleIds.split(',').map((s) => s.trim()).filter(Boolean)
                 void wrap(() => surgicalDelete(cfg(), { sale_ids: ids, confirm_phrase: sdConfirm.trim() }))
               }}
@@ -606,9 +608,9 @@ export default function FiscalTab(): ReactElement {
             <button
               className={btnDanger}
               disabled={busy || !canAdmin}
-              onClick={() => {
-                if (!window.confirm('PANIC: ¿Activar modo de emergencia?')) return
-                if (!window.confirm('CONFIRMAR PANIC: Esta accion es irreversible.')) return
+              onClick={async () => {
+                if (!await confirm('PANIC: ¿Activar modo de emergencia?', { variant: 'danger', title: 'PANIC' })) return
+                if (!await confirm('CONFIRMAR PANIC: Esta accion es irreversible.', { variant: 'danger', title: 'Confirmar PANIC' })) return
                 void wrap(() => triggerPanic(cfg(), { immediate: true }))
               }}
             >
@@ -622,8 +624,8 @@ export default function FiscalTab(): ReactElement {
             <button
               className={btnDanger}
               disabled={busy || !canAdmin}
-              onClick={() => {
-                if (!window.confirm('¿Activar pantalla falsa?')) return
+              onClick={async () => {
+                if (!await confirm('¿Activar pantalla falsa?', { variant: 'danger', title: 'Pantalla falsa' })) return
                 void wrap(() => triggerFakeScreen(cfg(), { screen_type: fakeType }))
               }}
             >

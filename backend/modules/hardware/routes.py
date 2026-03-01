@@ -43,8 +43,23 @@ _HW_COLUMNS = [
 _ADMIN_ROLES = ("admin", "manager", "owner")
 
 
+async def _ensure_hw_row(db) -> int:
+    """Ensure app_config has at least one row. Return its id."""
+    row = await db.fetchrow("SELECT id FROM app_config LIMIT 1")
+    if row:
+        return row["id"]
+    new = await db.fetchrow(
+        "INSERT INTO app_config (key, value, category, updated_at) "
+        "VALUES ('hardware', 'default', 'system', NOW()) "
+        "ON CONFLICT (key) DO UPDATE SET updated_at = NOW() "
+        "RETURNING id"
+    )
+    return new["id"]
+
+
 async def _get_hw_config(db) -> dict:
     """Read hardware-related columns from app_config (single-row pattern)."""
+    await _ensure_hw_row(db)
     row = await db.fetchrow("SELECT * FROM app_config LIMIT 1")
     if not row:
         return {}
@@ -123,11 +138,10 @@ async def update_printer_config(
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
+    row_id = await _ensure_hw_row(db)
     sets = ", ".join(f"{k} = :{k}" for k in updates)
-    await db.execute(
-        f"UPDATE app_config SET {sets} WHERE id = (SELECT id FROM app_config LIMIT 1)",
-        updates,
-    )
+    updates["_row_id"] = row_id
+    await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
     return {"success": True, "data": {"message": "Configuracion de impresora actualizada"}}
 
 
@@ -147,11 +161,10 @@ async def update_business_info(
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
+    row_id = await _ensure_hw_row(db)
     sets = ", ".join(f"{k} = :{k}" for k in updates)
-    await db.execute(
-        f"UPDATE app_config SET {sets} WHERE id = (SELECT id FROM app_config LIMIT 1)",
-        updates,
-    )
+    updates["_row_id"] = row_id
+    await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
     return {"success": True, "data": {"message": "Datos del negocio actualizados"}}
 
 
@@ -171,11 +184,10 @@ async def update_scanner_config(
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
+    row_id = await _ensure_hw_row(db)
     sets = ", ".join(f"{k} = :{k}" for k in updates)
-    await db.execute(
-        f"UPDATE app_config SET {sets} WHERE id = (SELECT id FROM app_config LIMIT 1)",
-        updates,
-    )
+    updates["_row_id"] = row_id
+    await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
     return {"success": True, "data": {"message": "Configuracion de scanner actualizada"}}
 
 
@@ -195,11 +207,10 @@ async def update_drawer_config(
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
+    row_id = await _ensure_hw_row(db)
     sets = ", ".join(f"{k} = :{k}" for k in updates)
-    await db.execute(
-        f"UPDATE app_config SET {sets} WHERE id = (SELECT id FROM app_config LIMIT 1)",
-        updates,
-    )
+    updates["_row_id"] = row_id
+    await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
     return {"success": True, "data": {"message": "Configuracion de cajon actualizada"}}
 
 

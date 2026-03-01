@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
+import { useConfirm } from './components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getLiveSales,
@@ -17,6 +18,7 @@ function toNumber(value: unknown): number {
 }
 
 export default function RemoteTab(): ReactElement {
+  const confirm = useConfirm()
   const [turnStatus, setTurnStatus] = useState<Record<string, unknown> | null>(null)
   const [liveSales, setLiveSales] = useState<Record<string, unknown>[]>([])
   const [notifications, setNotifications] = useState<Record<string, unknown>[]>([])
@@ -83,7 +85,7 @@ export default function RemoteTab(): ReactElement {
 
   async function handleOpenDrawer(): Promise<void> {
     if (!canAdmin) { setMessage('Sin permisos para esta acción.'); return }
-    if (!window.confirm('¿Abrir cajon de dinero remotamente?')) return
+    if (!await confirm('¿Abrir cajon de dinero remotamente?', { variant: 'warning', title: 'Abrir cajon remoto' })) return
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
