@@ -115,8 +115,8 @@ try:
             _o = f"http://{_lan_ip}:{_p}"
             if _o not in origins:
                 origins.append(_o)
-except Exception:
-    pass
+except Exception as e:
+    logger.warning("LAN IP discovery failed (non-fatal): %s", e)
 
 logger.info("CORS allowed origins: %s", origins)
 
@@ -219,7 +219,7 @@ async def health_check():
         pool = await get_pool()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        return {"status": "healthy", "service": "titan-pos"}
+        return {"success": True, "data": {"status": "healthy", "service": "titan-pos"}}
     except Exception:
         logger.exception("Health check: DB unreachable")
         raise HTTPException(status_code=503, detail="Database unreachable")

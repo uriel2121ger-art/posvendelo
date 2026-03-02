@@ -62,7 +62,9 @@ async def low_stock_products(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Get products below minimum stock level."""
+    """Get products below minimum stock level. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver alertas de stock bajo")
     rows = await db.fetch(
         """
         SELECT id, sku, name, stock, min_stock, category

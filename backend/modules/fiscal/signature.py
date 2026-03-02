@@ -172,38 +172,50 @@ class CFDISignature:
         """
         Generate 'cadena original' from XML using XSLT transformation.
 
-        For now, using simplified version. In production, should use
-        official SAT XSLT: cadenaoriginal_4_0.xslt
+        Uses the official SAT XSLT stylesheet if available locally,
+        otherwise falls back to a simplified attribute concatenation.
+        The XSLT file must be downloaded from SAT and placed at:
+            backend/resources/cadenaoriginal_4_0.xslt
+
+        Ref: http://www.sat.gob.mx/sitio_internet/cfd/4/cadenaoriginal_4_0.xslt
         """
-        # TODO: This is a simplified implementation. For production use,
-        # implement proper XSLT transformation using the official SAT stylesheet:
-        # http://www.sat.gob.mx/sitio_internet/cfd/4/cadenaoriginal_4_0.xslt
         from lxml import etree
 
-        # Simplified cadena original (concatenate key elements)
-        # In production, use proper XSLT transformation
-        
+        # Try official SAT XSLT first
+        xslt_path = Path(__file__).parent.parent.parent / 'resources' / 'cadenaoriginal_4_0.xslt'
+        if xslt_path.exists():
+            try:
+                xslt_parser = etree.XMLParser(resolve_entities=False, no_network=True)
+                xslt_tree = etree.parse(str(xslt_path), parser=xslt_parser)
+                transform = etree.XSLT(xslt_tree)
+                result = transform(xml_tree)
+                cadena = str(result).strip()
+                if cadena:
+                    logger.debug("Cadena original (XSLT): %s", cadena[:120])
+                    return cadena
+            except Exception as e:
+                logger.warning("XSLT transform failed, using fallback: %s", e)
+
+        # Fallback: simplified cadena original (concatenate key elements)
+        logger.info("Using simplified cadena original — place cadenaoriginal_4_0.xslt in backend/resources/ for production")
+
         def get_attr(elem, attr, default=''):
             return elem.get(attr, default)
-        
-        parts = []
-        
-        # Comprobante attributes
-        parts.append(f"||")
-        parts.append(f"{get_attr(xml_tree, 'Version')}|")
-        parts.append(f"{get_attr(xml_tree, 'Serie')}|")
-        parts.append(f"{get_attr(xml_tree, 'Folio')}|")
-        parts.append(f"{get_attr(xml_tree, 'Fecha')}|")
-        parts.append(f"{get_attr(xml_tree, 'FormaPago')}|")
-        parts.append(f"{get_attr(xml_tree, 'SubTotal')}|")
-        parts.append(f"{get_attr(xml_tree, 'Total')}|")
-        
-        # This is a  simplified version. Production should use:
-        # XSLT from: http://www.sat.gob.mx/sitio_internet/cfd/4/cadenaoriginal_4_0.xslt
-        
+
+        parts = [
+            "||",
+            f"{get_attr(xml_tree, 'Version')}|",
+            f"{get_attr(xml_tree, 'Serie')}|",
+            f"{get_attr(xml_tree, 'Folio')}|",
+            f"{get_attr(xml_tree, 'Fecha')}|",
+            f"{get_attr(xml_tree, 'FormaPago')}|",
+            f"{get_attr(xml_tree, 'SubTotal')}|",
+            f"{get_attr(xml_tree, 'Total')}|",
+        ]
+
         cadena = ''.join(parts)
-        logger.debug(f"Cadena original (simplified): {cadena}")
-        
+        logger.debug("Cadena original (simplified): %s", cadena)
+
         return cadena
 
 def sign_cfdi_xml(xml_string: str, fiscal_config: Optional[Dict[str, Any]]) -> str:

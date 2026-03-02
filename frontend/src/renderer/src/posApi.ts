@@ -17,7 +17,20 @@ const FALLBACKS: Record<string, string> = {
   inventory: '/api/v1/inventory/'
 }
 
-const _DISCOVER_PORTS = [8000, 8080, 8090, 3000]
+const _DEFAULT_PORTS = [8000, 8080, 8090, 3000]
+
+function getDiscoverPorts(): number[] {
+  try {
+    const custom = localStorage.getItem('titan.discoverPorts')
+    if (custom) {
+      const parsed = JSON.parse(custom) as number[]
+      if (Array.isArray(parsed) && parsed.every((p) => typeof p === 'number' && p > 0 && p < 65536)) {
+        return parsed
+      }
+    }
+  } catch { /* use defaults */ }
+  return _DEFAULT_PORTS
+}
 
 export async function autoDiscoverBackend(): Promise<string | null> {
   const saved = localStorage.getItem('titan.baseUrl')
@@ -27,7 +40,7 @@ export async function autoDiscoverBackend(): Promise<string | null> {
       if (r.status === 401 || r.ok) return saved
     } catch { /* saved URL unreachable, try discovery */ }
   }
-  for (const port of _DISCOVER_PORTS) {
+  for (const port of getDiscoverPorts()) {
     const url = `http://localhost:${port}`
     try {
       const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
@@ -125,9 +138,9 @@ function parseErrorDetail(text: string, fallback: string): string {
   return text || fallback
 }
 
-async function apiFetch(url: string, init: RequestInit): Promise<Response> {
+async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 3_000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(url, { ...init, signal: controller.signal })
     if (res.status === 401) handleExpiredSession()
@@ -142,21 +155,26 @@ async function apiFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-async function apiFetchLong(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15_000)
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal })
-    if (res.status === 401) handleExpiredSession()
-    return res
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error('Tiempo de espera agotado (15s). Operacion pesada — reintenta mas tarde.')
+async function apiFetch(url: string, init: RequestInit): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const isIdempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
+  const maxRetries = isIdempotent ? 2 : 0
+  let lastError: unknown
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await apiFetchOnce(url, init, 3_000)
+    } catch (err) {
+      lastError = err
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 200 * Math.pow(2, attempt)))
+      }
     }
-    throw err
-  } finally {
-    clearTimeout(timeout)
   }
+  throw lastError
+}
+
+async function apiFetchLong(url: string, init: RequestInit): Promise<Response> {
+  return apiFetchOnce(url, init, 15_000)
 }
 
 export function getUserRole(): string {

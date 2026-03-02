@@ -9,8 +9,9 @@ class TestHealth:
         r = await client.get("/health")
         assert r.status_code == 200
         data = r.json()
-        assert data["status"] == "healthy"
-        assert data["service"] == "titan-pos"
+        assert data["success"] is True
+        assert data["data"]["status"] == "healthy"
+        assert data["data"]["service"] == "titan-pos"
 
     async def test_terminals_requires_auth(self, client):
         r = await client.get("/api/v1/terminals")

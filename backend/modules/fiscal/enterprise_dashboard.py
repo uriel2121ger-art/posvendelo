@@ -5,7 +5,7 @@ El "Pentágono" que controla el imperio desde la PWA
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 import os
 import secrets
@@ -13,22 +13,11 @@ import secrets
 logger = logging.getLogger(__name__)
 
 def _get_federation_auth_code() -> str:
-    """Obtiene el código de autorización para operaciones federadas."""
-    code = os.environ.get('TITAN_FEDERATION_CODE')
+    """Obtiene el código de autorización para operaciones federadas (solo env vars)."""
+    code = os.environ.get('TITAN_FEDERATION_CODE', '')
     if code and len(code) >= 8:
         return code
-
-    config_path = os.path.expanduser('~/.titan/federation.key')
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r') as f:
-                code = f.read().strip()
-                if code and len(code) >= 8:
-                    return code
-        except Exception as e:
-            logger.error(f"Error reading federation key: {e}")
-
-    logger.warning("TITAN_FEDERATION_CODE not configured")
+    logger.warning("TITAN_FEDERATION_CODE not configured — set via environment variable")
     return ""
 
 class FederationDashboard:
@@ -47,59 +36,84 @@ class FederationDashboard:
     # ==========================================================================
     
     async def get_operational_dashboard(self) -> Dict[str, Any]:
-        """Dashboard operativo en tiempo real de todas las sucursales."""
+        """Dashboard operativo en tiempo real de todas las sucursales (batch queries)."""
         today = datetime.now().strftime('%Y-%m-%d')
 
         try:
             branches = await self.db.fetch("SELECT id, name, address FROM branches")
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to fetch branches: %s", e)
             branches = [{'id': 1, 'name': 'Principal', 'address': ''}]
-        
+
+        # Batch queries instead of N+1 per branch
+        try:
+            sales_by_branch = await self.db.fetch(
+                "SELECT branch_id, COUNT(*) as count, COALESCE(SUM(total), 0) as total "
+                "FROM sales WHERE SUBSTRING(timestamp FROM 1 FOR 10) = :today AND status = 'completed' "
+                "GROUP BY branch_id", today=today)
+        except Exception as e:
+            logger.warning("Failed to fetch sales by branch: %s", e)
+            sales_by_branch = []
+
+        try:
+            open_registers = await self.db.fetch(
+                "SELECT id as pos_id, branch_id, initial_cash as fondo_inicial "
+                "FROM turns WHERE status = 'open'")
+        except Exception as e:
+            logger.warning("Failed to fetch open registers: %s", e)
+            open_registers = []
+
+        try:
+            low_stock_by_branch = await self.db.fetch(
+                "SELECT branch_id, COUNT(*) as count FROM products "
+                "WHERE stock <= min_stock AND is_active = 1 GROUP BY branch_id")
+        except Exception as e:
+            logger.warning("Failed to fetch low stock: %s", e)
+            low_stock_by_branch = []
+
+        # Index results by branch_id
+        sales_map: Dict[int, Dict] = {int(s['branch_id']): s for s in sales_by_branch}
+        regs_map: Dict[int, list] = {}
+        for r in open_registers:
+            regs_map.setdefault(int(r['branch_id']), []).append(r)
+        stock_map: Dict[int, int] = {int(s['branch_id']): int(s['count']) for s in low_stock_by_branch}
+
         branch_data = []
-        total_sales = 0
-        total_cash = 0
-        
+        total_sales = Decimal('0')
+        total_cash = Decimal('0')
+
         for branch in branches:
-            b_id = branch['id']
-            try:
-                sales = await self.db.fetch("SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total FROM sales WHERE SUBSTRING(timestamp FROM 1 FOR 10) = :today AND status = 'completed' AND branch_id = :bid", today=today, bid=b_id)
-            except Exception:
-                sales = [{'count': 0, 'total': 0}]
+            b_id = int(branch['id'])
+            s = sales_map.get(b_id, {'count': 0, 'total': 0})
+            regs = regs_map.get(b_id, [])
+            ls_count = stock_map.get(b_id, 0)
 
-            try:
-                open_registers = await self.db.fetch("SELECT id as pos_id, initial_cash as fondo_inicial FROM turns WHERE status = 'open' AND branch_id = :bid", bid=b_id)
-            except Exception:
-                open_registers = []
-
-            try:
-                low_stock = await self.db.fetch("SELECT COUNT(*) as count FROM products WHERE stock <= min_stock AND is_active = 1 AND branch_id = :bid", bid=b_id)
-            except Exception:
-                low_stock = [{'count': 0}]
-            
-            branch_total = round(float(sales[0].get('total') or 0), 2) if sales and len(sales) > 0 and sales[0] else 0
+            branch_total = Decimal(str(s.get('total') or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             total_sales += branch_total
 
+            reg_list = []
+            for r in regs:
+                cash = Decimal(str(r.get('fondo_inicial') or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                total_cash += cash
+                reg_list.append({'pos_id': r['pos_id'], 'cash': float(cash)})
+
             branch_data.append({
-                'id': b_id,
-                'name': branch['name'],
-                'sales_count': sales[0].get('count', 0) if sales and len(sales) > 0 and sales[0] else 0,
-                'sales_total': branch_total,
-                'open_registers': len(open_registers),
-                'registers': [{'pos_id': r['pos_id'], 'cash': round(float(r.get('fondo_inicial') or 0), 2)} for r in open_registers],
-                'low_stock_count': low_stock[0].get('count', 0) if low_stock and len(low_stock) > 0 and low_stock[0] else 0,
-                'status': 'active' if open_registers else 'closed'
+                'id': b_id, 'name': branch['name'],
+                'sales_count': int(s.get('count', 0)),
+                'sales_total': float(branch_total),
+                'open_registers': len(regs),
+                'registers': reg_list,
+                'low_stock_count': ls_count,
+                'status': 'active' if regs else 'closed'
             })
-            
-            for reg in open_registers:
-                total_cash += round(float(reg.get('fondo_inicial') or 0), 2)
-        
+
         return {
             'timestamp': datetime.now().isoformat(),
             'branches': branch_data,
             'totals': {
                 'branches_active': len([b for b in branch_data if b['status'] == 'active']),
-                'total_sales': total_sales,
-                'total_cash_in_registers': total_cash,
+                'total_sales': float(total_sales),
+                'total_cash_in_registers': float(total_cash),
                 'low_stock_alerts': sum(b['low_stock_count'] for b in branch_data)
             }
         }
@@ -108,7 +122,8 @@ class FederationDashboard:
         try:
             rows = await self.db.fetch("SELECT sku, name, stock, min_stock FROM products WHERE stock <= min_stock AND is_active = 1 ORDER BY (stock - min_stock) ASC LIMIT 50")
             return [dict(r) for r in rows]
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to fetch inventory alerts: %s", e)
             return []
     
     async def get_transfer_opportunities(self) -> List[Dict]:
@@ -130,7 +145,8 @@ class FederationDashboard:
                 'to': {'branch_id': o['to_branch'], 'name': o['to_name'], 'stock': o['to_stock']},
                 'suggested_quantity': min(o['from_stock'] - o['min_stock'], o['min_stock'] * 2 - o['to_stock'])
             } for o in opts]
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to fetch transfer opportunities: %s", e)
             return []
     
     # ==========================================================================
@@ -141,7 +157,8 @@ class FederationDashboard:
         year = str(datetime.now().year)
         try:
             emitters = await self.db.fetch("SELECT id, rfc, razon_social, is_active FROM rfc_emitters WHERE is_active = true") # We updated to rfc_emitters in Phase 4
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to fetch emitters: %s", e)
             emitters = []
         
         rfc_data = []
@@ -165,8 +182,11 @@ class FederationDashboard:
             
             rfc_data.append({
                 'rfc': emitter['rfc'], 'razon_social': emitter['razon_social'],
-                'facturado': round(float(facturado), 2), 'limite': round(float(self.RESICO_LIMIT), 2),
-                'restante': round(float(restante), 2), 'porcentaje': round(float(porcentaje), 2), 'status': status
+                'facturado': float(facturado.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'limite': float(self.RESICO_LIMIT),
+                'restante': float(restante.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'porcentaje': float(porcentaje.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'status': status
             })
             total_facturado += facturado
             
@@ -174,8 +194,9 @@ class FederationDashboard:
         return {
             'year': int(year), 'rfcs': rfc_data,
             'totals': {
-                'total_facturado': round(float(total_facturado), 2), 'capacidad_total': round(float(self.RESICO_LIMIT * len(emitters)), 2),
-                'capacidad_usada': round(float(total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100, 2) if emitters else 0
+                'total_facturado': float(total_facturado.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'capacidad_total': float((self.RESICO_LIMIT * len(emitters)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'capacidad_usada': float(((total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)) if emitters else 0
             },
             'recommendation': self._generate_fiscal_recommendation(rfc_data)
         }
@@ -198,38 +219,41 @@ class FederationDashboard:
         year_end = f"{year + 1}-01-01"
         try:
             rb = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'B' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
-            tb = round(float(rb['total'] or 0), 2) if rb else 0
+            tb = Decimal(str(rb['total'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if rb else Decimal('0')
             ra = await self.db.fetchrow("SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ys AND timestamp < :ye AND status = 'completed'", ys=year_start, ye=year_end)
-            ta = round(float(ra['total'] or 0), 2) if ra else 0
+            ta = Decimal(str(ra['total'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if ra else Decimal('0')
             re = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye", ys=year_start, ye=year_end)
-            te = round(float(re['total'] or 0), 2) if re else 0
-        except Exception:
-            tb = ta = te = 0
+            te = Decimal(str(re['total'] or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if re else Decimal('0')
+        except Exception as e:
+            logger.warning("Failed to fetch wealth data: %s", e)
+            tb = ta = te = Decimal('0')
             re = {'count': 0}
-            
+
         ingresos = ta + tb
-        utilidad_bruta = ingresos * 0.20
-        isr_estimado = round(float((Decimal(str(ta)) * self.ISR_RESICO_RATE).quantize(Decimal('0.01'))), 2)
+        utilidad_bruta = (ingresos * Decimal('0.20')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        isr_estimado = (ta * self.ISR_RESICO_RATE).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         utilidad_neta = utilidad_bruta - isr_estimado
         disponible = utilidad_neta - te
-        
+
         return {
             'timestamp': datetime.now().isoformat(),
-            'ingresos': {'serie_a': ta, 'serie_b': tb, 'total': ingresos},
-            'utilidad': {'bruta': utilidad_bruta, 'isr_estimado': isr_estimado, 'neta': utilidad_neta},
-            'extracciones': {'total_extraido': te, 'operaciones': re['count'] if re else 0, 'disponible': disponible},
+            'ingresos': {'serie_a': float(ta), 'serie_b': float(tb), 'total': float(ingresos)},
+            'utilidad': {'bruta': float(utilidad_bruta), 'isr_estimado': float(isr_estimado), 'neta': float(utilidad_neta)},
+            'extracciones': {'total_extraido': float(te), 'operaciones': re['count'] if re else 0, 'disponible': float(disponible)},
             'extraction_calculator': await self._calc_safe(disponible, te)
         }
         
-    async def _calc_safe(self, disp: float, extraido: float) -> Dict:
-        limit = 50000
+    async def _calc_safe(self, disp: Decimal, extraido: Decimal) -> Dict:
+        limit = Decimal('50000')
         try:
             personas = await self.db.fetch("SELECT name, parentesco as relationship FROM related_persons WHERE is_active = 1")
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to fetch related persons: %s", e)
             personas = []
-            
-        pcnt = len(personas) or 1
-        return {'recommended_today': min(disp, (limit * pcnt)/4) if disp > 0 else 0, 'contracts_needed': len(personas)}
+
+        pcnt = Decimal(str(len(personas) or 1))
+        recommended = min(disp, (limit * pcnt) / 4) if disp > 0 else Decimal('0')
+        return {'recommended_today': float(recommended.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)), 'contracts_needed': len(personas)}
     
     # ==========================================================================
     # LOCKDOWN REMOTO

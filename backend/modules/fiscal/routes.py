@@ -347,7 +347,7 @@ async def run_general_guerra(
         auditor = GeneralDeGuerra(db)
         
         result = await auditor.run_full_audit()
-        return {"success": True, "report": result}
+        return {"success": True, "data": result}
 
     except HTTPException:
         raise
@@ -441,7 +441,7 @@ async def get_ghost_wallet_stats(
         wallet = GhostWallet(db)
         
         stats = await wallet.get_wallet_stats()
-        return {"success": True, "stats": stats}
+        return {"success": True, "data": stats}
 
     except Exception as e:
         logger.error(f"Error fetching Ghost Wallet stats: {e}", exc_info=True)
@@ -622,7 +622,7 @@ async def analyze_supplier_purchase(
             price_a=request.price_a, price_b=request.price_b,
             supplier_a=request.supplier_a, supplier_b=request.supplier_b
         )
-        return {"success": True, "analysis": result}
+        return {"success": True, "data": result}
     except Exception as e:
         logger.error(f"Error supplier analysis: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error análisis proveedor")
@@ -856,7 +856,7 @@ async def get_pending_ghost_transfers(
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
-        return {"success": True, "transfers": await gc.get_pending_transfers(branch)}
+        return {"success": True, "data": await gc.get_pending_transfers(branch)}
     except Exception as e:
         logger.error(f"Error pending: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error")
@@ -873,7 +873,7 @@ async def get_warehouse_slip(
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
         slip = await gc.generate_warehouse_slip(transfer_code)
-        if slip: return {"success": True, "slip": slip}
+        if slip: return {"success": True, "data": slip}
         raise HTTPException(status_code=404, detail="Traslado no encontrado")
     except HTTPException: raise
     except Exception as e:
@@ -949,7 +949,7 @@ async def get_audit_view(
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
-        return {"success": True, "products": await si.get_audit_view()}
+        return {"success": True, "data": await si.get_audit_view()}
     except Exception as e:
         logger.error(f"Error audit view: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error")
@@ -964,7 +964,7 @@ async def get_real_view(
     try:
         from modules.fiscal.dual_inventory import ShadowInventory
         si = ShadowInventory(db)
-        return {"success": True, "products": await si.get_real_view()}
+        return {"success": True, "data": await si.get_real_view()}
     except Exception as e:
         logger.error(f"Error real view: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error")

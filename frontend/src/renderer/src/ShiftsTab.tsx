@@ -33,8 +33,10 @@ function toNumber(value: string): number {
 
 
 function toCsvCell(value: string): string {
-  const sanitized = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value
-  return `"${sanitized.replace(/"/g, '""')}"`
+  // Sanitize first: strip control chars, then prefix formula-triggering chars
+  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
+  return `"${safe.replace(/"/g, '""')}"`
 }
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]): void {

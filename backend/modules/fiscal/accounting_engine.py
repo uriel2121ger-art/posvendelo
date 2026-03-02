@@ -121,7 +121,7 @@ class CerebroContable:
         Obtiene gastos deducibles.
         Por ahora usa estimación, en producción vendría de XMLs de compras.
         """
-        # TODO: Integrar con XMLIngestor para gastos reales
+        # Gastos estimados — cuando XMLIngestor esté activo, reemplazar con datos reales de CFDIs de compras
         meses = month
         
         # Gastos mensuales típicos de comercio
