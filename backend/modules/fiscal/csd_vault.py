@@ -284,17 +284,25 @@ class CSDManager:
                 'certificate_info': dict
             }
         """
-        # SECURITY: Validate file paths to prevent directory traversal attacks
+        # SECURITY: Validate file paths — allowlist approach (not blocklist)
+        # Only accept files under /tmp or the CSD storage directory
+        _allowed_bases = [
+            Path('/tmp').resolve(),
+            self.storage_path.resolve(),
+        ]
+
         def _validate_path(file_path: str, expected_ext: str) -> Path:
             """Validate path is safe and has expected extension."""
             path = Path(file_path).resolve()
             # Check extension
             if not path.suffix.lower() == expected_ext:
                 raise ValueError(f"File must have {expected_ext} extension")
-            # Check path doesn't contain suspicious patterns
-            path_str = str(path)
-            if '..' in path_str or path_str.startswith('/etc') or path_str.startswith('/root'):
-                raise ValueError("Invalid file path")
+            # Allowlist: path must be under an allowed base directory
+            if not any(path.is_relative_to(base) for base in _allowed_bases):
+                raise ValueError(
+                    f"File path must be under /tmp or CSD storage directory. "
+                    f"Got: {path}"
+                )
             return path
 
         try:
@@ -351,10 +359,10 @@ class CSDManager:
     async def get_signing_credentials(self, rfc: str, encrypted_password: str) -> dict:
         """
         Obtiene credenciales desencriptadas para firmar.
-        
+
         IMPORTANTE: Los datos retornados deben limpiarse de memoria
         inmediatamente después de usarse.
-        
+
         Returns:
             {
                 'key_bytes': bytes,
@@ -362,14 +370,19 @@ class CSDManager:
                 'password': str
             }
         """
-        rfc_dir = self.storage_path / rfc
+        # SECURITY: Re-validate RFC even if it comes from DB (defense-in-depth)
+        import re
+        rfc_clean = rfc.upper().strip()
+        if not re.match(r'^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$', rfc_clean):
+            raise ValueError(f"Formato de RFC inválido: {rfc!r}")
+        rfc_dir = self.storage_path / rfc_clean
         
         # Cargar y desencriptar .key
-        key_path = rfc_dir / f"{rfc}.key.enc"
+        key_path = rfc_dir / f"{rfc_clean}.key.enc"
         key_bytes = self.vault.load_and_decrypt(str(key_path))
 
         # Cargar y desencriptar .cer
-        cer_path = rfc_dir / f"{rfc}.cer.enc"
+        cer_path = rfc_dir / f"{rfc_clean}.cer.enc"
         cer_bytes = self.vault.load_and_decrypt(str(cer_path))
         
         # Desencriptar password

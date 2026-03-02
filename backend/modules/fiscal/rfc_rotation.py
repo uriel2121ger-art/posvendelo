@@ -4,10 +4,13 @@ Auto-Proxy CFDI - Rotación de IPs para Timbrado
 
 from typing import Any, Dict, List
 from datetime import datetime
+from urllib.parse import urlparse
 import hashlib
+import ipaddress
 import json
 import logging
 import secrets
+import socket
 import urllib.request
 
 _rng = secrets.SystemRandom()
@@ -65,7 +68,40 @@ class CFDIProxyRotator:
         else:
             return urllib.request.build_opener(urllib.request.ProxyHandler({'http': proxy_url, 'https': proxy_url}))
 
+    # SECURITY: Allowlist of known PAC provider hostnames to prevent SSRF
+    ALLOWED_PAC_HOSTS = {
+        'facturapi.io', 'www.facturapi.io', 'api.facturapi.io',
+        'sw.com.mx', 'services.sw.com.mx', 'api.sw.com.mx',
+        'finkok.com', 'facturacion.finkok.com', 'demo-facturacion.finkok.com',
+        'pac.sat.gob.mx', 'cfdi.sat.gob.mx',
+        'timbrado.pade.mx', 'api.pade.mx',
+    }
+
+    @staticmethod
+    def _validate_pac_url(pac_url: str) -> None:
+        """Validate PAC URL to prevent SSRF attacks."""
+        parsed = urlparse(pac_url)
+        # Only HTTPS allowed
+        if parsed.scheme != 'https':
+            raise ValueError(f"PAC URL must use HTTPS, got: {parsed.scheme}")
+        hostname = parsed.hostname or ''
+        # Block private/loopback IPs
+        try:
+            ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+            if ip.is_private or ip.is_loopback or ip.is_reserved:
+                raise ValueError(f"PAC URL resolved to private/loopback IP: {ip}")
+        except (socket.gaierror, ValueError):
+            pass  # DNS resolution may fail for valid hostnames; allowlist handles it
+        # Allowlist check
+        if hostname not in CFDIProxyRotator.ALLOWED_PAC_HOSTS:
+            raise ValueError(
+                f"PAC host '{hostname}' not in allowed list. "
+                f"Add it to CFDIProxyRotator.ALLOWED_PAC_HOSTS if legitimate."
+            )
+
     def timbrar_con_proxy(self, xml_data: str, rfc: str, pac_url: str) -> Dict[str, Any]:
+        # SECURITY: Validate URL before making the request
+        self._validate_pac_url(pac_url)
         proxy = self.get_proxy_for_rfc(rfc)
         opener = self.create_proxied_opener(proxy)
         try:
@@ -74,6 +110,8 @@ class CFDIProxyRotator:
             with opener.open(request, timeout=30) as response:
                 result = response.read().decode()
             return {'success': True, 'response': result, 'proxy_used': proxy.get('location', 'Direct')}
+        except ValueError:
+            raise  # Re-raise validation errors
         except Exception as e:
             return {'success': False, 'error': str(e), 'proxy_used': proxy.get('location', 'Direct')}
 

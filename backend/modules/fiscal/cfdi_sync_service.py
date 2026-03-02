@@ -164,8 +164,16 @@ class CFDISyncService:
             await f.write(header)
 
             def escape(val):
-                s = str(val).replace('"', '""')
-                if ',' in s or '"' in s or '\n' in s:
+                import re as _re
+                s = str(val)
+                # Strip non-printable control chars
+                s = _re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', s)
+                # Prefix formula-triggering chars to prevent injection in Excel/Calc
+                if s and s[0] in ('=', '+', '-', '@', '\t', '\r', '\n'):
+                    s = f'\t{s}'
+                # RFC 4180 quoting
+                s = s.replace('"', '""')
+                if ',' in s or '"' in s or '\n' in s or '\t' in s:
                     return f'"{s}"'
                 return s
 

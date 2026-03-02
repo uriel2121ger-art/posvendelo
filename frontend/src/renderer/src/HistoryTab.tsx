@@ -37,13 +37,14 @@ function normalizeSale(raw: Record<string, unknown>): SaleRow {
   }
 }
 
-function sanitizeCsvValue(value: string): string {
-  if (/^[=+\-@\t\r\n]/.test(value)) return `'${value}`
-  return value
+function toCsvCell(value: string): string {
+  // Strip non-printable control chars, then prefix formula-triggering chars with tab
+  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
+  return `"${safe.replace(/"/g, '""')}"`
 }
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  const toCsvCell = (value: string): string => `"${sanitizeCsvValue(value).replace(/"/g, '""')}"`
   const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
   const blob = new Blob([`${csv}\n`], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
