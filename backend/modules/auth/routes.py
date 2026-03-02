@@ -62,6 +62,7 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
     return TokenResponse(
         access_token=token,
         expires_in=TOKEN_EXPIRE_MINUTES * 60,
+        role=role,
     )
 
 

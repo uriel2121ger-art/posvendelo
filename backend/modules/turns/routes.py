@@ -238,6 +238,7 @@ async def get_turn_summary(
     )
 
     total_sales = sum((Decimal(str(s["total"])) for s in sales_by_method), Decimal("0")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    sales_count = sum(int(s["count"]) for s in sales_by_method)
     movements_dict = {m["type"]: Decimal(str(m["total"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for m in movements}
 
     initial = Decimal(str(turn["initial_cash"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -267,6 +268,7 @@ async def get_turn_summary(
             "turn_id": turn_id,
             "status": turn["status"],
             "initial_cash": float(initial),
+            "sales_count": sales_count,
             "sales_by_method": sales_by_method,
             "total_sales": float(total_sales),
             "cash_in": float(mov_in),

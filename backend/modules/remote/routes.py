@@ -86,6 +86,7 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
     # Get sales summary for this turn
     summary = await db.fetchrow(
         """SELECT
+               COUNT(*) as sales_count,
                COALESCE(SUM(
                    CASE WHEN payment_method = 'cash' THEN total
                         WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
@@ -111,6 +112,7 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
             "user": turn["username"] or f"Usuario #{turn['user_id']}",
             "started_at": turn["start_timestamp"],
             "initial_cash": round(float(turn["initial_cash"] or 0), 2),
+            "sales_count": int(summary["sales_count"]) if summary else 0,
             "cash_sales": round(float(summary["cash_sales"]), 2) if summary else 0,
             "card_sales": round(float(summary["card_sales"]), 2) if summary else 0,
             "total_sales": round(float(summary["total_sales"]), 2) if summary else 0,

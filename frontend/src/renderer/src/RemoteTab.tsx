@@ -54,8 +54,9 @@ export default function RemoteTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       const raw = await getLiveSales(cfg, 20)
       if (liveRef.current !== reqId) return
-      const data = (raw.data ?? raw.sales ?? []) as Record<string, unknown>[]
-      setLiveSales(Array.isArray(data) ? data : [])
+      const envelope = (raw.data ?? raw) as Record<string, unknown>
+      const sales = (envelope.sales ?? raw.sales ?? []) as Record<string, unknown>[]
+      setLiveSales(Array.isArray(sales) ? sales : [])
     } catch {
       // Silent fail for auto-refresh
     }

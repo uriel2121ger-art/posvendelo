@@ -181,10 +181,10 @@ export default function FiscalTab(): ReactElement {
                 sale_id: cfdiSaleId.trim(),
                 customer_rfc: cfdiRfc.trim(),
                 customer_name: cfdiName.trim(),
-                regimen: cfdiRegimen.trim(),
+                customer_regime: cfdiRegimen.trim(),
                 uso_cfdi: cfdiUso.trim(),
                 forma_pago: cfdiFormaPago.trim(),
-                zip: cfdiZip.trim()
+                customer_zip: cfdiZip.trim()
               }))}
             >
               Generar CFDI

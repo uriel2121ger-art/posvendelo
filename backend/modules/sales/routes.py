@@ -199,6 +199,8 @@ async def create_sale(
         raise HTTPException(status_code=400, detail="Venta a credito requiere customer_id")
 
     # ── Validate items ──
+    if not body.items:
+        raise HTTPException(status_code=400, detail="La venta debe tener al menos un item")
     if len(body.items) > 2000:
         raise HTTPException(status_code=400, detail="Maximo 2000 items por venta")
 

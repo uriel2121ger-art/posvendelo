@@ -58,7 +58,9 @@ export default function EmployeesTab(): ReactElement {
   const [email, setEmail] = useState('')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('Empleados: gestiona tu equipo de trabajo.')
+  const [message, setMessage] = useState(
+    canEdit ? 'Empleados: gestiona tu equipo de trabajo.' : 'Empleados: solo lectura. Se requiere rol de manager, admin u owner para editar.'
+  )
   const requestIdRef = useRef(0)
   const role = getUserRole()
   const canEdit = role === 'manager' || role === 'owner' || role === 'admin'

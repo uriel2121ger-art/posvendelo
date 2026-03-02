@@ -147,8 +147,8 @@ async function syncSale(
     // Compound discount: matches how the frontend display calculates totals
     // item.subtotal already has per-item discount applied (price * qty * (1 - itemDisc/100))
     // Then global discount is applied on top: item.subtotal * (1 - globalDisc)
-    const fullPrice = item.price * item.qty
-    const compoundSubtotal = item.subtotal * (1 - globalDisc)
+    const fullPrice = Math.round(item.price * item.qty * 100) / 100
+    const compoundSubtotal = Math.round(item.subtotal * (1 - globalDisc) * 100) / 100
     const discount = parseFloat(Math.max(0, fullPrice - compoundSubtotal).toFixed(2))
     return {
       product_id: item.isCommon ? null : Number(item.id) > 0 ? Number(item.id) : null,
