@@ -123,6 +123,10 @@ export default function EmployeesTab(): ReactElement {
 
   async function handleSave(): Promise<void> {
     if (busy || !canEdit) return
+    if (!code.trim()) {
+      setMessage('Codigo de empleado es obligatorio.')
+      return
+    }
     if (!name.trim()) {
       setMessage('Nombre es obligatorio.')
       return
@@ -135,7 +139,7 @@ export default function EmployeesTab(): ReactElement {
         name: name.trim(),
         position: position.trim(),
         base_salary: toNumber(salary),
-        commission_rate: toNumber(commission),
+        commission_rate: toNumber(commission) / 100,
         phone: phone.trim(),
         email: email.trim(),
         notes: notes.trim()
@@ -186,7 +190,7 @@ export default function EmployeesTab(): ReactElement {
     setName(emp.name)
     setPosition(emp.position)
     setSalary(emp.base_salary.toFixed(2))
-    setCommission(emp.commission_rate.toFixed(2))
+    setCommission((emp.commission_rate * 100).toFixed(2))
     setPhone(emp.phone)
     setEmail(emp.email)
     setNotes(emp.notes)
@@ -259,7 +263,7 @@ export default function EmployeesTab(): ReactElement {
         <button
           className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
           onClick={() => void handleSave()}
-          disabled={busy || !canEdit || !name.trim()}
+          disabled={busy || !canEdit || !name.trim() || !code.trim()}
         >
           {selectedId ? 'Actualizar' : 'Guardar'}
         </button>

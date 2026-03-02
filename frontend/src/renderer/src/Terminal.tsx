@@ -17,7 +17,8 @@ import {
   pullTable,
   createSale,
   printReceipt,
-  openDrawerForSale
+  openDrawerForSale,
+  getTurnSummary
 } from './posApi'
 
 type Product = {
@@ -240,6 +241,7 @@ export default function Terminal(): ReactElement {
         })
         .catch((err) => {
           if (cancelled) return
+          console.warn('[Terminal] Error refrescando productos:', (err as Error).message)
           if (!silent) setMessage((err as Error).message)
         })
         .finally(() => {
@@ -330,6 +332,34 @@ export default function Terminal(): ReactElement {
       window.removeEventListener('focus', refreshShift)
       window.removeEventListener('storage', onStorage)
     }
+  }, [])
+
+  // Poll backend every 60s to sync shift counters (multi-terminal visibility)
+  useEffect(() => {
+    const poll = setInterval(() => {
+      const shift = readCurrentShift()
+      if (!shift?.backendTurnId) return
+      const cfg = loadRuntimeConfig()
+      getTurnSummary(cfg, shift.backendTurnId)
+        .then((raw) => {
+          const data = (raw.data ?? raw) as Record<string, unknown>
+          const backendCount = Number(data.sales_count ?? 0)
+          const backendTotal = Number(data.total_sales ?? 0)
+          if (backendCount > (shift.salesCount ?? 0) || Math.abs(backendTotal - (shift.totalSales ?? 0)) > 0.01) {
+            const updated: ShiftState = {
+              ...shift,
+              salesCount: backendCount,
+              totalSales: Math.round(backendTotal * 100) / 100
+            }
+            try {
+              localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updated))
+            } catch { /* storage full */ }
+            setCurrentShift(updated)
+          }
+        })
+        .catch(() => { /* network error — skip this cycle */ })
+    }, 60_000)
+    return () => clearInterval(poll)
   }, [])
 
   const filtered = useMemo((): Product[] => {

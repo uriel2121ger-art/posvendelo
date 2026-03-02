@@ -77,9 +77,20 @@ export default function ShiftStartupModal({
             salesCount: 0,
             totalSales: 0,
           }
-          saveCurrentShift(recovered)
-          setExistingShift(recovered)
-          setPhase('existing_shift')
+          // Fetch real counters from backend summary
+          getTurnSummary(cfg, Number(turn.id))
+            .then((raw) => {
+              const summary = (raw.data ?? raw) as Record<string, unknown>
+              recovered.salesCount = Number(summary.sales_count ?? 0)
+              recovered.totalSales = Math.round(Number(summary.total_sales ?? 0) * 100) / 100
+            })
+            .catch(() => { /* summary unavailable — keep zeros */ })
+            .finally(() => {
+              saveCurrentShift(recovered)
+              setExistingShift(recovered)
+              setPhase('existing_shift')
+            })
+          return
         } else {
           setPhase('no_shift')
         }

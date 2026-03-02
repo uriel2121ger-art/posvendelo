@@ -33,7 +33,7 @@ async def list_employees(
     """List employees with search and filters. Requires manager+ role."""
     if auth.get("role") not in ("admin", "manager", "owner"):
         raise HTTPException(status_code=403, detail="Sin permisos para ver empleados")
-    sql = "SELECT id, employee_code, name, position, base_salary, phone, email, is_active, created_at FROM employees WHERE 1=1"
+    sql = "SELECT id, employee_code, name, position, base_salary, commission_rate, phone, email, notes, is_active, created_at FROM employees WHERE 1=1"
     params: dict = {}
 
     if is_active is not None:

@@ -91,6 +91,14 @@ async def create_customer(
     db=Depends(get_db),
 ):
     """Create a new customer. Requires auth."""
+    # Check for existing active customer with same name
+    existing = await db.fetchrow(
+        "SELECT id FROM customers WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) AND is_active = 1",
+        {"name": body.name},
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Ya existe un cliente activo con ese nombre")
+
     row = await db.fetchrow(
         """
         INSERT INTO customers (

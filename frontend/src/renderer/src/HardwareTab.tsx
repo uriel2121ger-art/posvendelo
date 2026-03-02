@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import TopNavbar from './components/TopNavbar'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Printer, ScanBarcode, DoorOpen, Building2, RefreshCw } from 'lucide-react'
 import {
   type RuntimeConfig,
@@ -27,15 +27,44 @@ function saveToCache(cfg: HardwareConfig): void {
 export default function HardwareTab(): ReactElement {
   const [config] = useState<RuntimeConfig>(loadRuntimeConfig)
   const [hw, setHw] = useState<HardwareConfig | null>(null)
+  const [savedHw, setSavedHw] = useState<HardwareConfig | null>(null)
   const [printers, setPrinters] = useState<CupsPrinter[]>([])
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [section, setSection] = useState<'printer' | 'business' | 'scanner' | 'drawer'>('printer')
 
+  const isDirty = hw !== null && savedHw !== null && JSON.stringify(hw) !== JSON.stringify(savedHw)
+
+  // Warn on window/tab close when dirty
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent): void => { e.preventDefault() }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  // Intercept hash navigation when dirty (F-key navigation)
+  const suppressRef = useRef(false)
+  useEffect(() => {
+    if (!isDirty) return
+    const savedHash = window.location.hash
+    const onHashChange = (): void => {
+      if (suppressRef.current) { suppressRef.current = false; return }
+      const leave = window.confirm('Tienes cambios sin guardar. ¿Deseas salir sin guardar?')
+      if (!leave) {
+        suppressRef.current = true
+        window.location.hash = savedHash
+      }
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [isDirty])
+
   const load = useCallback(async () => {
     try {
       const data = await getHardwareConfig(config)
       setHw(data)
+      setSavedHw(data)
       saveToCache(data)
     } catch (e) {
       setMsg(`Error: ${(e as Error).message}`)

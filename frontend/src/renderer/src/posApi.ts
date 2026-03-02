@@ -787,6 +787,21 @@ export async function createCashMovement(
   return (await res.json()) as Record<string, unknown>
 }
 
+// ── Clientes CRUD ─────────────────────────────────
+
+export async function createCustomer(
+  cfg: RuntimeConfig,
+  body: { name: string; phone?: string; email?: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/customers/`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando cliente'))
+  return (await res.json()) as Record<string, unknown>
+}
+
 // ── Clientes Extendido ────────────────────────────
 
 export async function getCustomerCredit(

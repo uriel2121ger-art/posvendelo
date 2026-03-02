@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { useConfirm } from './components/ConfirmDialog'
 import { getSyncStatus, getSystemInfo, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
@@ -32,6 +32,37 @@ export default function SettingsTab(): ReactElement {
     const cfg = loadRuntimeConfig()
     return { baseUrl: cfg.baseUrl, token: cfg.token, terminalId: cfg.terminalId }
   })
+  const [savedForm, setSavedForm] = useState<RuntimeState>(() => {
+    const cfg = loadRuntimeConfig()
+    return { baseUrl: cfg.baseUrl, token: cfg.token, terminalId: cfg.terminalId }
+  })
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm)
+
+  // Warn on window/tab close when dirty
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent): void => { e.preventDefault() }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  // Intercept hash navigation when dirty (F-key navigation)
+  const suppressRef = useRef(false)
+  useEffect(() => {
+    if (!isDirty) return
+    const savedHash = window.location.hash
+    const onHashChange = (): void => {
+      if (suppressRef.current) { suppressRef.current = false; return }
+      const leave = window.confirm('Tienes cambios sin guardar. ¿Deseas salir sin guardar?')
+      if (!leave) {
+        suppressRef.current = true
+        window.location.hash = savedHash
+      }
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [isDirty])
+
   const [busy, setBusy] = useState(false)
   const [profileName, setProfileName] = useState('')
   const [selectedProfileId, setSelectedProfileId] = useState('')
@@ -66,6 +97,7 @@ export default function SettingsTab(): ReactElement {
       return
     }
     saveRuntimeConfig({ ...form, baseUrl: url })
+    setSavedForm({ ...form, baseUrl: url })
     setMessage('Configuracion guardada en localStorage.')
   }
 

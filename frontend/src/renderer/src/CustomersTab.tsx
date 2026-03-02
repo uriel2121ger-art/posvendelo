@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopNavbar from './components/TopNavbar'
 import { useConfirm } from './components/ConfirmDialog'
-import { loadRuntimeConfig, pullTable, syncTable, getCustomerCredit, getCustomerSales } from './posApi'
+import { loadRuntimeConfig, pullTable, syncTable, createCustomer, getCustomerCredit, getCustomerSales } from './posApi'
 
 type Customer = {
   id?: number | string
@@ -97,7 +97,8 @@ export default function CustomersTab(): ReactElement {
   async function handleCreate(): Promise<void> {
     if (busy) return
     requestIdRef.current++ // invalidate any in-flight load
-    if (!name.trim()) {
+    const trimmedName = name.trim()
+    if (!trimmedName) {
       setMessage('Nombre de cliente es obligatorio.')
       return
     }
@@ -109,33 +110,57 @@ export default function CustomersTab(): ReactElement {
       setMessage('Email invalido. Ejemplo: usuario@dominio.com')
       return
     }
+    const isUpdate = Boolean(selectedId)
+    // Local duplicate check (case-insensitive) for new customers
+    if (!isUpdate) {
+      const dup = customers.some(
+        (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
+      )
+      if (dup) {
+        setMessage(`Ya existe un cliente con el nombre "${trimmedName}".`)
+        return
+      }
+    }
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const customer = {
-        id: selectedId ?? `c-${Date.now()}`,
-        name: name.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        deleted: false
-      }
-      const isUpdate = Boolean(selectedId)
-      await syncTable('customers', [customer], cfg)
-      setCustomers((prev) => {
-        const idKey = String(customer.id)
-        const exists = prev.some((item) => String(item.id) === idKey)
-        if (exists) {
-          return prev.map((item) => (String(item.id) === idKey ? { ...item, ...customer } : item))
+      if (isUpdate) {
+        // Update via sync (selectedId is a real DB id)
+        const customer = {
+          id: selectedId,
+          name: trimmedName,
+          phone: phone.trim(),
+          email: email.trim(),
+          deleted: false
         }
-        return [customer, ...prev]
-      })
+        await syncTable('customers', [customer], cfg)
+        setCustomers((prev) =>
+          prev.map((item) =>
+            String(item.id) === selectedId ? { ...item, ...customer } : item
+          )
+        )
+        setMessage(`Cliente actualizado: ${trimmedName}`)
+      } else {
+        // Create via POST (returns real DB id)
+        const result = await createCustomer(cfg, {
+          name: trimmedName,
+          phone: phone.trim(),
+          email: email.trim()
+        })
+        const data = (result.data ?? result) as Record<string, unknown>
+        const newCustomer: Customer = {
+          id: Number(data.id),
+          name: trimmedName,
+          phone: phone.trim(),
+          email: email.trim()
+        }
+        setCustomers((prev) => [newCustomer, ...prev])
+        setMessage(`Cliente guardado: ${trimmedName}`)
+      }
       setSelectedId(null)
       setName('')
       setPhone('')
       setEmail('')
-      setMessage(
-        isUpdate ? `Cliente actualizado: ${customer.name}` : `Cliente guardado: ${customer.name}`
-      )
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
