@@ -28,8 +28,9 @@ class TestTurnStatus:
         assert "turn_id" in d
         assert "initial_cash" in d
 
-    async def test_turn_status_inactive(self, client, admin_token, seed_users):
-        # No open turn
+    async def test_turn_status_inactive(self, client, admin_token, seed_users, db_conn):
+        # No open turn: ensure this test's connection sees no open turns (same conn as client)
+        await db_conn.execute("UPDATE turns SET status = 'closed' WHERE status = 'open'")
         r = await client.get(
             "/api/v1/remote/turn-status",
             headers=auth_header(admin_token),

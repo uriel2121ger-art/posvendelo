@@ -232,3 +232,21 @@ describe('Scanner debounce (barcode pistola)', () => {
     expect(onAdd).toHaveBeenCalledTimes(1)
   })
 })
+
+// ---------------------------------------------------------------------------
+// FASE 0.3: Sanitización escáner — \t y caracteres de control no deben
+// llegar al valor del input (evitar saltos de foco o acciones destructivas).
+// ---------------------------------------------------------------------------
+const CONTROL_STRIP_RE = /[\x00-\x1F\x7F-\x9F]/g
+function stripControlChars(value: string): string {
+  return value.replace(CONTROL_STRIP_RE, '')
+}
+
+describe('Scanner sanitization (FASE 0.3)', () => {
+  it('strips tab and control characters from search input', () => {
+    expect(stripControlChars('7501234567890')).toBe('7501234567890')
+    expect(stripControlChars('7501234567890\t')).toBe('7501234567890')
+    expect(stripControlChars('SKU\x00\t\n')).toBe('SKU')
+    expect(stripControlChars('a\x1Fb\x7Fc')).toBe('abc')
+  })
+})

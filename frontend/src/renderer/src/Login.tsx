@@ -147,6 +147,7 @@ export default function Login(): ReactElement {
                 <div className="relative group">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 z-10" />
                   <input
+                    data-testid="login-username"
                     type="text"
                     value={username}
                     onChange={(e) => {
@@ -169,6 +170,7 @@ export default function Login(): ReactElement {
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
                   <input
+                    data-testid="login-password"
                     type="password"
                     value={password}
                     onChange={(e) => {
@@ -185,6 +187,7 @@ export default function Login(): ReactElement {
               </div>
 
               <button
+                data-testid="login-submit"
                 type="submit"
                 disabled={loading || discovering || password.length === 0 || username.trim().length === 0}
                 className="w-full flex justify-center items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-4 py-4 font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all hover:-translate-y-0.5 mt-8 relative z-10"

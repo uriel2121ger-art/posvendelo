@@ -99,3 +99,27 @@ class TestRegisterExpense:
             },
         )
         assert r.status_code == 200
+
+    async def test_register_expense_invalid_amount_rejected(self, client, admin_token, seed_turn):
+        """EC-Gastos: monto 0 o negativo → 422."""
+        r = await client.post(
+            "/api/v1/expenses/",
+            headers=auth_header(admin_token),
+            json={"amount": 0, "description": "Gasto"},
+        )
+        assert r.status_code == 422
+        r2 = await client.post(
+            "/api/v1/expenses/",
+            headers=auth_header(admin_token),
+            json={"amount": -10, "description": "Gasto"},
+        )
+        assert r2.status_code == 422
+
+    async def test_register_expense_empty_description_rejected(self, client, admin_token, seed_turn):
+        """EC-Gastos: descripción vacía → 422."""
+        r = await client.post(
+            "/api/v1/expenses/",
+            headers=auth_header(admin_token),
+            json={"amount": 50, "description": ""},
+        )
+        assert r.status_code == 422

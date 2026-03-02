@@ -67,6 +67,22 @@ class TestCloseTurn:
         )
         assert r.status_code == 200
 
+    async def test_close_turn_already_closed(self, client, admin_token, seed_turn):
+        """EC-Turnos: cerrar turno ya cerrado → 400."""
+        r1 = await client.post(
+            f"/api/v1/turns/{TURN_ID}/close",
+            headers=auth_header(admin_token),
+            json={"final_cash": 1000},
+        )
+        assert r1.status_code == 200
+        r2 = await client.post(
+            f"/api/v1/turns/{TURN_ID}/close",
+            headers=auth_header(admin_token),
+            json={"final_cash": 1000},
+        )
+        assert r2.status_code == 400
+        assert "cerrado" in r2.json()["detail"].lower()
+
     async def test_close_turn_not_owner_cashier(
         self, client, cashier_token, seed_turn
     ):

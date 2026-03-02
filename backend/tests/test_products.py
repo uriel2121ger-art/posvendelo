@@ -102,6 +102,16 @@ class TestScanProduct:
         # May find exact or suggest — just verify structure
         assert "found" in d
 
+    async def test_scan_sku_not_found(self, client, admin_token):
+        """EC-Terminal/Productos: SKU inexistente → found false o sugerencias."""
+        r = await client.get(
+            "/api/v1/products/scan/SKU-INEXISTENTE-999",
+            headers=auth_header(admin_token),
+        )
+        assert r.status_code == 200
+        d = r.json()["data"]
+        assert d["found"] is False
+
 
 class TestCreateProduct:
     async def test_create_product_admin(self, client, admin_token, seed_branch):

@@ -69,6 +69,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
     resolve: (value: boolean) => void
   } | null>(null)
 
+  const dialogRef = useRef<typeof dialog>(null)
+  useEffect(() => { dialogRef.current = dialog }, [dialog])
+
   const confirmBtnRef = useRef<HTMLButtonElement>(null)
 
   const confirm: ConfirmFn = useCallback((message, options = {}) => {
@@ -77,13 +80,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
     })
   }, [])
 
-  const handleConfirmResult = useCallback(
-    (result: boolean) => {
-      dialog?.resolve(result)
-      setDialog(null)
-    },
-    [dialog],
-  )
+  const handleConfirmResult = useCallback((result: boolean) => {
+    dialogRef.current?.resolve(result)
+    setDialog(null)
+  }, [])
 
   useEffect(() => {
     if (!dialog) return
@@ -107,7 +107,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
     resolve: (value: string | null) => void
   } | null>(null)
 
+  const promptDialogRef = useRef<typeof promptDialog>(null)
+  useEffect(() => { promptDialogRef.current = promptDialog }, [promptDialog])
+
   const [promptValue, setPromptValue] = useState('')
+  const promptValueRef = useRef(promptValue)
+  useEffect(() => { promptValueRef.current = promptValue }, [promptValue])
+
   const promptInputRef = useRef<HTMLInputElement>(null)
 
   const prompt: PromptFn = useCallback((message, options = {}) => {
@@ -117,21 +123,18 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
     })
   }, [])
 
-  const handlePromptSubmit = useCallback(
-    (e?: FormEvent) => {
-      e?.preventDefault()
-      promptDialog?.resolve(promptValue)
-      setPromptDialog(null)
-      setPromptValue('')
-    },
-    [promptDialog, promptValue],
-  )
-
-  const handlePromptCancel = useCallback(() => {
-    promptDialog?.resolve(null)
+  const handlePromptSubmit = useCallback((e?: FormEvent) => {
+    e?.preventDefault()
+    promptDialogRef.current?.resolve(promptValueRef.current)
     setPromptDialog(null)
     setPromptValue('')
-  }, [promptDialog])
+  }, [])
+
+  const handlePromptCancel = useCallback(() => {
+    promptDialogRef.current?.resolve(null)
+    setPromptDialog(null)
+    setPromptValue('')
+  }, [])
 
   useEffect(() => {
     if (!promptDialog) return

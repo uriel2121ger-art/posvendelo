@@ -44,23 +44,24 @@ _ADMIN_ROLES = ("admin", "manager", "owner")
 
 
 async def _ensure_hw_row(db) -> int:
-    """Ensure app_config has at least one row. Return its id."""
-    row = await db.fetchrow("SELECT id FROM app_config LIMIT 1")
-    if row:
-        return row["id"]
-    new = await db.fetchrow(
+    """Ensure app_config has a hardware row. Return its id (single upsert)."""
+    row = await db.fetchrow(
         "INSERT INTO app_config (key, value, category, updated_at) "
         "VALUES ('hardware', 'default', 'system', NOW()) "
         "ON CONFLICT (key) DO UPDATE SET updated_at = NOW() "
         "RETURNING id"
     )
-    return new["id"]
+    return row["id"]
 
 
 async def _get_hw_config(db) -> dict:
-    """Read hardware-related columns from app_config (single-row pattern)."""
-    await _ensure_hw_row(db)
-    row = await db.fetchrow("SELECT * FROM app_config LIMIT 1")
+    """Read hardware-related columns from app_config (single upsert query)."""
+    row = await db.fetchrow(
+        "INSERT INTO app_config (key, value, category, updated_at) "
+        "VALUES ('hardware', 'default', 'system', NOW()) "
+        "ON CONFLICT (key) DO UPDATE SET updated_at = NOW() "
+        "RETURNING *"
+    )
     if not row:
         return {}
     cfg = dict(row)

@@ -64,6 +64,15 @@ class TestCreateCustomer:
         )
         assert r.status_code == 200
 
+    async def test_create_customer_empty_name_rejected(self, client, admin_token, seed_branch):
+        """EC-Clientes: nombre vacío debe devolver 422."""
+        r = await client.post(
+            "/api/v1/customers/",
+            headers=auth_header(admin_token),
+            json={"name": ""},
+        )
+        assert r.status_code == 422
+
 
 class TestUpdateCustomer:
     async def test_update_customer(self, client, admin_token, seed_customer):
