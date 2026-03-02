@@ -102,9 +102,8 @@ if not origins:
         "http://127.0.0.1:8080",
     ]
 
-# Electron producción carga desde file:// → el navegador envía Origin: null
-if "null" not in origins:
-    origins.append("null")
+# SECURITY: "null" origin removed — it allows sandboxed/file:// pages to bypass CORS.
+# Electron must handle CORS at the app layer (e.g., via session.webRequest.onBeforeSendHeaders).
 
 # POS LAN: detectar IP local y agregar orígenes para terminales en red
 try:
@@ -170,6 +169,24 @@ class NullByteSanitizer:
 
 
 app.add_middleware(NullByteSanitizer)
+
+
+# Security headers middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # ---------------------------------------------------------------------------
 # Module routers

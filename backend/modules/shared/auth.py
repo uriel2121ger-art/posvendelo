@@ -15,14 +15,40 @@ Usage:
 import os
 import secrets
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory JTI revocation set (for single-process deployment)
+# ---------------------------------------------------------------------------
+_revoked_jtis: Set[str] = set()
+_revoked_lock = threading.Lock()
+
+
+def revoke_token(jti: str) -> None:
+    """Add a JTI to the revocation set (call on logout/account deactivation)."""
+    with _revoked_lock:
+        _revoked_jtis.add(jti)
+
+
+def _is_revoked(jti: str) -> bool:
+    """Check if a JTI has been revoked."""
+    with _revoked_lock:
+        return jti in _revoked_jtis
+
+
+def _cleanup_revoked() -> None:
+    """Periodic cleanup is not strictly needed since JWTs expire, but caps memory."""
+    with _revoked_lock:
+        if len(_revoked_jtis) > 10000:
+            _revoked_jtis.clear()
 
 # ---------------------------------------------------------------------------
 # JWT Configuration
@@ -42,7 +68,7 @@ if not _env_secret:
 
 SECRET_KEY = _env_secret
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = 480  # 8 hours — full cashier shift
+TOKEN_EXPIRE_MINUTES = 60  # 1 hour — short-lived for security (revocation set handles logout)
 
 security = HTTPBearer(auto_error=False)
 
@@ -99,6 +125,11 @@ def verify_token(
     # Validate required claims exist
     if not payload.get("sub") or not payload.get("role"):
         raise HTTPException(status_code=401, detail="Token invalido: faltan claims requeridos")
+
+    # Check JTI revocation (logout/deactivation)
+    jti = payload.get("jti")
+    if jti and _is_revoked(jti):
+        raise HTTPException(status_code=401, detail="Token revocado")
 
     # Normalize role to lowercase for consistent RBAC checks
     payload["role"] = (payload["role"] or "").strip().lower()

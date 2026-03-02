@@ -1,7 +1,7 @@
 import type { ReactElement, FormEvent } from 'react'
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { type RuntimeConfig, loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
+import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-router-dom'
+import { type RuntimeConfig, loadRuntimeConfig, createCashMovement, openDrawerForSale } from './posApi'
 import CustomersTab from './CustomersTab'
 import DashboardStatsTab from './DashboardStatsTab'
 import ExpensesTab from './ExpensesTab'
@@ -20,6 +20,7 @@ import HardwareTab from './HardwareTab'
 import Terminal from './Terminal'
 import ShiftStartupModal from './ShiftStartupModal'
 import { ConfirmProvider } from './components/ConfirmDialog'
+import Layout from './components/Layout'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -343,11 +344,38 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
 
 /* ── RoutedApp ───────────────────────────────────────────── */
 
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
+
 function RoutedApp(): ReactElement {
   const navigate = useNavigate()
   const [cashMovModal, setCashMovModal] = useState<CashMovModalState>('hidden')
   const [priceCheckModal, setPriceCheckModal] = useState(false)
   const [shiftResolved, setShiftResolved] = useState(false)
+
+  // Idle timeout — auto-logout after 30 min of inactivity
+  useEffect((): (() => void) => {
+    let timer: ReturnType<typeof setTimeout>
+    const resetTimer = (): void => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        try {
+          const hasToken = localStorage.getItem('titan.token')
+          if (!hasToken) return
+          localStorage.removeItem('titan.token')
+          localStorage.removeItem('titan.role')
+          setShiftResolved(false)
+          navigate('/login')
+        } catch { /* ignore */ }
+      }, IDLE_TIMEOUT_MS)
+    }
+    const events: string[] = ['mousedown', 'keydown', 'touchstart', 'scroll']
+    events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }))
+    resetTimer()
+    return () => {
+      clearTimeout(timer)
+      events.forEach((e) => window.removeEventListener(e, resetTimer))
+    }
+  }, [navigate])
 
   // Reset shiftResolved when user logs out (token removed)
   useEffect((): (() => void) => {
@@ -431,165 +459,133 @@ function RoutedApp(): ReactElement {
       <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />
     )}
     <Routes>
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <Navigate to="/terminal" replace />
-          </RequireAuth>
-        }
-      />
       <Route path="/login" element={<Login />} />
-      <Route
-        path="/terminal"
-        element={
-          <RequireAuth>
+      <Route element={<RequireAuth><Layout><Outlet /></Layout></RequireAuth>}>
+        <Route
+          path="/"
+          element={<Navigate to="/terminal" replace />}
+        />
+        <Route
+          path="/terminal"
+          element={
             <TabErrorBoundary tabName="Terminal">
               <Terminal />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/clientes"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/clientes"
+          element={
             <TabErrorBoundary tabName="Clientes">
               <CustomersTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/productos"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/productos"
+          element={
             <TabErrorBoundary tabName="Productos">
               <ProductsTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/inventario"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/inventario"
+          element={
             <TabErrorBoundary tabName="Inventario">
               <InventoryTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/turnos"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/turnos"
+          element={
             <TabErrorBoundary tabName="Turnos">
               <ShiftsTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/reportes"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
             <TabErrorBoundary tabName="Reportes">
               <ReportsTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/historial"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/historial"
+          element={
             <TabErrorBoundary tabName="Historial">
               <HistoryTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/configuraciones"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/configuraciones"
+          element={
             <TabErrorBoundary tabName="Configuraciones">
               <SettingsTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/estadisticas"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/estadisticas"
+          element={
             <TabErrorBoundary tabName="Estadisticas">
               <DashboardStatsTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/mermas"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/mermas"
+          element={
             <TabErrorBoundary tabName="Mermas">
               <MermasTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/gastos"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/gastos"
+          element={
             <TabErrorBoundary tabName="Gastos">
               <ExpensesTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/empleados"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/empleados"
+          element={
             <TabErrorBoundary tabName="Empleados">
               <EmployeesTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/remoto"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/remoto"
+          element={
             <TabErrorBoundary tabName="Remoto">
               <RemoteTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/fiscal"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/fiscal"
+          element={
             <TabErrorBoundary tabName="Fiscal">
               <FiscalTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/hardware"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="/hardware"
+          element={
             <TabErrorBoundary tabName="Hardware">
               <HardwareTab />
             </TabErrorBoundary>
-          </RequireAuth>
-        }
-      />
+          }
+        />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </>

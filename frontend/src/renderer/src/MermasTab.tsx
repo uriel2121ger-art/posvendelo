@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Check, X, AlertTriangle } from 'lucide-react'
-import TopNavbar from './components/TopNavbar'
+
 import { useConfirm } from './components/ConfirmDialog'
 import { loadRuntimeConfig, getMermasPending, approveMerma } from './posApi'
 
@@ -93,7 +93,7 @@ export default function MermasTab(): ReactElement {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-slate-200">
-      <TopNavbar />
+
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-8">

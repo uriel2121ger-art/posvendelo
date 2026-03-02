@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import TopNavbar from './components/TopNavbar'
+
 import { useConfirm } from './components/ConfirmDialog'
+import { Search, Plus, Package, X, AlertCircle, RefreshCw, PackageOpen, Edit2 } from 'lucide-react'
 import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, scanProduct, getLowStockProducts } from './posApi'
 
 type Product = {
@@ -39,6 +40,7 @@ export default function ProductsTab(): ReactElement {
   const [products, setProducts] = useState<Product[]>([])
   const [query, setQuery] = useState('')
   const [selectedSku, setSelectedSku] = useState<string | null>(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [sku, setSku] = useState('')
   const [name, setName] = useState('')
   const [price, setPrice] = useState('0')
@@ -48,11 +50,11 @@ export default function ProductsTab(): ReactElement {
     'Productos (F3): carga, alta, edicion y baja logica funcional.'
   )
   const requestIdRef = useRef(0)
-  const scanInputRef = useRef<HTMLInputElement>(null)
+    const scanInputRef = useRef<HTMLInputElement>(null)
+  const lastScanEnterRef = useRef(0)
   const skuFormRef = useRef<HTMLInputElement>(null)
   const nameFormRef = useRef<HTMLInputElement>(null)
-  const lastScanEnterRef = useRef(0)
-  const [categories, setCategories] = useState<string[]>([])
+    const [categories, setCategories] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState('')
   const [scanSku, setScanSku] = useState('')
   const [lowStock, setLowStock] = useState<Record<string, unknown>[]>([])
@@ -160,6 +162,7 @@ export default function ProductsTab(): ReactElement {
       setName('')
       setPrice('0')
       setStock('0')
+      setIsDrawerOpen(false)
       setMessage(
         isUpdate ? `Producto actualizado: ${product.sku}` : `Producto guardado: ${product.sku}`
       )
@@ -205,6 +208,7 @@ export default function ProductsTab(): ReactElement {
       setName('')
       setPrice('0')
       setStock('0')
+      setIsDrawerOpen(false)
       setMessage(`Producto eliminado: ${target.sku}`)
     } catch (error) {
       setMessage((error as Error).message)
@@ -215,31 +219,12 @@ export default function ProductsTab(): ReactElement {
 
   function selectProduct(product: Product): void {
     setSelectedSku(product.sku)
+    setIsDrawerOpen(true)
     setSku(product.sku)
     setName(product.name)
     setPrice(product.price.toFixed(2))
     setStock(String(product.stock))
     setMessage(`Producto seleccionado: ${product.sku}`)
-  }
-
-  async function handleScan(): Promise<void> {
-    const target = scanSku.trim()
-    if (!target) return
-    try {
-      const cfg = loadRuntimeConfig()
-      const raw = await scanProduct(cfg, target)
-      const data = (raw.data ?? raw) as Record<string, unknown>
-      const found = normalizeProduct(data)
-      if (found) {
-        selectProduct(found)
-        setMessage(`Producto escaneado: ${found.sku}`)
-      } else {
-        setMessage(`Sin resultados para SKU: ${target}`)
-      }
-    } catch (err) {
-      setMessage((err as Error).message)
-    }
-    setScanSku('')
   }
 
   async function loadLowStock(): Promise<void> {
@@ -257,6 +242,7 @@ export default function ProductsTab(): ReactElement {
 
   function resetForm(): void {
     setSelectedSku(null)
+    setIsDrawerOpen(true)
     setSku('')
     setName('')
     setPrice('0')
@@ -264,230 +250,237 @@ export default function ProductsTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
-      <TopNavbar />
+    <div className="flex h-screen bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
+      {/* Sidebar Tooling (Left) is handled by the global Layout, so this is just the content area */}
 
-      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[1fr_1fr_160px_160px_auto_auto_auto_auto]">
-        <input
-          ref={skuFormRef}
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="SKU"
-          maxLength={100}
-          value={sku}
-          onChange={(e) => setSku(e.target.value)}
-          disabled={Boolean(selectedSku)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              e.stopPropagation()
-              if (sku.trim()) nameFormRef.current?.focus()
-            }
-          }}
-        />
-        <input
-          ref={nameFormRef}
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="Nombre producto"
-          maxLength={300}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="Precio"
-          type="number"
-          min={0}
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          onKeyDown={(e) => { if ('eE+-'.includes(e.key)) e.preventDefault() }}
-        />
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="Stock"
-          type="number"
-          min={0}
-          value={stock}
-          onChange={(e) => setStock(e.target.value)}
-          onKeyDown={(e) => { if ('eE+-'.includes(e.key)) e.preventDefault() }}
-        />
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={() => void handleCreate()}
-          disabled={busy}
-        >
-          {selectedSku ? 'Actualizar' : 'Guardar'}
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
-          onClick={() => void handleLoad()}
-          disabled={busy}
-        >
-          Cargar
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-amber-600/20 border border-amber-500/30 px-5 py-2.5 font-bold text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)] hover:bg-amber-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={resetForm}
-          disabled={busy}
-        >
-          Nuevo
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-rose-500/20 border border-rose-500/30 px-5 py-2.5 font-bold text-rose-400 shadow-[0_0_15px_rgba(243,66,102,0.1)] hover:bg-rose-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={() => void handleDelete()}
-          disabled={busy || !selectedSku}
-        >
-          Eliminar
-        </button>
-      </div>
-
-      <div className="flex gap-2 border-b border-zinc-800 bg-zinc-900 px-4 py-2 items-center">
-        {categories.length > 0 && (
-          <select
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-          >
-            <option value="">Todas categorias</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        )}
-        <input
-          ref={scanInputRef}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 w-36 placeholder:text-zinc-600"
-          placeholder="SKU a escanear"
-          value={scanSku}
-          onChange={(e) => setScanSku(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              e.stopPropagation()
-              const now = Date.now()
-              if (now - lastScanEnterRef.current < 150) return
-              lastScanEnterRef.current = now
-              void handleScan()
-              setTimeout(() => scanInputRef.current?.focus(), 0)
-            }
-          }}
-        />
-        <button
-          className="px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-600/40 transition-colors"
-          onClick={() => void handleScan()}
-          disabled={!scanSku.trim()}
-        >
-          Escanear
-        </button>
-        <button
-          className="px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/30 text-amber-400 text-xs font-bold hover:bg-amber-600/40 transition-colors"
-          onClick={() => (showLowStock ? setShowLowStock(false) : void loadLowStock())}
-        >
-          {showLowStock ? 'Ocultar Stock Bajo' : 'Stock Bajo'}
-        </button>
-      </div>
-
-      {showLowStock && lowStock.length > 0 && (
-        <div className="mx-4 mt-2 max-h-40 overflow-auto rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
-          <p className="text-xs font-bold text-amber-400 mb-2 uppercase">Productos con Stock Bajo</p>
-          <div className="grid grid-cols-3 gap-1 text-xs">
-            {lowStock.map((p, i) => (
-              <div key={i} className="flex justify-between rounded bg-zinc-900 px-2 py-1">
-                <span className="text-zinc-300 truncate">{String((p as Record<string, unknown>).sku ?? (p as Record<string, unknown>).name ?? `#${i}`)}</span>
-                <span className="text-amber-400 font-mono ml-2">{String((p as Record<string, unknown>).stock ?? '?')}</span>
-              </div>
-            ))}
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* Header Area */}
+        <div className="px-8 py-6 border-b border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <PackageOpen className="w-7 h-7 text-blue-500" />
+              Catálogo de Productos
+            </h1>
+            <p className="text-zinc-500 text-sm mt-1">{products.length} productos registrados en total</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+               onClick={() => void handleLoad()} disabled={busy}
+               className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
+            >
+               <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
+               <span>Sincronizar</span>
+            </button>
+            <button
+               onClick={() => { resetForm(); setIsDrawerOpen(true); }} disabled={busy}
+               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_4px_20px_-5px_rgba(37,99,235,0.4)] transition-all hover:-translate-y-0.5"
+            >
+               <Plus className="w-5 h-5" />
+               <span>Nuevo Producto</span>
+            </button>
           </div>
         </div>
-      )}
 
-      <div className="border-b border-zinc-800 bg-zinc-900/50 p-4 mx-4 mb-2 rounded-xl mt-4">
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="Buscar producto (escanea o escribe)"
-          value={query}
-          onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              e.stopPropagation()
-              const q = query.trim().toLowerCase()
-              if (!q) return
-              const match = products.find((p) => p.sku.toLowerCase() === q)
-              if (match) {
-                selectProduct(match)
-              }
-            }
-          }}
-        />
-      </div>
+        {/* Toolbar (Search & Filters) */}
+        <div className="px-8 py-4 bg-zinc-950/50 flex flex-wrap items-center gap-4 shrink-0">
+           <div className="relative flex-1 min-w-[300px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+              <input
+                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
+                 placeholder="Buscar por SKU, Nombre o Código de barras..."
+                 value={query}
+                 onChange={(e) => setQuery(e.target.value)}
+              />
+           </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-zinc-950 shadow-[inset_0_5px_15px_rgba(0,0,0,0.3)]">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-zinc-800 bg-zinc-900/80 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 shadow-sm">
-              <th className="py-4 px-6">SKU</th>
-              <th className="py-4 px-6">Nombre</th>
-              <th className="py-4 px-6">Precio</th>
-              <th className="py-4 px-6">Stock</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginated.length === 0 && (
-              <tr>
-                <td colSpan={4} className="py-12 text-center text-zinc-600">
-                  {query.trim()
-                    ? 'Sin resultados para la busqueda.'
-                    : 'Sin productos. Haz clic en Cargar.'}
-                </td>
-              </tr>
-            )}
-            {paginated.map((p) => (
-              <tr
-                key={String(p.id)}
-                className={`border-b border-zinc-800/50 cursor-pointer transition-colors text-sm ${
-                  selectedSku === p.sku
-                    ? 'bg-blue-900/20 border-l-4 border-blue-500'
-                    : 'hover:bg-zinc-800/40'
-                }`}
-                onClick={() => selectProduct(p)}
-              >
-                <td className="py-4 px-6 font-medium max-w-[140px] truncate">{p.sku}</td>
-                <td className="py-4 px-6 font-medium max-w-xs truncate">{p.name}</td>
-                <td className="py-4 px-6 font-medium">${p.price.toFixed(2)}</td>
-                <td className="py-4 px-6 font-medium">{p.stock}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+           {categories.length > 0 && (
+             <select
+               className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer min-w-[200px]"
+               value={categoryFilter}
+               onChange={(e) => setCategoryFilter(e.target.value)}
+             >
+               <option value="">Todas las Categorías</option>
+               {categories.map((c) => (
+                 <option key={c} value={c}>{c}</option>
+               ))}
+             </select>
+           )}
 
-      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 flex items-center justify-between">
-        <span>{message}</span>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-zinc-500">{filtered.length} resultados</span>
-          {totalPages > 1 && (
-            <>
+           <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden p-1">
               <button
-                className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
+                 onClick={() => (showLowStock ? setShowLowStock(false) : void loadLowStock())}
+                 className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 ${showLowStock ? 'bg-amber-500/20 text-amber-500' : 'hover:bg-zinc-800 text-zinc-400'}`}
               >
-                &laquo; Ant
+                 <AlertCircle className="w-4 h-4" />
+                 {showLowStock ? 'Ocultar Alertas' : 'Stock Bajo'}
               </button>
-              <span className="text-zinc-400">
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                className="px-2 py-1 rounded border border-zinc-700 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-              >
-                Sig &raquo;
-              </button>
-            </>
-          )}
+           </div>
+        </div>
+
+        {showLowStock && lowStock.length > 0 && (
+          <div className="mx-8 mt-2 max-h-40 overflow-auto rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 shrink-0">
+            <p className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+               <AlertCircle className="w-4 h-4" /> Alertas de Inventario
+            </p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+              {lowStock.map((p, i) => (
+                <div key={i} className="flex justify-between items-center rounded-lg bg-zinc-900 px-3 py-2 border border-amber-900/30">
+                  <span className="text-zinc-300 truncate pr-2 font-medium">{String((p as any).sku ?? (p as any).name ?? `#${i}`)}</span>
+                  <span className="text-rose-400 font-mono font-bold bg-rose-950/50 px-2 py-0.5 rounded">{String((p as any).stock ?? '?')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Master List (Data Grid) */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+           <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                 <thead>
+                    <tr className="bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold">
+                       <th className="px-6 py-4 w-40">SKU / CÓDIGO</th>
+                       <th className="px-6 py-4">Producto</th>
+                       <th className="px-6 py-4 text-right w-32">Precio</th>
+                       <th className="px-6 py-4 text-right w-32">Stock</th>
+                       <th className="px-6 py-4 w-16"></th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-zinc-800/50">
+                    {paginated.length === 0 ? (
+                       <tr>
+                          <td colSpan={5} className="px-6 py-16 text-center text-zinc-500">
+                             <PackageOpen className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                             <p className="text-lg font-medium text-zinc-400">No hay productos para mostrar</p>
+                             <p className="text-sm mt-1">{query.trim() || categoryFilter ? 'Intenta con otra búsqueda o filtro.' : 'Haz clic en "Sincronizar" o crea uno nuevo.'}</p>
+                          </td>
+                       </tr>
+                    ) : (
+                       paginated.map(p => (
+                          <tr
+                             key={String(p.id)}
+                             onClick={() => { selectProduct(p); setIsDrawerOpen(true); }}
+                             className="group hover:bg-zinc-800/40 cursor-pointer transition-colors"
+                          >
+                             <td className="px-6 py-4 font-mono text-sm text-zinc-400 group-hover:text-blue-400 transition-colors">{p.sku}</td>
+                             <td className="px-6 py-4 font-medium text-zinc-200">{p.name} {p.category && <span className="ml-2 text-[10px] bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full">{p.category}</span>}</td>
+                             <td className="px-6 py-4 text-right font-bold text-emerald-400">${p.price.toFixed(2)}</td>
+                             <td className="px-6 py-4 text-right">
+                                <span className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-lg text-xs font-bold ${p.stock <= 5 ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-zinc-800 text-zinc-300'}`}>
+                                   {p.stock}
+                                </span>
+                             </td>
+                             <td className="px-6 py-4 text-right">
+                                <button className="p-2 -mr-2 text-zinc-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-blue-500/10">
+                                   <Edit2 className="w-4 h-4" />
+                                </button>
+                             </td>
+                          </tr>
+                       ))
+                    )}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+
+        {/* Footer info */}
+        <div className="bg-zinc-950 border-t border-zinc-900 px-8 py-3 flex items-center justify-between shrink-0 text-sm">
+           <span className="text-zinc-500">{message}</span>
+           <div className="flex items-center gap-4">
+              <span className="text-zinc-600">{filtered.length} resultados en total</span>
+              {totalPages > 1 && (
+                 <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-2 py-1 hover:bg-zinc-800 rounded text-zinc-400 disabled:opacity-30">&laquo;</button>
+                    <span className="px-3 text-xs font-bold text-zinc-300">{page + 1} / {totalPages}</span>
+                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-2 py-1 hover:bg-zinc-800 rounded text-zinc-400 disabled:opacity-30">&raquo;</button>
+                 </div>
+              )}
+           </div>
         </div>
       </div>
+
+      {/* Drawer Overlay */}
+      {isDrawerOpen && (
+         <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity flex justify-end"
+            onClick={() => setIsDrawerOpen(false)}
+         >
+            {/* Drawer Panel */}
+            <div
+               className="w-[450px] bg-zinc-950 border-l border-zinc-800 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0 cursor-default"
+               onClick={e => e.stopPropagation()}
+            >
+               <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                     {selectedSku ? <Edit2 className="w-5 h-5 text-blue-500"/> : <Plus className="w-5 h-5 text-emerald-500"/>}
+                     {selectedSku ? 'Editar Producto' : 'Nuevo Producto'}
+                  </h2>
+                  <button onClick={() => setIsDrawerOpen(false)} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors">
+                     <X className="w-5 h-5" />
+                  </button>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                  <div>
+                     <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">CÓDIGO / SKU</label>
+                     <input
+                        ref={skuFormRef}
+                        disabled={Boolean(selectedSku)}
+                        value={sku} onChange={e => setSku(e.target.value)}
+                        placeholder="Ej: 7501234567890"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                     />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">NOMBRE DEL PRODUCTO</label>
+                     <input
+                        ref={nameFormRef}
+                        value={name} onChange={e => setName(e.target.value)}
+                        placeholder="Coca Cola 600ml"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"
+                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">PRECIO DE VENTA</label>
+                        <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                           <input
+                              type="number" value={price} onChange={e => setPrice(e.target.value)} min={0}
+                              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-8 pr-4 text-sm font-medium text-white focus:outline-none focus:border-blue-500 focus:text-emerald-400 transition-colors"
+                           />
+                        </div>
+                     </div>
+                     <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">STOCK</label>
+                        <input
+                           type="number" value={stock} onChange={e => setStock(e.target.value)} min={0}
+                           className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"
+                        />
+                     </div>
+                  </div>
+               </div>
+
+               <div className="p-6 border-t border-zinc-800 bg-zinc-900/50 flex flex-col gap-3">
+                  <button
+                     onClick={() => void handleCreate()} disabled={busy}
+                     className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold tracking-wide shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all active:scale-[0.98] disabled:opacity-50"
+                  >
+                     {busy ? 'PROCESANDO...' : 'GUARDAR PRODUCTO'}
+                  </button>
+                  {selectedSku && (
+                     <button
+                        onClick={() => void handleDelete()} disabled={busy}
+                        className="w-full py-3.5 bg-transparent border border-rose-500/30 text-rose-500 rounded-xl font-bold tracking-wide hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                     >
+                        ELIMINAR PRODUCTO
+                     </button>
+                  )}
+               </div>
+            </div>
+         </div>
+      )}
     </div>
   )
 }

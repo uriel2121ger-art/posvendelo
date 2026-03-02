@@ -13,9 +13,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.requests import Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.rate_limit import check_pin_rate_limit
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
 
 logger = logging.getLogger(__name__)
@@ -283,6 +285,7 @@ async def get_turn_summary(
 async def create_cash_movement(
     turn_id: int,
     body: CashMovementCreate,
+    request: Request,
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
@@ -291,27 +294,46 @@ async def create_cash_movement(
     role = auth.get("role", "")
     is_manager = role in ("admin", "manager", "owner")
 
-    # Verify manager PIN for non-manager roles (pre-compute hash before transaction)
-    pin_hash = None
+    # PIN brute-force protection: 5 attempts per 5 min per IP
+    if not is_manager:
+        client_ip = request.client.host if request.client else "127.0.0.1"
+        check_pin_rate_limit(client_ip)
+
+    # Verify manager PIN for non-manager roles (bcrypt preferred, SHA-256 fallback)
+    import bcrypt
+    import hashlib
+    need_pin_check = False
     if not is_manager:
         if not body.manager_pin:
             raise HTTPException(
                 status_code=403,
                 detail="Se requiere PIN de gerente para movimientos de caja",
             )
-        import hashlib
-        pin_hash = hashlib.sha256(body.manager_pin.encode()).hexdigest()
+        need_pin_check = True
 
     # Atomic: lock turn row + verify PIN inside transaction to prevent TOCTOU
     conn = db.connection
     async with conn.transaction():
         # Verify PIN inside transaction to prevent TOCTOU race
-        if pin_hash:
-            mgr_check = await conn.fetchrow(
-                "SELECT id FROM users WHERE pin_hash = $1 AND is_active = 1 "
-                "AND role IN ('admin', 'manager', 'owner')",
-                pin_hash,
+        if need_pin_check:
+            mgr_rows = await conn.fetch(
+                "SELECT id, pin_hash FROM users WHERE is_active = 1 "
+                "AND role IN ('admin', 'manager', 'owner') AND pin_hash IS NOT NULL"
             )
+            mgr_check = None
+            for row in mgr_rows:
+                stored = row["pin_hash"]
+                try:
+                    if stored.startswith("$2b$") or stored.startswith("$2a$"):
+                        if bcrypt.checkpw(body.manager_pin.encode(), stored.encode()):
+                            mgr_check = row
+                            break
+                    else:
+                        if hashlib.sha256(body.manager_pin.encode()).hexdigest() == stored:
+                            mgr_check = row
+                            break
+                except Exception:
+                    continue
             if not mgr_check:
                 raise HTTPException(status_code=403, detail="PIN de gerente invalido")
 

@@ -35,7 +35,7 @@ export default function ShiftStartupModal({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const operator = (() => {
-    try { return localStorage.getItem('titan.username') ?? 'admin' } catch { return 'admin' }
+    try { return localStorage.getItem('titan.user') ?? 'admin' } catch { return 'admin' }
   })()
 
   // Block F-keys while modal is open (capture phase)

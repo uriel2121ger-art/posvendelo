@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { RefreshCw, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
-import TopNavbar from './components/TopNavbar'
+
 import {
   loadRuntimeConfig,
   getDashboardQuick,
@@ -162,7 +162,7 @@ export default function DashboardStatsTab(): ReactElement {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-slate-200">
-      <TopNavbar />
+
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">

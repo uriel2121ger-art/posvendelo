@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -6,7 +6,8 @@ import icon from '../../resources/icon.png?asset'
 function isSafeExternalUrl(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+    // SECURITY: Only allow HTTPS for external URLs — HTTP can be MITM'd
+    return parsed.protocol === 'https:'
   } catch {
     return false
   }
@@ -40,6 +41,27 @@ function createWindow(): void {
     }
     return { action: 'deny' }
   })
+
+  // CSP: In production, enforce strict Content-Security-Policy via response headers
+  if (!is.dev) {
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data: blob:; " +
+            "font-src 'self' data:; " +
+            "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:*; " +
+            "object-src 'none'; " +
+            "base-uri 'self'"
+          ]
+        }
+      })
+    })
+  }
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.

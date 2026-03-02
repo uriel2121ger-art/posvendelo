@@ -135,7 +135,7 @@ async def update_printer_config(
 ):
     """Update receipt printer settings. RBAC: admin/manager/owner."""
     _require_admin(auth)
-    updates = body.model_dump(exclude_none=True)
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _HW_COLUMNS}
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
@@ -158,7 +158,7 @@ async def update_business_info(
 ):
     """Update business information for receipts. RBAC: admin/manager/owner."""
     _require_admin(auth)
-    updates = body.model_dump(exclude_none=True)
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _HW_COLUMNS}
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
@@ -181,7 +181,7 @@ async def update_scanner_config(
 ):
     """Update barcode scanner settings. RBAC: admin/manager/owner."""
     _require_admin(auth)
-    updates = body.model_dump(exclude_none=True)
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _HW_COLUMNS}
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
@@ -204,7 +204,7 @@ async def update_drawer_config(
 ):
     """Update cash drawer settings. RBAC: admin/manager/owner."""
     _require_admin(auth)
-    updates = body.model_dump(exclude_none=True)
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _HW_COLUMNS}
     if not updates:
         raise HTTPException(status_code=400, detail="Nada que actualizar")
 
@@ -258,7 +258,7 @@ async def test_print(
         await printer_svc.print_raw(printer_name, data)
     except Exception as e:
         logger.error("Test print failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Error al imprimir: {e}")
+        raise HTTPException(status_code=500, detail="Error al imprimir. Verifique la impresora.")
 
     return {"success": True, "data": {"message": "Ticket de prueba enviado"}}
 
@@ -285,7 +285,7 @@ async def test_drawer(
         await printer_svc.open_drawer(drawer_printer, pulse)
     except Exception as e:
         logger.error("Test drawer failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Error abriendo cajon: {e}")
+        raise HTTPException(status_code=500, detail="Error abriendo cajon. Verifique la conexion.")
 
     return {"success": True, "data": {"message": "Cajon de prueba abierto"}}
 
@@ -332,7 +332,7 @@ async def print_receipt(
         await printer_svc.print_raw(printer_name, receipt_bytes)
     except Exception as e:
         logger.error("Print receipt failed for sale %d: %s", body.sale_id, e)
-        raise HTTPException(status_code=500, detail=f"Error al imprimir ticket: {e}")
+        raise HTTPException(status_code=500, detail="Error al imprimir ticket. Verifique la impresora.")
 
     return {"success": True, "data": {"message": f"Ticket de venta #{body.sale_id} impreso"}}
 

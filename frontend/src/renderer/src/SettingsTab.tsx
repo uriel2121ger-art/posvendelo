@@ -1,8 +1,9 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import TopNavbar from './components/TopNavbar'
+
 import { useConfirm } from './components/ConfirmDialog'
 import { getSyncStatus, getSystemInfo, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
+import { Server, ShieldCheck, Wifi, Key, Save, Trash2, Database, AlertCircle, Activity, Link2, MonitorDot } from 'lucide-react'
 
 type RuntimeState = {
   baseUrl: string
@@ -120,7 +121,7 @@ export default function SettingsTab(): ReactElement {
       id: `profile-${Date.now()}`,
       name,
       baseUrl: form.baseUrl,
-      token: form.token,
+      token: '',  // SECURITY: tokens excluded from saved profiles
       terminalId: form.terminalId
     }
     const merged = [
@@ -172,111 +173,176 @@ export default function SettingsTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
-      <TopNavbar />
-
-      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[1fr_1fr_160px_auto_auto]">
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          value={form.baseUrl}
-          placeholder="Base URL"
-          onChange={(e) => setForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
-        />
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          type="password"
-          autoComplete="off"
-          value={form.token}
-          placeholder="Token"
-          onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value }))}
-        />
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          type="number"
-          min={1}
-          value={form.terminalId}
-          placeholder="Terminal ID"
-          onChange={(e) =>
-            setForm((prev) => ({
-              ...prev,
-              terminalId: parseTerminalId(e.target.value)
-            }))
-          }
-        />
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={persistConfig}
-          disabled={busy}
-        >
-          Guardar
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
-          onClick={() => void testConnection()}
-          disabled={busy}
-        >
-          {busy ? 'Probando...' : 'Probar conexion'}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 border-b border-zinc-800 bg-zinc-900 p-4 md:grid-cols-[1fr_1fr_auto_auto]">
-        <input
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          placeholder="Nombre del perfil (ej. Caja 1)"
-          value={profileName}
-          onChange={(e) => setProfileName(e.target.value)}
-        />
-        <select
-          className="w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal"
-          value={selectedProfileId}
-          onChange={(e) => loadProfile(e.target.value)}
-        >
-          <option value="">Seleccionar perfil...</option>
-          {profiles.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}
-            </option>
-          ))}
-        </select>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={saveProfile}
-          disabled={busy}
-        >
-          Guardar perfil
-        </button>
-        <button
-          className="flex items-center justify-center gap-2 rounded-xl bg-rose-500/20 border border-rose-500/30 px-5 py-2.5 font-bold text-rose-400 shadow-[0_0_15px_rgba(243,66,102,0.1)] hover:bg-rose-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-          onClick={deleteProfile}
-          disabled={busy || !selectedProfileId}
-        >
-          Eliminar perfil
-        </button>
-      </div>
-
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-auto p-4 md:grid-cols-2">
-        <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
-          <h3 className="mb-3 font-semibold">Info del sistema</h3>
-          {!systemInfo && <p className="text-sm text-zinc-400">Sin informacion.</p>}
-          {systemInfo && (
-            <pre className="max-h-96 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
-              {JSON.stringify(systemInfo, null, 2)}
-            </pre>
-          )}
+    <div className="flex h-screen bg-[#09090b] font-sans text-slate-200 select-none overflow-y-auto">
+      <div className="max-w-4xl mx-auto w-full p-6 md:p-8 space-y-8 pb-32">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
+          <div>
+            <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
+              <Server className="w-8 h-8 text-blue-500" />
+              Configuración del Servidor
+            </h1>
+            <p className="text-zinc-500 mt-2 font-medium">
+              Ajustes de conexión al backend, credenciales de API y perfiles de terminal.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+             <button
+                onClick={() => void testConnection()} disabled={busy}
+                className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 text-zinc-300 px-5 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50"
+             >
+                <Activity className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
+                {busy ? 'Probando...' : 'Test de Conexión'}
+             </button>
+             <button
+                onClick={persistConfig} disabled={busy}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-[0_4px_20px_-5px_rgba(59,130,246,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50"
+             >
+                <Save className="w-4 h-4" /> Guardar Cambios
+             </button>
+          </div>
         </div>
-        <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
-          <h3 className="mb-3 font-semibold">Estado de sincronizacion</h3>
-          {!lastStatus && <p className="text-sm text-zinc-400">Sin informacion.</p>}
-          {lastStatus && (
-            <pre className="max-h-96 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
-              {JSON.stringify(lastStatus, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-        {message}
+        {message && message !== 'Configuraciones listas: actualiza y valida conexion.' && (
+           <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-semibold animate-fade-in-up">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <p>{message}</p>
+           </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+           
+           {/* Connection Settings */}
+           <div className="space-y-6">
+              <div>
+                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                    <Link2 className="w-4 h-4 text-zinc-500" /> Red y Autenticación
+                 </h2>
+                 <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-3xl overflow-hidden divide-y divide-zinc-800/60">
+                    
+                    {/* Base URL */}
+                    <div className="p-5 flex flex-col gap-2">
+                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                          <Wifi className="w-4 h-4" /> Base URL del Backend
+                       </label>
+                       <input
+                          className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 px-4 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
+                          value={form.baseUrl} placeholder="http://127.0.0.1:8000"
+                          onChange={(e) => setForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                       />
+                       <p className="text-[10px] text-zinc-600">IP local o dominio de internet donde reside la BD principal.</p>
+                    </div>
+
+                    {/* Token */}
+                    <div className="p-5 flex flex-col gap-2">
+                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                          <Key className="w-4 h-4" /> Access Token
+                       </label>
+                       <input
+                          className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 px-4 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
+                          type="password" autoComplete="off" value={form.token} placeholder="Token de API"
+                          onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value }))}
+                       />
+                       <p className="text-[10px] text-zinc-600">Clave de autorización JWT o API Key para conectarse.</p>
+                    </div>
+
+                    {/* Terminal ID */}
+                    <div className="p-5 flex flex-col gap-2">
+                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                          <MonitorDot className="w-4 h-4" /> ID Lógico de Terminal
+                       </label>
+                       <input
+                          className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-xl py-3 px-4 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
+                          type="number" min={1} value={form.terminalId} placeholder="1"
+                          onChange={(e) => setForm((prev) => ({ ...prev, terminalId: parseTerminalId(e.target.value) }))}
+                       />
+                       <p className="text-[10px] text-zinc-600">Para separar arqueos y cierres en operación multi-caja.</p>
+                    </div>
+
+                 </div>
+              </div>
+           </div>
+
+           {/* Profiles */}
+           <div className="space-y-6">
+              <div>
+                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                    <Database className="w-4 h-4 text-zinc-500" /> Perfiles de Configuración
+                 </h2>
+                 <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-3xl p-5 space-y-5">
+                    
+                    <div className="space-y-3">
+                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Cargar Perfil</label>
+                       <select
+                          className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-semibold text-sm focus:border-blue-500 focus:outline-none transition-all"
+                          value={selectedProfileId} onChange={(e) => loadProfile(e.target.value)}
+                       >
+                          <option value="">(Seleccionar / Sin perfil)</option>
+                          {profiles.map((profile) => (
+                             <option key={profile.id} value={profile.id}>{profile.name}</option>
+                          ))}
+                       </select>
+                       <button
+                          onClick={deleteProfile} disabled={busy || !selectedProfileId}
+                          className="w-full flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
+                       >
+                          <Trash2 className="w-4 h-4" /> Eliminar perfil seleccionado
+                       </button>
+                    </div>
+
+                    <div className="h-px bg-zinc-800/60 w-full" />
+
+                    <div className="space-y-3">
+                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Guardar Entorno Actual</label>
+                       <input
+                          className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-semibold text-sm focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                          placeholder="Ej. Servidor Nube Principal" value={profileName} onChange={(e) => setProfileName(e.target.value)}
+                       />
+                       <button
+                          onClick={saveProfile} disabled={busy || !profileName.trim()}
+                          className="w-full flex items-center justify-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
+                       >
+                          <Save className="w-4 h-4" /> Guardar como nuevo perfil
+                       </button>
+                    </div>
+                 </div>
+              </div>
+           </div>
+
+        </div>
+
+        {/* Status Responses */}
+        {(systemInfo || lastStatus) && (
+           <div className="pt-8 border-t border-zinc-800 animate-fade-in-up">
+              <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                 <ShieldCheck className="w-4 h-4 text-zinc-500" /> Diagnósticos del Servidor
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {systemInfo && (
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
+                       <div className="px-4 py-2 border-b border-zinc-800 bg-zinc-900/50 text-xs font-bold text-zinc-400 uppercase tracking-widest flex justify-between">
+                          <span>Info del Sistema</span>
+                       </div>
+                       <pre className="p-4 text-[10px] font-mono text-emerald-400 overflow-x-auto max-h-60 overflow-y-auto">
+                          {JSON.stringify(systemInfo, null, 2)}
+                       </pre>
+                    </div>
+                 )}
+                 {lastStatus && (
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
+                       <div className="px-4 py-2 border-b border-zinc-800 bg-zinc-900/50 text-xs font-bold text-zinc-400 uppercase tracking-widest flex justify-between">
+                          <span>Estado de Sincronización</span>
+                       </div>
+                       <pre className="p-4 text-[10px] font-mono text-blue-400 overflow-x-auto max-h-60 overflow-y-auto">
+                          {JSON.stringify(lastStatus, null, 2)}
+                       </pre>
+                    </div>
+                 )}
+              </div>
+           </div>
+        )}
+
       </div>
     </div>
   )

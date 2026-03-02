@@ -18,6 +18,15 @@ from modules.products.schemas import ProductCreate, ProductUpdate, StockUpdateRe
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Columns visible to cashiers (exclude cost/margin fields)
+_CASHIER_PRODUCT_COLS = (
+    "id, sku, name, price, price_wholesale, stock, category, category_id, "
+    "department, min_stock, max_stock, is_active, is_kit, tax_scheme, tax_rate, "
+    "sale_type, barcode, is_favorite, description, notes, "
+    "sat_clave_prod_serv, sat_clave_unidad, sat_descripcion, sat_code, sat_unit, "
+    "entry_date, visible, synced, created_at, updated_at"
+)
+
 
 # ============================================================================
 # READ endpoints (existentes)
@@ -33,8 +42,10 @@ async def list_products(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """List products with search and filters."""
-    sql = "SELECT * FROM products WHERE 1=1"
+    """List products with search and filters. Cashiers don't see cost columns."""
+    role = auth.get("role", "")
+    cols = _CASHIER_PRODUCT_COLS if role == "cashier" else "*"
+    sql = f"SELECT {cols} FROM products WHERE 1=1"
     params: dict = {}
 
     if is_active is not None:
@@ -80,9 +91,10 @@ async def low_stock_products(
 
 @router.get("/sku/{sku}")
 async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get product by SKU."""
+    """Get product by SKU. Cashiers don't see cost columns."""
+    cols = _CASHIER_PRODUCT_COLS if auth.get("role") == "cashier" else "*"
     row = await db.fetchrow(
-        "SELECT * FROM products WHERE sku = :sku", {"sku": sku}
+        f"SELECT {cols} FROM products WHERE sku = :sku", {"sku": sku}
     )
     if not row:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -91,9 +103,10 @@ async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=De
 
 @router.get("/{product_id}")
 async def get_product(product_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get product by ID."""
+    """Get product by ID. Cashiers don't see cost columns."""
+    cols = _CASHIER_PRODUCT_COLS if auth.get("role") == "cashier" else "*"
     row = await db.fetchrow(
-        "SELECT * FROM products WHERE id = :id", {"id": product_id}
+        f"SELECT {cols} FROM products WHERE id = :id", {"id": product_id}
     )
     if not row:
         raise HTTPException(status_code=404, detail="Producto no encontrado")

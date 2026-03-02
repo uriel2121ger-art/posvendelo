@@ -1,9 +1,8 @@
 import type { ReactElement } from 'react'
-import TopNavbar from './components/TopNavbar'
+
 import { useConfirm, usePrompt } from './components/ConfirmDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Banknote,
   Plus,
   Search as SearchIcon,
   ShoppingCart as ShoppingCartIcon
@@ -209,10 +208,9 @@ export default function Terminal(): ReactElement {
   )
   const ticketCounterRef = useRef(_savedActive?.ticketCounter ?? 1)
   const [ticketLabel, setTicketLabel] = useState('')
+  const [qty] = useState(1)
   const [query, setQuery] = useState('')
-  const [showResults, setShowResults] = useState(false)
-  const [qty, setQty] = useState(1)
-  const [busy, setBusy] = useState(false)
+      const [busy, setBusy] = useState(false)
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
   const [wholesaleMode, setWholesaleMode] = useState(false)
   const [message, setMessage] = useState('Cargando productos...')
@@ -557,22 +555,6 @@ export default function Terminal(): ReactElement {
     setMessage(`Ticket activo cerrado. Cambiado a ${fallback.label}.`)
   }
 
-  function updateItemQty(sku: string, nextQty: number): void {
-    if (!Number.isFinite(nextQty)) return
-    const safeQty = Math.max(1, Math.floor(nextQty))
-    setCart((prev) =>
-      prev.map((item) =>
-        item.sku === sku
-          ? {
-              ...item,
-              qty: safeQty,
-              subtotal: calculateLineSubtotal(item.price, safeQty, item.discountPct)
-            }
-          : item
-      )
-    )
-  }
-
   const updateItemDiscount = useCallback((sku: string, nextDiscountPct: number): void => {
     const safeDiscount = clampDiscount(nextDiscountPct)
     setCart((prev) =>
@@ -593,14 +575,14 @@ export default function Terminal(): ReactElement {
       const safeQty = Math.max(1, Math.floor(qty))
       const effectivePrice = wholesaleMode && product.priceWholesale ? product.priceWholesale : product.price
       setCart((prev) => {
-        const idx = prev.findIndex((item) => item.sku === product.sku)
-        if (idx >= 0) {
+        const _idx = prev.findIndex((item) => item.sku === product.sku)
+        if (_idx >= 0) {
           const copy = [...prev]
-          const mergedQty = copy[idx].qty + safeQty
-          copy[idx] = {
-            ...copy[idx],
+          const mergedQty = copy[_idx].qty + safeQty
+          copy[_idx] = {
+            ...copy[_idx],
             qty: mergedQty,
-            subtotal: calculateLineSubtotal(copy[idx].price, mergedQty, copy[idx].discountPct)
+            subtotal: calculateLineSubtotal(copy[_idx].price, mergedQty, copy[_idx].discountPct)
           }
           return copy
         }
@@ -676,12 +658,12 @@ export default function Terminal(): ReactElement {
       return
     }
     setCart((prev) => {
-      const idx = prev.findIndex((item) => item.sku === selectedCartSku)
-      if (idx < 0) return prev
-      const current = prev[idx]
+      const _idx = prev.findIndex((item) => item.sku === selectedCartSku)
+      if (_idx < 0) return prev
+      const current = prev[_idx]
       const nextQty = current.qty + 1
       const copy = [...prev]
-      copy[idx] = {
+      copy[_idx] = {
         ...current,
         qty: nextQty,
         subtotal: calculateLineSubtotal(current.price, nextQty, current.discountPct)
@@ -696,13 +678,13 @@ export default function Terminal(): ReactElement {
       return
     }
     setCart((prev) => {
-      const idx = prev.findIndex((item) => item.sku === selectedCartSku)
-      if (idx < 0) return prev
-      const current = prev[idx]
+      const _idx = prev.findIndex((item) => item.sku === selectedCartSku)
+      if (_idx < 0) return prev
+      const current = prev[_idx]
       const nextQty = Math.max(1, current.qty - 1)
       if (nextQty === current.qty) return prev
       const copy = [...prev]
-      copy[idx] = {
+      copy[_idx] = {
         ...current,
         qty: nextQty,
         subtotal: calculateLineSubtotal(current.price, nextQty, current.discountPct)
@@ -801,7 +783,9 @@ export default function Terminal(): ReactElement {
       try {
         const hwRaw = localStorage.getItem('titan.hwConfig')
         if (hwRaw) {
-          const hwCfg: HardwareConfig = JSON.parse(hwRaw)
+          const parsed = JSON.parse(hwRaw)
+          if (!parsed || typeof parsed !== 'object') throw new Error('invalid hwConfig')
+          const hwCfg: HardwareConfig = parsed
           const saleId = saleData.id ?? saleData.sale_id
           if (hwCfg.printer?.enabled && hwCfg.printer?.auto_print && saleId) {
             printReceipt(config, Number(saleId)).catch(() => {})
@@ -1024,470 +1008,279 @@ export default function Terminal(): ReactElement {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200">
-      <TopNavbar />
-
-      {/* Toolbar: search + shift info + ticket actions */}
-      <div className="flex items-center gap-3 bg-zinc-900 border-b border-zinc-800 px-4 py-2">
-        {/* Search with dropdown */}
-        <div className="relative flex-1 max-w-lg">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 z-10" />
-          <input
-            autoFocus
-            ref={searchInputRef}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2 pl-10 pr-4 text-sm font-semibold focus:border-blue-500 focus:outline-none transition-all placeholder:text-zinc-600"
-            placeholder="Buscar SKU o nombre (F10)"
-            value={query}
-            onChange={(e) => {
-              const now = Date.now()
-              lastKeystrokeRef.current = now
-              // Strip control characters from scanner input (\t, \x00, \n, etc.)
-              const clean = e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
-              setQuery(clean)
-              setShowResults(true)
-            }}
-            onFocus={() => setShowResults(true)}
-            onBlur={() => setTimeout(() => setShowResults(false), 150)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                e.stopPropagation()
-
-                // Debounce: ignore Enter if another fired within 150ms (scanner CR+LF)
-                const now = Date.now()
-                if (now - lastEnterRef.current < 150) return
-                lastEnterRef.current = now
-
-                // Skip if query is empty
-                if (!query.trim()) return
-
-                // Scanner detection: read hw config from cache
-                let scannerMinSpeed = 50
-                let scannerPrefix = ''
-                let scannerSuffix = ''
-                let isScanner = false
-                try {
-                  const hwRaw = localStorage.getItem('titan.hwConfig')
-                  if (hwRaw) {
-                    const hwCfg: HardwareConfig = JSON.parse(hwRaw)
-                    if (hwCfg.scanner?.enabled) {
-                      scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
-                      scannerPrefix = hwCfg.scanner.prefix || ''
-                      scannerSuffix = hwCfg.scanner.suffix || ''
-                      const elapsed = now - lastKeystrokeRef.current
-                      if (elapsed < scannerMinSpeed && query.trim().length > 2) {
-                        isScanner = true
-                      }
-                    }
-                  }
-                } catch (_e) { /* parse error */ }
-
-                let searchTerm = query.trim()
-                if (isScanner) {
-                  if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
-                    searchTerm = searchTerm.slice(scannerPrefix.length)
-                  }
-                  if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
-                    searchTerm = searchTerm.slice(0, -scannerSuffix.length)
-                  }
-                  const exact = products.find(
-                    (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
-                  )
-                  if (exact) {
-                    addProduct(exact)
-                    setQuery('')
-                    setShowResults(false)
-                    searchInputRef.current?.focus()
-                    return
-                  }
-                }
-                if (firstMatch) {
-                  addProduct(firstMatch)
-                  setQuery('')
-                  setShowResults(false)
-                  searchInputRef.current?.focus()
-                }
-                return
-              }
-              if (e.key === 'Escape') setShowResults(false)
-            }}
-          />
-          {showResults && query.trim() && filtered.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 shadow-2xl z-50">
-              {filtered.map((p) => (
-                <button
-                  key={`${p.sku}-${p.id ?? ''}`}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-zinc-800/60 transition-colors border-b border-zinc-800/30 last:border-0"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    addProduct(p)
-                    setQuery('')
-                    setShowResults(false)
-                    searchInputRef.current?.focus()
-                  }}
-                >
-                  <span className="font-mono text-xs text-zinc-500 w-20 shrink-0">{p.sku}</span>
-                  <span className="flex-1 truncate">{p.name}</span>
-                  <span className="font-semibold text-emerald-400 shrink-0">
-                    ${p.price.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-zinc-500 shrink-0 w-12 text-right">
-                    {p.stock ?? 0} uds
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Qty */}
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-zinc-500">Cant:</span>
-          <input
-            className="w-16 rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-2 text-sm font-semibold text-center focus:border-blue-500 focus:outline-none"
-            type="number"
-            min={1}
-            step={1}
-            value={qty}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              setQty(Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 1)
-            }}
-          />
-        </div>
-
-        {/* Wholesale mode indicator */}
-        {wholesaleMode && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-600 bg-amber-950/50 text-amber-400 text-xs font-bold animate-pulse">
-            MAYOREO
-          </div>
-        )}
-
-        {/* Shift info compact */}
-        <div className="hidden md:flex items-center gap-3 ml-auto text-xs">
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${currentShift ? 'border-emerald-800 bg-emerald-950/50 text-emerald-400' : 'border-zinc-700 bg-zinc-900 text-zinc-500'}`}
-          >
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${currentShift ? 'bg-emerald-400' : 'bg-zinc-600'}`}
-            ></div>
-            {currentShift ? `Turno: ${currentShift.openedBy}` : 'Sin turno'}
-          </div>
-          {currentShift && (
-            <>
-              <span className="text-zinc-500">{currentShift.salesCount ?? 0} ventas</span>
-              <span className="font-semibold text-zinc-300">
-                ${(currentShift.totalSales ?? 0).toFixed(2)}
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Ticket management */}
-        <div className="flex items-center gap-1">
-          {activeTickets.length > 1 && (
-            <select
-              className="rounded-lg border border-zinc-700 bg-zinc-950 py-2 px-2 text-xs font-semibold focus:border-blue-500 focus:outline-none"
-              value={activeTicketId}
-              onChange={(e) => switchActiveTicket(e.target.value)}
-            >
-              {activeTickets.map((ticket) => (
-                <option key={ticket.id} value={ticket.id}>
-                  {ticket.label}
-                </option>
-              ))}
-            </select>
-          )}
-          <button
-            className="rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
-            onClick={createNewActiveTicket}
-            disabled={busy || activeTickets.length >= 8}
-            title="Nuevo ticket (Ctrl+N)"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          {activeTickets.length > 1 && (
-            <button
-              className="rounded-lg border border-rose-800 bg-rose-950/50 px-2.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-900/50 transition-colors"
-              onClick={() => closeActiveTicket(activeTicketId)}
-              disabled={busy || activeTickets.length <= 1}
-              title="Cerrar ticket activo"
-            >
-              &times;
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Main: ticket panel full width */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-col flex-1 overflow-hidden bg-zinc-950">
-          {/* Cart items */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+
+        {/* Left Panel: Ticket (35% width, max 450px) */}
+        <div className="w-full md:w-[35%] max-w-[450px] flex flex-col bg-zinc-950 border-r border-zinc-900 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.5)]">
+          {/* Ticket Header (Shift + Ticket Actions) */}
+          <div className="p-4 border-b border-zinc-900 bg-zinc-950 shrink-0 flex items-center justify-between">
+             {/* Ticket tabs/selector */}
+             <div className="flex items-center gap-2">
+                <select className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-bold text-blue-400 focus:outline-none" value={activeTicketId} onChange={(e) => switchActiveTicket(e.target.value)}>
+                   {activeTickets.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+                <button onClick={createNewActiveTicket} className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition" title="Nuevo (Ctrl+N)"><Plus className="w-4 h-4" /></button>
+                {activeTickets.length > 1 && <button onClick={() => closeActiveTicket(activeTicketId)} className="p-1.5 rounded-lg bg-rose-950/30 text-rose-500 hover:bg-rose-900/50 transition">&times;</button>}
+             </div>
+             {/* Shift Info & Pending */}
+             <div className="flex items-center gap-3">
+                {pendingTickets.length > 0 && (
+                   <select
+                      className="bg-amber-950/30 border border-amber-900/50 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-500 focus:outline-none focus:border-amber-500 cursor-pointer max-w-[120px]"
+                      value=""
+                      onChange={(e) => { if (e.target.value) loadPendingTicket(e.target.value) }}
+                      title="Cargar ticket pendiente"
+                   >
+                      <option value="">Pendientes ({pendingTickets.length})</option>
+                      {pendingTickets.map((t) => (
+                         <option key={t.id} value={t.id}>{t.label.substring(0, 10)}...</option>
+                      ))}
+                   </select>
+                )}
+                <div className="text-xs font-medium text-zinc-500 flex items-center gap-1.5" title={currentShift ? `Turno: ${currentShift.openedBy}` : 'Sin turno'}>
+                   <div className={`w-2 h-2 rounded-full ${currentShift ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                   <span className="max-w-[80px] truncate">{currentShift ? currentShift.openedBy : 'Cerrado'}</span>
+                </div>
+             </div>
+          </div>
+
+          {/* Cart Items List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 relative hide-scrollbar">
             {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-600">
-                <ShoppingCartIcon className="w-16 h-16 mb-4 opacity-20" />
-                <p className="text-lg font-medium">Sin productos en el ticket</p>
-                <p className="text-sm mt-1">Escribe en el buscador o escanea un codigo de barras</p>
-              </div>
+               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600">
+                 <ShoppingCartIcon className="w-12 h-12 mb-3 opacity-20" />
+                 <p className="text-sm font-medium">Ticket vacio</p>
+               </div>
             ) : (
-              <div className="max-w-4xl mx-auto">
-                {cart.map((item, idx) => (
-                  <div
-                    key={item.sku}
-                    className={`flex items-center gap-4 py-3 px-4 rounded-lg mb-1 cursor-pointer transition-all ${
-                      selectedCartSku === item.sku
-                        ? 'bg-blue-950/30 ring-1 ring-blue-500/40'
-                        : 'hover:bg-zinc-900'
-                    }`}
-                    onClick={() => setSelectedCartSku(item.sku)}
-                  >
-                    {/* Row number */}
-                    <span className="text-zinc-600 font-mono text-xs w-6 text-right shrink-0">
-                      {idx + 1}
-                    </span>
-
-                    {/* Product info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-zinc-100 truncate">{item.name}</div>
-                      {item.isCommon && item.commonNote && (
-                        <div className="text-xs text-amber-400/70 mt-0.5 truncate">{item.commonNote}</div>
-                      )}
-                    </div>
-
-                    {/* Quantity */}
-                    <input
-                      className="w-16 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-center text-sm font-bold text-blue-300 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 shrink-0"
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={item.qty}
-                      onChange={(e) => {
-                        const n = Number(e.target.value)
-                        updateItemQty(item.sku, Number.isFinite(n) ? n : item.qty)
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-
-                    {/* Unit price */}
-                    <span className="text-zinc-500 text-sm w-24 text-right shrink-0">
-                      ${item.price.toFixed(2)}
-                    </span>
-
-                    {/* Discount */}
-                    {item.discountPct > 0 && (
-                      <span className="text-rose-400 text-xs font-semibold bg-rose-500/10 px-2 py-0.5 rounded shrink-0">
-                        -{item.discountPct}%
-                      </span>
-                    )}
-
-                    {/* Subtotal */}
-                    <span className="font-mono font-bold text-zinc-100 text-base w-28 text-right shrink-0">
-                      ${item.subtotal.toFixed(2)}
-                    </span>
-
-                    {/* Remove */}
-                    <button
-                      className="text-zinc-600 hover:text-rose-400 transition-colors shrink-0 p-1"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        if (await confirm(`¿Quitar "${item.name}" del ticket?`, { variant: 'warning', title: 'Quitar producto' }))
-                          removeItem(item.sku)
-                      }}
-                      title="Quitar"
-                    >
-                      &times;
-                    </button>
+               cart.map((item, _idx) => (
+                  <div key={item.sku} onClick={() => setSelectedCartSku(item.sku)} className={`p-3 rounded-xl border transition-all cursor-pointer ${selectedCartSku === item.sku ? 'bg-blue-600/10 border-blue-500/50' : 'bg-zinc-900/50 border-zinc-800/50 hover:border-zinc-700'}`}>
+                     <div className="flex justify-between items-start mb-2">
+                        <div className="font-semibold text-sm text-zinc-200 leading-tight pr-2">{item.name}</div>
+                        <div className="font-bold text-emerald-400 shrink-0">${item.subtotal.toFixed(2)}</div>
+                     </div>
+                     <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                           <span className="text-zinc-500 font-mono" title={item.sku}>{item.sku.length > 8 ? item.sku.substring(0,8) + '...' : item.sku}</span>
+                           <span className="text-zinc-400">${item.price.toFixed(2)} c/u</span>
+                        </div>
+                        <div className="flex items-center gap-1 bg-zinc-950 rounded-lg p-0.5 border border-zinc-800" onClick={(e) => e.stopPropagation()}>
+                           <button onClick={(e) => { e.stopPropagation(); setSelectedCartSku(item.sku); decreaseSelectedQty(); }} className="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-white">-</button>
+                           <span className="w-8 text-center font-bold text-zinc-200">{item.qty}</span>
+                           <button onClick={(e) => { e.stopPropagation(); setSelectedCartSku(item.sku); increaseSelectedQty(); }} className="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-white">+</button>
+                           <button onClick={async (e) => { e.stopPropagation(); setSelectedCartSku(item.sku); if (await confirm(`¿Quitar "${item.name}"?`, { variant: 'warning', title: 'Quitar' })) removeItem(item.sku); }} className="w-6 h-6 flex items-center justify-center rounded bg-rose-950/20 text-rose-500/60 hover:text-rose-400 ml-1">&times;</button>
+                        </div>
+                     </div>
+                     {item.discountPct > 0 && <div className="mt-1 text-[10px] font-bold text-rose-400 uppercase tracking-widest">Desc. {item.discountPct}%</div>}
                   </div>
-                ))}
-              </div>
+               ))
             )}
           </div>
 
-          {/* Payment bar */}
-          <div className="border-t-2 border-zinc-800 bg-zinc-900 px-6 py-4">
-            <div className="flex items-center gap-6 max-w-6xl mx-auto">
-              {/* Left: controls */}
-              <div className="flex items-center gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                    Cliente
-                  </label>
-                  <input
-                    className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none placeholder:text-zinc-600 w-44"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Publico General"
-                  />
+          {/* Totals & Payment Area (Sticky Bottom) */}
+          <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 p-4 pb-6">
+             {globalDiscountPct > 0 && (
+                <div className="flex justify-between items-center text-xs mb-2">
+                   <span className="text-zinc-500 font-bold uppercase tracking-wider">Descuento ({globalDiscountPct}%)</span>
+                   <span className="text-rose-400 font-bold">-${totals.globalDiscountAmount.toFixed(2)}</span>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                    Pago
-                  </label>
-                  <select
-                    className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none w-36"
-                    value={paymentMethod}
-                    disabled={busy}
-                    onChange={(e) => {
-                      setPaymentMethod(e.target.value as PaymentMethod)
-                      setAmountReceived('')
-                    }}
-                  >
-                    <option value="cash">Efectivo</option>
-                    <option value="card">Tarjeta</option>
-                    <option value="transfer">Transferencia</option>
-                  </select>
+             )}
+             <div className="flex justify-between items-end mb-4">
+                <div className="flex flex-col">
+                   <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1 cursor-pointer hover:text-blue-400 transition" onClick={() => {
+                      const name = window.prompt('Nombre del cliente para esta nota:', customerName);
+                      if (name !== null) setCustomerName(name || 'Publico General');
+                   }}>
+                      {customerName === 'Publico General' ? 'Cliente ✏️' : customerName}
+                   </span>
+                   <span className="text-xs text-zinc-600 font-medium">{cart.reduce((a, i) => a + i.qty, 0)} articulos</span>
                 </div>
-                {paymentMethod === 'cash' && (
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                      Recibido
-                    </label>
-                    <input
-                      className="rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none w-32 placeholder:text-zinc-600"
-                      type="number"
-                      min={0}
-                      value={amountReceived}
-                      onChange={(e) => {
-                        const n = Number(e.target.value)
-                        if (e.target.value === '' || (Number.isFinite(n) && n >= 0)) {
-                          setAmountReceived(e.target.value)
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !busy) void handleCharge()
-                      }}
-                      placeholder="$0.00"
-                    />
-                  </div>
+                <div className="text-4xl font-black text-white tabular-nums tracking-tight">
+                   ${totals.total.toFixed(2)}
+                </div>
+             </div>
+
+             <div className="grid grid-cols-2 gap-2 mb-4 relative group">
+                <select className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-3 text-sm font-semibold text-zinc-200 focus:outline-none focus:border-blue-500 cursor-pointer" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+                   <option value="cash">Efectivo 💵</option>
+                   <option value="card">Tarjeta 💳</option>
+                   <option value="transfer">Transferencia 🏦</option>
+                </select>
+                {paymentMethod === 'cash' ? (
+                   <input
+                      type="number" className="bg-zinc-900 mx-0 border border-zinc-800 rounded-xl px-3 py-3 text-sm font-semibold text-emerald-400 focus:outline-none focus:border-emerald-500 text-right placeholder:text-zinc-600 outline-none hover:bg-zinc-800 transition"
+                      placeholder="Recibido..." value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void handleCharge() }}
+                   />
+                ) : (
+                   <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-3 py-3 flex items-center justify-center text-xs font-medium text-emerald-400/50 cursor-pointer" onClick={() => void handleCharge()}>Cobro Exacto</div>
                 )}
-              </div>
+             </div>
 
-              {/* Center: spacer */}
-              <div className="flex-1"></div>
-
-              {/* Right: totals + charge */}
-              <div className="flex items-center gap-6">
-                {/* Discount */}
-                {globalDiscountPct > 0 && (
-                  <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                      Descuento {globalDiscountPct}%
-                    </div>
-                    <div className="text-rose-400 font-semibold">
-                      -${totals.globalDiscountAmount.toFixed(2)}
-                    </div>
-                  </div>
-                )}
-
-                {/* Items count */}
-                <div className="text-right">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                    Articulos
-                  </div>
-                  <div className="text-lg font-bold text-zinc-300">
-                    {cart.reduce((a, i) => a + (Number.isFinite(i.qty) ? i.qty : 0), 0)}
-                  </div>
+             {paymentMethod === 'cash' && amountReceivedNum > 0 && (
+                <div className="flex justify-between items-center px-1 mb-4">
+                   <span className="text-xs font-bold text-zinc-500 uppercase">{pendingAmount > 0 ? 'Faltante' : 'Cambio'}</span>
+                   <span className={`text-xl tracking-tight font-bold ${pendingAmount > 0 ? 'text-rose-400' : 'text-amber-400'}`}>${pendingAmount > 0 ? pendingAmount.toFixed(2) : changeDue.toFixed(2)}</span>
                 </div>
+             )}
 
-                {/* Change / pending */}
-                {paymentMethod === 'cash' && amountReceivedNum > 0 && (
-                  <div className="text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                      {pendingAmount > 0 ? 'Faltante' : 'Cambio'}
-                    </div>
-                    <div
-                      className={`text-lg font-bold ${pendingAmount > 0 ? 'text-rose-400' : 'text-amber-300'}`}
-                    >
-                      ${pendingAmount > 0 ? pendingAmount.toFixed(2) : changeDue.toFixed(2)}
-                    </div>
-                  </div>
-                )}
-
-                {/* Total */}
-                <div className="text-right border-l border-zinc-700 pl-6">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                    Total
-                  </div>
-                  <div className="text-3xl font-black text-emerald-400 tabular-nums">
-                    ${totals.total.toFixed(2)}
-                  </div>
-                </div>
-
-                {/* Charge */}
-                <button
-                  className="flex items-center gap-3 rounded-2xl bg-blue-600 px-10 py-4 font-bold text-lg tracking-wide text-white shadow-[0_0_30px_rgba(37,99,235,0.3)] hover:bg-blue-500 hover:shadow-[0_0_40px_rgba(37,99,235,0.5)] hover:-translate-y-0.5 transition-all disabled:opacity-40 disabled:hover:translate-y-0 disabled:shadow-none active:scale-95"
-                  onClick={() => void handleCharge()}
-                  disabled={busy || cart.length === 0}
-                >
-                  <Banknote className="h-6 w-6" /> {busy ? 'Procesando...' : 'COBRAR'}
-                </button>
-              </div>
-            </div>
+             <button
+                onClick={() => void handleCharge()} disabled={busy || cart.length === 0}
+                className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl py-4 font-black text-xl tracking-widest shadow-[0_0_40px_-10px_rgba(37,99,235,0.6)] hover:shadow-[0_0_60px_-10px_rgba(37,99,235,0.8)] transition-all disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+             >
+                {busy ? 'Procesando...' : 'COBRAR'}
+             </button>
           </div>
         </div>
-      </div>
 
-      {/* Status bar */}
-      <div className="border-t border-zinc-800 bg-zinc-900/80 backdrop-blur px-4 py-2 text-xs flex items-center gap-4">
-        {/* Message */}
-        <div className="flex-1 min-w-0 text-zinc-400 truncate font-medium">{message}</div>
+        {/* Right Panel: Action Area (Products Grid & Search) */}
+        <div className="flex-1 flex flex-col bg-[#09090b] relative">
+           {/* Top Search Bar */}
+           <div className="p-6 pb-2 shrink-0 border-b border-zinc-900/50">
+              <div className="relative max-w-2xl mx-auto flex items-center gap-2">
+                 <div className="relative flex-1">
+                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                    <input
+                       ref={searchInputRef}
+                       autoFocus
+                       className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-12 text-lg font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+                       placeholder="Buscar producto o escanear (F10)..."
+                       value={query}
+                       onChange={(e) => {
+                          lastKeystrokeRef.current = Date.now()
+                          setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))
+                       }}
+                       onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                             e.preventDefault()
+                             e.stopPropagation()
 
-        {/* Pending tickets: save + load */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            className="rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1 font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors disabled:opacity-30"
-            onClick={saveCurrentAsPending}
-            disabled={busy || cart.length === 0}
-            title="Guardar ticket como pendiente"
-          >
-            Guardar
-          </button>
-          {pendingTickets.length > 0 && (
-            <select
-              className="rounded-md border border-amber-700/50 bg-amber-950/30 px-2 py-1 font-semibold text-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer"
-              value=""
-              onChange={(e) => {
-                if (e.target.value) loadPendingTicket(e.target.value)
-              }}
-            >
-              <option value="">Pendientes ({pendingTickets.length})</option>
-              {pendingTickets.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label} — {t.cart.length} items
-                </option>
-              ))}
-            </select>
-          )}
+                             const now = Date.now()
+                             if (now - lastEnterRef.current < 150) return
+                             lastEnterRef.current = now
+
+                             if (!query.trim()) return
+
+                             let scannerMinSpeed = 50
+                             let scannerPrefix = ''
+                             let scannerSuffix = ''
+                             let isScanner = false
+                             try {
+                               const hwRaw = localStorage.getItem('titan.hwConfig')
+                               if (hwRaw) {
+                                 const hwCfg = JSON.parse(hwRaw)
+                                 if (!hwCfg || typeof hwCfg !== 'object') throw new Error('invalid hwConfig')
+                                 if (hwCfg.scanner?.enabled) {
+                                   scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
+                                   scannerPrefix = hwCfg.scanner.prefix || ''
+                                   scannerSuffix = hwCfg.scanner.suffix || ''
+                                   const elapsed = now - lastKeystrokeRef.current
+                                   if (elapsed < scannerMinSpeed && query.trim().length > 2) {
+                                     isScanner = true
+                                   }
+                                 }
+                               }
+                             } catch (_e) { /* parse error */ }
+
+                             let searchTerm = query.trim()
+                             if (isScanner) {
+                               if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
+                                 searchTerm = searchTerm.slice(scannerPrefix.length)
+                               }
+                               if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
+                                 searchTerm = searchTerm.slice(0, -scannerSuffix.length)
+                               }
+                               const exact = products.find(
+                                 (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
+                               )
+                               if (exact) {
+                                 addProduct(exact)
+                                 setQuery('')
+                                 searchInputRef.current?.focus()
+                                 return
+                               }
+                             }
+                             if (firstMatch) {
+                               addProduct(firstMatch)
+                               setQuery('')
+                               searchInputRef.current?.focus()
+                             }
+                             return
+                          }
+                       }}
+                    />
+                    {wholesaleMode && (
+                       <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-amber-500 text-amber-950 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse">
+                          Mayoreo
+                       </div>
+                    )}
+                 </div>
+                 <button onClick={saveCurrentAsPending} disabled={cart.length === 0} className="hidden sm:flex items-center gap-2 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-4 rounded-2xl transition-colors shrink-0 disabled:opacity-30 disabled:hover:bg-zinc-800/80" title="Guardar Ticket Pendiente">
+                    Pausar
+                 </button>
+              </div>
+           </div>
+
+           {/* Products Grid (Results or Top Products) */}
+           <div className="flex-1 overflow-y-auto px-6 py-6 pb-24 relative">
+              <div className="max-w-[1400px] mx-auto">
+                 <div className="flex items-center justify-between mb-4 px-1">
+                    <h2 className="text-sm font-bold tracking-wide text-zinc-400 uppercase">
+                       {query.trim() ? 'Resultados de Búsqueda' : 'Catálogo Rápido'}
+                    </h2>
+                    <span className="text-xs text-zinc-600 font-medium">{filtered.length} items</span>
+                 </div>
+
+                 {filtered.length === 0 ? (
+                    <div className="text-zinc-500 mt-20 text-center font-medium">Ningún producto coincide con "{query}"</div>
+                 ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 lg:gap-4">
+                       {filtered.map(p => (
+                          <button
+                             key={p.sku}
+                             onClick={() => { addProduct(p); setQuery(''); searchInputRef.current?.focus(); }}
+                             className="flex flex-col text-left bg-zinc-900/60 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 p-4 rounded-2xl transition-all group hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 active:scale-95"
+                          >
+                             <div className="font-semibold text-zinc-300 text-xs lg:text-sm mb-2 line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors">{p.name}</div>
+                             <div className="mt-auto pt-3 flex items-end justify-between w-full border-t border-zinc-800/50">
+                                <div className="font-black text-emerald-400 text-base xl:text-lg">${p.price.toFixed(2)}</div>
+                                <div className="text-[10px] font-mono text-zinc-600 truncate max-w-[50%]">{p.sku.substring(0,6)}</div>
+                             </div>
+                             {p.stock !== undefined && (
+                                <div className={`mt-2 text-[9px] font-bold uppercase tracking-wider ${p.stock <= 5 ? 'text-rose-500' : 'text-zinc-600'}`}>
+                                   Stock: {p.stock} uds
+                                </div>
+                             )}
+                          </button>
+                       ))}
+                    </div>
+                 )}
+              </div>
+           </div>
+
+           {/* Keyboard Shortcuts Overlay (Bottom Right) */}
+           <div className="absolute bottom-6 right-6 hidden md:flex items-center gap-2 pointer-events-none">
+              <div className="bg-zinc-950/80 backdrop-blur border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex flex-col items-center">
+                 <span className="text-[10px] font-bold text-zinc-300 tracking-wider">F10</span>
+                 <span className="text-[8px] uppercase tracking-widest text-zinc-500">Buscar</span>
+              </div>
+              <div className="bg-zinc-950/80 backdrop-blur border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex flex-col items-center">
+                 <span className="text-[10px] font-bold text-zinc-300 tracking-wider">F11</span>
+                 <span className="text-[8px] uppercase tracking-widest text-zinc-500">Mayoreo</span>
+              </div>
+              <div className="bg-zinc-950/80 backdrop-blur border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex flex-col items-center">
+                 <span className="text-[10px] font-bold text-zinc-300 tracking-wider">F12</span>
+                 <span className="text-[8px] uppercase tracking-widest text-zinc-500">Cobrar</span>
+              </div>
+           </div>
+
+           {/* Message Toast (Bottom Left) */}
+           {message && message !== 'Cargando productos...' && (
+              <div className="absolute bottom-6 left-6 max-w-sm pointer-events-none">
+                 <div className="bg-zinc-900/90 backdrop-blur border border-zinc-700/50 shadow-2xl text-zinc-300 text-xs font-semibold px-4 py-3 rounded-xl">
+                    {message}
+                 </div>
+              </div>
+           )}
         </div>
-
-        {/* Separator */}
-        <div className="w-px h-4 bg-zinc-700/50 shrink-0 hidden md:block"></div>
-
-        {/* Keyboard shortcuts (hidden on small screens) */}
-        <div className="hidden md:flex items-center gap-1.5 shrink-0">
-          {[
-            { key: 'F10', label: 'Buscar' },
-            { key: 'F11', label: 'Mayoreo' },
-            { key: 'F12', label: 'Cobrar' },
-            { key: '+/-', label: 'Cant' },
-            { key: 'Del', label: 'Quitar' },
-            { key: 'Ctrl+P', label: 'Comun' },
-            { key: 'Ctrl+D', label: 'Desc' }
-          ].map((s) => (
-            <span key={s.key} className="inline-flex items-center gap-1 text-zinc-600">
-              <kbd className="rounded bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
-                {s.key}
-              </kbd>
-              <span className="text-[10px]">{s.label}</span>
-            </span>
-          ))}
-        </div>
-
-        {/* Separator */}
-        <div className="w-px h-4 bg-zinc-700/50 shrink-0 hidden md:block"></div>
-
-        {/* Products count */}
-        <span className="text-zinc-600 shrink-0 tabular-nums">{products.length} productos</span>
       </div>
     </div>
   )

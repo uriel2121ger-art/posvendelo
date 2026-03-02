@@ -22,8 +22,11 @@ from typing import Dict, List, Optional
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from starlette.requests import Request
+
 from db.connection import get_db, get_connection, escape_like
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.rate_limit import check_pin_rate_limit
 from modules.sales.schemas import SaleCreate, SaleItemCreate, SaleCancelRequest
 
 logger = logging.getLogger(__name__)
@@ -617,24 +620,43 @@ async def search_sales(
 async def cancel_sale(
     sale_id: int,
     body: SaleCancelRequest,
+    request: Request,
     auth: dict = Depends(verify_token),
 ):
     """Cancel a sale: revert stock and credit. Requires manager PIN."""
+    # PIN brute-force protection: 5 attempts per 5 min per IP
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    check_pin_rate_limit(client_ip)
+
     user_id = get_user_id(auth)
 
-    # Validate manager PIN (pre-compute hash before transaction)
+    # Validate manager PIN (bcrypt preferred, SHA-256 fallback for legacy hashes)
+    import bcrypt
     import hashlib
-    pin_hash = hashlib.sha256(body.manager_pin.encode()).hexdigest()
 
     async with get_connection() as db:
         conn = db.connection
         async with conn.transaction():
-            # Verify manager PIN inside transaction
-            mgr_check = await conn.fetchrow(
-                "SELECT id FROM users WHERE pin_hash = $1 AND is_active = 1 "
-                "AND role IN ('admin', 'manager', 'owner')",
-                pin_hash,
+            mgr_rows = await conn.fetch(
+                "SELECT id, pin_hash FROM users WHERE is_active = 1 "
+                "AND role IN ('admin', 'manager', 'owner') AND pin_hash IS NOT NULL"
             )
+            mgr_check = None
+            for row in mgr_rows:
+                stored = row["pin_hash"]
+                try:
+                    # Try bcrypt first (modern hashes start with $2b$)
+                    if stored.startswith("$2b$") or stored.startswith("$2a$"):
+                        if bcrypt.checkpw(body.manager_pin.encode(), stored.encode()):
+                            mgr_check = row
+                            break
+                    else:
+                        # Fallback: SHA-256 legacy hash
+                        if hashlib.sha256(body.manager_pin.encode()).hexdigest() == stored:
+                            mgr_check = row
+                            break
+                except Exception:
+                    continue
             if not mgr_check:
                 raise HTTPException(status_code=403, detail="PIN de gerente invalido")
 
@@ -878,10 +900,18 @@ async def hourly_heatmap(
 
 @router.get("/{sale_id}")
 async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get sale by ID with items."""
-    sale_row = await db.fetchrow(
-        "SELECT * FROM sales WHERE id = :id", {"id": sale_id}
-    )
+    """Get sale by ID with items. Cashiers can only see their own sales."""
+    role = auth.get("role", "")
+    user_id = auth.get("sub")
+    if role == "cashier":
+        sale_row = await db.fetchrow(
+            "SELECT * FROM sales WHERE id = :id AND cashier_id = :uid",
+            {"id": sale_id, "uid": int(user_id)},
+        )
+    else:
+        sale_row = await db.fetchrow(
+            "SELECT * FROM sales WHERE id = :id", {"id": sale_id}
+        )
     if not sale_row:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 

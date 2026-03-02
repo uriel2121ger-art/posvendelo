@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from db.connection import get_db
-from modules.shared.auth import verify_token
+from modules.shared.auth import verify_token, get_user_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,7 +34,7 @@ class CFDIRequest(BaseModel):
 
 
 class GlobalCFDIRequest(BaseModel):
-    period_type: str  # 'daily', 'weekly', 'monthly'
+    period_type: str = Field(..., pattern=r'^(daily|weekly|monthly)$')
     date: str = None
 
 
@@ -42,7 +42,7 @@ class ProcessReturnRequest(BaseModel):
     sale_id: int
     items: list
     reason: str
-    processed_by: str
+    # processed_by derived from JWT in endpoint, not from client
 
 class GhostWalletCreateRequest(BaseModel):
     seed: str = None
@@ -100,12 +100,12 @@ class GhostTransferCreateRequest(BaseModel):
     origin: str
     destination: str
     items: list
-    user_id: int
+    # user_id derived from JWT in endpoint, not from client
     notes: str = ""
 
 class GhostTransferReceiveRequest(BaseModel):
     transfer_code: str
-    user_id: int
+    # user_id derived from JWT in endpoint, not from client
 
 class ShadowStockAddRequest(BaseModel):
     product_id: int
@@ -251,7 +251,7 @@ async def process_return(
             sale_id=request.sale_id,
             items=request.items,
             reason=request.reason,
-            processed_by=request.processed_by,
+            processed_by=str(get_user_id(auth)),
         )
 
         if result.get("success"):
@@ -818,7 +818,7 @@ async def create_ghost_transfer(
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
-        result = await gc.create_transfer(request.origin, request.destination, request.items, request.user_id, request.notes)
+        result = await gc.create_transfer(request.origin, request.destination, request.items, get_user_id(auth), request.notes)
         if result.get('success'): return result
         raise HTTPException(status_code=400, detail=result.get('error'))
     except HTTPException: raise
@@ -837,7 +837,7 @@ async def receive_ghost_transfer(
     try:
         from modules.fiscal.internal_transfer import GhostCarrier
         gc = GhostCarrier(db)
-        result = await gc.receive_transfer(request.transfer_code, request.user_id)
+        result = await gc.receive_transfer(request.transfer_code, get_user_id(auth))
         if result.get('success'): return result
         raise HTTPException(status_code=400, detail=result.get('error'))
     except HTTPException: raise

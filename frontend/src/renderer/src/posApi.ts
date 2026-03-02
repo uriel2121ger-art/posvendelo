@@ -34,7 +34,7 @@ function getDiscoverPorts(): number[] {
 
 export async function autoDiscoverBackend(): Promise<string | null> {
   const saved = localStorage.getItem('titan.baseUrl')
-  if (saved) {
+  if (saved && _isValidBaseUrl(saved)) {
     try {
       const r = await fetch(`${saved}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1500) })
       if (r.status === 401 || r.ok) return saved
@@ -53,11 +53,39 @@ export async function autoDiscoverBackend(): Promise<string | null> {
   return null
 }
 
+function _isValidBaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function _isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return false // Not a JWT — skip expiry check
+    const payload = JSON.parse(atob(parts[1]))
+    if (!payload.exp) return false
+    return payload.exp * 1000 < Date.now()
+  } catch {
+    return false
+  }
+}
+
 export function loadRuntimeConfig(): RuntimeConfig {
   try {
+    const baseUrl = localStorage.getItem('titan.baseUrl') ?? 'http://localhost:8000'
+    let token = localStorage.getItem('titan.token') ?? ''
+    // Auto-clear expired tokens to force re-login
+    if (token && _isTokenExpired(token)) {
+      localStorage.removeItem('titan.token')
+      token = ''
+    }
     return {
-      baseUrl: localStorage.getItem('titan.baseUrl') ?? 'http://localhost:8000',
-      token: localStorage.getItem('titan.token') ?? '',
+      baseUrl: _isValidBaseUrl(baseUrl) ? baseUrl : 'http://localhost:8000',
+      token,
       terminalId: Math.max(1, parseInt(localStorage.getItem('titan.terminalId') ?? '1', 10) || 1)
     }
   } catch {

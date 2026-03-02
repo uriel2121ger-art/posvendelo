@@ -30,8 +30,13 @@ async def list_customers(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """List customers with search."""
-    sql = "SELECT * FROM customers WHERE 1=1"
+    """List customers with search. Cashiers get restricted fields."""
+    role = auth.get("role", "")
+    if role == "cashier":
+        cols = "id, name, phone, email, is_active"
+    else:
+        cols = "*"
+    sql = f"SELECT {cols} FROM customers WHERE 1=1"
     params: dict = {}
 
     if is_active is not None:
@@ -51,9 +56,14 @@ async def list_customers(
 
 @router.get("/{customer_id}")
 async def get_customer(customer_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get customer by ID."""
+    """Get customer by ID. Cashiers get restricted fields."""
+    role = auth.get("role", "")
+    if role == "cashier":
+        cols = "id, name, phone, email, is_active"
+    else:
+        cols = "*"
     row = await db.fetchrow(
-        "SELECT * FROM customers WHERE id = :id", {"id": customer_id}
+        f"SELECT {cols} FROM customers WHERE id = :id", {"id": customer_id}
     )
     if not row:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
