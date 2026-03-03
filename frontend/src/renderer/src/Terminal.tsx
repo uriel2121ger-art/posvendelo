@@ -5,7 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Plus,
   Search as SearchIcon,
-  ShoppingCart as ShoppingCartIcon
+  ShoppingCart as ShoppingCartIcon,
+  Eye,
+  EyeOff,
+  Settings2,
+  CheckCircle2,
+  Users,
+  X as XIcon
 } from 'lucide-react'
 import {
   type RuntimeConfig,
@@ -49,6 +55,7 @@ type PendingTicket = {
   id: string
   label: string
   customerName: string
+  customerId: number | null
   paymentMethod: PaymentMethod
   globalDiscountPct: number
   cart: CartItem[]
@@ -61,6 +68,7 @@ type ActiveTicketMeta = {
 
 type ActiveTicketSnapshot = {
   customerName: string
+  customerId: number | null
   paymentMethod: PaymentMethod
   globalDiscountPct: number
   cart: CartItem[]
@@ -139,7 +147,8 @@ async function syncSale(
   globalDiscountPct: number,
   amountReceived?: number,
   turnId?: number | null,
-  isWholesale?: boolean
+  isWholesale?: boolean,
+  customerId?: number | null
 ): Promise<Record<string, unknown>> {
   const globalDisc = clampDiscount(globalDiscountPct) / 100
   const items: SaleItemPayload[] = cart.map((item) => {
@@ -163,6 +172,7 @@ async function syncSale(
     items,
     payment_method: paymentMethod,
     cash_received: paymentMethod === 'cash' ? (amountReceived ?? 0) : undefined,
+    customer_id: customerId ?? undefined,
     serie: 'A',
     turn_id: turnId ?? undefined
   })
@@ -183,6 +193,13 @@ export default function Terminal(): ReactElement {
   const _snap = _savedActive?.ticketSnapshots?.[_savedActive?.activeTicketId ?? '']
   const [cart, setCart] = useState<CartItem[]>(_snap?.cart ?? [])
   const [customerName, setCustomerName] = useState(_snap?.customerName ?? 'Publico General')
+  const [customerId, setCustomerId] = useState<number | null>(_snap?.customerId ?? null)
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [customerResults, setCustomerResults] = useState<Array<{ id: number; name: string; phone?: string }>>([])
+  const customerPickerRef = useRef<HTMLDivElement | null>(null)
+  const customerSearchRef = useRef<HTMLInputElement | null>(null)
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(_snap?.paymentMethod ?? 'cash')
   const [amountReceived, setAmountReceived] = useState(_snap?.amountReceived ?? '')
   const [globalDiscountPct, setGlobalDiscountPct] = useState(_snap?.globalDiscountPct ?? 0)
@@ -195,6 +212,7 @@ export default function Terminal(): ReactElement {
     _savedActive?.ticketSnapshots ?? {
       'active-1': {
         customerName: 'Publico General',
+        customerId: null,
         paymentMethod: 'cash',
         globalDiscountPct: 0,
         cart: [],
@@ -216,9 +234,70 @@ export default function Terminal(): ReactElement {
   const [message, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
 
+  const [showQuickCatalog, setShowQuickCatalog] = useState(() => {
+    const saved = localStorage.getItem('titan.showQuickCatalog')
+    return saved ? saved === 'true' : true
+  })
+  const [quickCatalogSkus, setQuickCatalogSkus] = useState<string[]>(() => {
+    const saved = localStorage.getItem('titan.quickCatalogSkus')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [isEditingQuickCatalog, setIsEditingQuickCatalog] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('titan.showQuickCatalog', String(showQuickCatalog))
+  }, [showQuickCatalog])
+
+  useEffect(() => {
+    localStorage.setItem('titan.quickCatalogSkus', JSON.stringify(quickCatalogSkus))
+  }, [quickCatalogSkus])
+
   useEffect((): void => {
     saveRuntimeConfig(config)
   }, [config])
+
+  // Click-outside to close customer picker
+  useEffect(() => {
+    if (!customerPickerOpen) return
+    const onClick = (e: MouseEvent): void => {
+      if (customerPickerRef.current && !customerPickerRef.current.contains(e.target as Node)) {
+        setCustomerPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [customerPickerOpen])
+
+  // Load customers when picker opens
+  useEffect(() => {
+    if (!customerPickerOpen) return
+    let cancelled = false
+    pullTable('customers', config)
+      .then((raw) => {
+        if (cancelled) return
+        const mapped = raw
+          .filter((c: Record<string, unknown>) => c.is_active !== false && c.is_active !== 0)
+          .map((c: Record<string, unknown>) => ({
+            id: Number(c.id),
+            name: String(c.name ?? '').trim(),
+            phone: c.phone ? String(c.phone).trim() : undefined
+          }))
+          .filter((c) => c.id > 0 && c.name)
+        setCustomerResults(mapped)
+      })
+      .catch(() => { if (!cancelled) setCustomerResults([]) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerPickerOpen])
+
+  // Auto-focus search input when picker opens
+  useEffect(() => {
+    if (customerPickerOpen) {
+      setTimeout(() => customerSearchRef.current?.focus(), 50)
+    } else {
+      setCustomerSearch('')
+    }
+  }, [customerPickerOpen])
 
   // Auto-load products on mount + refresh on window focus (fixes stale cache)
   useEffect(() => {
@@ -362,11 +441,17 @@ export default function Terminal(): ReactElement {
 
   const filtered = useMemo((): Product[] => {
     const q = query.trim().toLowerCase()
-    if (!q) return products.slice(0, 20)
+    if (!q) {
+      if (!showQuickCatalog && !isEditingQuickCatalog) return []
+      if (quickCatalogSkus.length > 0 && !isEditingQuickCatalog) {
+        return products.filter((p) => quickCatalogSkus.includes(p.sku)).slice(0, 100)
+      }
+      return products.slice(0, 40)
+    }
     return products
       .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
-      .slice(0, 20)
-  }, [products, query])
+      .slice(0, 40)
+  }, [products, query, quickCatalogSkus, showQuickCatalog, isEditingQuickCatalog])
 
   const totals = useMemo((): {
     subtotalBeforeDiscount: number
@@ -403,6 +488,7 @@ export default function Terminal(): ReactElement {
         ...prev,
         [activeTicketId]: {
           customerName,
+          customerId,
           paymentMethod,
           globalDiscountPct,
           cart,
@@ -427,6 +513,7 @@ export default function Terminal(): ReactElement {
     activeTicketId,
     amountReceived,
     cart,
+    customerId,
     customerName,
     globalDiscountPct,
     paymentMethod,
@@ -441,6 +528,7 @@ export default function Terminal(): ReactElement {
       ...ticketSnapshots,
       [activeTicketId]: {
         customerName,
+        customerId,
         paymentMethod,
         globalDiscountPct,
         cart,
@@ -455,6 +543,7 @@ export default function Terminal(): ReactElement {
     setActiveTicketId(nextTicketId)
     setCart(nextSnapshot.cart)
     setCustomerName(nextSnapshot.customerName)
+    setCustomerId(nextSnapshot.customerId ?? null)
     setPaymentMethod(nextSnapshot.paymentMethod)
     setGlobalDiscountPct(nextSnapshot.globalDiscountPct)
     setSelectedCartSku(nextSnapshot.selectedCartSku)
@@ -478,6 +567,7 @@ export default function Terminal(): ReactElement {
       ...ticketSnapshots,
       [activeTicketId]: {
         customerName,
+        customerId,
         paymentMethod,
         globalDiscountPct,
         cart,
@@ -486,6 +576,7 @@ export default function Terminal(): ReactElement {
       },
       [nextId]: {
         customerName: 'Publico General',
+        customerId: null,
         paymentMethod: 'cash' as PaymentMethod,
         globalDiscountPct: 0,
         cart: [],
@@ -499,6 +590,7 @@ export default function Terminal(): ReactElement {
     setActiveTicketId(nextId)
     setCart([])
     setCustomerName('Publico General')
+    setCustomerId(null)
     setPaymentMethod('cash')
     setGlobalDiscountPct(0)
     setSelectedCartSku(null)
@@ -509,6 +601,7 @@ export default function Terminal(): ReactElement {
     activeTickets,
     amountReceived,
     cart,
+    customerId,
     customerName,
     globalDiscountPct,
     paymentMethod,
@@ -548,6 +641,7 @@ export default function Terminal(): ReactElement {
     setActiveTicketId(fallback.id)
     setCart(fallbackSnap?.cart ?? [])
     setCustomerName(fallbackSnap?.customerName ?? 'Publico General')
+    setCustomerId(fallbackSnap?.customerId ?? null)
     setPaymentMethod(fallbackSnap?.paymentMethod ?? 'cash')
     setGlobalDiscountPct(fallbackSnap?.globalDiscountPct ?? 0)
     setSelectedCartSku(fallbackSnap?.selectedCartSku ?? null)
@@ -734,7 +828,8 @@ export default function Terminal(): ReactElement {
         globalDiscountPct,
         paymentMethod === 'cash' ? effectiveReceived : undefined,
         turnId,
-        wholesaleMode
+        wholesaleMode,
+        customerId
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
       const saleTotal = saleData.total != null ? Number(saleData.total) : totals.total
@@ -744,6 +839,7 @@ export default function Terminal(): ReactElement {
       setSelectedCartSku(null)
       setAmountReceived('')
       setCustomerName('Publico General')
+      setCustomerId(null)
       // Re-read shift from localStorage to avoid stale data after async sale
       const freshShift = readCurrentShift()
       if (freshShift) {
@@ -818,7 +914,7 @@ export default function Terminal(): ReactElement {
       chargingRef.current = false
       setBusy(false)
     }
-  }, [amountReceivedNum, cart, config, customerName, globalDiscountPct, paymentMethod, totals, wholesaleMode])
+  }, [amountReceivedNum, cart, config, customerId, customerName, globalDiscountPct, paymentMethod, totals, wholesaleMode])
 
   function saveCurrentAsPending(): void {
     if (!cart.length) {
@@ -830,6 +926,7 @@ export default function Terminal(): ReactElement {
       id: `pending-${Date.now()}`,
       label,
       customerName,
+      customerId,
       paymentMethod,
       globalDiscountPct,
       cart
@@ -851,6 +948,7 @@ export default function Terminal(): ReactElement {
       ...prev,
       [activeTicketId]: {
         customerName,
+        customerId,
         paymentMethod,
         globalDiscountPct,
         cart,
@@ -870,6 +968,7 @@ export default function Terminal(): ReactElement {
     })
     setCart(restoredCart)
     setCustomerName(found.customerName)
+    setCustomerId(found.customerId)
     const safePm: PaymentMethod = (['cash', 'card', 'transfer'] as const).includes(
       found.paymentMethod as 'cash' | 'card' | 'transfer'
     )
@@ -1085,13 +1184,70 @@ export default function Terminal(): ReactElement {
                 </div>
              )}
              <div className="flex justify-between items-end mb-4">
-                <div className="flex flex-col">
-                   <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1 cursor-pointer hover:text-blue-400 transition" onClick={() => {
-                      const name = window.prompt('Nombre del cliente para esta nota:', customerName);
-                      if (name !== null) setCustomerName(name || 'Publico General');
-                   }}>
-                      {customerName === 'Publico General' ? 'Cliente ✏️' : customerName}
-                   </span>
+                <div className="flex flex-col relative" ref={customerPickerRef}>
+                   <button
+                     type="button"
+                     className="flex items-center gap-1 text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1 cursor-pointer hover:text-blue-400 transition"
+                     onClick={() => setCustomerPickerOpen((v) => !v)}
+                   >
+                     <Users className="w-3 h-3" />
+                     {customerName === 'Publico General' ? 'Cliente' : customerName}
+                   </button>
+                   {/* Customer picker dropdown */}
+                   {customerPickerOpen && (
+                     <div className="absolute bottom-full left-0 mb-1 w-72 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                       <div className="p-2 border-b border-zinc-800 flex items-center gap-2">
+                         <SearchIcon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                         <input
+                           ref={customerSearchRef}
+                           type="text"
+                           className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-600 outline-none"
+                           placeholder="Buscar cliente..."
+                           value={customerSearch}
+                           onChange={(e) => setCustomerSearch(e.target.value)}
+                           onKeyDown={(e) => e.stopPropagation()}
+                         />
+                         <button type="button" onClick={() => setCustomerPickerOpen(false)} className="text-zinc-500 hover:text-zinc-300">
+                           <XIcon className="w-3.5 h-3.5" />
+                         </button>
+                       </div>
+                       <div className="max-h-48 overflow-y-auto">
+                         {/* Publico General — always first */}
+                         <button
+                           type="button"
+                           className={`w-full text-left px-3 py-2 text-xs hover:bg-zinc-800 transition flex items-center justify-between ${customerId === null ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
+                           onClick={() => { setCustomerName('Publico General'); setCustomerId(null); setCustomerPickerOpen(false) }}
+                         >
+                           <span className="font-semibold">Publico General</span>
+                           {customerId === null && <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />}
+                         </button>
+                         {customerResults
+                           .filter((c) => {
+                             if (!customerSearch.trim()) return true
+                             const q = customerSearch.toLowerCase()
+                             return c.name.toLowerCase().includes(q) || (c.phone?.toLowerCase().includes(q) ?? false)
+                           })
+                           .slice(0, 50)
+                           .map((c) => (
+                             <button
+                               key={c.id}
+                               type="button"
+                               className={`w-full text-left px-3 py-2 text-xs hover:bg-zinc-800 transition flex items-center justify-between ${customerId === c.id ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
+                               onClick={() => { setCustomerName(c.name); setCustomerId(c.id); setCustomerPickerOpen(false) }}
+                             >
+                               <div>
+                                 <span className="font-semibold">{c.name}</span>
+                                 {c.phone && <span className="ml-2 text-zinc-500">{c.phone}</span>}
+                               </div>
+                               {customerId === c.id && <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+                             </button>
+                           ))}
+                         {customerResults.length === 0 && (
+                           <div className="px-3 py-3 text-xs text-zinc-500 text-center">Cargando clientes...</div>
+                         )}
+                       </div>
+                     </div>
+                   )}
                    <span className="text-xs text-zinc-600 font-medium">{cart.reduce((a, i) => a + i.qty, 0)} articulos</span>
                 </div>
                 <div className="text-4xl font-black text-white tabular-nums tracking-tight">
@@ -1223,23 +1379,56 @@ export default function Terminal(): ReactElement {
            <div className="flex-1 overflow-y-auto px-6 py-6 pb-24 relative">
               <div className="max-w-[1400px] mx-auto">
                  <div className="flex items-center justify-between mb-4 px-1">
-                    <h2 className="text-sm font-bold tracking-wide text-zinc-400 uppercase">
-                       {query.trim() ? 'Resultados de Búsqueda' : 'Catálogo Rápido'}
-                    </h2>
-                    <span className="text-xs text-zinc-600 font-medium">{filtered.length} items</span>
+                    <div className="flex items-center gap-3">
+                       <h2 className="text-sm font-bold tracking-wide text-zinc-400 uppercase">
+                          {isEditingQuickCatalog ? 'Edición: Catálogo' : query.trim() ? 'Resultados de Búsqueda' : 'Catálogo Rápido'}
+                       </h2>
+                       {!query.trim() && (
+                          <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                             <button onClick={() => setShowQuickCatalog(!showQuickCatalog)} title={showQuickCatalog ? 'Ocultar Catálogo' : 'Mostrar Catálogo'} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+                                {showQuickCatalog ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                             </button>
+                             {showQuickCatalog && (
+                               <button onClick={() => { setIsEditingQuickCatalog(!isEditingQuickCatalog); setQuery('') }} title={isEditingQuickCatalog ? 'Guardar Cambios' : 'Editar Favoritos'} className={`p-1 rounded hover:bg-zinc-800 ${isEditingQuickCatalog ? 'text-blue-400' : 'text-zinc-400'}`}>
+                                  <Settings2 className="w-4 h-4" />
+                               </button>
+                             )}
+                          </div>
+                       )}
+                    </div>
+                    <span className="text-xs text-zinc-600 font-medium">{isEditingQuickCatalog ? `${quickCatalogSkus.length} favoritos` : `${filtered.length} items`}</span>
                  </div>
 
                  {filtered.length === 0 ? (
-                    <div className="text-zinc-500 mt-20 text-center font-medium">Ningún producto coincide con "{query}"</div>
+                    <div className="text-zinc-500 mt-20 text-center font-medium">
+                       {showQuickCatalog || isEditingQuickCatalog || query.trim() ? `Ningún producto coincide con "${query}"` : 'Catálogo Rápido Oculto'}
+                    </div>
                  ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 lg:gap-4">
-                       {filtered.map(p => (
+                       {filtered.map(p => {
+                          const isSelected = isEditingQuickCatalog && quickCatalogSkus.includes(p.sku)
+                          return (
                           <button
                              key={p.sku}
-                             onClick={() => { addProduct(p); setQuery(''); searchInputRef.current?.focus(); }}
-                             className="flex flex-col text-left bg-zinc-900/60 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 p-4 rounded-2xl transition-all group hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 active:scale-95"
+                             onClick={() => {
+                               if (isEditingQuickCatalog) {
+                                 setQuickCatalogSkus(prev =>
+                                   prev.includes(p.sku) ? prev.filter(s => s !== p.sku) : [...prev, p.sku]
+                                 )
+                               } else {
+                                 addProduct(p); setQuery(''); searchInputRef.current?.focus();
+                               }
+                             }}
+                             className={`flex flex-col text-left p-4 rounded-2xl transition-all group ${
+                               isSelected
+                                 ? 'bg-blue-900/30 border border-blue-500/50 hover:bg-blue-900/40 relative'
+                                 : 'bg-zinc-900/60 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 active:scale-95'
+                             }`}
                           >
-                             <div className="font-semibold text-zinc-300 text-xs lg:text-sm mb-2 line-clamp-2 leading-snug group-hover:text-blue-400 transition-colors">{p.name}</div>
+                             <div className="flex justify-between items-start mb-2 w-full">
+                               <div className={`font-semibold text-xs lg:text-sm line-clamp-2 leading-snug transition-colors ${isSelected ? 'text-blue-300' : 'text-zinc-300 group-hover:text-blue-400'}`}>{p.name}</div>
+                               {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 ml-2" />}
+                             </div>
                              <div className="mt-auto pt-3 flex items-end justify-between w-full border-t border-zinc-800/50">
                                 <div className="font-black text-emerald-400 text-base xl:text-lg">${p.price.toFixed(2)}</div>
                                 <div className="text-[10px] font-mono text-zinc-600 truncate max-w-[50%]">{p.sku.substring(0,6)}</div>
@@ -1249,8 +1438,9 @@ export default function Terminal(): ReactElement {
                                    Stock: {p.stock} uds
                                 </div>
                              )}
-                          </button>
-                       ))}
+                           </button>
+                          )
+                       })}
                     </div>
                  )}
               </div>

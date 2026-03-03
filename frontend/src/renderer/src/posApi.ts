@@ -70,7 +70,8 @@ function _isTokenExpired(token: string): boolean {
     if (!payload.exp) return false
     return payload.exp * 1000 < Date.now()
   } catch {
-    return false
+    // Malformed base64 or invalid JSON — treat as expired for safety
+    return true
   }
 }
 

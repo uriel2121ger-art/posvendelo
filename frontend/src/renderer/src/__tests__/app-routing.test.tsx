@@ -326,7 +326,7 @@ describe('F-key Navigation', () => {
     })
   }
 
-  it('F-keys no navegan cuando hay focus en input', async () => {
+  it('F-keys navegan incluso con focus en input (fix: F-keys no producen texto)', async () => {
     window.location.hash = '#/terminal'
     render(<App />)
 
@@ -341,9 +341,9 @@ describe('F-key Navigation', () => {
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3', bubbles: true }))
 
-    // Debería seguir en terminal, no navegar a productos
+    // F-keys ahora navegan incluso con input focused (no producen texto)
     await waitFor(() => {
-      expect(window.location.hash).toBe('#/terminal')
+      expect(window.location.hash).toBe('#/productos')
     })
 
     document.body.removeChild(input)

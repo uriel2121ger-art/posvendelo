@@ -8,9 +8,20 @@ import { MemoryRouter, type MemoryRouterProps } from 'react-router-dom'
 
 /* ── Auth helpers ───────────────────────────────────── */
 
+/** Genera un JWT de prueba con formato válido (header.payload.signature). */
+export function makeTestJwt(sub = 'test-user', role = 'admin'): string {
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const payload = btoa(JSON.stringify({
+    sub,
+    role,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  }))
+  return `${header}.${payload}.test-signature`
+}
+
 /** Simula un usuario autenticado con token y rol. */
-export function setAuthToken(token = 'test-token-abc', role = 'admin', user = 'admin'): void {
-  localStorage.setItem('titan.token', token)
+export function setAuthToken(token?: string, role = 'admin', user = 'admin'): void {
+  localStorage.setItem('titan.token', token ?? makeTestJwt(user, role))
   localStorage.setItem('titan.role', role)
   localStorage.setItem('titan.user', user)
   localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')

@@ -1,7 +1,7 @@
 import type { ReactElement, FormEvent } from 'react'
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
 import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-router-dom'
-import { type RuntimeConfig, loadRuntimeConfig, createCashMovement, openDrawerForSale } from './posApi'
+import { loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
 import CustomersTab from './CustomersTab'
 import DashboardStatsTab from './DashboardStatsTab'
 import ExpensesTab from './ExpensesTab'
@@ -112,6 +112,20 @@ class TabErrorBoundary extends Component<
   }
 }
 
+function _isTokenStructureValid(token: string): boolean {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return false
+    const payload = JSON.parse(atob(parts[1]))
+    if (!payload.sub || !payload.role) return false
+    // Check expiry
+    if (payload.exp && payload.exp * 1000 < Date.now()) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   let token: string | null = null
   try {
@@ -119,7 +133,14 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   } catch {
     /* storage error */
   }
-  if (!token) return <Navigate to="/login" replace />
+  if (!token || !_isTokenStructureValid(token)) {
+    // Clear invalid/expired token
+    try {
+      localStorage.removeItem('titan.token')
+      localStorage.removeItem('titan.role')
+    } catch { /* ignore */ }
+    return <Navigate to="/login" replace />
+  }
   return children
 }
 
@@ -363,6 +384,7 @@ function RoutedApp(): ReactElement {
           if (!hasToken) return
           localStorage.removeItem('titan.token')
           localStorage.removeItem('titan.role')
+          localStorage.removeItem('titan.shiftHistory')
           setShiftResolved(false)
           navigate('/login')
         } catch { /* ignore */ }
@@ -394,43 +416,51 @@ function RoutedApp(): ReactElement {
         return
       }
       if (!shiftResolved) return
-      const tag = (document.activeElement?.tagName ?? '').toUpperCase()
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+      // F-keys don't produce text — always handle them even when input is focused
       switch (event.key) {
         case 'F1':
           event.preventDefault()
+          event.stopPropagation()
           navigate('/terminal')
           break
         case 'F2':
           event.preventDefault()
+          event.stopPropagation()
           navigate('/clientes')
           break
         case 'F3':
           event.preventDefault()
+          event.stopPropagation()
           navigate('/productos')
           break
         case 'F4':
           event.preventDefault()
+          event.stopPropagation()
           navigate('/inventario')
           break
         case 'F5':
           event.preventDefault()
+          event.stopPropagation()
           navigate('/turnos')
           break
         case 'F6':
           event.preventDefault()
+          event.stopPropagation()
           navigate('/reportes')
           break
         case 'F7':
           event.preventDefault()
+          event.stopPropagation()
           setCashMovModal('in')
           break
         case 'F8':
           event.preventDefault()
+          event.stopPropagation()
           setCashMovModal('out')
           break
         case 'F9':
           event.preventDefault()
+          event.stopPropagation()
           setPriceCheckModal(true)
           break
         // F10, F11, F12 — handled by Terminal.tsx (capture phase)
@@ -438,8 +468,8 @@ function RoutedApp(): ReactElement {
           break
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [navigate, shiftResolved])
 
   const hasToken = (() => { try { return Boolean(localStorage.getItem('titan.token')) } catch { return false } })()

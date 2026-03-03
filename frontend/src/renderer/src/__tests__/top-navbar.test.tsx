@@ -1,86 +1,79 @@
 /**
- * TopNavbar.tsx — Tests de navegación, usuario activo, y logout.
+ * Sidebar.tsx — Tests de navegación, usuario activo, y logout.
+ * (Originalmente TopNavbar, reescrito para el componente Sidebar.)
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import TopNavbar from '../components/TopNavbar'
+import Sidebar from '../components/Sidebar'
 import { ConfirmProvider } from '../components/ConfirmDialog'
 import { clearAuth, setAuthToken } from './test-utils'
 
-function renderNavbar(path = '/terminal') {
+function renderSidebar(path = '/terminal') {
   return render(
     <ConfirmProvider>
       <MemoryRouter initialEntries={[path]}>
-        <TopNavbar />
+        <Sidebar />
       </MemoryRouter>
     </ConfirmProvider>,
   )
 }
 
-describe('TopNavbar', () => {
+describe('Sidebar', () => {
   beforeEach(() => {
     clearAuth()
-    setAuthToken('tok', 'admin', 'cajero1')
+    setAuthToken(undefined, 'admin', 'cajero1')
   })
 
   afterEach(() => {
     clearAuth()
   })
 
-  it('renderiza los 15 links de navegación', () => {
-    renderNavbar()
+  it('renderiza los 8 links de navegación principal', () => {
+    renderSidebar()
     const expectedLabels = [
-      'Ventas', 'Clientes', 'Productos', 'Inventario', 'Turnos',
-      'Reportes', 'Historial', 'Ajustes', 'Stats', 'Mermas',
-      'Gastos', 'Empleados', 'Remoto', 'Fiscal', 'Hardware',
+      'Ventas', 'Productos', 'Inventario', 'Clientes',
+      'Turnos', 'Historial', 'Reportes', 'Ajustes',
     ]
     for (const label of expectedLabels) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
   })
 
-  it('marca la pestaña activa con aria-current="page"', () => {
-    renderNavbar('/productos')
-    const link = screen.getByText('Productos').closest('a')
-    expect(link).toHaveAttribute('aria-current', 'page')
-
-    // Otros links no deben tener aria-current
-    const ventas = screen.getByText('Ventas').closest('a')
-    expect(ventas).not.toHaveAttribute('aria-current')
+  it('muestra las iniciales del usuario actual', () => {
+    renderSidebar()
+    // Sidebar muestra las primeras 2 letras del nombre como iniciales
+    expect(screen.getByText('ca')).toBeInTheDocument()
+    // El div con iniciales tiene title con el nombre completo
+    expect(screen.getByTitle('Usuario Activo: cajero1')).toBeInTheDocument()
   })
 
-  it('muestra el nombre de usuario actual', () => {
-    renderNavbar()
-    expect(screen.getByText('cajero1')).toBeInTheDocument()
-    expect(screen.getByText('Le atiende:')).toBeInTheDocument()
-  })
-
-  it('muestra "Usuario" si no hay user en localStorage', () => {
+  it('muestra "Us" si no hay user en localStorage', () => {
     localStorage.removeItem('titan.user')
-    renderNavbar()
-    expect(screen.getByText('Usuario')).toBeInTheDocument()
+    renderSidebar()
+    // Default es 'User', iniciales = 'Us'
+    expect(screen.getByText('Us')).toBeInTheDocument()
   })
 
-  it('botón de logout existe con aria-label correcto', () => {
-    renderNavbar()
-    const logoutBtn = screen.getByLabelText('Cerrar sesión')
+  it('botón de logout existe con title correcto', () => {
+    renderSidebar()
+    const logoutBtn = screen.getByTitle('Cerrar Sesión')
     expect(logoutBtn).toBeInTheDocument()
   })
 
   it('logout limpia localStorage y redirige al confirmar', async () => {
-    renderNavbar()
+    renderSidebar()
     const user = userEvent.setup()
 
-    await user.click(screen.getByLabelText('Cerrar sesión'))
+    await user.click(screen.getByTitle('Cerrar Sesión'))
 
-    // ConfirmDialog should appear
+    // ConfirmDialog debe aparecer
     await waitFor(() => {
       expect(screen.getByText('Aceptar')).toBeInTheDocument()
     })
 
-    // Click "Aceptar" to confirm logout
+    // Click "Aceptar" para confirmar logout
     await user.click(screen.getByText('Aceptar'))
 
     expect(localStorage.getItem('titan.token')).toBeNull()
@@ -90,52 +83,48 @@ describe('TopNavbar', () => {
   })
 
   it('logout cancelado no limpia localStorage', async () => {
-    renderNavbar()
+    renderSidebar()
     const user = userEvent.setup()
 
-    await user.click(screen.getByLabelText('Cerrar sesión'))
+    await user.click(screen.getByTitle('Cerrar Sesión'))
 
-    // ConfirmDialog should appear
+    // ConfirmDialog debe aparecer
     await waitFor(() => {
       expect(screen.getByText('Cancelar')).toBeInTheDocument()
     })
 
-    // Click "Cancelar" to abort logout
+    // Click "Cancelar" para abortar logout
     await user.click(screen.getByText('Cancelar'))
 
-    // Token sigue ahí
-    expect(localStorage.getItem('titan.token')).toBe('tok')
-  })
-
-  it('logout con turno abierto muestra advertencia en el dialogo', async () => {
-    localStorage.setItem('titan.currentShift', '42')
-
-    renderNavbar()
-    const user = userEvent.setup()
-    await user.click(screen.getByLabelText('Cerrar sesión'))
-
-    // ConfirmDialog should show warning about open shift
-    await waitFor(() => {
-      expect(screen.getByText(/turno abierto/i)).toBeInTheDocument()
-    })
-
-    // Cancel to keep session
-    await user.click(screen.getByText('Cancelar'))
+    // Token sigue presente
+    expect(localStorage.getItem('titan.token')).not.toBeNull()
   })
 
   it('logout con tickets pendientes muestra advertencia en el dialogo', async () => {
     localStorage.setItem('titan.pendingTickets', JSON.stringify([{ id: 1 }]))
 
-    renderNavbar()
+    renderSidebar()
     const user = userEvent.setup()
-    await user.click(screen.getByLabelText('Cerrar sesión'))
+    await user.click(screen.getByTitle('Cerrar Sesión'))
 
-    // ConfirmDialog should show warning about pending tickets
+    // ConfirmDialog debe mostrar advertencia sobre tickets pendientes
     await waitFor(() => {
       expect(screen.getByText(/tickets pendientes/i)).toBeInTheDocument()
     })
 
-    // Cancel to keep session
+    // Cancelar para mantener sesión
     await user.click(screen.getByText('Cancelar'))
+  })
+
+  it('navega correctamente al hacer click en un link', async () => {
+    renderSidebar('/terminal')
+    const user = userEvent.setup()
+
+    // Click en "Productos"
+    await user.click(screen.getByText('Productos'))
+
+    // Verifica que el link apunta a /productos
+    const link = screen.getByText('Productos').closest('a')
+    expect(link).toHaveAttribute('href', '/productos')
   })
 })

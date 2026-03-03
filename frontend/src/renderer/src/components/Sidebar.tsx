@@ -59,7 +59,7 @@ export default function Sidebar(): ReactElement {
     if (!await confirm(msg, { variant: 'warning', title: 'Cerrar Sesión' })) return
 
     try {
-      ;['titan.token', 'titan.user', 'titan.role', 'titan.currentShift', 'titan.pendingTickets', 'titan.activeTickets'].forEach((k) =>
+      ;['titan.token', 'titan.user', 'titan.role', 'titan.currentShift', 'titan.pendingTickets', 'titan.activeTickets', 'titan.shiftHistory'].forEach((k) =>
         localStorage.removeItem(k)
       )
     } catch {
