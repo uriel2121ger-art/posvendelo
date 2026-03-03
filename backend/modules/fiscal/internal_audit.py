@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
 
+from ..shared.constants import RESICO_ANNUAL_LIMIT
+
 logger = logging.getLogger(__name__)
 
 class GeneralDeGuerra:
@@ -16,8 +18,8 @@ class GeneralDeGuerra:
     Sistema de Análisis de Auditoría en Tiempo Real.
     Verifica que cada capa esté alineada y blindada ante el SAT.
     """
-    
-    RESICO_LIMIT = Decimal('3500000')
+
+    RESICO_LIMIT = RESICO_ANNUAL_LIMIT
     MERMA_TOLERANCE = 2.0  # %
     
     def __init__(self, db):

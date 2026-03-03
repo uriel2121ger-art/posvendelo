@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.inventory.schemas import StockAdjustment
 
 logger = logging.getLogger(__name__)
@@ -33,9 +34,13 @@ async def list_movements(
     db=Depends(get_db),
 ):
     """List inventory movements. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver movimientos de inventario")
-    sql = "SELECT * FROM inventory_movements WHERE 1=1"
+    sql = (
+        "SELECT id, product_id, movement_type, type, quantity, reason, "
+        "reference_type, reference_id, user_id, branch_id, notes, timestamp, synced "
+        "FROM inventory_movements WHERE 1=1"
+    )
     params: dict = {}
 
     if product_id:
@@ -56,7 +61,7 @@ async def list_movements(
 @router.get("/alerts")
 async def stock_alerts(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get products below minimum stock (low stock alerts). Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver alertas de stock")
     rows = await db.fetch("""
         SELECT id, sku, name, stock, min_stock, category,
@@ -90,7 +95,7 @@ async def adjust_stock(
     Records an inventory_movement for audit trail.
     RBAC: admin/manager/owner only.
     """
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ajustar inventario")
 
     conn = db.connection

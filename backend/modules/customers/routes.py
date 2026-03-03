@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.customers.schemas import CustomerCreate, CustomerUpdate
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ async def update_customer(
     # Only managers can modify credit_limit or is_active
     _MANAGER_FIELDS = {"credit_limit", "is_active"}
     role = auth.get("role", "")
-    if _MANAGER_FIELDS & fields.keys() and role not in ("admin", "manager", "owner"):
+    if _MANAGER_FIELDS & fields.keys() and role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
 
     conn = db.connection
@@ -188,7 +189,7 @@ async def delete_customer(
 ):
     """Soft-delete a customer (set is_active = 0). Requires manager role."""
     role = auth.get("role", "")
-    if role not in ("admin", "manager", "owner"):
+    if role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Solo gerentes pueden desactivar clientes")
 
     conn = db.connection

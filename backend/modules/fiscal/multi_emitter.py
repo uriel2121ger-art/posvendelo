@@ -6,11 +6,13 @@ from typing import Any, Dict, List, Optional
 from decimal import Decimal
 import logging
 
+from ..shared.constants import RESICO_ANNUAL_LIMIT
+
 logger = logging.getLogger(__name__)
 
 
 class MultiEmitterManager:
-    RESICO_ANNUAL_LIMIT = Decimal("3500000.00")
+    RESICO_ANNUAL_LIMIT = RESICO_ANNUAL_LIMIT
 
     def __init__(self, db):
         self.db = db

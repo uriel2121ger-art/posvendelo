@@ -10,6 +10,8 @@ import logging
 import os
 import secrets
 
+from ..shared.constants import RESICO_ANNUAL_LIMIT
+
 logger = logging.getLogger(__name__)
 
 def _get_federation_auth_code() -> str:
@@ -23,7 +25,7 @@ def _get_federation_auth_code() -> str:
 class FederationDashboard:
     """Dashboard federado para múltiples sucursales y RFCs."""
 
-    RESICO_LIMIT = Decimal('3500000')
+    RESICO_LIMIT = RESICO_ANNUAL_LIMIT
     TAX_RATE = Decimal('0.16')
     TAX_FACTOR = Decimal('1.16')
     ISR_RESICO_RATE = Decimal('0.0125')

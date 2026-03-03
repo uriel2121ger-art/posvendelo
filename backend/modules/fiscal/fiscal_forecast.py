@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
 
+from ..shared.constants import RESICO_ANNUAL_LIMIT
+
 logger = logging.getLogger(__name__)
 
 class NostradamusFiscal:
@@ -17,11 +19,11 @@ class NostradamusFiscal:
     Sistema de IA Prescriptiva para optimización fiscal.
     Actúa como Orquestador Maestro del Shaper.
     """
-    
+
     # Constantes fiscales
     IVA_RATE = 0.16
     ISR_RATE_RESICO = 0.0125  # 1.25% promedio RESICO
-    RESICO_ANNUAL_LIMIT = 3_500_000
+    RESICO_ANNUAL_LIMIT = RESICO_ANNUAL_LIMIT
     
     def __init__(self, db):
         self.db = db
@@ -72,17 +74,17 @@ class NostradamusFiscal:
                 {"ms": month_start}
             )
             
-            total_a = round(float(result_a[0]['total'] or 0), 2) if result_a else 0
-            total_b = round(float(result_b[0]['total'] or 0), 2) if result_b else 0
+            total_a = Decimal(result_a[0]['total'] or 0).quantize(Decimal("0.01")) if result_a else Decimal("0")
+            total_b = Decimal(result_b[0]['total'] or 0).quantize(Decimal("0.01")) if result_b else Decimal("0")
             total = total_a + total_b
             
-            ratio_b = (total_b / total * 100) if total > 0 else 0
-            
+            ratio_b = (total_b / total * 100) if total > 0 else Decimal("0")
+
             return {
-                'serie_a': total_a,
-                'serie_b': total_b,
-                'total': total,
-                'ratio_b_percentage': round(ratio_b, 1),
+                'serie_a': float(total_a),
+                'serie_b': float(total_b),
+                'total': float(total),
+                'ratio_b_percentage': float(ratio_b.quantize(Decimal("0.1"))),
                 'status': 'excess_b' if ratio_b > 70 else 'balanced' if ratio_b > 30 else 'excess_a'
             }
         except Exception as e:
@@ -105,7 +107,7 @@ class NostradamusFiscal:
                     "SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements WHERE type = 'expense' AND timestamp >= :ms",
                     {"ms": month_start_ts}
                 )
-                expense_total = round(float(expenses[0]['total'] or 0), 2) if expenses else 0.0
+                expense_total = Decimal(expenses[0]['total'] or 0).quantize(Decimal("0.01")) if expenses else Decimal("0")
             except Exception:
                 pass
 
@@ -115,7 +117,7 @@ class NostradamusFiscal:
                     "SELECT COALESCE(SUM(total_cost), 0) as total FROM purchase_costs WHERE serie = 'A' AND purchase_date >= :ms",
                     {"ms": month_start_str}
                 )
-                purchase_total = round(float(purchases[0]['total'] or 0), 2) if purchases else 0.0
+                purchase_total = Decimal(purchases[0]['total'] or 0).quantize(Decimal("0.01")) if purchases else Decimal("0")
             except Exception:
                 pass
 
@@ -125,7 +127,7 @@ class NostradamusFiscal:
                     "SELECT COALESCE(SUM(total_value), 0) as total FROM loss_records WHERE status = 'authorized' AND created_at >= :ms",
                     {"ms": month_start_str}
                 )
-                shrinkage_total = round(float(shrinkage[0]['total'] or 0), 2) if shrinkage else 0.0
+                shrinkage_total = Decimal(shrinkage[0]['total'] or 0).quantize(Decimal("0.01")) if shrinkage else Decimal("0")
             except Exception:
                 pass
 
@@ -135,17 +137,17 @@ class NostradamusFiscal:
                 "SELECT COALESCE(SUM(total), 0) as total FROM sales WHERE serie = 'A' AND timestamp >= :ms AND status = 'completed'",
                 {"ms": month_start_str}
             )
-            total_income = round(float(income_a[0]['total'] or 0), 2) if income_a else 0
+            total_income = Decimal(income_a[0]['total'] or 0).quantize(Decimal("0.01")) if income_a else Decimal("0")
             
-            taxable_base = max(0, total_income - total_deductions)
-            excess_deductions = total_deductions - total_income if total_deductions > total_income else 0
-            
+            taxable_base = max(Decimal("0"), total_income - total_deductions)
+            excess_deductions = total_deductions - total_income if total_deductions > total_income else Decimal("0")
+
             return {
-                'total_deductions': total_deductions,
-                'total_income_a': total_income,
-                'taxable_base': taxable_base,
-                'excess_deductions': excess_deductions,
-                'deduction_ratio': round((total_deductions / total_income * 100) if total_income > 0 else 0, 1),
+                'total_deductions': float(total_deductions),
+                'total_income_a': float(total_income),
+                'taxable_base': float(taxable_base),
+                'excess_deductions': float(excess_deductions),
+                'deduction_ratio': float((total_deductions / total_income * 100).quantize(Decimal("0.1")) if total_income > 0 else Decimal("0")),
                 'has_opportunity': excess_deductions > 0
             }
         except Exception as e:
@@ -159,33 +161,33 @@ class NostradamusFiscal:
             mgr = MultiEmitterManager(self.db)
             emitters = await mgr.list_emitters()
             rfc_data = []
-            total_invoiced = 0
+            total_invoiced = Decimal("0")
 
             for emp in emitters:
-                amount = round(float(emp['current_resico_amount']), 2)
+                amount = Decimal(emp['current_resico_amount'] or 0).quantize(Decimal("0.01"))
                 total_invoiced += amount
                 remaining = self.RESICO_ANNUAL_LIMIT - amount
                 percentage = (amount / self.RESICO_ANNUAL_LIMIT) * 100
-                
+
                 rfc_data.append({
                     'rfc': emp['rfc'],
-                    'invoiced': amount,
-                    'remaining': remaining,
-                    'percentage': round(percentage, 1),
+                    'invoiced': float(amount),
+                    'remaining': float(remaining),
+                    'percentage': float(percentage.quantize(Decimal("0.1"))),
                 })
             
             best_rfc = max(rfc_data, key=lambda x: x['remaining']) if rfc_data else None
             
             return {
                 'rfcs': rfc_data,
-                'total_invoiced': total_invoiced,
-                'total_remaining': sum(r['remaining'] for r in rfc_data) if rfc_data else self.RESICO_ANNUAL_LIMIT,
+                'total_invoiced': float(total_invoiced),
+                'total_remaining': sum(r['remaining'] for r in rfc_data) if rfc_data else float(self.RESICO_ANNUAL_LIMIT),
                 'best_rfc': best_rfc,
                 'days_remaining_year': (datetime.now().replace(month=12, day=31) - datetime.now()).days
             }
         except Exception as e:
             logger.error(f"Error en RESICO: {e}", exc_info=True)
-            return {'rfcs': [], 'total_remaining': self.RESICO_ANNUAL_LIMIT}
+            return {'rfcs': [], 'total_remaining': float(self.RESICO_ANNUAL_LIMIT)}
     
     def _generate_prescriptions(self, balance: Dict, deductions: Dict, resico: Dict):
         """Genera prescripciones accionables."""

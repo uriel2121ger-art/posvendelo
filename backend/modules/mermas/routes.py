@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.mermas.schemas import MermaApproval
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ async def get_pending_mermas(
     db=Depends(get_db),
 ):
     """Get pending loss records for approval. RBAC: manager/admin/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver mermas")
 
     rows = await db.fetch(
@@ -64,7 +65,7 @@ async def approve_merma(
     db=Depends(get_db),
 ):
     """Approve or reject a loss record. RBAC: manager/admin/owner. Uses FOR UPDATE."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para aprobar mermas")
 
     user_id = get_user_id(auth)

@@ -10,15 +10,18 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.turn_service import calculate_turn_summary
 from modules.hardware.schemas import (
     PrinterConfigUpdate,
     BusinessInfoUpdate,
     ScannerConfigUpdate,
     DrawerConfigUpdate,
     PrintReceiptRequest,
+    PrintShiftReportRequest,
 )
 from modules.hardware import printer as printer_svc
-from modules.hardware.escpos import build_sale_receipt, build_test_receipt
+from modules.hardware.escpos import build_sale_receipt, build_test_receipt, build_shift_report
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -40,9 +43,6 @@ _HW_COLUMNS = [
     "cash_drawer_auto_open_transfer",
 ]
 
-_ADMIN_ROLES = ("admin", "manager", "owner")
-
-
 async def _ensure_hw_row(db) -> int:
     """Ensure app_config has a hardware row. Return its id (single upsert)."""
     row = await db.fetchrow(
@@ -60,7 +60,15 @@ async def _get_hw_config(db) -> dict:
         "INSERT INTO app_config (key, value, category, updated_at) "
         "VALUES ('hardware', 'default', 'system', NOW()) "
         "ON CONFLICT (key) DO UPDATE SET updated_at = NOW() "
-        "RETURNING *"
+        "RETURNING id, receipt_printer_name, receipt_printer_enabled, receipt_paper_width, "
+        "receipt_char_width, receipt_auto_print, receipt_mode, receipt_cut_type, "
+        "business_name, business_legal_name, business_address, business_rfc, "
+        "business_regimen, business_phone, business_footer, "
+        "scanner_enabled, scanner_prefix, scanner_suffix, "
+        "scanner_min_speed_ms, scanner_auto_submit, "
+        "cash_drawer_enabled, printer_name, cash_drawer_pulse_bytes, "
+        "cash_drawer_auto_open_cash, cash_drawer_auto_open_card, "
+        "cash_drawer_auto_open_transfer"
     )
     if not row:
         return {}
@@ -69,7 +77,7 @@ async def _get_hw_config(db) -> dict:
 
 
 def _require_admin(auth: dict):
-    if auth.get("role") not in _ADMIN_ROLES:
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para configurar hardware")
 
 
@@ -310,7 +318,9 @@ async def print_receipt(
         raise HTTPException(status_code=400, detail="Impresora no habilitada")
 
     sale = await db.fetchrow(
-        "SELECT * FROM sales WHERE id = :sid AND status = 'completed'",
+        "SELECT id, folio_visible, timestamp, payment_method, "
+        "subtotal, discount, tax, total, cash_received, change_given "
+        "FROM sales WHERE id = :sid AND status = 'completed'",
         {"sid": body.sale_id},
     )
     if not sale:
@@ -373,3 +383,56 @@ async def open_drawer_for_sale(
         logger.error("Audit log failed for SALE_DRAWER_OPEN: %s", audit_err)
 
     return {"success": True, "data": {"message": "Cajon abierto", "opened": True}}
+
+
+# ---------------------------------------------------------------------------
+# POST /print-shift-report — print shift cut to thermal printer
+# ---------------------------------------------------------------------------
+
+@router.post("/print-shift-report")
+async def print_shift_report(
+    body: PrintShiftReportRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Print shift cut report on configured thermal printer."""
+    cfg = await _get_hw_config(db)
+
+    printer_name = cfg.get("receipt_printer_name", "")
+    if not printer_name:
+        raise HTTPException(status_code=400, detail="Impresora no configurada")
+    if not cfg.get("receipt_printer_enabled"):
+        raise HTTPException(status_code=400, detail="Impresora no habilitada")
+
+    # Fetch turn data
+    turn = await db.fetchrow(
+        "SELECT id, initial_cash, final_cash, status, start_timestamp, end_timestamp "
+        "FROM turns WHERE id = :tid",
+        {"tid": body.turn_id},
+    )
+    if not turn:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+    # Build summary using shared service
+    ts = await calculate_turn_summary(body.turn_id, turn["initial_cash"], db.connection)
+
+    summary = {
+        "sales_count": ts["sales_count"],
+        "total_sales": float(ts["total_sales"]),
+        "sales_by_method": ts["sales_by_method"],
+        "initial_cash": float(ts["initial"]),
+        "cash_in": float(ts["mov_in"]),
+        "cash_out": float(ts["mov_out"]),
+        "expected_cash": float(ts["expected_cash"]),
+    }
+
+    char_width = cfg.get("receipt_char_width", 48) or 48
+    report_bytes = build_shift_report(dict(turn), summary, cfg, char_width)
+
+    try:
+        await printer_svc.print_raw(printer_name, report_bytes)
+    except Exception as e:
+        logger.error("Print shift report failed for turn %d: %s", body.turn_id, e)
+        raise HTTPException(status_code=500, detail="Error al imprimir corte. Verifique la impresora.")
+
+    return {"success": True, "data": {"message": f"Corte de turno #{body.turn_id} impreso"}}

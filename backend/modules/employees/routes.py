@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token
 from modules.employees.schemas import EmployeeCreate, EmployeeUpdate
+from modules.shared.constants import PRIVILEGED_ROLES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,7 +32,7 @@ async def list_employees(
     db=Depends(get_db),
 ):
     """List employees with search and filters. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver empleados")
     sql = "SELECT id, employee_code, name, position, base_salary, commission_rate, phone, email, notes, is_active, created_at FROM employees WHERE 1=1"
     params: dict = {}
@@ -58,7 +59,7 @@ async def get_employee(
     db=Depends(get_db),
 ):
     """Get employee by ID. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver empleados")
     row = await db.fetchrow(
         "SELECT id, employee_code, name, position, base_salary, commission_rate, phone, email, notes, is_active, created_at FROM employees WHERE id = :id",
@@ -76,7 +77,7 @@ async def create_employee(
     db=Depends(get_db),
 ):
     """Create a new employee. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     # Check unique employee_code
     existing = await db.fetchrow(
@@ -100,13 +101,17 @@ async def create_employee(
                 "code": body.employee_code,
                 "name": body.name,
                 "position": body.position,
-                "hire_date": body.hire_date if body.hire_date is not None else now.strftime("%Y-%m-%d"),
+                "hire_date": (
+                    datetime.strptime(body.hire_date, "%Y-%m-%d").date()
+                    if isinstance(body.hire_date, str)
+                    else body.hire_date
+                ) if body.hire_date is not None else now.date(),
                 "salary": body.base_salary if body.base_salary is not None else 0.0,
                 "commission": body.commission_rate if body.commission_rate is not None else 0.0,
                 "phone": body.phone,
                 "email": body.email,
                 "notes": body.notes,
-                "now": now.isoformat(),
+                "now": now,
             },
         )
     except Exception as e:
@@ -129,7 +134,7 @@ async def update_employee(
     db=Depends(get_db),
 ):
     """Update an employee. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     _ALLOWED_COLUMNS = {
         "name", "position", "employee_code", "phone", "email",
@@ -138,6 +143,10 @@ async def update_employee(
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:
         return {"success": True, "data": {"message": "Sin cambios"}}
+
+    # Convert hire_date string to date object for asyncpg DATE column
+    if "hire_date" in fields and isinstance(fields["hire_date"], str):
+        fields["hire_date"] = datetime.strptime(fields["hire_date"], "%Y-%m-%d").date()
 
     conn = db.connection
     async with conn.transaction():
@@ -182,7 +191,7 @@ async def delete_employee(
     db=Depends(get_db),
 ):
     """Soft-delete an employee. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar empleados")
     conn = db.connection
     async with conn.transaction():

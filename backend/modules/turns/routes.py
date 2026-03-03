@@ -17,8 +17,11 @@ from starlette.requests import Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.pin_auth import verify_manager_pin
 from modules.shared.rate_limit import check_pin_rate_limit
+from modules.shared.turn_service import calculate_turn_summary
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
+from modules.shared.constants import PRIVILEGED_ROLES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -84,38 +87,15 @@ async def close_turn(
         # Ownership check: only the turn owner or manager+ can close
         user_id = get_user_id(auth)
         role = auth.get("role", "")
-        if turn["user_id"] != user_id and role not in ("admin", "manager", "owner"):
+        if turn["user_id"] != user_id and role not in PRIVILEGED_ROLES:
             raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        # Calculate expected: initial + cash sales (pure + mixed component) + cash_in - cash_out
-        cash_sales = await conn.fetchval(
-            """
-            SELECT COALESCE(SUM(
-                CASE WHEN payment_method = 'cash' THEN total
-                     WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
-                     ELSE 0
-                END
-            ), 0) FROM sales
-            WHERE turn_id = $1 AND status = 'completed'
-            """,
-            turn_id,
-        )
-        movements_in = await conn.fetchval(
-            "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = $1 AND type = 'in'",
-            turn_id,
-        )
-        movements_out = await conn.fetchval(
-            "SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE turn_id = $1 AND type IN ('out', 'expense')",
-            turn_id,
-        )
-
-        initial = Decimal(str(turn["initial_cash"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        system_sales_total = Decimal(str(cash_sales)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        mov_in = Decimal(str(movements_in)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        mov_out = Decimal(str(movements_out)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        expected_cash = (initial + system_sales_total + mov_in - mov_out).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        # Calculate expected cash using shared service
+        ts = await calculate_turn_summary(turn_id, turn["initial_cash"], conn)
+        system_sales_total = ts["cash_sales"]
+        expected_cash = ts["expected_cash"]
         difference = (Decimal(str(body.final_cash)) - expected_cash).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         denominations_json = None
@@ -164,11 +144,14 @@ async def get_current_turn(
     uid = get_user_id(auth)
     if user_id and user_id != uid:
         role = auth.get("role", "")
-        if role not in ("admin", "manager", "owner"):
+        if role not in PRIVILEGED_ROLES:
             raise HTTPException(status_code=403, detail="Sin permisos para ver turnos de otros usuarios")
         uid = user_id
 
-    sql = "SELECT * FROM turns WHERE user_id = :uid AND status = 'open'"
+    sql = ("SELECT id, user_id, pos_id, branch_id, terminal_id, start_timestamp,"
+           " end_timestamp, initial_cash, final_cash, system_sales, difference,"
+           " status, notes, synced, created_at, updated_at, denominations"
+           " FROM turns WHERE user_id = :uid AND status = 'open'")
     params: dict = {"uid": uid}
 
     if branch_id:
@@ -191,13 +174,17 @@ async def get_turn(
 ):
     """Get turn detail by ID."""
     row = await db.fetchrow(
-        "SELECT * FROM turns WHERE id = :id", {"id": turn_id}
+        "SELECT id, user_id, pos_id, branch_id, terminal_id, start_timestamp,"
+        " end_timestamp, initial_cash, final_cash, system_sales, difference,"
+        " status, notes, synced, created_at, updated_at, denominations"
+        " FROM turns WHERE id = :id",
+        {"id": turn_id}
     )
     if not row:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     uid = get_user_id(auth)
     role = auth.get("role", "")
-    if row["user_id"] != uid and role not in ("admin", "manager", "owner"):
+    if row["user_id"] != uid and role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
     return {"success": True, "data": row}
 
@@ -210,13 +197,17 @@ async def get_turn_summary(
 ):
     """Get turn summary: sales by payment method, movements, totals."""
     turn = await db.fetchrow(
-        "SELECT * FROM turns WHERE id = :id", {"id": turn_id}
+        "SELECT id, user_id, pos_id, branch_id, terminal_id, start_timestamp,"
+        " end_timestamp, initial_cash, final_cash, system_sales, difference,"
+        " status, notes, synced, created_at, updated_at, denominations"
+        " FROM turns WHERE id = :id",
+        {"id": turn_id}
     )
     if not turn:
         raise HTTPException(status_code=404, detail="Turno no encontrado")
     uid = get_user_id(auth)
     role = auth.get("role", "")
-    if turn["user_id"] != uid and role not in ("admin", "manager", "owner"):
+    if turn["user_id"] != uid and role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
 
     sales_by_method = await db.fetch(
@@ -292,55 +283,27 @@ async def create_cash_movement(
     """Register a cash movement (in/out) for a turn. Requires manager PIN for non-managers."""
     user_id = get_user_id(auth)
     role = auth.get("role", "")
-    is_manager = role in ("admin", "manager", "owner")
+    is_manager = role in PRIVILEGED_ROLES
 
     # PIN brute-force protection: 5 attempts per 5 min per IP
     if not is_manager:
         client_ip = request.client.host if request.client else "127.0.0.1"
         check_pin_rate_limit(client_ip)
 
-    # Verify manager PIN for non-manager roles (bcrypt preferred, SHA-256 fallback)
-    import bcrypt
-    import hashlib
-    import hmac
-    need_pin_check = False
+    # Verify manager PIN for non-manager roles
     if not is_manager:
         if not body.manager_pin:
             raise HTTPException(
                 status_code=403,
                 detail="Se requiere PIN de gerente para movimientos de caja",
             )
-        need_pin_check = True
 
     # Atomic: lock turn row + verify PIN inside transaction to prevent TOCTOU
     conn = db.connection
     async with conn.transaction():
         # Verify PIN inside transaction to prevent TOCTOU race
-        if need_pin_check:
-            mgr_rows = await conn.fetch(
-                "SELECT id, pin_hash FROM users WHERE is_active = 1 "
-                "AND role IN ('admin', 'manager', 'owner') AND pin_hash IS NOT NULL"
-            )
-            mgr_check = None
-            for row in mgr_rows:
-                stored = row["pin_hash"]
-                try:
-                    if stored.startswith("$2b$") or stored.startswith("$2a$"):
-                        if bcrypt.checkpw(body.manager_pin.encode(), stored.encode()):
-                            mgr_check = row
-                            break
-                    else:
-                        # Timing-safe comparison for SHA-256 legacy hashes
-                        if hmac.compare_digest(
-                            hashlib.sha256(body.manager_pin.encode()).hexdigest(),
-                            stored,
-                        ):
-                            mgr_check = row
-                            break
-                except Exception:
-                    continue
-            if not mgr_check:
-                raise HTTPException(status_code=403, detail="PIN de gerente invalido")
+        if not is_manager:
+            await verify_manager_pin(body.manager_pin, conn)
 
         turn = await conn.fetchrow(
             "SELECT id, status FROM turns WHERE id = $1 FOR UPDATE",

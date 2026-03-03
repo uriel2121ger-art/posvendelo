@@ -12,6 +12,8 @@ from datetime import date, datetime
 from decimal import Decimal
 import logging
 
+from ..shared.constants import RESICO_ANNUAL_LIMIT
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ class RESICOMonitor:
     """
 
     # Limites RESICO
-    LIMITE_ANUAL = Decimal('3500000.00')
+    LIMITE_ANUAL = RESICO_ANNUAL_LIMIT
     ALERTA_AMARILLA = Decimal('3000000.00')  # 85%
     ALERTA_ROJA = Decimal('3250000.00')      # 93%
 

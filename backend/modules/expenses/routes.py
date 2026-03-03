@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.expenses.schemas import ExpenseCreate
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ async def get_expense_summary(
     db=Depends(get_db),
 ):
     """Get expense summary — month and year totals. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver resumen de gastos")
     try:
         now = datetime.now(timezone.utc)
@@ -74,7 +75,7 @@ async def register_expense(
 ):
     """Register a cash expense in cash_movements (linked to open turn if exists)."""
     role = auth.get("role", "")
-    if role not in ("admin", "manager", "owner"):
+    if role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Solo gerentes pueden registrar gastos")
     user_id = get_user_id(auth)
     now = datetime.now(timezone.utc).replace(tzinfo=None)

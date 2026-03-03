@@ -12,10 +12,9 @@ Endpoints:
 """
 
 import logging
-import math
 import uuid as uuid_mod
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional
 
@@ -26,8 +25,10 @@ from starlette.requests import Request
 
 from db.connection import get_db, get_connection, escape_like
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.pin_auth import verify_manager_pin
 from modules.shared.rate_limit import check_pin_rate_limit
 from modules.sales.schemas import SaleCreate, SaleItemCreate, SaleCancelRequest
+from modules.shared.constants import PRIVILEGED_ROLES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -118,6 +119,175 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
     )
 
 
+# ── Private helpers for create_sale ───────────────────────────────
+
+
+async def _validate_and_lock_products(
+    items: List[SaleItemCreate],
+    conn,
+) -> tuple[Dict, list]:
+    """Lock products with FOR UPDATE NOWAIT and return (locked_map, kit_comp_rows).
+
+    Also validates that all referenced product_ids exist in the DB.
+    Raises HTTPException 400/409 on validation failures.
+    """
+    product_ids = [item.product_id for item in items if item.product_id]
+
+    kit_comp_rows = []
+    if product_ids:
+        kit_comp_rows = await conn.fetch(
+            "SELECT kit_product_id, component_product_id, quantity FROM kit_components "
+            "WHERE kit_product_id = ANY($1)",
+            product_ids,
+        )
+    component_ids = [r["component_product_id"] for r in kit_comp_rows]
+    all_ids_to_lock = list(set(product_ids + component_ids))
+
+    locked_map: Dict = {}
+    if all_ids_to_lock:
+        try:
+            locked_products = await conn.fetch(
+                "SELECT id, name, stock, sku, sale_type, is_kit, price, price_wholesale "
+                "FROM products WHERE id = ANY($1) AND is_active = 1 FOR UPDATE NOWAIT",
+                all_ids_to_lock,
+            )
+        except asyncpg.exceptions.LockNotAvailableError:
+            raise HTTPException(
+                status_code=409,
+                detail="Productos bloqueados por otra venta en proceso. Intenta de nuevo.",
+            )
+        locked_map = {r["id"]: dict(r) for r in locked_products}
+
+    for item in items:
+        if item.product_id and item.product_id not in locked_map:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Producto ID {item.product_id} no encontrado",
+            )
+
+    return locked_map, kit_comp_rows
+
+
+def _calculate_item_totals(
+    items: List[SaleItemCreate],
+    locked_map: Dict,
+) -> List[CalculatedItem]:
+    """Calculate price, discount, and total for each item.
+
+    Returns a list of CalculatedItem in the same order as items.
+    """
+    return [_calculate_item(item, locked_map) for item in items]
+
+
+def _build_stock_deductions(
+    calculated: List[CalculatedItem],
+    kit_comp_rows: list,
+) -> Dict[int, Decimal]:
+    """Build aggregated stock deduction map: product_id -> qty to deduct.
+
+    Handles kit expansion (components) and skips granel/weight products.
+    Skips common/misc products (no product_id or COM- prefix).
+
+    Note: kit_comp_rows is a flat list of asyncpg Record objects with fields:
+      kit_product_id, component_product_id, quantity
+    """
+    stock_deductions: Dict[int, Decimal] = {}
+
+    for ci in calculated:
+        if ci.is_common or not ci.product_id:
+            continue
+        if ci.is_kit:
+            for cr in kit_comp_rows:
+                if cr["kit_product_id"] == ci.product_id:
+                    cid = cr["component_product_id"]
+                    stock_deductions[cid] = (
+                        stock_deductions.get(cid, Decimal(0))
+                        + Decimal(str(cr["quantity"])) * ci.qty
+                    )
+        else:
+            stock_deductions[ci.product_id] = (
+                stock_deductions.get(ci.product_id, Decimal(0)) + ci.qty
+            )
+
+    return stock_deductions
+
+
+async def _process_credit_payment(
+    sale_id: int,
+    customer_id: int,
+    amount: Decimal,
+    folio_visible: str,
+    user_id: int,
+    db,
+) -> None:
+    """Charge the sale amount to the customer's credit account.
+
+    Validates credit authorization and limit before charging.
+    Raises HTTPException 400 on validation failures.
+    """
+    cust = await db.fetchrow(
+        "SELECT credit_balance, credit_limit, credit_authorized "
+        "FROM customers WHERE id = :id AND is_active = 1 FOR UPDATE",
+        {"id": customer_id},
+    )
+    if not cust:
+        raise HTTPException(status_code=400, detail="Cliente no encontrado para venta a credito")
+    if cust.get("credit_authorized") != 1:
+        raise HTTPException(status_code=400, detail="Cliente no tiene credito habilitado")
+
+    balance = _dec(cust.get("credit_balance") or 0)
+    limit_val = _dec(cust.get("credit_limit") or 0)
+    new_balance = balance + amount
+
+    if limit_val > 0 and new_balance > limit_val:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Excede limite de credito. Limite: ${_f(limit_val):.2f}, "
+                   f"Balance actual: ${_f(balance):.2f}, Venta: ${_f(amount):.2f}",
+        )
+
+    await db.execute(
+        "UPDATE customers SET credit_balance = credit_balance + :amount, synced = 0, updated_at = NOW() WHERE id = :id",
+        {"amount": amount, "id": customer_id},
+    )
+    await db.execute(
+        """INSERT INTO credit_history
+           (customer_id, transaction_type, movement_type, amount, balance_before, balance_after,
+            timestamp, notes, user_id)
+           VALUES (:cid, 'CHARGE', 'CHARGE', :amount, :before, :after, NOW(), :notes, :uid)""",
+        {
+            "cid": customer_id,
+            "amount": amount,
+            "before": balance,
+            "after": new_balance,
+            "notes": f"Venta a credito - folio:{folio_visible}",
+            "uid": user_id,
+        },
+    )
+
+
+async def _process_wallet_payment(
+    customer_id: int,
+    amount: Decimal,
+    db,
+) -> None:
+    """Deduct amount from customer's wallet balance.
+
+    Validates sufficient balance before deducting.
+    Raises HTTPException 400 on insufficient funds.
+    """
+    wallet_row = await db.fetchrow(
+        "SELECT wallet_balance FROM customers WHERE id = :cid AND is_active = 1 FOR UPDATE",
+        {"cid": customer_id},
+    )
+    if not wallet_row or _dec(wallet_row.get("wallet_balance") or 0) < amount:
+        raise HTTPException(status_code=400, detail="Saldo insuficiente en monedero")
+    await db.execute(
+        "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
+        {"amount": amount, "cid": customer_id},
+    )
+
+
 # ── GET / — List sales ─────────────────────────────────────────────
 
 @router.get("/")
@@ -157,18 +327,19 @@ async def list_sales(
         params["folio"] = f"%{escape_like(folio)}%"
     if start_date:
         try:
-            date.fromisoformat(start_date)
+            parsed_start = date.fromisoformat(start_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="start_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND s.timestamp >= :start_date"
-        params["start_date"] = start_date
+        params["start_date"] = datetime(parsed_start.year, parsed_start.month, parsed_start.day, tzinfo=timezone.utc)
     if end_date:
         try:
             parsed_end = date.fromisoformat(end_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="end_date debe ser formato ISO (YYYY-MM-DD)")
         sql += " AND s.timestamp < :end_date"
-        params["end_date"] = (parsed_end + timedelta(days=1)).isoformat()
+        end_plus_one = parsed_end + timedelta(days=1)
+        params["end_date"] = datetime(end_plus_one.year, end_plus_one.month, end_plus_one.day, tzinfo=timezone.utc)
 
     sql += " ORDER BY s.id DESC LIMIT :limit OFFSET :offset"
     params["limit"] = limit
@@ -238,44 +409,10 @@ async def create_sale(
             terminal_id = turn_row.get("terminal_id", 1) or 1
 
             # 2. Lock products + validate stock
-            product_ids = [item.product_id for item in body.items if item.product_id]
-
-            kit_comp_rows = []
-            if product_ids:
-                kit_comp_rows = await conn.fetch(
-                    "SELECT kit_product_id, component_product_id, quantity FROM kit_components "
-                    "WHERE kit_product_id = ANY($1)",
-                    product_ids,
-                )
-            component_ids = [r["component_product_id"] for r in kit_comp_rows]
-            all_ids_to_lock = list(set(product_ids + component_ids))
-
-            locked_map: Dict = {}
-            if all_ids_to_lock:
-                try:
-                    locked_products = await conn.fetch(
-                        "SELECT id, name, stock, sku, sale_type, is_kit, price, price_wholesale "
-                        "FROM products WHERE id = ANY($1) AND is_active = 1 FOR UPDATE NOWAIT",
-                        all_ids_to_lock,
-                    )
-                except asyncpg.exceptions.LockNotAvailableError:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Productos bloqueados por otra venta en proceso. Intenta de nuevo.",
-                    )
-                locked_map = {r["id"]: dict(r) for r in locked_products}
-
-            for item in body.items:
-                if item.product_id and item.product_id not in locked_map:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Producto ID {item.product_id} no encontrado",
-                    )
+            locked_map, kit_comp_rows = await _validate_and_lock_products(body.items, conn)
 
             # 3. Calculate all items (single source of truth)
-            calculated: List[CalculatedItem] = [
-                _calculate_item(item, locked_map) for item in body.items
-            ]
+            calculated: List[CalculatedItem] = _calculate_item_totals(body.items, locked_map)
 
             # 4. Validate stock — aggregate ALL demand per product (direct + kit components)
             unified_demand: Dict[int, Decimal] = {}
@@ -283,13 +420,11 @@ async def create_sale(
                 if ci.is_common or not ci.product_id:
                     continue
                 if ci.is_kit:
-                    # Kit: accumulate demand for each component product
                     for cr in kit_comp_rows:
                         if cr["kit_product_id"] == ci.product_id:
                             cid = cr["component_product_id"]
                             unified_demand[cid] = unified_demand.get(cid, Decimal(0)) + Decimal(str(cr["quantity"])) * ci.qty
                 else:
-                    # Direct product: accumulate demand (skip granel/weight)
                     prod = locked_map[ci.product_id]
                     sale_type = prod.get("sale_type", "unit") or "unit"
                     if sale_type in ("granel", "weight"):
@@ -426,21 +561,9 @@ async def create_sale(
                 items_data,
             )
 
-            # 10. Build aggregated stock deductions (regular products + kit components)
-            stock_deductions: Dict[int, Decimal] = {}  # product_id -> total qty to deduct
+            # 10. Build and apply stock deductions
+            stock_deductions = _build_stock_deductions(calculated, kit_comp_rows)
 
-            for ci in calculated:
-                if ci.is_common or not ci.product_id:
-                    continue
-                if ci.is_kit:
-                    for cr in kit_comp_rows:
-                        if cr["kit_product_id"] == ci.product_id:
-                            cid = cr["component_product_id"]
-                            stock_deductions[cid] = stock_deductions.get(cid, Decimal(0)) + Decimal(str(cr["quantity"])) * ci.qty
-                else:
-                    stock_deductions[ci.product_id] = stock_deductions.get(ci.product_id, Decimal(0)) + ci.qty
-
-            # Batch UPDATE stock (single query with unnest)
             if stock_deductions:
                 pids = list(stock_deductions.keys())
                 qtys = [stock_deductions[pid] for pid in pids]
@@ -451,7 +574,6 @@ async def create_sale(
                     pids, qtys,
                 )
 
-                # Batch INSERT inventory_movements (executemany)
                 movements_data = [
                     (pid, "OUT", "sale", stock_deductions[pid],
                      f"Venta folio:{folio_visible}", "sale", sale_id, user_id, body.branch_id)
@@ -467,75 +589,20 @@ async def create_sale(
 
             # 11. Credit handling
             if pm == "credit" and body.customer_id:
-                cust = await db.fetchrow(
-                    "SELECT credit_balance, credit_limit, credit_authorized "
-                    "FROM customers WHERE id = :id AND is_active = 1 FOR UPDATE",
-                    {"id": body.customer_id},
-                )
-                if not cust:
-                    raise HTTPException(status_code=400, detail="Cliente no encontrado para venta a credito")
-                if cust.get("credit_authorized") != 1:
-                    raise HTTPException(status_code=400, detail="Cliente no tiene credito habilitado")
-
-                balance = _dec(cust.get("credit_balance") or 0)
-                limit_val = _dec(cust.get("credit_limit") or 0)
-                new_balance = balance + total_val
-
-                if limit_val > 0 and new_balance > limit_val:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Excede limite de credito. Limite: ${_f(limit_val):.2f}, "
-                               f"Balance actual: ${_f(balance):.2f}, Venta: ${_f(total_val):.2f}",
-                    )
-
-                await db.execute(
-                    "UPDATE customers SET credit_balance = credit_balance + :amount, synced = 0, updated_at = NOW() WHERE id = :id",
-                    {"amount": total_val, "id": body.customer_id},
-                )
-                await db.execute(
-                    """INSERT INTO credit_history
-                       (customer_id, transaction_type, movement_type, amount, balance_before, balance_after,
-                        timestamp, notes, user_id)
-                       VALUES (:cid, 'CHARGE', 'CHARGE', :amount, :before, :after, NOW(), :notes, :uid)""",
-                    {
-                        "cid": body.customer_id,
-                        "amount": total_val,
-                        "before": balance,
-                        "after": new_balance,
-                        "notes": f"Venta a credito - folio:{folio_visible}",
-                        "uid": user_id,
-                    },
+                await _process_credit_payment(
+                    sale_id, body.customer_id, total_val, folio_visible, user_id, db
                 )
 
             # 12. Wallet deduction
             if pm == "wallet":
                 if not body.customer_id:
                     raise HTTPException(status_code=400, detail="Pago con monedero requiere customer_id")
-                wallet_row = await db.fetchrow(
-                    "SELECT wallet_balance FROM customers WHERE id = :cid AND is_active = 1 FOR UPDATE",
-                    {"cid": body.customer_id},
-                )
-                if not wallet_row or _dec(wallet_row.get("wallet_balance") or 0) < total_val:
-                    raise HTTPException(status_code=400, detail="Saldo insuficiente en monedero")
-                await db.execute(
-                    "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
-                    {"amount": total_val, "cid": body.customer_id},
-                )
+                await _process_wallet_payment(body.customer_id, total_val, db)
 
             if pm == "mixed" and body.mixed_wallet and body.mixed_wallet > 0:
                 if not body.customer_id:
                     raise HTTPException(status_code=400, detail="No se puede usar monedero sin cliente asignado")
-                wallet_row = await db.fetchrow(
-                    "SELECT wallet_balance FROM customers WHERE id = :cid AND is_active = 1 FOR UPDATE",
-                    {"cid": body.customer_id},
-                )
-                mixed_wallet_dec = _dec(body.mixed_wallet)
-                if not wallet_row or _dec(wallet_row.get("wallet_balance") or 0) < mixed_wallet_dec:
-                    raise HTTPException(status_code=400, detail="Saldo insuficiente en monedero")
-                await db.execute(
-                    "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
-                    {"amount": mixed_wallet_dec, "cid": body.customer_id},
-                )
+                await _process_wallet_payment(body.customer_id, _dec(body.mixed_wallet), db)
 
         # ── Transaction committed ──
 
@@ -582,18 +649,19 @@ async def search_sales(
         params["folio"] = f"%{escape_like(folio)}%"
     if date_from:
         try:
-            date.fromisoformat(date_from)
+            parsed_from = date.fromisoformat(date_from)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_from debe ser formato ISO")
         sql += " AND timestamp >= :date_from"
-        params["date_from"] = date_from
+        params["date_from"] = datetime(parsed_from.year, parsed_from.month, parsed_from.day, tzinfo=timezone.utc)
     if date_to:
         try:
             parsed_to = date.fromisoformat(date_to)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_to debe ser formato ISO")
         sql += " AND timestamp < :date_to"
-        params["date_to"] = (parsed_to + timedelta(days=1)).isoformat()
+        to_plus_one = parsed_to + timedelta(days=1)
+        params["date_to"] = datetime(to_plus_one.year, to_plus_one.month, to_plus_one.day, tzinfo=timezone.utc)
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit
@@ -618,43 +686,22 @@ async def cancel_sale(
 
     user_id = get_user_id(auth)
 
-    # Validate manager PIN (bcrypt preferred, SHA-256 fallback for legacy hashes)
-    import bcrypt
-    import hashlib
-    import hmac
-
     async with get_connection() as db:
         conn = db.connection
         async with conn.transaction():
-            mgr_rows = await conn.fetch(
-                "SELECT id, pin_hash FROM users WHERE is_active = 1 "
-                "AND role IN ('admin', 'manager', 'owner') AND pin_hash IS NOT NULL"
-            )
-            mgr_check = None
-            for row in mgr_rows:
-                stored = row["pin_hash"]
-                try:
-                    # Try bcrypt first (modern hashes start with $2b$)
-                    if stored.startswith("$2b$") or stored.startswith("$2a$"):
-                        if bcrypt.checkpw(body.manager_pin.encode(), stored.encode()):
-                            mgr_check = row
-                            break
-                    else:
-                        # Fallback: SHA-256 legacy hash (timing-safe comparison)
-                        if hmac.compare_digest(
-                            hashlib.sha256(body.manager_pin.encode()).hexdigest(),
-                            stored,
-                        ):
-                            mgr_check = row
-                            break
-                except Exception:
-                    continue
-            if not mgr_check:
-                raise HTTPException(status_code=403, detail="PIN de gerente invalido")
+            # Validate manager PIN via shared helper
+            await verify_manager_pin(body.manager_pin, conn)
 
             # Lock the sale
             sale = await db.fetchrow(
-                "SELECT * FROM sales WHERE id = :id FOR UPDATE",
+                "SELECT id, uuid, timestamp, subtotal, tax, total, discount, payment_method,"
+                " customer_id, user_id, cashier_id, turn_id, serie, folio, folio_visible,"
+                " cash_received, change_given, mixed_cash, mixed_card, mixed_transfer,"
+                " mixed_wallet, mixed_gift_card, card_last4, auth_code, transfer_reference,"
+                " payment_reference, pos_id, branch_id, origin_pc, status, synced,"
+                " synced_from_terminal, sync_status, visible, is_cross_billed,"
+                " prev_hash, hash, notes, is_noise, rfc_used, created_at, updated_at"
+                " FROM sales WHERE id = :id FOR UPDATE",
                 {"id": sale_id},
             )
             if not sale:
@@ -667,7 +714,9 @@ async def cancel_sale(
 
             # Get items
             items = await db.fetch(
-                "SELECT * FROM sale_items WHERE sale_id = :id",
+                "SELECT id, sale_id, product_id, name, qty, price, subtotal, total,"
+                " discount, sat_clave_prod_serv, sat_descripcion, synced, created_at"
+                " FROM sale_items WHERE sale_id = :id",
                 {"id": sale_id},
             )
 
@@ -696,19 +745,17 @@ async def cancel_sale(
                     )
                 locked_map = {r["id"]: dict(r) for r in locked_rows}
 
-            # Pre-fetch kit components (avoid N+1)
-            kit_comp_map: Dict[int, list] = {}
+            # Pre-fetch kit components for stock restoration
+            kit_comp_rows_cancel = []
             if revert_pids:
-                all_kit_comps = await conn.fetch(
+                kit_comp_rows_cancel = await conn.fetch(
                     "SELECT kit_product_id, component_product_id, quantity FROM kit_components WHERE kit_product_id = ANY($1)",
                     list(set(revert_pids)),
                 )
-                for kc in all_kit_comps:
-                    kit_comp_map.setdefault(kc["kit_product_id"], []).append(kc)
 
-            # Build aggregated stock restorations
-            stock_restorations: Dict[int, Decimal] = {}
+            # Build aggregated stock restorations using sale_items data
             branch_id = sale.get("branch_id", 1)
+            stock_restorations: Dict[int, Decimal] = {}
 
             for item in items:
                 pid = item["product_id"]
@@ -722,11 +769,12 @@ async def cancel_sale(
                 is_common = sku.startswith("COM-") or sku.startswith("COMUN-")
                 is_kit = prod.get("is_kit", 0) == 1
                 qty = Decimal(str(item["qty"]))
-
                 sale_type = prod.get("sale_type", "unit") or "unit"
 
                 if is_kit:
-                    for comp in kit_comp_map.get(pid, []):
+                    for comp in kit_comp_rows_cancel:
+                        if comp["kit_product_id"] != pid:
+                            continue
                         cid = comp["component_product_id"]
                         comp_prod = locked_map.get(cid, {})
                         comp_sale_type = comp_prod.get("sale_type", "unit") or "unit"
@@ -748,7 +796,6 @@ async def cancel_sale(
                     pids, qtys,
                 )
 
-                # Batch INSERT inventory_movements
                 movements_data = [
                     (pid, "IN", "cancellation", stock_restorations[pid],
                      f"Cancelacion venta ID:{sale_id}", "sale", sale_id, user_id, branch_id)
@@ -834,9 +881,11 @@ async def daily_sales_summary(
     db=Depends(get_db),
 ):
     """Get daily sales summary from CQRS materialized view."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver reportes")
-    sql = "SELECT * FROM mv_daily_sales_summary WHERE 1=1"
+    sql = ("SELECT sale_date, branch_id, total_transactions, total_revenue, total_subtotal,"
+           " total_tax, total_discounts, avg_ticket, unique_customers, unique_cashiers"
+           " FROM mv_daily_sales_summary WHERE 1=1")
     params: dict = {}
 
     if branch_id:
@@ -857,10 +906,12 @@ async def product_sales_ranking(
     db=Depends(get_db),
 ):
     """Get product sales ranking from CQRS materialized view."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver reportes")
     rows = await db.fetch(
-        "SELECT * FROM mv_product_sales_ranking ORDER BY total_revenue DESC LIMIT :limit",
+        "SELECT product_id, product_name, sku, category, total_qty_sold,"
+        " total_revenue, num_transactions, avg_price"
+        " FROM mv_product_sales_ranking ORDER BY total_revenue DESC LIMIT :limit",
         {"limit": limit}
     )
     return {"success": True, "data": rows}
@@ -873,9 +924,10 @@ async def hourly_heatmap(
     db=Depends(get_db),
 ):
     """Get hourly sales heatmap from CQRS materialized view."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver reportes")
-    sql = "SELECT * FROM mv_hourly_sales_heatmap WHERE 1=1"
+    sql = ("SELECT day_of_week, hour_of_day, branch_id, transaction_count, revenue"
+           " FROM mv_hourly_sales_heatmap WHERE 1=1")
     params: dict = {}
 
     if branch_id:
@@ -895,20 +947,31 @@ async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(
     """Get sale by ID with items. Cashiers can only see their own sales."""
     role = auth.get("role", "")
     user_id = auth.get("sub")
+    _SALES_COLS = (
+        "id, uuid, timestamp, subtotal, tax, total, discount, payment_method,"
+        " customer_id, user_id, cashier_id, turn_id, serie, folio, folio_visible,"
+        " cash_received, change_given, mixed_cash, mixed_card, mixed_transfer,"
+        " mixed_wallet, mixed_gift_card, card_last4, auth_code, transfer_reference,"
+        " payment_reference, pos_id, branch_id, origin_pc, status, synced,"
+        " synced_from_terminal, sync_status, visible, is_cross_billed,"
+        " prev_hash, hash, notes, is_noise, rfc_used, created_at, updated_at"
+    )
     if role == "cashier":
         sale_row = await db.fetchrow(
-            "SELECT * FROM sales WHERE id = :id AND user_id = :uid",
+            f"SELECT {_SALES_COLS} FROM sales WHERE id = :id AND user_id = :uid",
             {"id": sale_id, "uid": int(user_id)},
         )
     else:
         sale_row = await db.fetchrow(
-            "SELECT * FROM sales WHERE id = :id", {"id": sale_id}
+            f"SELECT {_SALES_COLS} FROM sales WHERE id = :id", {"id": sale_id}
         )
     if not sale_row:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
     items = await db.fetch(
-        "SELECT * FROM sale_items WHERE sale_id = :id ORDER BY id",
+        "SELECT id, sale_id, product_id, name, qty, price, subtotal, total,"
+        " discount, sat_clave_prod_serv, sat_descripcion, synced, created_at"
+        " FROM sale_items WHERE sale_id = :id ORDER BY id",
         {"id": sale_id}
     )
 
@@ -926,7 +989,7 @@ async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(
 @router.get("/{sale_id}/events")
 async def get_sale_events(sale_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get event sourcing events for a sale. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver eventos de venta")
     rows = await db.fetch(
         """

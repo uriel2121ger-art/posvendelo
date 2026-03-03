@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.remote.schemas import NotificationCreate, PriceChangeRemote
 from modules.hardware.printer import open_drawer as hw_open_drawer
 
@@ -30,11 +31,14 @@ async def remote_open_drawer(
     db=Depends(get_db),
 ):
     """Open cash drawer remotely. RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para abrir cajon")
 
     try:
-        cfg = await db.fetchrow("SELECT * FROM app_config LIMIT 1")
+        cfg = await db.fetchrow(
+            "SELECT cash_drawer_enabled, printer_name, cash_drawer_pulse_bytes "
+            "FROM app_config LIMIT 1"
+        )
         cfg = dict(cfg) if cfg else {}
 
         if not cfg.get("cash_drawer_enabled"):
@@ -162,7 +166,7 @@ async def send_notification(
     db=Depends(get_db),
 ):
     """Send notification to POS. Uses real DB columns (body, notification_type, sent)."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos")
 
     row = await db.fetchrow(
@@ -228,7 +232,7 @@ async def remote_change_price(
     db=Depends(get_db),
 ):
     """Change product price remotely with audit trail. RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
 
     async with db.connection.transaction():
@@ -286,8 +290,8 @@ async def get_system_status(auth: dict = Depends(verify_token), db=Depends(get_d
 
     sales_row = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM sales WHERE timestamp >= CURRENT_DATE::text
-           AND timestamp < (CURRENT_DATE + 1)::text AND status = 'completed'"""
+           FROM sales WHERE "timestamp" >= CURRENT_DATE
+           AND "timestamp" < (CURRENT_DATE + INTERVAL '1 day') AND status = 'completed'"""
     )
 
     low_stock_row = await db.fetchrow(

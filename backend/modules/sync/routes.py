@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db.connection import get_db
 from modules.shared.auth import verify_token
 from modules.sync.schemas import SyncPushPayload
+from modules.shared.constants import PRIVILEGED_ROLES, OWNER_ROLES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -128,7 +129,7 @@ async def sync_pull_sales(
         except (ValueError, AttributeError):
             raise HTTPException(status_code=400, detail="Formato de fecha invalido para 'since'")
         sql += " AND timestamp >= :since"
-        params["since"] = since_dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+        params["since"] = since_dt.replace(tzinfo=None)
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit
@@ -189,6 +190,44 @@ async def sync_status(
         }
 
 
+@router.get("/fix-sequences")
+async def fix_sequences(
+    db=Depends(get_db),
+    auth: dict = Depends(verify_token),
+):
+    """Corrige secuencias PostgreSQL desincronizadas después de operaciones de sync.
+
+    Solo accesible para admin/owner. Ejecuta fix_all_sequences() y retorna
+    el listado de tablas corregidas con sus valores anterior y nuevo.
+    """
+    role = auth.get("role", "")
+    if role not in OWNER_ROLES:
+        raise HTTPException(status_code=403, detail="Solo admin/owner pueden corregir secuencias")
+
+    try:
+        rows = await db.fetch("SELECT tabla, seq_anterior, seq_nuevo FROM fix_all_sequences()")
+    except Exception as e:
+        logger.error("Error ejecutando fix_all_sequences(): %s", e)
+        raise HTTPException(status_code=500, detail="Error al ejecutar corrección de secuencias")
+
+    corrections = [
+        {
+            "tabla": row["tabla"],
+            "seq_anterior": row["seq_anterior"],
+            "seq_nuevo": row["seq_nuevo"],
+            "drift": row["seq_anterior"] - row["seq_nuevo"],  # negativo = secuencia estaba retrasada
+        }
+        for row in rows
+    ]
+
+    return {
+        "success": True,
+        "corrections": corrections,
+        "total_corregidas": len(corrections),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ── Push endpoint ──────────────────────────────────────────────────
 
 @router.post("/{table_name}")
@@ -200,7 +239,7 @@ async def sync_push(
 ):
     """Bulk upsert for products/customers. Sales are read-only from frontend."""
     role = auth.get("role", "")
-    if role not in ("admin", "manager", "owner"):
+    if role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Solo gerentes pueden sincronizar datos")
 
     if table_name not in ALLOWED_TABLES:

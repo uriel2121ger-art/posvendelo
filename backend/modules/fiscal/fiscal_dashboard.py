@@ -7,11 +7,13 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
+from ..shared.constants import RESICO_ANNUAL_LIMIT
+
 logger = logging.getLogger(__name__)
 
 
 class FiscalDashboard:
-    RESICO_LIMIT = Decimal('3500000.00')
+    RESICO_LIMIT = RESICO_ANNUAL_LIMIT
     RESICO_WARNING = Decimal('3200000.00')
 
     def __init__(self, db):

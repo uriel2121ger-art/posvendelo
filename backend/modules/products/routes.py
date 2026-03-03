@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token, get_user_id
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.products.schemas import ProductCreate, ProductUpdate, StockUpdateRemote, SimplePriceUpdate
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ async def low_stock_products(
     db=Depends(get_db),
 ):
     """Get products below minimum stock level. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver alertas de stock bajo")
     rows = await db.fetch(
         """
@@ -164,7 +165,7 @@ async def create_product(
     db=Depends(get_db),
 ):
     """Create a new product. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar productos")
     # Pre-check SKU uniqueness for cleaner error message
     if body.sku:
@@ -232,7 +233,7 @@ async def update_product(
     db=Depends(get_db),
 ):
     """Update a product. Only non-null fields are updated. Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para modificar productos")
 
     # Build dynamic SET clause from non-null fields (allowlist validates keys)
@@ -296,7 +297,7 @@ async def delete_product(
     db=Depends(get_db),
 ):
     """Soft-delete a product (set is_active = 0). Requires manager+ role."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para gestionar productos")
 
     conn = db.connection
@@ -327,7 +328,7 @@ async def update_stock_remote(
     db=Depends(get_db),
 ):
     """Update product stock remotely with FOR UPDATE + inventory_movement. RBAC: manager+."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para modificar stock")
     if body.operation not in ("add", "subtract", "set"):
         raise HTTPException(status_code=400, detail="operation debe ser add, subtract o set")
@@ -395,7 +396,7 @@ async def update_price_remote(
     db=Depends(get_db),
 ):
     """Update product price remotely. RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
 
     conn = db.connection
