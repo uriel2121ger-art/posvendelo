@@ -33,6 +33,8 @@ type Product = {
   price: number
   priceWholesale?: number
   stock?: number
+  satClaveProdServ?: string
+  satClaveUnidad?: string
 }
 
 type CartItem = {
@@ -46,6 +48,7 @@ type CartItem = {
   discountPct: number
   isCommon?: boolean
   commonNote?: string
+  satClaveProdServ?: string
   subtotal: number
 }
 
@@ -131,7 +134,9 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
     name,
     price,
     priceWholesale: priceWholesale > 0 ? priceWholesale : undefined,
-    stock: toNumber(raw.stock)
+    stock: toNumber(raw.stock),
+    satClaveProdServ: String(raw.sat_clave_prod_serv ?? '').trim() || undefined,
+    satClaveUnidad: String(raw.sat_clave_unidad ?? '').trim() || undefined
   }
 }
 
@@ -166,7 +171,8 @@ async function syncSale(
       price: item.price,
       discount,
       is_wholesale: isWholesale ?? false,
-      price_includes_tax: true
+      price_includes_tax: true,
+      sat_clave_prod_serv: item.satClaveProdServ || (item.isCommon ? '01010101' : undefined)
     }
   })
   const res = await createSale(cfg, {
@@ -726,6 +732,9 @@ export default function Terminal(): ReactElement {
     }
     const commonNote = await prompt('Nota opcional del producto comun:', { title: 'Nota (opcional)', defaultValue: '', placeholder: 'Descripcion adicional...' }) ?? ''
 
+    const satRaw = await prompt('Clave SAT del producto (opcional, Enter para omitir):', { title: 'Clave SAT', defaultValue: '01010101' })
+    const satCode = satRaw?.trim() || '01010101'
+
     const sku = `COMUN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     const item: CartItem = {
       sku,
@@ -735,6 +744,7 @@ export default function Terminal(): ReactElement {
       discountPct: 0,
       isCommon: true,
       commonNote: commonNote.trim(),
+      satClaveProdServ: satCode,
       subtotal: calculateLineSubtotal(price, commonQty, 0)
     }
 

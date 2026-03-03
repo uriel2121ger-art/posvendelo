@@ -454,6 +454,7 @@ export type SaleItemPayload = {
   discount: number
   is_wholesale: boolean
   price_includes_tax: boolean
+  sat_clave_prod_serv?: string
 }
 
 export type CreateSalePayload = {
@@ -883,6 +884,63 @@ export async function getProductCategories(cfg: RuntimeConfig): Promise<Record<s
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando categorias'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+// ── SAT ────────────────────────────────────────
+
+export async function searchSatCodes(
+  cfg: RuntimeConfig,
+  query: string,
+  limit = 20
+): Promise<{ code: string; description: string }[]> {
+  const res = await apiFetch(
+    `${cfg.baseUrl}/api/v1/sat/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok) return []
+  const body = (await res.json()) as Record<string, unknown>
+  const data = body.data as Record<string, unknown> | undefined
+  return (data?.results ?? []) as { code: string; description: string }[]
+}
+
+export async function getSatUnits(
+  cfg: RuntimeConfig
+): Promise<{ code: string; name: string }[]> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sat/units`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) return []
+  const body = (await res.json()) as Record<string, unknown>
+  return (body.data ?? []) as { code: string; name: string }[]
+}
+
+// ── Productos CRUD ────────────────────────────
+
+export async function createProduct(
+  cfg: RuntimeConfig,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/products/`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando producto'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function updateProduct(
+  cfg: RuntimeConfig,
+  id: number | string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/products/${id}`, {
+    method: 'PUT',
+    headers: headers(cfg),
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error actualizando producto'))
   return (await res.json()) as Record<string, unknown>
 }
 

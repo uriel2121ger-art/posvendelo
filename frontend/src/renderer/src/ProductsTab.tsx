@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from './components/ConfirmDialog'
 import { Search, Plus, X, AlertCircle, RefreshCw, PackageOpen, Edit2 } from 'lucide-react'
-import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, getLowStockProducts } from './posApi'
+import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, getLowStockProducts, searchSatCodes, getSatUnits, createProduct, updateProduct } from './posApi'
 
 type Product = {
   id?: number | string
@@ -12,6 +12,9 @@ type Product = {
   price: number
   stock: number
   category?: string
+  satClaveProdServ?: string
+  satClaveUnidad?: string
+  satDescripcion?: string
 }
 
 function toNumber(value: unknown): number {
@@ -31,7 +34,10 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
     name,
     price,
     stock,
-    category: String(raw.category ?? '').trim() || undefined
+    category: String(raw.category ?? '').trim() || undefined,
+    satClaveProdServ: String(raw.sat_clave_prod_serv ?? raw.satClaveProdServ ?? '').trim() || undefined,
+    satClaveUnidad: String(raw.sat_clave_unidad ?? raw.satClaveUnidad ?? '').trim() || undefined,
+    satDescripcion: String(raw.sat_descripcion ?? raw.satDescripcion ?? '').trim() || undefined
   }
 }
 
@@ -56,6 +62,14 @@ export default function ProductsTab(): ReactElement {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [lowStock, setLowStock] = useState<Record<string, unknown>[]>([])
   const [showLowStock, setShowLowStock] = useState(false)
+  const [satCode, setSatCode] = useState('01010101')
+  const [satUnit, setSatUnit] = useState('H87')
+  const [satDesc, setSatDesc] = useState('')
+  const [satQuery, setSatQuery] = useState('')
+  const [satResults, setSatResults] = useState<{ code: string; description: string }[]>([])
+  const [satUnits, setSatUnits] = useState<{ code: string; name: string }[]>([])
+  const [showSatDropdown, setShowSatDropdown] = useState(false)
+  const satSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const PAGE_SIZE = 50
   const [page, setPage] = useState(0)
@@ -116,6 +130,13 @@ export default function ProductsTab(): ReactElement {
         setCategories(data.map((c) => String((c as Record<string, unknown>)?.name ?? c)).filter(Boolean))
       } catch { /* categories are optional */ }
     })()
+    void (async () => {
+      try {
+        const cfg = loadRuntimeConfig()
+        const units = await getSatUnits(cfg)
+        if (units.length > 0) setSatUnits(units)
+      } catch { /* sat units are optional */ }
+    })()
     return () => {
       requestIdRef.current++
     }
@@ -135,21 +156,42 @@ export default function ProductsTab(): ReactElement {
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      const product = {
-        id: sku.trim(),
+      const isUpdate = Boolean(selectedSku)
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        price: toNumber(price),
+        stock: Math.max(0, Math.floor(toNumber(stock))),
+        sat_clave_prod_serv: satCode || '01010101',
+        sat_clave_unidad: satUnit || 'H87',
+        sat_descripcion: satDesc || ''
+      }
+      if (isUpdate) {
+        const target = products.find((p) => p.sku === selectedSku)
+        if (target?.id && typeof target.id === 'number') {
+          await updateProduct(cfg, target.id, payload)
+        } else {
+          payload.sku = sku.trim()
+          await syncTable('products', [{ ...payload, deleted: false }], cfg)
+        }
+      } else {
+        payload.sku = sku.trim()
+        await createProduct(cfg, payload)
+      }
+      const product: Product = {
+        id: products.find((p) => p.sku === sku.trim())?.id ?? sku.trim(),
         sku: sku.trim(),
         name: name.trim(),
         price: toNumber(price),
         stock: Math.max(0, Math.floor(toNumber(stock))),
-        deleted: false
+        satClaveProdServ: satCode || '01010101',
+        satClaveUnidad: satUnit || 'H87',
+        satDescripcion: satDesc || ''
       }
-      const isUpdate = Boolean(selectedSku)
-      await syncTable('products', [product], cfg)
       setProducts((prev) => {
         const idx = prev.findIndex((p) => p.sku === product.sku)
         if (idx >= 0) {
           const copy = [...prev]
-          copy[idx] = product
+          copy[idx] = { ...prev[idx], ...product }
           return copy
         }
         return [product, ...prev]
@@ -159,6 +201,10 @@ export default function ProductsTab(): ReactElement {
       setName('')
       setPrice('0')
       setStock('0')
+      setSatCode('01010101')
+      setSatUnit('H87')
+      setSatDesc('')
+      setSatQuery('')
       setIsDrawerOpen(false)
       setMessage(
         isUpdate ? `Producto actualizado: ${product.sku}` : `Producto guardado: ${product.sku}`
@@ -221,6 +267,10 @@ export default function ProductsTab(): ReactElement {
     setName(product.name)
     setPrice(product.price.toFixed(2))
     setStock(String(product.stock))
+    setSatCode(product.satClaveProdServ || '01010101')
+    setSatUnit(product.satClaveUnidad || 'H87')
+    setSatDesc(product.satDescripcion || '')
+    setSatQuery(product.satClaveProdServ ? `${product.satClaveProdServ} - ${product.satDescripcion || ''}` : '')
     setMessage(`Producto seleccionado: ${product.sku}`)
   }
 
@@ -244,6 +294,10 @@ export default function ProductsTab(): ReactElement {
     setName('')
     setPrice('0')
     setStock('0')
+    setSatCode('01010101')
+    setSatUnit('H87')
+    setSatDesc('')
+    setSatQuery('')
   }
 
   return (
@@ -456,6 +510,79 @@ export default function ProductsTab(): ReactElement {
                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"
                         />
                      </div>
+                  </div>
+                  <div className="relative">
+                     <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">CLAVE SAT PRODUCTO</label>
+                     <input
+                        value={satQuery}
+                        onChange={(e) => {
+                           const q = e.target.value
+                           setSatQuery(q)
+                           if (satSearchTimer.current) clearTimeout(satSearchTimer.current)
+                           if (q.trim().length >= 2) {
+                              satSearchTimer.current = setTimeout(() => {
+                                 void (async () => {
+                                    try {
+                                       const cfg = loadRuntimeConfig()
+                                       const results = await searchSatCodes(cfg, q.trim())
+                                       setSatResults(results)
+                                       setShowSatDropdown(results.length > 0)
+                                    } catch { setSatResults([]) }
+                                 })()
+                              }, 300)
+                           } else {
+                              setSatResults([])
+                              setShowSatDropdown(false)
+                           }
+                        }}
+                        onFocus={() => { if (satResults.length > 0) setShowSatDropdown(true) }}
+                        placeholder="Buscar: 50161800, bebidas, cremas..."
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"
+                     />
+                     {satCode && (
+                        <span className="absolute right-3 top-9 text-xs text-blue-400 font-mono">{satCode}</span>
+                     )}
+                     {showSatDropdown && satResults.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl max-h-48 overflow-y-auto shadow-xl">
+                           {satResults.map((r) => (
+                              <button
+                                 key={r.code}
+                                 type="button"
+                                 onClick={() => {
+                                    setSatCode(r.code)
+                                    setSatDesc(r.description)
+                                    setSatQuery(`${r.code} - ${r.description}`)
+                                    setShowSatDropdown(false)
+                                 }}
+                                 className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-sm transition-colors border-b border-zinc-800/50 last:border-0"
+                              >
+                                 <span className="font-mono text-blue-400">{r.code}</span>
+                                 <span className="text-zinc-400 ml-2">{r.description}</span>
+                              </button>
+                           ))}
+                        </div>
+                     )}
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">CLAVE SAT UNIDAD</label>
+                     <select
+                        value={satUnit}
+                        onChange={(e) => setSatUnit(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                     >
+                        {satUnits.length > 0 ? (
+                           satUnits.map((u) => (
+                              <option key={u.code} value={u.code}>{u.code} - {u.name}</option>
+                           ))
+                        ) : (
+                           <>
+                              <option value="H87">H87 - Pieza</option>
+                              <option value="E48">E48 - Unidad de servicio</option>
+                              <option value="KGM">KGM - Kilogramo</option>
+                              <option value="LTR">LTR - Litro</option>
+                           </>
+                        )}
+                     </select>
                   </div>
                </div>
 

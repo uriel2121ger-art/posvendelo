@@ -180,11 +180,13 @@ async def create_product(
                 sku, name, price, price_wholesale, cost, stock,
                 category, department, provider, min_stock, max_stock,
                 tax_rate, sale_type, barcode, description,
+                sat_clave_prod_serv, sat_clave_unidad, sat_descripcion,
                 is_active, created_at, updated_at, synced
             ) VALUES (
                 :sku, :name, :price, :price_wholesale, :cost, :stock,
                 :category, :department, :provider, :min_stock, :max_stock,
                 :tax_rate, :sale_type, :barcode, :description,
+                :sat_clave_prod_serv, :sat_clave_unidad, :sat_descripcion,
                 1, NOW(), NOW(), 0
             )
             RETURNING id
@@ -205,6 +207,9 @@ async def create_product(
                 "sale_type": body.sale_type or "unit",
                 "barcode": body.barcode,
                 "description": body.description,
+                "sat_clave_prod_serv": body.sat_clave_prod_serv or "01010101",
+                "sat_clave_unidad": body.sat_clave_unidad or "H87",
+                "sat_descripcion": body.sat_descripcion or "",
             },
         )
     except Exception as e:
@@ -235,6 +240,7 @@ async def update_product(
         "name", "price", "price_wholesale", "cost",
         "category", "department", "provider", "min_stock", "max_stock",
         "tax_rate", "sale_type", "barcode", "is_active", "description",
+        "sat_clave_prod_serv", "sat_clave_unidad", "sat_descripcion",
     }
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:

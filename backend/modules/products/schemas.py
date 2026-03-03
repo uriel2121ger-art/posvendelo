@@ -27,6 +27,9 @@ class ProductCreate(BaseModel):
     sale_type: Optional[str] = Field("unit", max_length=20)
     barcode: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = Field(None, max_length=2000)
+    sat_clave_prod_serv: Optional[str] = Field("01010101", max_length=20)
+    sat_clave_unidad: Optional[str] = Field("H87", max_length=10)
+    sat_descripcion: Optional[str] = Field("", max_length=500)
 
     @field_validator("name")
     @classmethod
@@ -63,6 +66,9 @@ class ProductUpdate(BaseModel):
     barcode: Optional[str] = Field(None, max_length=100)
     is_active: Optional[int] = Field(None, ge=0, le=1)
     description: Optional[str] = Field(None, max_length=2000)
+    sat_clave_prod_serv: Optional[str] = Field(None, max_length=20)
+    sat_clave_unidad: Optional[str] = Field(None, max_length=10)
+    sat_descripcion: Optional[str] = Field(None, max_length=500)
 
     @model_validator(mode='after')
     def _reject_nan_inf(self):

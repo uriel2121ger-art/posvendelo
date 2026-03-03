@@ -58,7 +58,7 @@ async def sync_pull_products(
     rows = await db.fetch(
         """SELECT id, sku, barcode, name, description, price, price_wholesale, cost,
                   stock, min_stock, category, sale_type, is_active, is_kit,
-                  sat_clave_prod_serv, sat_descripcion, tax_rate,
+                  sat_clave_prod_serv, sat_clave_unidad, sat_descripcion, tax_rate,
                   created_at, updated_at
            FROM products
            WHERE is_active = 1 AND id > :after_id

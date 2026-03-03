@@ -28,6 +28,18 @@ _COMMON_CODES = [
 ]
 
 
+@router.get("/units")
+async def list_sat_units(auth: dict = Depends(verify_token)):
+    """Return list of SAT ClaveUnidad codes."""
+    from modules.fiscal.sat_catalog import get_claves_unidad
+
+    units = get_claves_unidad()
+    return {
+        "success": True,
+        "data": [{"code": code, "name": name} for code, name in units],
+    }
+
+
 @router.get("/search")
 async def search_sat_codes(
     q: str = Query(..., min_length=2),
