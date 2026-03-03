@@ -90,7 +90,6 @@ export default function ShiftsTab(): ReactElement {
   const [operator, setOperator] = useState('Cajero 1')
   const [openingCash, setOpeningCash] = useState('0')
   const [closingCash, setClosingCash] = useState('0')
-  const [expectedCash, setExpectedCash] = useState('0')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Turnos (F5): apertura y cierre operativos.')
@@ -245,7 +244,6 @@ export default function ShiftsTab(): ReactElement {
       setCurrentShift(null)
       saveCurrentShift(null)
       setClosingCash('0')
-      setExpectedCash('0')
       setNotes('')
       setSelectedShiftId(closed.id)
       setMessage(`Turno cerrado en backend. Diferencia: $${differenceFromBackend.toFixed(2)}`)
@@ -376,7 +374,7 @@ export default function ShiftsTab(): ReactElement {
     const base =
       currentShift.openingCash +
       (scopedReconciliation ? scopedReconciliation.cashSales : (currentShift.cashSales ?? 0))
-    setExpectedCash(base.toFixed(2))
+    setClosingCash(base.toFixed(2))
     setMessage(
       scopedReconciliation
         ? 'Esperado ajustado con efectivo conciliado de backend.'

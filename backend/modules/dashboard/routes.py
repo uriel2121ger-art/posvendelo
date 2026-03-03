@@ -292,11 +292,11 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
     )
 
     hourly = await db.fetch(
-        """SELECT CAST(SUBSTRING(timestamp FROM 12 FOR 2) AS int) as hour,
+        """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
            WHERE timestamp >= :today AND timestamp < :tomorrow AND status = 'completed'
-           AND LENGTH(timestamp) >= 13
+           AND timestamp IS NOT NULL
            GROUP BY hour ORDER BY hour""",
         {"today": today_str, "tomorrow": tomorrow_str},
     )

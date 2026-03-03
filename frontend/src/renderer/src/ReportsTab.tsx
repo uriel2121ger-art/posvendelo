@@ -426,8 +426,7 @@ export default function ReportsTab(): ReactElement {
                              </tr>
                           </thead>
                           <tbody className="divide-y divide-zinc-800/30">
-                             {totals.topProducts.map((p, idx) => {
-                                const maxRevenue = Math.max(...totals.topProducts.map(tp => tp.amount));
+                             {(() => { const maxRevenue = Math.max(1, ...totals.topProducts.map(tp => tp.amount)); return totals.topProducts.map((p, idx) => {
                                 const barWidth = maxRevenue > 0 ? (p.amount / maxRevenue) * 100 : 0;
                                 return (
                                    <tr key={p.sku} className="hover:bg-zinc-800/20 transition-colors">
@@ -442,7 +441,7 @@ export default function ReportsTab(): ReactElement {
                                       </td>
                                    </tr>
                                 )
-                             })}
+                             }) })()}
                              {totals.topProducts.length === 0 && (
                                 <tr>
                                    <td colSpan={5} className="py-12 text-center text-zinc-600">No hay información suficiente para el top.</td>
@@ -554,11 +553,10 @@ export default function ReportsTab(): ReactElement {
                     </button>
                  </div>
                  <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-3">
-                    {Array.from({ length: 24 }, (_, h) => {
+                    {(() => { const maxCount = Math.max(1, ...heatmapData.map((d) => toNumber(d.count ?? d.sales_count ?? 0))); return Array.from({ length: 24 }, (_, h) => {
                        const entry = heatmapData.find((d) => toNumber(d.hour) === h) as Record<string, unknown> | undefined;
                        const count = toNumber(entry?.count ?? entry?.sales_count ?? 0);
                        const amount = toNumber(entry?.amount ?? entry?.total ?? 0);
-                       const maxCount = Math.max(1, ...heatmapData.map((d) => toNumber(d.count ?? d.sales_count ?? 0)));
                        const intensity = Math.min(1, count / maxCount);
 
                        let bgClass = "bg-zinc-950 border-zinc-800/80 text-zinc-500";
@@ -578,7 +576,7 @@ export default function ReportsTab(): ReactElement {
                              <div className="text-[10px] opacity-80 mt-1 font-mono">${amount.toFixed(0)}</div>
                           </div>
                        )
-                    })}
+                    }) })()}
                  </div>
                  {heatmapData.length === 0 && (
                     <p className="mt-8 text-center text-zinc-600 text-sm">Ejecuta la descarga del servidor para evaluar los picos de afluencia.</p>
