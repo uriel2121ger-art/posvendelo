@@ -30,7 +30,6 @@ frontend/src/
 - Respuestas: `{"success": true, "data": {...}}` | Errores: `HTTPException(detail="español")`
 - SQL: `:nombre` params (→$N interno) | Transacciones: `async with conn.transaction()` + `FOR UPDATE`
 - Lock ordering: TURNS → SALES → PRODUCTS → CUSTOMERS
-- Dinero: Decimal/NUMERIC(12,2) nunca float | Fechas: TIMESTAMP nunca TEXT
 - RBAC: `if auth.get("role") not in ("admin","manager","owner"): raise 403`
 - User ID: `get_user_id(auth)` | Timezone core: UTC naive | Timezone fiscal: local (SAT)
 - Migraciones: siempre IF NOT EXISTS / ON CONFLICT DO NOTHING
@@ -44,8 +43,46 @@ frontend/src/
 - **Null bytes**: El middleware `NullByteSanitizer` DEBE estar activo. PG TEXT no acepta `\x00`.
 - **PIN queries**: Usar tabla `users` (no `employees`) para verificar PINs con `role IN ('admin','manager','owner')`.
 
-## Tests
+## Arquitectura hub-spoke
+- Hub-and-spoke: nodos locales + gateway central en homelab
+- Offline-first: FastAPI + PostgreSQL local por sucursal
+- Sync: periódico via Tailscale VPN al gateway
+- Clientes: Novedades Lupita, 2 sucursales en Mérida, Yucatán
+- Device fingerprinting: MAC + CPU ID + nombre de equipo
+
+## Reglas de sync
+- BUG CONOCIDO: después de sync ejecutar `SELECT setval()` para corregir secuencias PostgreSQL — de lo contrario duplicate key violations
+- Nunca romper compatibilidad de sync sin versionar el protocolo
+- La DB local es fuente de verdad mientras el nodo está offline
+
+## Herramientas disponibles
+- **Context7 MCP**: Documentación actualizada de FastAPI, asyncpg, Pydantic — prefijo `use context7`
+- **PostgreSQL MCP** (`postgres-titan`): Consultas directas a la DB local (read-only) — diagnóstico sin salir de Claude
+- **GitHub MCP**: Ver issues, PRs, crear PRs desde Claude
+- **Sequential Thinking MCP**: Planear antes de ejecutar en refactors grandes o cambios multi-archivo
+- **Pre-commit review**: `/pre-commit-review` — 9 revisores paralelos (haiku) antes de commit
+
+## Delegación — equipos de agentes (Swarm Mode)
+Para tareas complejas, usar agent teams con estos patrones:
+- **Feature completa**: api-dev (endpoints) + db-dev (migraciones) + test-dev (tests)
+- **Debug producción**: investigator (reproduce) + fixer (implementa fix)
+- **Code review**: security-reviewer + performance-reviewer + coverage-reviewer
+- Teammates implementación → modelo sonnet | Teammates revisión → modelo haiku
+
+## Comandos
 ```bash
+# Backend dev
+cd backend && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m uvicorn main:app --host 0.0.0.0 --port 8090 --reload
+
+# Tests backend
 cd backend && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m pytest tests/ -v
+
+# Tests frontend
 cd frontend && npx vitest run
+
+# Sync manual
+python -m src.sync.manual
+
+# Migraciones
+cd backend && python3 -m db.migrate
 ```

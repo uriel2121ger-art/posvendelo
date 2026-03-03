@@ -11,11 +11,13 @@ import { MemoryRouter, type MemoryRouterProps } from 'react-router-dom'
 /** Genera un JWT de prueba con formato válido (header.payload.signature). */
 export function makeTestJwt(sub = 'test-user', role = 'admin'): string {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-  const payload = btoa(JSON.stringify({
-    sub,
-    role,
-    exp: Math.floor(Date.now() / 1000) + 3600,
-  }))
+  const payload = btoa(
+    JSON.stringify({
+      sub,
+      role,
+      exp: Math.floor(Date.now() / 1000) + 3600
+    })
+  )
   return `${header}.${payload}.test-signature`
 }
 
@@ -30,9 +32,15 @@ export function setAuthToken(token?: string, role = 'admin', user = 'admin'): vo
 /** Limpia todo localStorage de titan. */
 export function clearAuth(): void {
   const keys = [
-    'titan.token', 'titan.role', 'titan.user', 'titan.baseUrl',
-    'titan.currentShift', 'titan.pendingTickets', 'titan.activeTickets',
-    'titan.terminalId', 'titan.hwConfig',
+    'titan.token',
+    'titan.role',
+    'titan.user',
+    'titan.baseUrl',
+    'titan.currentShift',
+    'titan.pendingTickets',
+    'titan.activeTickets',
+    'titan.terminalId',
+    'titan.hwConfig'
   ]
   keys.forEach((k) => localStorage.removeItem(k))
 }
@@ -43,22 +51,24 @@ type CustomRenderOptions = RenderOptions & {
   initialEntries?: MemoryRouterProps['initialEntries']
 }
 
-function Providers({ children, initialEntries }: { children: ReactNode; initialEntries?: MemoryRouterProps['initialEntries'] }): ReactElement {
-  return (
-    <MemoryRouter initialEntries={initialEntries ?? ['/']}>
-      {children}
-    </MemoryRouter>
-  )
+function Providers({
+  children,
+  initialEntries
+}: {
+  children: ReactNode
+  initialEntries?: MemoryRouterProps['initialEntries']
+}): ReactElement {
+  return <MemoryRouter initialEntries={initialEntries ?? ['/']}>{children}</MemoryRouter>
 }
 
 export function renderWithRouter(
   ui: ReactElement,
-  options: CustomRenderOptions = {},
+  options: CustomRenderOptions = {}
 ): RenderResult {
   const { initialEntries, ...rest } = options
   return render(ui, {
     wrapper: ({ children }) => <Providers initialEntries={initialEntries}>{children}</Providers>,
-    ...rest,
+    ...rest
   })
 }
 
@@ -71,7 +81,7 @@ export function mockFetchJson(body: unknown, status = 200): void {
     status,
     json: () => Promise.resolve(body),
     text: () => Promise.resolve(JSON.stringify(body)),
-    body: { cancel: () => Promise.resolve() },
+    body: { cancel: () => Promise.resolve() }
   } as unknown as Response)
 }
 

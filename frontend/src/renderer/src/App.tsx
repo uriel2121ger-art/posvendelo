@@ -1,5 +1,14 @@
 import type { ReactElement, FormEvent } from 'react'
-import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react'
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ErrorInfo,
+  type ReactNode
+} from 'react'
 import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-router-dom'
 import { loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
 import CustomersTab from './CustomersTab'
@@ -16,11 +25,11 @@ import ShiftsTab from './ShiftsTab'
 import EmployeesTab from './EmployeesTab'
 import FiscalTab from './FiscalTab'
 import RemoteTab from './RemoteTab'
-import HardwareTab from './HardwareTab'
 import Terminal from './Terminal'
 import ShiftStartupModal from './ShiftStartupModal'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import Layout from './components/Layout'
+import { useFocusTrap } from './hooks/useFocusTrap'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -138,7 +147,9 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
     try {
       localStorage.removeItem('titan.token')
       localStorage.removeItem('titan.role')
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return <Navigate to="/login" replace />
   }
   return children
@@ -189,61 +200,81 @@ function CashMovementModal({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const amountRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLFormElement>(null)
 
-  useEffect(() => { amountRef.current?.focus() }, [])
+  useFocusTrap(modalRef, !success)
+
+  useEffect(() => {
+    amountRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose() }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
     }
     window.addEventListener('keydown', onEsc, true)
     return () => window.removeEventListener('keydown', onEsc, true)
   }, [onClose])
 
-  const handleSubmit = useCallback(async (e: FormEvent): Promise<void> => {
-    e.preventDefault()
-    const num = parseFloat(amount)
-    if (!Number.isFinite(num) || num <= 0) { setError('Ingresa un monto valido'); return }
-    const shift = readShiftSnap()
-    if (!shift?.backendTurnId) { setError('No hay turno abierto. Abre uno en la pestana Turnos.'); return }
-    setBusy(true)
-    setError('')
-    try {
-      const cfg = loadRuntimeConfig()
-      await createCashMovement(cfg, shift.backendTurnId, {
-        movement_type: mode === 'in' ? 'cash_in' : 'cash_out',
-        amount: num,
-        reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo'),
-        ...(pin.trim() ? { manager_pin: pin.trim() } : {})
-      })
-      // Auto-open cash drawer (fire-and-forget)
+  const handleSubmit = useCallback(
+    async (e: FormEvent): Promise<void> => {
+      e.preventDefault()
+      const num = parseFloat(amount)
+      if (!Number.isFinite(num) || num <= 0) {
+        setError('Ingresa un monto valido')
+        return
+      }
+      const shift = readShiftSnap()
+      if (!shift?.backendTurnId) {
+        setError('No hay turno abierto. Abre uno en la pestana Turnos.')
+        return
+      }
+      setBusy(true)
+      setError('')
       try {
-        const hwRaw = localStorage.getItem('titan.hwConfig')
-        if (hwRaw) {
-          const hwCfg = JSON.parse(hwRaw) as { drawer?: { enabled?: boolean } }
-          if (hwCfg.drawer?.enabled) {
-            openDrawerForSale(cfg).catch(() => {})
+        const cfg = loadRuntimeConfig()
+        await createCashMovement(cfg, shift.backendTurnId, {
+          movement_type: mode === 'in' ? 'cash_in' : 'cash_out',
+          amount: num,
+          reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo'),
+          ...(pin.trim() ? { manager_pin: pin.trim() } : {})
+        })
+        // Auto-open cash drawer (fire-and-forget)
+        try {
+          const hwRaw = localStorage.getItem('titan.hwConfig')
+          if (hwRaw) {
+            const hwCfg = JSON.parse(hwRaw) as { drawer?: { enabled?: boolean } }
+            if (hwCfg.drawer?.enabled) {
+              openDrawerForSale(cfg).catch(() => {})
+            }
           }
+        } catch {
+          /* hw config parse error — non-fatal */
         }
-      } catch { /* hw config parse error — non-fatal */ }
-      // Show success briefly before closing
-      setSuccess(true)
-      setTimeout(() => onClose(), 1500)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }, [amount, reason, pin, mode, onClose])
+        // Show success briefly before closing
+        setSuccess(true)
+        setTimeout(() => onClose(), 1500)
+      } catch (err) {
+        setError((err as Error).message)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [amount, reason, pin, mode, onClose]
+  )
 
   const title = mode === 'in' ? 'Entrada de Efectivo' : 'Retiro de Efectivo'
   const fKey = mode === 'in' ? 'F7' : 'F8'
   const accent = mode === 'in' ? 'emerald' : 'rose'
 
   if (success) {
-    const successMsg = mode === 'in'
-      ? `Entrada de $${parseFloat(amount).toFixed(2)} registrada`
-      : `Retiro de $${parseFloat(amount).toFixed(2)} registrado`
+    const successMsg =
+      mode === 'in'
+        ? `Entrada de $${parseFloat(amount).toFixed(2)} registrada`
+        : `Retiro de $${parseFloat(amount).toFixed(2)} registrado`
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div className="w-full max-w-sm rounded-2xl border border-emerald-700 bg-zinc-900 p-8 shadow-2xl text-center">
@@ -257,26 +288,71 @@ function CashMovementModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <form
+        ref={modalRef}
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => void handleSubmit(e)}
         className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
       >
         <h2 className={`text-lg font-bold text-${accent}-400 mb-4 flex items-center gap-2`}>
           {title}
-          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">{fKey}</kbd>
+          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">
+            {fKey}
+          </kbd>
         </h2>
-        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Monto</label>
-        <input ref={amountRef} className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none" type="number" min={0.01} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="$0.00" />
-        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Motivo</label>
-        <input className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'in' ? 'Fondo de caja' : 'Pago a proveedor'} />
-        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">PIN gerente (opcional)</label>
-        <input className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none" type="password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value)} placeholder="****" />
+        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+          Monto
+        </label>
+        <input
+          ref={amountRef}
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none"
+          type="number"
+          min={0.01}
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="$0.00"
+        />
+        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+          Motivo
+        </label>
+        <input
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder={mode === 'in' ? 'Fondo de caja' : 'Pago a proveedor'}
+        />
+        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+          PIN gerente (opcional)
+        </label>
+        <input
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none"
+          type="password"
+          maxLength={6}
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          placeholder="****"
+        />
         {error && <p className="text-rose-400 text-sm mb-3">{error}</p>}
         <div className="flex gap-3">
-          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors">Cancelar</button>
-          <button type="submit" disabled={busy} className={`flex-1 rounded-xl bg-${accent}-600 py-2.5 font-bold text-white hover:bg-${accent}-500 transition-colors disabled:opacity-40`}>{busy ? 'Registrando...' : 'Registrar'}</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className={`flex-1 rounded-xl bg-${accent}-600 py-2.5 font-bold text-white hover:bg-${accent}-500 transition-colors disabled:opacity-40`}
+          >
+            {busy ? 'Registrando...' : 'Registrar'}
+          </button>
         </div>
       </form>
     </div>
@@ -290,12 +366,20 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
   const [products, setProducts] = useState<PriceCheckProduct[]>([])
   const [loaded, setLoaded] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { inputRef.current?.focus() }, [])
+  useFocusTrap(modalRef, true)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose() }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
     }
     window.addEventListener('keydown', onEsc, true)
     return () => window.removeEventListener('keydown', onEsc, true)
@@ -308,30 +392,48 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
     pullTable('products', cfg)
       .then((raw) => {
         if (cancelled) return
-        setProducts(raw.map(normalizePriceCheckProduct).filter((p): p is PriceCheckProduct => p !== null))
+        setProducts(
+          raw.map(normalizePriceCheckProduct).filter((p): p is PriceCheckProduct => p !== null)
+        )
         setLoaded(true)
       })
-      .catch(() => { if (!cancelled) setLoaded(true) })
-    return () => { cancelled = true }
+      .catch(() => {
+        if (!cancelled) setLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const results = useMemo((): PriceCheckProduct[] => {
     const q = query.trim().toLowerCase()
     if (!q) return []
-    return products.filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)).slice(0, 10)
+    return products
+      .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
+      .slice(0, 10)
   }, [products, query])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
+      >
         <h2 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
           Verificador de Precios
-          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">F9</kbd>
+          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">
+            F9
+          </kbd>
         </h2>
         <input
           ref={inputRef}
           className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none"
           value={query}
+          // eslint-disable-next-line no-control-regex
           onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
           placeholder={loaded ? 'SKU o nombre del producto...' : 'Cargando productos...'}
         />
@@ -344,7 +446,9 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
                 <div className="flex items-center gap-4 mt-2">
                   <span className="text-emerald-400 font-bold">${p.price.toFixed(2)}</span>
                   {p.priceWholesale && (
-                    <span className="text-amber-400 text-sm">Mayoreo: ${p.priceWholesale.toFixed(2)}</span>
+                    <span className="text-amber-400 text-sm">
+                      Mayoreo: ${p.priceWholesale.toFixed(2)}
+                    </span>
                   )}
                   <span className="text-zinc-500 text-sm ml-auto">{p.stock ?? 0} uds</span>
                 </div>
@@ -355,7 +459,10 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
         {query.trim() && results.length === 0 && loaded && (
           <p className="text-zinc-500 text-sm text-center py-4">Sin resultados</p>
         )}
-        <button onClick={onClose} className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors">
+        <button
+          onClick={onClose}
+          className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
+        >
           Cerrar
         </button>
       </div>
@@ -387,7 +494,9 @@ function RoutedApp(): ReactElement {
           localStorage.removeItem('titan.shiftHistory')
           setShiftResolved(false)
           navigate('/login')
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }, IDLE_TIMEOUT_MS)
     }
     const events: string[] = ['mousedown', 'keydown', 'touchstart', 'scroll']
@@ -451,17 +560,23 @@ function RoutedApp(): ReactElement {
         case 'F7':
           event.preventDefault()
           event.stopPropagation()
-          setCashMovModal('in')
+          if (window.location.hash === '#/terminal') {
+            setCashMovModal('in')
+          }
           break
         case 'F8':
           event.preventDefault()
           event.stopPropagation()
-          setCashMovModal('out')
+          if (window.location.hash === '#/terminal') {
+            setCashMovModal('out')
+          }
           break
         case 'F9':
           event.preventDefault()
           event.stopPropagation()
-          setPriceCheckModal(true)
+          if (window.location.hash === '#/terminal') {
+            setPriceCheckModal(true)
+          }
           break
         // F10, F11, F12 — handled by Terminal.tsx (capture phase)
         default:
@@ -472,152 +587,159 @@ function RoutedApp(): ReactElement {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [navigate, shiftResolved])
 
-  const hasToken = (() => { try { return Boolean(localStorage.getItem('titan.token')) } catch { return false } })()
+  const hasToken = (() => {
+    try {
+      return Boolean(localStorage.getItem('titan.token'))
+    } catch {
+      return false
+    }
+  })()
 
   return (
     <>
-    {hasToken && !shiftResolved && (
-      <ShiftStartupModal
-        onComplete={() => setShiftResolved(true)}
-        onExit={() => { try { window.close() } catch { /* noop */ } }}
-      />
-    )}
-    {cashMovModal !== 'hidden' && (
-      <CashMovementModal mode={cashMovModal} onClose={() => setCashMovModal('hidden')} />
-    )}
-    {priceCheckModal && (
-      <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />
-    )}
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<RequireAuth><Layout><Outlet /></Layout></RequireAuth>}>
-        <Route
-          path="/"
-          element={<Navigate to="/terminal" replace />}
+      {hasToken && !shiftResolved && (
+        <ShiftStartupModal
+          onComplete={() => setShiftResolved(true)}
+          onExit={() => {
+            try {
+              window.close()
+            } catch {
+              /* noop */
+            }
+          }}
         />
+      )}
+      {cashMovModal !== 'hidden' && (
+        <CashMovementModal mode={cashMovModal} onClose={() => setCashMovModal('hidden')} />
+      )}
+      {priceCheckModal && <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />}
+      <Routes>
+        <Route path="/login" element={<Login />} />
         <Route
-          path="/terminal"
           element={
-            <TabErrorBoundary tabName="Terminal">
-              <Terminal />
-            </TabErrorBoundary>
+            <RequireAuth>
+              <Layout>
+                <Outlet />
+              </Layout>
+            </RequireAuth>
           }
-        />
-        <Route
-          path="/clientes"
-          element={
-            <TabErrorBoundary tabName="Clientes">
-              <CustomersTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/productos"
-          element={
-            <TabErrorBoundary tabName="Productos">
-              <ProductsTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/inventario"
-          element={
-            <TabErrorBoundary tabName="Inventario">
-              <InventoryTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/turnos"
-          element={
-            <TabErrorBoundary tabName="Turnos">
-              <ShiftsTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/reportes"
-          element={
-            <TabErrorBoundary tabName="Reportes">
-              <ReportsTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/historial"
-          element={
-            <TabErrorBoundary tabName="Historial">
-              <HistoryTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/configuraciones"
-          element={
-            <TabErrorBoundary tabName="Configuraciones">
-              <SettingsTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/estadisticas"
-          element={
-            <TabErrorBoundary tabName="Estadisticas">
-              <DashboardStatsTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/mermas"
-          element={
-            <TabErrorBoundary tabName="Mermas">
-              <MermasTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/gastos"
-          element={
-            <TabErrorBoundary tabName="Gastos">
-              <ExpensesTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/empleados"
-          element={
-            <TabErrorBoundary tabName="Empleados">
-              <EmployeesTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/remoto"
-          element={
-            <TabErrorBoundary tabName="Remoto">
-              <RemoteTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/fiscal"
-          element={
-            <TabErrorBoundary tabName="Fiscal">
-              <FiscalTab />
-            </TabErrorBoundary>
-          }
-        />
-        <Route
-          path="/hardware"
-          element={
-            <TabErrorBoundary tabName="Hardware">
-              <HardwareTab />
-            </TabErrorBoundary>
-          }
-        />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        >
+          <Route path="/" element={<Navigate to="/terminal" replace />} />
+          <Route
+            path="/terminal"
+            element={
+              <TabErrorBoundary tabName="Terminal">
+                <Terminal />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/clientes"
+            element={
+              <TabErrorBoundary tabName="Clientes">
+                <CustomersTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/productos"
+            element={
+              <TabErrorBoundary tabName="Productos">
+                <ProductsTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/inventario"
+            element={
+              <TabErrorBoundary tabName="Inventario">
+                <InventoryTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/turnos"
+            element={
+              <TabErrorBoundary tabName="Turnos">
+                <ShiftsTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/reportes"
+            element={
+              <TabErrorBoundary tabName="Reportes">
+                <ReportsTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/historial"
+            element={
+              <TabErrorBoundary tabName="Historial">
+                <HistoryTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/configuraciones"
+            element={
+              <TabErrorBoundary tabName="Configuraciones">
+                <SettingsTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/estadisticas"
+            element={
+              <TabErrorBoundary tabName="Estadisticas">
+                <DashboardStatsTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/mermas"
+            element={
+              <TabErrorBoundary tabName="Mermas">
+                <MermasTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/gastos"
+            element={
+              <TabErrorBoundary tabName="Gastos">
+                <ExpensesTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/empleados"
+            element={
+              <TabErrorBoundary tabName="Empleados">
+                <EmployeesTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/remoto"
+            element={
+              <TabErrorBoundary tabName="Remoto">
+                <RemoteTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/fiscal"
+            element={
+              <TabErrorBoundary tabName="Fiscal">
+                <FiscalTab />
+              </TabErrorBoundary>
+            }
+          />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </>
   )
 }

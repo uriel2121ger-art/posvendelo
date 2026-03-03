@@ -55,7 +55,9 @@ export default function ExpensesTab(): ReactElement {
     if (submitting) return
     const numAmount = Math.round(parseFloat(amount) * 100) / 100
     if (!readCurrentShift()?.backendTurnId) {
-      setError('No hay turno abierto. Abre uno en la pestana Turnos (F5) antes de registrar gastos.')
+      setError(
+        'No hay turno abierto. Abre uno en la pestana Turnos (F5) antes de registrar gastos.'
+      )
       return
     }
     if (!Number.isFinite(numAmount) || numAmount < 0.01) {
@@ -94,8 +96,7 @@ export default function ExpensesTab(): ReactElement {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-slate-200">
-
+    <div className="flex flex-col h-full bg-zinc-950 text-slate-200">
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-8">

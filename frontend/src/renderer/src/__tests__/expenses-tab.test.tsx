@@ -14,14 +14,14 @@ const mockRegisterExpense = vi.fn()
 vi.mock('../posApi', () => ({
   loadRuntimeConfig: () => ({ baseUrl: 'http://127.0.0.1:8090', token: 'test', terminalId: 1 }),
   getExpensesSummary: (...args: unknown[]) => mockGetExpensesSummary(...args),
-  registerExpense: (...args: unknown[]) => mockRegisterExpense(...args),
+  registerExpense: (...args: unknown[]) => mockRegisterExpense(...args)
 }))
 
 function renderExpenses() {
   return render(
     <MemoryRouter initialEntries={['/gastos']}>
       <ExpensesTab />
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -29,7 +29,7 @@ describe('ExpensesTab', () => {
   beforeEach(() => {
     clearAuth()
     setAuthToken()
-    mockGetExpensesSummary.mockResolvedValue({ data: { month: 1250.50, year: 8900.00 } })
+    mockGetExpensesSummary.mockResolvedValue({ data: { month: 1250.5, year: 8900.0 } })
     mockRegisterExpense.mockResolvedValue({ success: true, data: { id: 42 } })
   })
 
@@ -93,18 +93,23 @@ describe('ExpensesTab', () => {
 
     // Llenar formulario — buscar inputs por tipo o placeholder
     const inputs = screen.getAllByRole('textbox')
-    const numberInputs = screen.getAllByRole('spinbutton').length > 0
-      ? screen.getAllByRole('spinbutton')
-      : []
+    const numberInputs =
+      screen.getAllByRole('spinbutton').length > 0 ? screen.getAllByRole('spinbutton') : []
 
     // Encontrar el input de monto (spinbutton o textbox)
-    const amountInput = numberInputs[0] ?? inputs.find(i => {
+    const amountInput =
+      numberInputs[0] ??
+      inputs.find((i) => {
+        const placeholder = i.getAttribute('placeholder') ?? ''
+        return (
+          placeholder.includes('$') || placeholder.includes('monto') || placeholder.includes('0.00')
+        )
+      })
+    const descInput = inputs.find((i) => {
       const placeholder = i.getAttribute('placeholder') ?? ''
-      return placeholder.includes('$') || placeholder.includes('monto') || placeholder.includes('0.00')
-    })
-    const descInput = inputs.find(i => {
-      const placeholder = i.getAttribute('placeholder') ?? ''
-      return placeholder.toLowerCase().includes('desc') || placeholder.toLowerCase().includes('concepto')
+      return (
+        placeholder.toLowerCase().includes('desc') || placeholder.toLowerCase().includes('concepto')
+      )
     })
 
     if (amountInput && descInput) {
@@ -121,8 +126,8 @@ describe('ExpensesTab', () => {
           expect.anything(),
           expect.objectContaining({
             amount: 150,
-            description: 'Compra de bolsas',
-          }),
+            description: 'Compra de bolsas'
+          })
         )
       })
     }

@@ -14,11 +14,17 @@ export default function Login(): ReactElement {
 
   useEffect(() => {
     let cancelled = false
-    autoDiscoverBackend().then((url) => {
-      if (cancelled) return
-      if (!url) setError('No se encontró el servidor. Verifica que esté encendido.')
-    }).finally(() => { if (!cancelled) setDiscovering(false) })
-    return () => { cancelled = true }
+    autoDiscoverBackend()
+      .then((url) => {
+        if (cancelled) return
+        if (!url) setError('No se encontró el servidor. Verifica que esté encendido.')
+      })
+      .finally(() => {
+        if (!cancelled) setDiscovering(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -117,9 +123,7 @@ export default function Login(): ReactElement {
               turno.
             </p>
 
-            <div className="mt-12 text-xs font-mono text-zinc-600">
-              TITAN POS v0.1.0
-            </div>
+            <div className="mt-12 text-xs font-mono text-zinc-600">TITAN POS v0.1.0</div>
           </div>
         </div>
 
@@ -189,7 +193,9 @@ export default function Login(): ReactElement {
               <button
                 data-testid="login-submit"
                 type="submit"
-                disabled={loading || discovering || password.length === 0 || username.trim().length === 0}
+                disabled={
+                  loading || discovering || password.length === 0 || username.trim().length === 0
+                }
                 className="w-full flex justify-center items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-4 py-4 font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all hover:-translate-y-0.5 mt-8 relative z-10"
               >
                 {loading ? (

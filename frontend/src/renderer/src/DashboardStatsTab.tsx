@@ -79,9 +79,17 @@ function ExtendedPanels(): ReactElement {
       <h2 className="text-lg font-bold text-zinc-300">Paneles Avanzados</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DashboardPanel title="RESICO" onLoad={() => getDashboardResico(loadRuntimeConfig())} />
-        <DashboardPanel title="Wealth" onLoad={() => getDashboardWealth(loadRuntimeConfig())} restricted={!canManage} />
+        <DashboardPanel
+          title="Wealth"
+          onLoad={() => getDashboardWealth(loadRuntimeConfig())}
+          restricted={!canManage}
+        />
         <DashboardPanel title="AI Insights" onLoad={() => getDashboardAI(loadRuntimeConfig())} />
-        <DashboardPanel title="Executive" onLoad={() => getDashboardExecutive(loadRuntimeConfig())} restricted={!canManage} />
+        <DashboardPanel
+          title="Executive"
+          onLoad={() => getDashboardExecutive(loadRuntimeConfig())}
+          restricted={!canManage}
+        />
       </div>
     </div>
   )
@@ -161,8 +169,7 @@ export default function DashboardStatsTab(): ReactElement {
     : []
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-slate-200">
-
+    <div className="flex flex-col h-full bg-zinc-950 text-slate-200">
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">

@@ -7,8 +7,10 @@ import {
   useRef,
   type ReactNode,
   type ReactElement,
-  type FormEvent,
+  type FormEvent
 } from 'react'
+
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type ConfirmVariant = 'danger' | 'warning' | 'info'
 
@@ -35,10 +37,12 @@ type PromptFn = (message: string, options?: PromptOptions) => Promise<string | n
 const ConfirmContext = createContext<ConfirmFn>(() => Promise.resolve(false))
 const PromptContext = createContext<PromptFn>(() => Promise.resolve(null))
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfirm(): ConfirmFn {
   return useContext(ConfirmContext)
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePrompt(): PromptFn {
   return useContext(PromptContext)
 }
@@ -47,18 +51,18 @@ const variantStyles: Record<ConfirmVariant, { border: string; button: string; ti
   danger: {
     border: 'border-rose-700',
     button: 'bg-rose-600 hover:bg-rose-500',
-    title: 'text-rose-400',
+    title: 'text-rose-400'
   },
   warning: {
     border: 'border-amber-700',
     button: 'bg-amber-600 hover:bg-amber-500',
-    title: 'text-amber-400',
+    title: 'text-amber-400'
   },
   info: {
     border: 'border-blue-700',
     button: 'bg-blue-600 hover:bg-blue-500',
-    title: 'text-blue-400',
-  },
+    title: 'text-blue-400'
+  }
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }): ReactElement {
@@ -70,9 +74,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
   } | null>(null)
 
   const dialogRef = useRef<typeof dialog>(null)
-  useEffect(() => { dialogRef.current = dialog }, [dialog])
+  useEffect(() => {
+    dialogRef.current = dialog
+  }, [dialog])
 
   const confirmBtnRef = useRef<HTMLButtonElement>(null)
+  const confirmModalRef = useRef<HTMLDivElement>(null)
+
+  useFocusTrap(confirmModalRef, !!dialog)
 
   const confirm: ConfirmFn = useCallback((message, options = {}) => {
     return new Promise<boolean>((resolve) => {
@@ -108,13 +117,20 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
   } | null>(null)
 
   const promptDialogRef = useRef<typeof promptDialog>(null)
-  useEffect(() => { promptDialogRef.current = promptDialog }, [promptDialog])
+  useEffect(() => {
+    promptDialogRef.current = promptDialog
+  }, [promptDialog])
 
   const [promptValue, setPromptValue] = useState('')
   const promptValueRef = useRef(promptValue)
-  useEffect(() => { promptValueRef.current = promptValue }, [promptValue])
+  useEffect(() => {
+    promptValueRef.current = promptValue
+  }, [promptValue])
 
   const promptInputRef = useRef<HTMLInputElement>(null)
+  const promptModalRef = useRef<HTMLFormElement>(null)
+
+  useFocusTrap(promptModalRef, !!promptDialog)
 
   const prompt: PromptFn = useCallback((message, options = {}) => {
     return new Promise<string | null>((resolve) => {
@@ -175,6 +191,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
         {dialog && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div
+              ref={confirmModalRef}
               className={`w-full max-w-sm rounded-2xl border ${confirmStyle.border} bg-zinc-900 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150`}
             >
               <h3 className={`text-lg font-bold ${confirmStyle.title} mb-3`}>
@@ -204,6 +221,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
         {promptDialog && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <form
+              ref={promptModalRef}
               onSubmit={handlePromptSubmit}
               className={`w-full max-w-sm rounded-2xl border ${promptStyle.border} bg-zinc-900 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150`}
             >

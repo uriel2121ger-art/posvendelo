@@ -53,3 +53,7 @@ class DrawerConfigUpdate(BaseModel):
 
 class PrintReceiptRequest(BaseModel):
     sale_id: int = Field(..., gt=0)
+
+
+class PrintShiftReportRequest(BaseModel):
+    turn_id: int = Field(..., gt=0)

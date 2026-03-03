@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.shared.auth import verify_token
+from modules.shared.constants import PRIVILEGED_ROLES, RESICO_ANNUAL_LIMIT
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -24,11 +25,11 @@ router = APIRouter()
 @router.get("/resico")
 async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de monitoreo RESICO - acumulado anual serie A vs B."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard RESICO")
     year = datetime.now(timezone.utc).year
-    year_start = f"{year}-01-01"
-    year_end = f"{year + 1}-01-01"
+    year_start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    year_end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
 
     result = await db.fetchrow(
         """SELECT
@@ -42,7 +43,7 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
     facturado_a = round(float(result["total_a"]), 2) if result else 0.0
     facturado_b = round(float(result["total_b"]), 2) if result else 0.0
 
-    limite = 3_500_000.0
+    limite = float(RESICO_ANNUAL_LIMIT)
     restante = limite - facturado_a
     porcentaje = (facturado_a / limite) * 100
 
@@ -78,16 +79,16 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/quick")
 async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Quick status widget — ventas hoy, mermas pendientes."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard")
     now = datetime.now(timezone.utc)
-    today_str = now.strftime("%Y-%m-%d")
-    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    tomorrow_start = today_start + timedelta(days=1)
     sales = await db.fetchrow(
         """SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales WHERE timestamp >= :today AND timestamp < :tomorrow
            AND status = 'completed'""",
-        {"today": today_str, "tomorrow": tomorrow_str},
+        {"today": today_start, "tomorrow": tomorrow_start},
     )
 
     mermas = await db.fetchrow(
@@ -108,7 +109,7 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
 @router.get("/expenses")
 async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de gastos en efectivo — mes y anio."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver gastos")
     now = datetime.now(timezone.utc)
     # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — pass naive datetimes
@@ -154,17 +155,17 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
 @router.get("/wealth")
 async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de riqueza real (asyncpg). RBAC: admin/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
-        raise HTTPException(status_code=403, detail="Solo gerentes/admin")
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para ver este dashboard")
 
     try:
         now = datetime.now(timezone.utc)
-        # sales.timestamp is TEXT — use strings
-        year_start_str = f"{now.year}-01-01"
-        year_end_str = f"{now.year + 1}-01-01"
-        # cash_movements.timestamp is TIMESTAMP WITHOUT TIME ZONE — use naive datetimes
-        year_start_ts = datetime(now.year, 1, 1)
-        year_end_ts = datetime(now.year + 1, 1, 1)
+        # sales.timestamp es TIMESTAMPTZ (migración 035) — usar datetime con timezone
+        year_start_ts = datetime(now.year, 1, 1, tzinfo=timezone.utc)
+        year_end_ts = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
+        # cash_movements.timestamp es TIMESTAMP sin timezone — usar naive datetime
+        year_start_naive = datetime(now.year, 1, 1)
+        year_end_naive = datetime(now.year + 1, 1, 1)
 
         # Ingresos por serie
         income = await db.fetchrow(
@@ -175,7 +176,7 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
                FROM sales
                WHERE timestamp >= :year_start AND timestamp < :year_end
                AND status = 'completed'""",
-            {"year_start": year_start_str, "year_end": year_end_str},
+            {"year_start": year_start_ts, "year_end": year_end_ts},
         )
 
         # Gastos
@@ -184,7 +185,7 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
                 """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
                    WHERE type IN ('out', 'expense')
                    AND timestamp >= :year_start AND timestamp < :year_end""",
-                {"year_start": year_start_ts, "year_end": year_end_ts},
+                {"year_start": year_start_naive, "year_end": year_end_naive},
             )
         except Exception as e:
             logger.warning("Error consultando gastos wealth: %s", e)
@@ -222,9 +223,9 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
 @router.get("/ai")
 async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard de IA — alertas de stock inteligentes (asyncpg)."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
+    if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver dashboard IA")
-    thirty_days_ago_ts = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     low_stock = await db.fetch(
         """SELECT p.id, p.name, p.stock, p.min_stock,
                   COALESCE(SUM(si.qty), 0) as sold_30d
@@ -236,7 +237,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
            WHERE p.stock <= p.min_stock AND p.stock >= 0 AND p.is_active = 1
            GROUP BY p.id, p.name, p.stock, p.min_stock
            ORDER BY p.stock ASC LIMIT 10""",
-        {"since": thirty_days_ago_ts},
+        {"since": thirty_days_ago},
     )
 
     top_products = await db.fetch(
@@ -249,7 +250,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
            GROUP BY p.name
            ORDER BY sales_count DESC
            LIMIT 5""",
-        {"since_date": thirty_days_ago_ts},
+        {"since_date": thirty_days_ago},
     )
 
     return {
@@ -275,12 +276,12 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
 @router.get("/executive")
 async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Dashboard ejecutivo (asyncpg). RBAC: admin/manager/owner."""
-    if auth.get("role") not in ("admin", "manager", "owner"):
-        raise HTTPException(status_code=403, detail="Solo admin/manager")
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para ver este dashboard")
 
     now = datetime.now(timezone.utc)
-    today_str = now.strftime("%Y-%m-%d")
-    tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    tomorrow_start = today_start + timedelta(days=1)
 
     kpis = await db.fetchrow(
         """SELECT COUNT(*) as transactions,
@@ -288,17 +289,17 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
                   CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(total), 0) / COUNT(*) ELSE 0 END as avg_ticket
            FROM sales
            WHERE timestamp >= :today AND timestamp < :tomorrow AND status = 'completed'""",
-        {"today": today_str, "tomorrow": tomorrow_str},
+        {"today": today_start, "tomorrow": tomorrow_start},
     )
 
     hourly = await db.fetch(
-        """SELECT EXTRACT(HOUR FROM timestamp::timestamp)::int as hour,
+        """SELECT EXTRACT(HOUR FROM timestamp)::int as hour,
                   COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM sales
            WHERE timestamp >= :today AND timestamp < :tomorrow AND status = 'completed'
            AND timestamp IS NOT NULL
            GROUP BY hour ORDER BY hour""",
-        {"today": today_str, "tomorrow": tomorrow_str},
+        {"today": today_start, "tomorrow": tomorrow_start},
     )
 
     top = await db.fetch(
@@ -308,7 +309,7 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
            JOIN sales s ON si.sale_id = s.id
            WHERE s.timestamp >= :today AND s.timestamp < :tomorrow AND s.status = 'completed'
            GROUP BY p.name ORDER BY qty DESC LIMIT 5""",
-        {"today": today_str, "tomorrow": tomorrow_str},
+        {"today": today_start, "tomorrow": tomorrow_start},
     )
 
     return {

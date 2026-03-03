@@ -13,11 +13,12 @@ Usage:
 """
 
 import os
+import time
 import secrets
 import logging
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Set
+from typing import Dict, Optional
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -26,30 +27,67 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# In-memory JTI revocation set (for single-process deployment)
+# JWT Configuration — defined early so revocation functions can reference TTL
 # ---------------------------------------------------------------------------
-_revoked_jtis: Set[str] = set()
+TOKEN_EXPIRE_MINUTES = 60  # 1 hour — short-lived for security (revocation dict handles logout)
+
+# ---------------------------------------------------------------------------
+# In-memory JTI revocation dict (for single-process deployment)
+# key=jti, value=expiry_timestamp (Unix epoch float)
+# ---------------------------------------------------------------------------
+_revoked_jtis: dict[str, float] = {}
 _revoked_lock = threading.Lock()
+_MAX_REVOKED = 10_000
 
 
-def revoke_token(jti: str) -> None:
-    """Add a JTI to the revocation set (call on logout/account deactivation)."""
+def revoke_token(jti: str, expires_at: Optional[float] = None) -> None:
+    """Add a JTI to the revocation dict (call on logout/account deactivation).
+
+    expires_at: Unix timestamp when the token expires. If omitted, defaults to
+    TOKEN_EXPIRE_MINUTES from now — ensures TTL-based eviction works correctly.
+    """
+    if expires_at is None:
+        expires_at = time.time() + TOKEN_EXPIRE_MINUTES * 60
+
     with _revoked_lock:
-        _revoked_jtis.add(jti)
+        _revoked_jtis[jti] = expires_at
+        if len(_revoked_jtis) > _MAX_REVOKED:
+            _evict_revoked()
+
+
+def _evict_revoked() -> None:
+    """Remove expired JTIs. If still over limit, drop the oldest entries.
+
+    MUST be called while holding _revoked_lock.
+    """
+    now = time.time()
+    expired = [k for k, v in _revoked_jtis.items() if v < now]
+    for k in expired:
+        del _revoked_jtis[k]
+
+    if len(_revoked_jtis) > _MAX_REVOKED:
+        # Still over limit — remove oldest by expiry (lowest timestamp first)
+        overflow = len(_revoked_jtis) - _MAX_REVOKED
+        oldest = sorted(_revoked_jtis, key=lambda k: _revoked_jtis[k])[:overflow]
+        for k in oldest:
+            del _revoked_jtis[k]
+        logger.warning(
+            "JTI revocation dict over limit after TTL eviction — removed %d oldest entries",
+            overflow,
+        )
 
 
 def _is_revoked(jti: str) -> bool:
-    """Check if a JTI has been revoked."""
+    """Check if a JTI has been revoked. Auto-cleans expired entries on read."""
     with _revoked_lock:
-        return jti in _revoked_jtis
+        if jti not in _revoked_jtis:
+            return False
+        if _revoked_jtis[jti] < time.time():
+            # Token has expired naturally — no longer a valid revocation entry
+            del _revoked_jtis[jti]
+            return False
+        return True
 
-
-def _cleanup_revoked() -> None:
-    """Periodic cleanup caps memory. Only triggers on extreme growth."""
-    with _revoked_lock:
-        if len(_revoked_jtis) > 10000:
-            logger.warning("JTI revocation set exceeded 10000 entries — clearing stale entries")
-            _revoked_jtis.clear()
 
 # ---------------------------------------------------------------------------
 # JWT Configuration
@@ -69,7 +107,7 @@ if not _env_secret:
 
 SECRET_KEY = _env_secret
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_MINUTES = 60  # 1 hour — short-lived for security (revocation set handles logout)
+# TOKEN_EXPIRE_MINUTES defined above (before revocation functions)
 
 security = HTTPBearer(auto_error=False)
 

@@ -17,7 +17,7 @@ type Product = { sku: string; name: string; price: number }
 
 const PRODUCTS: Product[] = [
   { sku: '7501234567890', name: 'Coca-Cola 600ml', price: 15 },
-  { sku: '7509876543210', name: 'Sabritas Adobadas', price: 18 },
+  { sku: '7509876543210', name: 'Sabritas Adobadas', price: 18 }
 ]
 
 function ScannerInput({ onAdd }: { onAdd: (p: Product) => void }): ReactElement {
@@ -50,9 +50,7 @@ function ScannerInput({ onAdd }: { onAdd: (p: Product) => void }): ReactElement 
 
           // Exact match by SKU
           const searchTerm = query.trim()
-          const exact = PRODUCTS.find(
-            (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
-          )
+          const exact = PRODUCTS.find((p) => p.sku.toLowerCase() === searchTerm.toLowerCase())
           if (exact) {
             onAdd(exact)
             setQuery('')
@@ -63,8 +61,7 @@ function ScannerInput({ onAdd }: { onAdd: (p: Product) => void }): ReactElement 
           // Fallback: first partial match
           const partial = PRODUCTS.find(
             (p) =>
-              p.sku.includes(searchTerm) ||
-              p.name.toLowerCase().includes(searchTerm.toLowerCase())
+              p.sku.includes(searchTerm) || p.name.toLowerCase().includes(searchTerm.toLowerCase())
           )
           if (partial) {
             onAdd(partial)

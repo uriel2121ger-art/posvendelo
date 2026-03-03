@@ -19,7 +19,7 @@ function renderLogin() {
   return render(
     <MemoryRouter initialEntries={['/login']}>
       <Login />
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -37,8 +37,10 @@ describe('Login', () => {
   it('muestra título "Acceso a Caja"', async () => {
     // Mock auto-discovery devuelve backend disponible
     global.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 401, json: () => Promise.resolve({}),
-      body: { cancel: () => Promise.resolve() },
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({}),
+      body: { cancel: () => Promise.resolve() }
     } as unknown as Response)
 
     renderLogin()
@@ -54,8 +56,10 @@ describe('Login', () => {
 
   it('botón deshabilitado con campos vacíos', async () => {
     global.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 401, json: () => Promise.resolve({}),
-      body: { cancel: () => Promise.resolve() },
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({}),
+      body: { cancel: () => Promise.resolve() }
     } as unknown as Response)
 
     renderLogin()
@@ -69,8 +73,10 @@ describe('Login', () => {
 
   it('muestra error con credenciales vacías al intentar submit', async () => {
     global.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 401, json: () => Promise.resolve({}),
-      body: { cancel: () => Promise.resolve() },
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({}),
+      body: { cancel: () => Promise.resolve() }
     } as unknown as Response)
 
     renderLogin()
@@ -98,18 +104,21 @@ describe('Login', () => {
       // Primera llamada: auto-discovery (GET /auth/verify)
       if (String(url).includes('/auth/verify')) {
         return Promise.resolve({
-          ok: false, status: 401, json: () => Promise.resolve({}),
-          body: { cancel: () => Promise.resolve() },
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({}),
+          body: { cancel: () => Promise.resolve() }
         })
       }
       // Segunda llamada: POST /auth/login
       if (String(url).includes('/auth/login')) {
         callCount++
         return Promise.resolve({
-          ok: true, status: 200,
+          ok: true,
+          status: 200,
           json: () => Promise.resolve({ token: 'jwt-mock-123', role: 'admin' }),
           text: () => Promise.resolve(''),
-          body: { cancel: () => Promise.resolve() },
+          body: { cancel: () => Promise.resolve() }
         })
       }
       return Promise.reject(new Error('Unexpected fetch'))
@@ -145,16 +154,19 @@ describe('Login', () => {
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (String(url).includes('/auth/verify')) {
         return Promise.resolve({
-          ok: false, status: 401, json: () => Promise.resolve({}),
-          body: { cancel: () => Promise.resolve() },
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({}),
+          body: { cancel: () => Promise.resolve() }
         })
       }
       if (String(url).includes('/auth/login')) {
         return Promise.resolve({
-          ok: false, status: 401,
+          ok: false,
+          status: 401,
           json: () => Promise.resolve({ detail: 'Credenciales incorrectas' }),
           text: () => Promise.resolve(''),
-          body: { cancel: () => Promise.resolve() },
+          body: { cancel: () => Promise.resolve() }
         })
       }
       return Promise.reject(new Error('Unexpected'))
@@ -186,7 +198,9 @@ describe('Login', () => {
     renderLogin()
 
     await waitFor(() => {
-      expect(screen.getByText('No se encontró el servidor. Verifica que esté encendido.')).toBeInTheDocument()
+      expect(
+        screen.getByText('No se encontró el servidor. Verifica que esté encendido.')
+      ).toBeInTheDocument()
     })
   })
 
@@ -194,8 +208,10 @@ describe('Login', () => {
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (String(url).includes('/auth/verify')) {
         return Promise.resolve({
-          ok: false, status: 401, json: () => Promise.resolve({}),
-          body: { cancel: () => Promise.resolve() },
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({}),
+          body: { cancel: () => Promise.resolve() }
         })
       }
       // Login falla con TypeError (error de red)

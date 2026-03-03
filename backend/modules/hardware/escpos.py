@@ -251,6 +251,101 @@ def build_sale_receipt(
     return rb.build()
 
 
+def build_shift_report(
+    turn: dict,
+    summary: dict,
+    config: dict,
+    char_width: int = 48,
+) -> bytes:
+    """Build a shift cut report for the thermal printer.
+
+    Args:
+        turn: dict with id, initial_cash, final_cash, status, start_timestamp, end_timestamp.
+        summary: dict from get_turn_summary (sales_count, total_sales, expected_cash, etc.).
+        config: app_config row dict (business_name, etc.).
+        char_width: 32 for 58mm, 48 for 80mm paper.
+    """
+    rb = ReceiptBuilder(char_width)
+    cut_full = config.get("receipt_cut_type", "partial") == "full"
+
+    biz_name = config.get("business_name", "") or "TITAN POS"
+    rb.double_size(biz_name)
+    rb.line("=")
+    rb.bold("CORTE DE CAJA", align="center")
+    rb.line("-")
+
+    # Turn info
+    rb.columns("Turno ID:", str(turn.get("id", "?")))
+    start = turn.get("start_timestamp", "")
+    try:
+        ts = datetime.fromisoformat(str(start)).strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        ts = str(start)[:16]
+    rb.columns("Apertura:", ts)
+
+    end = turn.get("end_timestamp", "")
+    if end:
+        try:
+            te = datetime.fromisoformat(str(end)).strftime("%d/%m/%Y %H:%M")
+        except (ValueError, TypeError):
+            te = str(end)[:16]
+        rb.columns("Cierre:", te)
+
+    rb.line("-")
+    rb.bold("VENTAS")
+
+    sales_count = summary.get("sales_count", 0)
+    total_sales = float(summary.get("total_sales", 0))
+    rb.columns("Num. ventas:", str(sales_count))
+    rb.columns("Total ventas:", f"${total_sales:,.2f}")
+
+    # Sales by method
+    sales_by_method = summary.get("sales_by_method", [])
+    method_labels = {"cash": "Efectivo", "card": "Tarjeta", "transfer": "Transferencia", "mixed": "Mixto"}
+    for row in sales_by_method:
+        method = str(row.get("payment_method", ""))
+        label = method_labels.get(method, method)
+        count = row.get("count", 0)
+        total = float(row.get("total", 0))
+        rb.columns(f"  {label} ({count}):", f"${total:,.2f}")
+
+    rb.line("-")
+    rb.bold("EFECTIVO")
+
+    initial = float(summary.get("initial_cash", turn.get("initial_cash", 0)))
+    cash_in = float(summary.get("cash_in", 0))
+    cash_out = float(summary.get("cash_out", 0))
+    expected = float(summary.get("expected_cash", 0))
+    final = float(turn.get("final_cash", 0))
+    difference = final - expected
+
+    rb.columns("Fondo inicial:", f"${initial:,.2f}")
+    if cash_in > 0:
+        rb.columns("Entradas:", f"${cash_in:,.2f}")
+    if cash_out > 0:
+        rb.columns("Retiros/Gastos:", f"-${cash_out:,.2f}")
+    rb.line("-")
+    rb.columns("Esperado:", f"${expected:,.2f}")
+    rb.columns("Contado:", f"${final:,.2f}")
+    rb.line("=")
+    rb.feed(1)
+
+    diff_str = f"${abs(difference):,.2f}"
+    if difference > 0.005:
+        rb.double_size(f"SOBRANTE: +{diff_str}")
+    elif difference < -0.005:
+        rb.double_size(f"FALTANTE: -{diff_str}")
+    else:
+        rb.double_size("CUADRADO $0.00")
+
+    rb.feed(1)
+    rb.center(f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    rb.feed(1)
+    rb.cut(full=cut_full)
+
+    return rb.build()
+
+
 def build_test_receipt(config: dict, char_width: int = 48) -> bytes:
     """Build a test receipt to verify printer setup."""
     rb = ReceiptBuilder(char_width)

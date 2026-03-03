@@ -71,10 +71,13 @@ export default function MermasTab(): ReactElement {
       return
     }
     if (
-      !await confirm(
+      !(await confirm(
         `¿${approved ? 'Aprobar' : 'Rechazar'} merma de "${target.product}" (${target.quantity} uds)?`,
-        { variant: approved ? 'warning' : 'danger', title: approved ? 'Aprobar merma' : 'Rechazar merma' }
-      )
+        {
+          variant: approved ? 'warning' : 'danger',
+          title: approved ? 'Aprobar merma' : 'Rechazar merma'
+        }
+      ))
     )
       return
     setActionId(id)
@@ -92,8 +95,7 @@ export default function MermasTab(): ReactElement {
   const pendingCount = mermas.length
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-slate-200">
-
+    <div className="flex flex-col h-full bg-zinc-950 text-slate-200">
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-8">

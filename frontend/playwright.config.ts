@@ -20,11 +20,9 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'retain-on-failure'
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // Levantar frontend solo con E2E_START_SERVER=1 (por defecto se usa el que ya corre en 5173)
   ...(process.env.E2E_START_SERVER === '1'
     ? {
@@ -32,8 +30,8 @@ export default defineConfig({
           command: 'npm run dev:browser',
           url: 'http://localhost:5173',
           reuseExistingServer: true,
-          timeout: 60_000,
-        },
+          timeout: 60_000
+        }
       }
-    : {}),
+    : {})
 })

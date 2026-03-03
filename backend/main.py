@@ -73,19 +73,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiting (optional)
-try:
-    from slowapi import _rate_limit_exceeded_handler
-    from slowapi.errors import RateLimitExceeded
-    from modules.shared.rate_limit import limiter
+# Rate limiting (required — app fails at startup if slowapi is not installed)
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from modules.shared.rate_limit import limiter
 
-    if limiter is not None:
-        app.state.limiter = limiter
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    else:
-        logger.warning("slowapi limiter not initialized — rate limiting disabled")
-except ImportError:
-    logger.warning("slowapi not installed — rate limiting disabled")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS
 _cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")

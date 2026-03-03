@@ -24,11 +24,16 @@ function getDiscoverPorts(): number[] {
     const custom = localStorage.getItem('titan.discoverPorts')
     if (custom) {
       const parsed = JSON.parse(custom) as number[]
-      if (Array.isArray(parsed) && parsed.every((p) => typeof p === 'number' && p > 0 && p < 65536)) {
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((p) => typeof p === 'number' && p > 0 && p < 65536)
+      ) {
         return parsed
       }
     }
-  } catch { /* use defaults */ }
+  } catch {
+    /* use defaults */
+  }
   return _DEFAULT_PORTS
 }
 
@@ -38,7 +43,9 @@ export async function autoDiscoverBackend(): Promise<string | null> {
     try {
       const r = await fetch(`${saved}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1500) })
       if (r.status === 401 || r.ok) return saved
-    } catch { /* saved URL unreachable, try discovery */ }
+    } catch {
+      /* saved URL unreachable, try discovery */
+    }
   }
   for (const port of getDiscoverPorts()) {
     const url = `http://localhost:${port}`
@@ -48,7 +55,9 @@ export async function autoDiscoverBackend(): Promise<string | null> {
         localStorage.setItem('titan.baseUrl', url)
         return url
       }
-    } catch { /* port not responding */ }
+    } catch {
+      /* port not responding */
+    }
   }
   return null
 }
@@ -673,8 +682,7 @@ export async function getPendingNotifications(
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/notifications/pending`, {
     headers: headers(cfg)
   })
-  if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error cargando notificaciones'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando notificaciones'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -718,10 +726,13 @@ export async function cancelSale(
   cfg: RuntimeConfig,
   saleId: string
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`, {
-    method: 'POST',
-    headers: headers(cfg)
-  })
+  const res = await apiFetchLong(
+    `${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`,
+    {
+      method: 'POST',
+      headers: headers(cfg)
+    }
+  )
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -791,10 +802,9 @@ export async function getInventoryMovements(
   if (type) params.set('movement_type', type)
   if (limit) params.set('limit', String(limit))
   const qs = params.toString()
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/inventory/movements${qs ? `?${qs}` : ''}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/inventory/movements${qs ? `?${qs}` : ''}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando movimientos'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -904,9 +914,7 @@ export async function searchSatCodes(
   return (data?.results ?? []) as { code: string; description: string }[]
 }
 
-export async function getSatUnits(
-  cfg: RuntimeConfig
-): Promise<{ code: string; name: string }[]> {
+export async function getSatUnits(cfg: RuntimeConfig): Promise<{ code: string; name: string }[]> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/sat/units`, {
     headers: headers(cfg)
   })
@@ -1039,10 +1047,7 @@ export async function getReturnsSummary(
   return (await res.json()) as Record<string, unknown>
 }
 
-export async function parseXML(
-  cfg: RuntimeConfig,
-  file: File
-): Promise<Record<string, unknown>> {
+export async function parseXML(cfg: RuntimeConfig, file: File): Promise<Record<string, unknown>> {
   const formData = new FormData()
   formData.append('file', file)
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/xml/parse`, {
@@ -1086,8 +1091,7 @@ export async function getShadowDiscrepancy(cfg: RuntimeConfig): Promise<Record<s
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shadow/discrepancy`, {
     headers: headers(cfg)
   })
-  if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error cargando discrepancias'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando discrepancias'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1126,8 +1130,7 @@ export async function receiveGhostTransfer(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error recibiendo transferencia'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error recibiendo transferencia'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1136,12 +1139,10 @@ export async function getPendingGhostTransfers(
   branch?: string
 ): Promise<Record<string, unknown>> {
   const qs = branch ? `?branch=${encodeURIComponent(branch)}` : ''
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/ghost/transfer/pending${qs}`,
-    { headers: headers(cfg) }
-  )
-  if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error cargando transferencias'))
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/ghost/transfer/pending${qs}`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando transferencias'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1211,9 +1212,7 @@ export async function getWalletStats(cfg: RuntimeConfig): Promise<Record<string,
   return (await res.json()) as Record<string, unknown>
 }
 
-export async function getExtractionAvailable(
-  cfg: RuntimeConfig
-): Promise<Record<string, unknown>> {
+export async function getExtractionAvailable(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/extraction/available`, {
     headers: headers(cfg)
   })
@@ -1283,8 +1282,7 @@ export async function supplierAnalyze(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error analizando proveedor'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error analizando proveedor'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1468,6 +1466,19 @@ export async function printReceipt(
     body: JSON.stringify({ sale_id: saleId })
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error imprimiendo ticket'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function printShiftReport(
+  cfg: RuntimeConfig,
+  turnId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/print-shift-report`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ turn_id: turnId })
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error imprimiendo corte'))
   return (await res.json()) as Record<string, unknown>
 }
 

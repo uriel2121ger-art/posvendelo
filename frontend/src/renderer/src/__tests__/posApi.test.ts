@@ -5,12 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { clearAuth, setAuthToken } from './test-utils'
 
 // Importar después de setup de localStorage
-import {
-  autoDiscoverBackend,
-  loadRuntimeConfig,
-  saveRuntimeConfig,
-  getUserRole,
-} from '../posApi'
+import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig, getUserRole } from '../posApi'
 
 describe('loadRuntimeConfig', () => {
   beforeEach(() => clearAuth())
@@ -87,8 +82,9 @@ describe('autoDiscoverBackend', () => {
     localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')
 
     global.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 401,
-      body: { cancel: () => Promise.resolve() },
+      ok: false,
+      status: 401,
+      body: { cancel: () => Promise.resolve() }
     })
 
     const result = await autoDiscoverBackend()
@@ -98,7 +94,7 @@ describe('autoDiscoverBackend', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(global.fetch).toHaveBeenCalledWith(
       'http://127.0.0.1:8090/api/v1/auth/verify',
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
   })
 
@@ -116,8 +112,9 @@ describe('autoDiscoverBackend', () => {
       if (callIdx === 3) return Promise.reject(new Error('conn refused'))
       // Cuarta llamada (puerto 8090): éxito
       return Promise.resolve({
-        ok: false, status: 401,
-        body: { cancel: () => Promise.resolve() },
+        ok: false,
+        status: 401,
+        body: { cancel: () => Promise.resolve() }
       })
     })
 
@@ -142,8 +139,9 @@ describe('autoDiscoverBackend', () => {
       // Puerto 8000: éxito
       if (callIdx === 1) {
         return Promise.resolve({
-          ok: false, status: 401,
-          body: { cancel: () => Promise.resolve() },
+          ok: false,
+          status: 401,
+          body: { cancel: () => Promise.resolve() }
         })
       }
       return Promise.reject(new Error('should not reach'))

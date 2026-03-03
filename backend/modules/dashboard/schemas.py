@@ -3,12 +3,14 @@
 from decimal import Decimal
 from pydantic import BaseModel
 
+from modules.shared.constants import RESICO_ANNUAL_LIMIT
+
 
 class ResicoDashboard(BaseModel):
     serie_a: Decimal
     serie_b: Decimal
     total: Decimal
-    limite_resico: Decimal = Decimal("3500000")
+    limite_resico: Decimal = RESICO_ANNUAL_LIMIT
     restante: Decimal
     porcentaje: Decimal
     proyeccion_anual: Decimal

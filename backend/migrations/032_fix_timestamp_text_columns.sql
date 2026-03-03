@@ -66,3 +66,8 @@ BEGIN
         RAISE NOTICE 'returns.processed_at: TEXT → TIMESTAMP ✓';
     END IF;
 END $$;
+
+-- Registrar versión (faltaba — causaba re-ejecución en cada migrate)
+INSERT INTO schema_version (version, description)
+VALUES (32, 'fix_timestamp_text_columns_cash_movements_turns_returns')
+ON CONFLICT (version) DO NOTHING;

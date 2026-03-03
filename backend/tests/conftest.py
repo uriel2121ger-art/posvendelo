@@ -14,12 +14,13 @@ Usage:
 import os
 
 # ── Environment (MUST be set before importing app modules) ───────
-# Real credentials come from environment or .env.test — DO NOT hardcode production secrets.
-# These defaults are ONLY for local dev; CI must provide real values via env vars.
-os.environ.setdefault(
-    "DATABASE_URL",
-    os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://titan_user:XqaDwbaY6TE9J6OIz7Sodplp@localhost:5433/titan_pos"),
-)
+# DATABASE_URL must be provided via environment — never hardcode credentials here.
+# Ejecuta: export $(grep -v '^#' ../.env | grep -v '^$' | xargs) antes de correr tests
+if not os.environ.get("DATABASE_URL"):
+    raise RuntimeError(
+        "DATABASE_URL no está configurada. "
+        "Ejecuta: export $(grep -v '^#' ../.env | grep -v '^$' | xargs) antes de correr tests"
+    )
 os.environ.setdefault(
     "JWT_SECRET",
     os.getenv("TEST_JWT_SECRET", "test-only-secret-do-not-use-in-production"),
@@ -34,6 +35,7 @@ from contextlib import asynccontextmanager
 from main import app
 from db.connection import get_db, DB
 from modules.shared.auth import create_token
+from modules.shared.rate_limit import reset_pin_attempts
 
 # ── Test IDs (90 000+ range — safe from collisions) ─────────────
 ADMIN_ID = 90001
@@ -109,6 +111,7 @@ async def db_conn():
 @pytest.fixture
 async def client(db_conn, monkeypatch):
     """httpx.AsyncClient with all DB access routed through db_conn."""
+    reset_pin_attempts()
     db = DB(db_conn)
 
     # 1. Override FastAPI dependency: get_db
@@ -246,7 +249,7 @@ async def seed_employee(db_conn, seed_branch):
         "(id, employee_code, name, position, base_salary, commission_rate, "
         " is_active, created_at) "
         "VALUES ($1, 'EMP-TEST-001', 'Empleado Test', 'Vendedor', 5000, 0.05, "
-        " 1, NOW()::text)",
+        " 1, NOW())",
         EMPLOYEE_ID,
     )
 

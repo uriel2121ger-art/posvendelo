@@ -2,7 +2,20 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from './components/ConfirmDialog'
-import { Search, X, RefreshCw, FileText, Receipt, Calendar, CreditCard, Banknote, HelpCircle, Ban, Eye, Clock } from 'lucide-react'
+import {
+  Search,
+  X,
+  RefreshCw,
+  FileText,
+  Receipt,
+  Calendar,
+  CreditCard,
+  Banknote,
+  HelpCircle,
+  Ban,
+  Eye,
+  Clock
+} from 'lucide-react'
 import {
   getSaleDetail,
   loadRuntimeConfig,
@@ -11,6 +24,7 @@ import {
   getSaleEvents,
   getUserRole
 } from './posApi'
+import { useFocusTrap } from './hooks/useFocusTrap'
 
 type SaleRow = {
   id: string
@@ -79,7 +93,10 @@ export default function HistoryTab(): ReactElement {
   const [events, setEvents] = useState<Record<string, unknown>[]>([])
   const requestIdRef = useRef(0)
   const detailRequestId = useRef(0)
+  const drawerRef = useRef<HTMLDivElement>(null)
   const role = getUserRole()
+
+  useFocusTrap(drawerRef, isDrawerOpen)
   const canManage = role === 'manager' || role === 'owner' || role === 'admin'
 
   const visibleRows = useMemo(() => {
@@ -212,7 +229,7 @@ export default function HistoryTab(): ReactElement {
   }, [handleLoad])
 
   return (
-    <div className="flex h-screen bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
+    <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Header Area */}
@@ -395,6 +412,7 @@ export default function HistoryTab(): ReactElement {
         >
           {/* Drawer Panel */}
           <div
+            ref={drawerRef}
             className="w-[500px] bg-zinc-950 border-l border-zinc-800 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >

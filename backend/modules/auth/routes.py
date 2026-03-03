@@ -66,9 +66,7 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
     )
 
 
-# Apply rate limiter decorator if slowapi is available
-if limiter is not None:
-    _do_login = limiter.limit(_login_rate)(_do_login)
+_do_login = limiter.limit(_login_rate)(_do_login)
 
 router.post("/login", response_model=TokenResponse)(_do_login)
 

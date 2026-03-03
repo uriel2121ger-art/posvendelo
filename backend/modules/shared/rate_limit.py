@@ -4,6 +4,9 @@ TITAN POS - Shared Rate Limiter
 Single limiter instance shared between main.py and route modules.
 Uses slowapi with get_remote_address as the key function.
 Includes PIN-specific rate limiter to prevent brute-force on 4-digit PINs.
+
+slowapi is REQUIRED — if not installed the app will fail at startup.
+Install with: pip install slowapi>=0.1.9
 """
 
 import logging
@@ -11,26 +14,23 @@ import os
 import time
 import threading
 
+from slowapi import Limiter
+from starlette.requests import Request
+
 logger = logging.getLogger(__name__)
 
-limiter = None
+debug = os.getenv("DEBUG", "false").lower() == "true"
+# 5x multiplier in DEBUG to avoid 429 in E2E tests
+_default_limit = "25/minute" if debug else "5/minute"
 
-try:
-    from slowapi import Limiter
-    from starlette.requests import Request
 
-    debug = os.getenv("DEBUG", "false").lower() == "true"
-    # 5x multiplier in DEBUG to avoid 429 in E2E tests
-    _default_limit = "25/minute" if debug else "5/minute"
+def _get_real_client_ip(request: Request) -> str:
+    """Use only the actual TCP connection IP, ignoring X-Forwarded-For.
+    POS runs on LAN without reverse proxy — spoofed headers must be ignored."""
+    return request.client.host if request.client else "127.0.0.1"
 
-    def _get_real_client_ip(request: Request) -> str:
-        """Use only the actual TCP connection IP, ignoring X-Forwarded-For.
-        POS runs on LAN without reverse proxy — spoofed headers must be ignored."""
-        return request.client.host if request.client else "127.0.0.1"
 
-    limiter = Limiter(key_func=_get_real_client_ip, default_limits=[_default_limit])
-except ImportError:
-    logger.warning("slowapi not installed — rate limiting disabled")
+limiter = Limiter(key_func=_get_real_client_ip, default_limits=[_default_limit])
 
 
 # ---------------------------------------------------------------------------
@@ -61,3 +61,9 @@ def check_pin_rate_limit(client_ip: str) -> None:
             )
         attempts.append(now)
         _pin_attempts[client_ip] = attempts
+
+
+def reset_pin_attempts() -> None:
+    """Clear all PIN attempt records. Used by test fixtures."""
+    with _pin_lock:
+        _pin_attempts.clear()

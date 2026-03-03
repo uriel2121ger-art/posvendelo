@@ -32,6 +32,7 @@ titan_gateway.log
 # Environment
 .env
 CREDENCIALES.txt
+.mcp.json
 
 # Node (frontend)
 node_modules/

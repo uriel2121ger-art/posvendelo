@@ -7,27 +7,40 @@ import { clearAuth, setAuthToken } from './test-utils'
 
 // Mock todos los tabs pesados para que no hagan fetch real
 vi.mock('../Terminal', () => ({ default: () => <div data-testid="terminal-tab">Terminal</div> }))
-vi.mock('../CustomersTab', () => ({ default: () => <div data-testid="customers-tab">Clientes</div> }))
-vi.mock('../ProductsTab', () => ({ default: () => <div data-testid="products-tab">Productos</div> }))
-vi.mock('../InventoryTab', () => ({ default: () => <div data-testid="inventory-tab">Inventario</div> }))
+vi.mock('../CustomersTab', () => ({
+  default: () => <div data-testid="customers-tab">Clientes</div>
+}))
+vi.mock('../ProductsTab', () => ({
+  default: () => <div data-testid="products-tab">Productos</div>
+}))
+vi.mock('../InventoryTab', () => ({
+  default: () => <div data-testid="inventory-tab">Inventario</div>
+}))
 vi.mock('../ShiftsTab', () => ({ default: () => <div data-testid="shifts-tab">Turnos</div> }))
 vi.mock('../ReportsTab', () => ({ default: () => <div data-testid="reports-tab">Reportes</div> }))
 vi.mock('../HistoryTab', () => ({ default: () => <div data-testid="history-tab">Historial</div> }))
-vi.mock('../SettingsTab', () => ({ default: () => <div data-testid="settings-tab">Configuraciones</div> }))
-vi.mock('../DashboardStatsTab', () => ({ default: () => <div data-testid="stats-tab">Estadisticas</div> }))
+vi.mock('../SettingsTab', () => ({
+  default: () => <div data-testid="settings-tab">Configuraciones</div>
+}))
+vi.mock('../DashboardStatsTab', () => ({
+  default: () => <div data-testid="stats-tab">Estadisticas</div>
+}))
 vi.mock('../MermasTab', () => ({ default: () => <div data-testid="mermas-tab">Mermas</div> }))
 vi.mock('../ExpensesTab', () => ({ default: () => <div data-testid="expenses-tab">Gastos</div> }))
-vi.mock('../EmployeesTab', () => ({ default: () => <div data-testid="employees-tab">Empleados</div> }))
+vi.mock('../EmployeesTab', () => ({
+  default: () => <div data-testid="employees-tab">Empleados</div>
+}))
 vi.mock('../RemoteTab', () => ({ default: () => <div data-testid="remote-tab">Remoto</div> }))
 vi.mock('../FiscalTab', () => ({ default: () => <div data-testid="fiscal-tab">Fiscal</div> }))
-vi.mock('../HardwareTab', () => ({ default: () => <div data-testid="hardware-tab">Hardware</div> }))
 
 // Mock ShiftStartupModal — auto-resolve para no bloquear tests
 vi.mock('../ShiftStartupModal', () => ({
   default: ({ onComplete }: { onComplete: () => void }) => {
     // Use useEffect to avoid React setState-during-render warning
     const { useEffect } = require('react')
-    useEffect(() => { onComplete() }, [onComplete])
+    useEffect(() => {
+      onComplete()
+    }, [onComplete])
     return null
   }
 }))
@@ -35,10 +48,12 @@ vi.mock('../ShiftStartupModal', () => ({
 // Mock autoDiscoverBackend para Login
 vi.mock('../posApi', () => ({
   autoDiscoverBackend: vi.fn().mockResolvedValue('http://127.0.0.1:8090'),
-  loadRuntimeConfig: vi.fn().mockReturnValue({ baseUrl: 'http://127.0.0.1:8090', token: 'test', terminalId: 1 }),
+  loadRuntimeConfig: vi
+    .fn()
+    .mockReturnValue({ baseUrl: 'http://127.0.0.1:8090', token: 'test', terminalId: 1 }),
   saveRuntimeConfig: vi.fn(),
   createCashMovement: vi.fn().mockResolvedValue({}),
-  pullTable: vi.fn().mockResolvedValue([]),
+  pullTable: vi.fn().mockResolvedValue([])
 }))
 
 // App usa HashRouter internamente, así que importamos directo
@@ -213,16 +228,6 @@ describe('App Routing', () => {
     })
   })
 
-  it('muestra Hardware en /hardware con token', async () => {
-    setAuthToken()
-    window.location.hash = '#/hardware'
-    render(<App />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('hardware-tab')).toBeInTheDocument()
-    })
-  })
-
   it('ruta desconocida redirige a / → /terminal con token', async () => {
     setAuthToken()
     window.location.hash = '#/esta-ruta-no-existe'
@@ -261,7 +266,7 @@ describe('F-key Navigation', () => {
     ['F3', '#/productos', 'products-tab'],
     ['F4', '#/inventario', 'inventory-tab'],
     ['F5', '#/turnos', 'shifts-tab'],
-    ['F6', '#/reportes', 'reports-tab'],
+    ['F6', '#/reportes', 'reports-tab']
   ]
 
   for (const [key, expectedHash, testId] of fKeyNavMap) {
@@ -285,7 +290,7 @@ describe('F-key Navigation', () => {
   const fKeyModalMap: Array<[string, string]> = [
     ['F7', 'Entrada de Efectivo'],
     ['F8', 'Retiro de Efectivo'],
-    ['F9', 'Verificador de Precios'],
+    ['F9', 'Verificador de Precios']
   ]
 
   for (const [key, modalTitle] of fKeyModalMap) {

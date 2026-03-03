@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react'
 import { useRef, useState } from 'react'
-import TopNavbar from './components/TopNavbar'
 import { useConfirm } from './components/ConfirmDialog'
 import {
   loadRuntimeConfig,
@@ -69,7 +68,9 @@ export default function FiscalTab(): ReactElement {
   const confirm = useConfirm()
   const [tab, setTab] = useState<SubTab>('facturacion')
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('Panel fiscal: facturacion, auditoria y operaciones avanzadas.')
+  const [message, setMessage] = useState(
+    'Panel fiscal: facturacion, auditoria y operaciones avanzadas.'
+  )
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const role = getUserRole()
   const canAdmin = role === 'owner' || role === 'admin'
@@ -167,25 +168,79 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">CFDI Individual</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input className={inputCls} placeholder="Sale ID" value={cfdiSaleId} onChange={(e) => setCfdiSaleId(e.target.value)} />
-            <input className={inputCls} placeholder="RFC Cliente" maxLength={13} value={cfdiRfc} onChange={(e) => setCfdiRfc(e.target.value.toUpperCase())} />
-            <input className={inputCls} placeholder="Nombre Cliente" maxLength={300} value={cfdiName} onChange={(e) => setCfdiName(e.target.value)} />
-            <input className={inputCls} placeholder="Regimen Fiscal" value={cfdiRegimen} onChange={(e) => setCfdiRegimen(e.target.value)} />
-            <input className={inputCls} placeholder="Uso CFDI (G03)" value={cfdiUso} onChange={(e) => setCfdiUso(e.target.value)} />
-            <input className={inputCls} placeholder="Forma Pago (01)" value={cfdiFormaPago} onChange={(e) => setCfdiFormaPago(e.target.value)} />
-            <input className={inputCls} placeholder="Codigo Postal" maxLength={5} value={cfdiZip} onChange={(e) => setCfdiZip(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Sale ID"
+              value={cfdiSaleId}
+              onChange={(e) => setCfdiSaleId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="RFC Cliente"
+              maxLength={13}
+              value={cfdiRfc}
+              onChange={(e) => setCfdiRfc(e.target.value.toUpperCase())}
+            />
+            <input
+              className={inputCls}
+              placeholder="Nombre Cliente"
+              maxLength={300}
+              value={cfdiName}
+              onChange={(e) => setCfdiName(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Regimen Fiscal"
+              value={cfdiRegimen}
+              onChange={(e) => setCfdiRegimen(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Uso CFDI (G03)"
+              value={cfdiUso}
+              onChange={(e) => setCfdiUso(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Forma Pago (01)"
+              value={cfdiFormaPago}
+              onChange={(e) => setCfdiFormaPago(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Codigo Postal"
+              maxLength={5}
+              value={cfdiZip}
+              onChange={(e) => setCfdiZip(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !cfdiSaleId.trim()}
-              onClick={() => void wrap(() => generateCFDI(cfg(), {
-                sale_id: cfdiSaleId.trim(),
-                customer_rfc: cfdiRfc.trim(),
-                customer_name: cfdiName.trim(),
-                customer_regime: cfdiRegimen.trim(),
-                uso_cfdi: cfdiUso.trim(),
-                forma_pago: cfdiFormaPago.trim(),
-                customer_zip: cfdiZip.trim()
-              }))}
+              onClick={async () => {
+                setBusy(true)
+                setResult(null)
+                try {
+                  const data = await generateCFDI(cfg(), {
+                    sale_id: cfdiSaleId.trim(),
+                    customer_rfc: cfdiRfc.trim(),
+                    customer_name: cfdiName.trim(),
+                    customer_regime: cfdiRegimen.trim(),
+                    uso_cfdi: cfdiUso.trim(),
+                    forma_pago: cfdiFormaPago.trim(),
+                    customer_zip: cfdiZip.trim()
+                  })
+                  setResult(data)
+                  setMessage(
+                    data.success
+                      ? `CFDI Timbrado Exitosamente. UUID: ${data.data?.uuid || 'Generado'}`
+                      : 'CFDI Generado pero sin confirmacion UUID.'
+                  )
+                } catch (error) {
+                  setMessage(`Error CFDI: ${(error as Error).message}`)
+                } finally {
+                  setBusy(false)
+                }
+              }}
             >
               Generar CFDI
             </button>
@@ -196,16 +251,44 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">CFDI Global</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <select className={inputCls} value={globalPeriod} onChange={(e) => setGlobalPeriod(e.target.value)}>
+            <select
+              className={inputCls}
+              value={globalPeriod}
+              onChange={(e) => setGlobalPeriod(e.target.value)}
+            >
               <option value="daily">Diario</option>
               <option value="weekly">Semanal</option>
               <option value="monthly">Mensual</option>
             </select>
-            <input className={inputCls} type="date" value={globalDate} onChange={(e) => setGlobalDate(e.target.value)} />
+            <input
+              className={inputCls}
+              type="date"
+              value={globalDate}
+              onChange={(e) => setGlobalDate(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy}
-              onClick={() => void wrap(() => generateGlobalCFDI(cfg(), { period_type: globalPeriod, date: globalDate }))}
+              onClick={async () => {
+                setBusy(true)
+                setResult(null)
+                try {
+                  const data = await generateGlobalCFDI(cfg(), {
+                    period_type: globalPeriod,
+                    date: globalDate
+                  })
+                  setResult(data)
+                  setMessage(
+                    data.success
+                      ? `CFDI Global Timbrado. UUID: ${data.data?.uuid || 'Generado'}`
+                      : 'CFDI Global Generado sin confirmacion UUID.'
+                  )
+                } catch (error) {
+                  setMessage(`Error CFDI Global: ${(error as Error).message}`)
+                } finally {
+                  setBusy(false)
+                }
+              }}
             >
               Generar Global
             </button>
@@ -216,10 +299,30 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Devolucion</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input className={inputCls} placeholder="Sale ID" value={retSaleId} onChange={(e) => setRetSaleId(e.target.value)} />
-            <input className={inputCls} placeholder='Items JSON [{"sku":"X","qty":1}]' value={retItems} onChange={(e) => setRetItems(e.target.value)} />
-            <input className={inputCls} placeholder="Razon" value={retReason} onChange={(e) => setRetReason(e.target.value)} />
-            <input className={inputCls} placeholder="Procesado por" value={retBy} onChange={(e) => setRetBy(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Sale ID"
+              value={retSaleId}
+              onChange={(e) => setRetSaleId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder='Items JSON [{"sku":"X","qty":1}]'
+              value={retItems}
+              onChange={(e) => setRetItems(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Razon"
+              value={retReason}
+              onChange={(e) => setRetReason(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Procesado por"
+              value={retBy}
+              onChange={(e) => setRetBy(e.target.value)}
+            />
           </div>
           <div className="flex gap-2 mt-2">
             <button
@@ -227,13 +330,20 @@ export default function FiscalTab(): ReactElement {
               disabled={busy || !retSaleId.trim()}
               onClick={() => {
                 let items: unknown[] = []
-                try { const parsed = JSON.parse(retItems); if (Array.isArray(parsed)) items = parsed } catch { /* empty */ }
-                void wrap(() => processReturn(cfg(), {
-                  sale_id: retSaleId.trim(),
-                  items,
-                  reason: retReason.trim(),
-                  processed_by: retBy.trim()
-                }))
+                try {
+                  const parsed = JSON.parse(retItems)
+                  if (Array.isArray(parsed)) items = parsed
+                } catch {
+                  /* empty */
+                }
+                void wrap(() =>
+                  processReturn(cfg(), {
+                    sale_id: retSaleId.trim(),
+                    items,
+                    reason: retReason.trim(),
+                    processed_by: retBy.trim()
+                  })
+                )
               }}
             >
               Procesar Devolucion
@@ -258,7 +368,10 @@ export default function FiscalTab(): ReactElement {
               disabled={busy}
               onClick={() => {
                 const file = fileRef.current?.files?.[0]
-                if (!file) { setMessage('Selecciona un archivo XML.'); return }
+                if (!file) {
+                  setMessage('Selecciona un archivo XML.')
+                  return
+                }
                 void wrap(() => parseXML(cfg(), file))
               }}
             >
@@ -274,28 +387,55 @@ export default function FiscalTab(): ReactElement {
     return (
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap">
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getShadowAuditView(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getShadowAuditView(cfg()))}
+          >
             Vista SAT
           </button>
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getShadowRealView(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getShadowRealView(cfg()))}
+          >
             Vista Real
           </button>
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getShadowDiscrepancy(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getShadowDiscrepancy(cfg()))}
+          >
             Discrepancias
           </button>
         </div>
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Reconciliar</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <input className={inputCls} placeholder="Product ID" value={reconProductId} onChange={(e) => setReconProductId(e.target.value)} />
-            <input className={inputCls} placeholder="Stock Fiscal" type="number" value={reconFiscalStock} onChange={(e) => setReconFiscalStock(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Product ID"
+              value={reconProductId}
+              onChange={(e) => setReconProductId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Stock Fiscal"
+              type="number"
+              value={reconFiscalStock}
+              onChange={(e) => setReconFiscalStock(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !reconProductId.trim()}
-              onClick={() => void wrap(() => reconcileShadow(cfg(), {
-                product_id: Number(reconProductId.trim()),
-                fiscal_stock: toNumber(reconFiscalStock)
-              }))}
+              onClick={() =>
+                void wrap(() =>
+                  reconcileShadow(cfg(), {
+                    product_id: Number(reconProductId.trim()),
+                    fiscal_stock: toNumber(reconFiscalStock)
+                  })
+                )
+              }
             >
               Reconciliar
             </button>
@@ -311,24 +451,55 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Crear Transferencia</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <input className={inputCls} placeholder="Origen" value={ghostOrigin} onChange={(e) => setGhostOrigin(e.target.value)} />
-            <input className={inputCls} placeholder="Destino" value={ghostDest} onChange={(e) => setGhostDest(e.target.value)} />
-            <input className={inputCls} placeholder='Items JSON [{"sku":"X","qty":1}]' value={ghostItems} onChange={(e) => setGhostItems(e.target.value)} />
-            <input className={inputCls} placeholder="User ID" value={ghostUserId} onChange={(e) => setGhostUserId(e.target.value)} />
-            <input className={inputCls} placeholder="Notas" value={ghostNotes} onChange={(e) => setGhostNotes(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Origen"
+              value={ghostOrigin}
+              onChange={(e) => setGhostOrigin(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Destino"
+              value={ghostDest}
+              onChange={(e) => setGhostDest(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder='Items JSON [{"sku":"X","qty":1}]'
+              value={ghostItems}
+              onChange={(e) => setGhostItems(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="User ID"
+              value={ghostUserId}
+              onChange={(e) => setGhostUserId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Notas"
+              value={ghostNotes}
+              onChange={(e) => setGhostNotes(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !ghostOrigin.trim()}
               onClick={() => {
                 let items: unknown[] = []
-                try { items = JSON.parse(ghostItems) } catch { /* empty */ }
-                void wrap(() => createGhostTransfer(cfg(), {
-                  origin: ghostOrigin.trim(),
-                  destination: ghostDest.trim(),
-                  items,
-                  user_id: ghostUserId.trim(),
-                  notes: ghostNotes.trim()
-                }))
+                try {
+                  items = JSON.parse(ghostItems)
+                } catch {
+                  /* empty */
+                }
+                void wrap(() =>
+                  createGhostTransfer(cfg(), {
+                    origin: ghostOrigin.trim(),
+                    destination: ghostDest.trim(),
+                    items,
+                    user_id: ghostUserId.trim(),
+                    notes: ghostNotes.trim()
+                  })
+                )
               }}
             >
               Crear
@@ -338,15 +509,29 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Recibir Transferencia</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <input className={inputCls} placeholder="Codigo Transferencia" value={recvCode} onChange={(e) => setRecvCode(e.target.value)} />
-            <input className={inputCls} placeholder="User ID" value={recvUserId} onChange={(e) => setRecvUserId(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Codigo Transferencia"
+              value={recvCode}
+              onChange={(e) => setRecvCode(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="User ID"
+              value={recvUserId}
+              onChange={(e) => setRecvUserId(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !recvCode.trim()}
-              onClick={() => void wrap(() => receiveGhostTransfer(cfg(), {
-                transfer_code: recvCode.trim(),
-                user_id: Number(recvUserId.trim())
-              }))}
+              onClick={() =>
+                void wrap(() =>
+                  receiveGhostTransfer(cfg(), {
+                    transfer_code: recvCode.trim(),
+                    user_id: Number(recvUserId.trim())
+                  })
+                )
+              }
             >
               Recibir
             </button>
@@ -355,11 +540,18 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Transferencias Pendientes</h3>
           <div className="flex gap-2">
-            <input className={inputCls} placeholder="Sucursal (opcional)" value={ghostBranch} onChange={(e) => setGhostBranch(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Sucursal (opcional)"
+              value={ghostBranch}
+              onChange={(e) => setGhostBranch(e.target.value)}
+            />
             <button
               className={btnSecondary}
               disabled={busy}
-              onClick={() => void wrap(() => getPendingGhostTransfers(cfg(), ghostBranch.trim() || undefined))}
+              onClick={() =>
+                void wrap(() => getPendingGhostTransfers(cfg(), ghostBranch.trim() || undefined))
+              }
             >
               Cargar
             </button>
@@ -373,15 +565,25 @@ export default function FiscalTab(): ReactElement {
     return (
       <div className="space-y-4">
         <div className="flex gap-2 flex-wrap">
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getFederationOperational(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getFederationOperational(cfg()))}
+          >
             Dashboard Operacional
           </button>
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getFederationFiscal(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getFederationFiscal(cfg()))}
+          >
             Inteligencia Fiscal
           </button>
         </div>
         {!canAdmin && (
-          <p className="text-xs text-zinc-500">Acciones de lockdown/release solo para admin/owner.</p>
+          <p className="text-xs text-zinc-500">
+            Acciones de lockdown/release solo para admin/owner.
+          </p>
         )}
       </div>
     )
@@ -391,29 +593,64 @@ export default function FiscalTab(): ReactElement {
     return (
       <div className="space-y-6">
         <div className="flex gap-2 flex-wrap">
-          <button className={btnPrimary} disabled={busy || !canAdmin} onClick={() => void wrap(() => runAudit(cfg()))}>
+          <button
+            className={btnPrimary}
+            disabled={busy || !canAdmin}
+            onClick={() => void wrap(() => runAudit(cfg()))}
+          >
             Ejecutar Auditoria
           </button>
-          <button className={btnSecondary} disabled={busy || !canAdmin} onClick={() => void wrap(() => runShaper(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy || !canAdmin}
+            onClick={() => void wrap(() => runShaper(cfg()))}
+          >
             Ejecutar Shaper
           </button>
         </div>
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Analisis Proveedor</h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-            <input className={inputCls} placeholder="Product ID" value={supProductId} onChange={(e) => setSupProductId(e.target.value)} />
-            <input className={inputCls} placeholder="Cantidad" type="number" value={supQty} onChange={(e) => setSupQty(e.target.value)} />
-            <input className={inputCls} placeholder="Precio A" type="number" value={supPriceA} onChange={(e) => setSupPriceA(e.target.value)} />
-            <input className={inputCls} placeholder="Precio B" type="number" value={supPriceB} onChange={(e) => setSupPriceB(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Product ID"
+              value={supProductId}
+              onChange={(e) => setSupProductId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Cantidad"
+              type="number"
+              value={supQty}
+              onChange={(e) => setSupQty(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Precio A"
+              type="number"
+              value={supPriceA}
+              onChange={(e) => setSupPriceA(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Precio B"
+              type="number"
+              value={supPriceB}
+              onChange={(e) => setSupPriceB(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !supProductId.trim()}
-              onClick={() => void wrap(() => supplierAnalyze(cfg(), {
-                product_id: supProductId.trim(),
-                quantity: toNumber(supQty),
-                price_a: toNumber(supPriceA),
-                price_b: toNumber(supPriceB)
-              }))}
+              onClick={() =>
+                void wrap(() =>
+                  supplierAnalyze(cfg(), {
+                    product_id: supProductId.trim(),
+                    quantity: toNumber(supQty),
+                    price_a: toNumber(supPriceA),
+                    price_b: toNumber(supPriceB)
+                  })
+                )
+              }
             >
               Analizar
             </button>
@@ -430,38 +667,83 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Ghost Wallet</h3>
           <div className="flex gap-2 mb-3">
-            <input className={inputCls} placeholder="Seed (opcional)" value={walletSeed} onChange={(e) => setWalletSeed(e.target.value)} />
-            <button className={btnPrimary} disabled={busy} onClick={() => void wrap(() => createGhostWallet(cfg(), walletSeed.trim() || undefined))}>
+            <input
+              className={inputCls}
+              placeholder="Seed (opcional)"
+              value={walletSeed}
+              onChange={(e) => setWalletSeed(e.target.value)}
+            />
+            <button
+              className={btnPrimary}
+              disabled={busy}
+              onClick={() =>
+                void wrap(() => createGhostWallet(cfg(), walletSeed.trim() || undefined))
+              }
+            >
               Crear Wallet
             </button>
-            <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getWalletStats(cfg()))}>
+            <button
+              className={btnSecondary}
+              disabled={busy}
+              onClick={() => void wrap(() => getWalletStats(cfg()))}
+            >
               Stats
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-            <input className={inputCls} placeholder="Hash ID" value={wpHashId} onChange={(e) => setWpHashId(e.target.value)} />
-            <input className={inputCls} placeholder="Sale Amount" type="number" value={wpSaleAmount} onChange={(e) => setWpSaleAmount(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Hash ID"
+              value={wpHashId}
+              onChange={(e) => setWpHashId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Sale Amount"
+              type="number"
+              value={wpSaleAmount}
+              onChange={(e) => setWpSaleAmount(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !wpHashId.trim()}
-              onClick={() => void wrap(() => addWalletPoints(cfg(), {
-                hash_id: wpHashId.trim(),
-                sale_amount: toNumber(wpSaleAmount)
-              }))}
+              onClick={() =>
+                void wrap(() =>
+                  addWalletPoints(cfg(), {
+                    hash_id: wpHashId.trim(),
+                    sale_amount: toNumber(wpSaleAmount)
+                  })
+                )
+              }
             >
               Agregar Puntos
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <input className={inputCls} placeholder="Hash ID" value={wrHashId} onChange={(e) => setWrHashId(e.target.value)} />
-            <input className={inputCls} placeholder="Monto a redimir" type="number" value={wrAmount} onChange={(e) => setWrAmount(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Hash ID"
+              value={wrHashId}
+              onChange={(e) => setWrHashId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Monto a redimir"
+              type="number"
+              value={wrAmount}
+              onChange={(e) => setWrAmount(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !wrHashId.trim()}
-              onClick={() => void wrap(() => redeemWalletPoints(cfg(), {
-                hash_id: wrHashId.trim(),
-                amount: toNumber(wrAmount)
-              }))}
+              onClick={() =>
+                void wrap(() =>
+                  redeemWalletPoints(cfg(), {
+                    hash_id: wrHashId.trim(),
+                    amount: toNumber(wrAmount)
+                  })
+                )
+              }
             >
               Redimir
             </button>
@@ -472,19 +754,35 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Extraccion</h3>
           <div className="flex gap-2 mb-3 flex-wrap">
-            <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getExtractionAvailable(cfg()))}>
+            <button
+              className={btnSecondary}
+              disabled={busy}
+              onClick={() => void wrap(() => getExtractionAvailable(cfg()))}
+            >
               Disponible
             </button>
-            <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getOptimalExtraction(cfg()))}>
+            <button
+              className={btnSecondary}
+              disabled={busy}
+              onClick={() => void wrap(() => getOptimalExtraction(cfg()))}
+            >
               Optimo
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <input className={inputCls} placeholder="Monto objetivo" type="number" value={extTarget} onChange={(e) => setExtTarget(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Monto objetivo"
+              type="number"
+              value={extTarget}
+              onChange={(e) => setExtTarget(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !extTarget.trim()}
-              onClick={() => void wrap(() => createExtractionPlan(cfg(), { target_amount: toNumber(extTarget) }))}
+              onClick={() =>
+                void wrap(() => createExtractionPlan(cfg(), { target_amount: toNumber(extTarget) }))
+              }
             >
               Crear Plan
             </button>
@@ -498,36 +796,72 @@ export default function FiscalTab(): ReactElement {
     return (
       <div className="space-y-6">
         <div className="flex gap-2 flex-wrap">
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getCryptoAvailable(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getCryptoAvailable(cfg()))}
+          >
             Fondos Disponibles
           </button>
-          <button className={btnSecondary} disabled={busy} onClick={() => void wrap(() => getCryptoWealth(cfg()))}>
+          <button
+            className={btnSecondary}
+            disabled={busy}
+            onClick={() => void wrap(() => getCryptoWealth(cfg()))}
+          >
             Wealth Total
           </button>
         </div>
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Conversion</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input className={inputCls} placeholder="Monto MXN" type="number" value={cryptoAmount} onChange={(e) => setCryptoAmount(e.target.value)} />
-            <select className={inputCls} value={cryptoCoin} onChange={(e) => setCryptoCoin(e.target.value)}>
+            <input
+              className={inputCls}
+              placeholder="Monto MXN"
+              type="number"
+              value={cryptoAmount}
+              onChange={(e) => setCryptoAmount(e.target.value)}
+            />
+            <select
+              className={inputCls}
+              value={cryptoCoin}
+              onChange={(e) => setCryptoCoin(e.target.value)}
+            >
               <option value="USDT">USDT</option>
               <option value="USDC">USDC</option>
               <option value="DAI">DAI</option>
             </select>
-            <input className={inputCls} placeholder="Wallet Address" value={cryptoWallet} onChange={(e) => setCryptoWallet(e.target.value)} />
-            <input className={inputCls} placeholder="Descripcion cobertura" value={cryptoCover} onChange={(e) => setCryptoCover(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Wallet Address"
+              value={cryptoWallet}
+              onChange={(e) => setCryptoWallet(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Descripcion cobertura"
+              value={cryptoCover}
+              onChange={(e) => setCryptoCover(e.target.value)}
+            />
           </div>
           <button
             className={`${btnPrimary} mt-2`}
             disabled={busy || !cryptoAmount.trim()}
             onClick={async () => {
-              if (!await confirm('¿Confirmar conversion crypto? Esta operacion es irreversible.', { variant: 'danger', title: 'Conversion crypto' })) return
-              void wrap(() => convertCrypto(cfg(), {
-                amount_mxn: toNumber(cryptoAmount),
-                stablecoin: cryptoCoin,
-                wallet_address: cryptoWallet.trim(),
-                cover_description: cryptoCover.trim()
-              }))
+              if (
+                !(await confirm('¿Confirmar conversion crypto? Esta operacion es irreversible.', {
+                  variant: 'danger',
+                  title: 'Conversion crypto'
+                }))
+              )
+                return
+              void wrap(() =>
+                convertCrypto(cfg(), {
+                  amount_mxn: toNumber(cryptoAmount),
+                  stablecoin: cryptoCoin,
+                  wallet_address: cryptoWallet.trim(),
+                  cover_description: cryptoCover.trim()
+                })
+              )
             }}
           >
             Convertir
@@ -550,7 +884,13 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Stealth PIN</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
-            <input className={inputCls} placeholder="PIN" type="password" value={stealthPin} onChange={(e) => setStealthPin(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="PIN"
+              type="password"
+              value={stealthPin}
+              onChange={(e) => setStealthPin(e.target.value)}
+            />
             <button
               className={btnPrimary}
               disabled={busy || !stealthPin.trim() || !canAdmin}
@@ -560,19 +900,45 @@ export default function FiscalTab(): ReactElement {
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input className={inputCls} placeholder="PIN Normal" type="password" value={confNormal} onChange={(e) => setConfNormal(e.target.value)} />
-            <input className={inputCls} placeholder="PIN Duress" type="password" value={confDuress} onChange={(e) => setConfDuress(e.target.value)} />
-            <input className={inputCls} placeholder="PIN Wipe" type="password" value={confWipe} onChange={(e) => setConfWipe(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="PIN Normal"
+              type="password"
+              value={confNormal}
+              onChange={(e) => setConfNormal(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="PIN Duress"
+              type="password"
+              value={confDuress}
+              onChange={(e) => setConfDuress(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="PIN Wipe"
+              type="password"
+              value={confWipe}
+              onChange={(e) => setConfWipe(e.target.value)}
+            />
             <button
               className={btnDanger}
               disabled={busy || !canAdmin}
               onClick={async () => {
-                if (!await confirm('¿Reconfigurar PINs de seguridad?', { variant: 'danger', title: 'Reconfigurar PINs' })) return
-                void wrap(() => configureStealthPins(cfg(), {
-                  normal_pin: confNormal.trim(),
-                  duress_pin: confDuress.trim(),
-                  wipe_pin: confWipe.trim()
-                }))
+                if (
+                  !(await confirm('¿Reconfigurar PINs de seguridad?', {
+                    variant: 'danger',
+                    title: 'Reconfigurar PINs'
+                  }))
+                )
+                  return
+                void wrap(() =>
+                  configureStealthPins(cfg(), {
+                    normal_pin: confNormal.trim(),
+                    duress_pin: confDuress.trim(),
+                    wipe_pin: confWipe.trim()
+                  })
+                )
               }}
             >
               Configurar PINs
@@ -584,16 +950,43 @@ export default function FiscalTab(): ReactElement {
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-rose-400">Eliminacion Quirurgica</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <input className={inputCls} placeholder="Sale IDs (comma separated)" value={sdSaleIds} onChange={(e) => setSdSaleIds(e.target.value)} />
-            <input className={inputCls} placeholder="Frase de confirmacion" value={sdConfirm} onChange={(e) => setSdConfirm(e.target.value)} />
+            <input
+              className={inputCls}
+              placeholder="Sale IDs (comma separated)"
+              value={sdSaleIds}
+              onChange={(e) => setSdSaleIds(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Frase de confirmacion"
+              value={sdConfirm}
+              onChange={(e) => setSdConfirm(e.target.value)}
+            />
             <button
               className={btnDanger}
               disabled={busy || !sdSaleIds.trim() || !sdConfirm.trim() || !canAdmin}
               onClick={async () => {
-                if (!await confirm('ADVERTENCIA: Esta accion elimina ventas permanentemente. ¿Continuar?', { variant: 'danger', title: 'Eliminacion quirurgica' })) return
-                if (!await confirm('SEGUNDA CONFIRMACION: ¿Estas absolutamente seguro?', { variant: 'danger', title: 'Confirmar eliminacion' })) return
-                const ids = sdSaleIds.split(',').map((s) => s.trim()).filter(Boolean)
-                void wrap(() => surgicalDelete(cfg(), { sale_ids: ids, confirm_phrase: sdConfirm.trim() }))
+                if (
+                  !(await confirm(
+                    'ADVERTENCIA: Esta accion elimina ventas permanentemente. ¿Continuar?',
+                    { variant: 'danger', title: 'Eliminacion quirurgica' }
+                  ))
+                )
+                  return
+                if (
+                  !(await confirm('SEGUNDA CONFIRMACION: ¿Estas absolutamente seguro?', {
+                    variant: 'danger',
+                    title: 'Confirmar eliminacion'
+                  }))
+                )
+                  return
+                const ids = sdSaleIds
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                void wrap(() =>
+                  surgicalDelete(cfg(), { sale_ids: ids, confirm_phrase: sdConfirm.trim() })
+                )
               }}
             >
               Eliminar
@@ -609,14 +1002,30 @@ export default function FiscalTab(): ReactElement {
               className={btnDanger}
               disabled={busy || !canAdmin}
               onClick={async () => {
-                if (!await confirm('PANIC: ¿Activar modo de emergencia?', { variant: 'danger', title: 'PANIC' })) return
-                if (!await confirm('CONFIRMAR PANIC: Esta accion es irreversible.', { variant: 'danger', title: 'Confirmar PANIC' })) return
+                if (
+                  !(await confirm('PANIC: ¿Activar modo de emergencia?', {
+                    variant: 'danger',
+                    title: 'PANIC'
+                  }))
+                )
+                  return
+                if (
+                  !(await confirm('CONFIRMAR PANIC: Esta accion es irreversible.', {
+                    variant: 'danger',
+                    title: 'Confirmar PANIC'
+                  }))
+                )
+                  return
                 void wrap(() => triggerPanic(cfg(), { immediate: true }))
               }}
             >
               PANIC
             </button>
-            <select className={inputCls + ' max-w-[200px]'} value={fakeType} onChange={(e) => setFakeType(e.target.value)}>
+            <select
+              className={inputCls + ' max-w-[200px]'}
+              value={fakeType}
+              onChange={(e) => setFakeType(e.target.value)}
+            >
               <option value="maintenance">Mantenimiento</option>
               <option value="update">Actualizacion</option>
               <option value="error">Error</option>
@@ -625,7 +1034,13 @@ export default function FiscalTab(): ReactElement {
               className={btnDanger}
               disabled={busy || !canAdmin}
               onClick={async () => {
-                if (!await confirm('¿Activar pantalla falsa?', { variant: 'danger', title: 'Pantalla falsa' })) return
+                if (
+                  !(await confirm('¿Activar pantalla falsa?', {
+                    variant: 'danger',
+                    title: 'Pantalla falsa'
+                  }))
+                )
+                  return
                 void wrap(() => triggerFakeScreen(cfg(), { screen_type: fakeType }))
               }}
             >
@@ -649,9 +1064,7 @@ export default function FiscalTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
-      <TopNavbar />
-
+    <div className="flex h-full flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
       {/* Sub-tab bar */}
       <div className="flex items-center gap-1 border-b border-zinc-800 bg-zinc-900 p-2 overflow-x-auto shrink-0">
         {tabs.map((t) => (
@@ -662,7 +1075,10 @@ export default function FiscalTab(): ReactElement {
                 ? 'bg-zinc-800 shadow-sm border border-zinc-700 font-bold text-blue-400'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
             }`}
-            onClick={() => { setTab(t.key); setResult(null) }}
+            onClick={() => {
+              setTab(t.key)
+              setResult(null)
+            }}
           >
             {t.label}
           </button>
@@ -678,7 +1094,10 @@ export default function FiscalTab(): ReactElement {
           <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
             <div className="flex items-center justify-between mb-2">
               <p className={labelCls}>Resultado</p>
-              <button className="text-xs text-zinc-500 hover:text-zinc-300" onClick={() => setResult(null)}>
+              <button
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+                onClick={() => setResult(null)}
+              >
                 Cerrar
               </button>
             </div>

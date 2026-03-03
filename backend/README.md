@@ -12,7 +12,7 @@ Sistema de Punto de Venta para retail. Backend FastAPI con asyncpg (SQL directo)
 | Validación | Pydantic v2 |
 | Auth | JWT (PyJWT) + bcrypt |
 | Tests | pytest + pytest-asyncio + httpx (164 tests) |
-| Rate limit | slowapi (opcional) |
+| Rate limit | slowapi (requerido) |
 
 ## Inicio rápido
 

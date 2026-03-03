@@ -23,7 +23,8 @@ import {
   closeTurn,
   getTurnSummary,
   createCashMovement,
-  getUserRole
+  getUserRole,
+  printShiftReport
 } from './posApi'
 import {
   type ShiftRecord,
@@ -102,6 +103,7 @@ export default function ShiftsTab(): ReactElement {
   const [cashMovPin, setCashMovPin] = useState('')
   const role = getUserRole()
   const canManage = role === 'manager' || role === 'owner' || role === 'admin'
+  const [expectedCash, setExpectedCash] = useState<number | null>(null)
 
   useEffect((): (() => void) => {
     const refresh = (): void => setCurrentShift(readCurrentShift())
@@ -116,6 +118,32 @@ export default function ShiftsTab(): ReactElement {
       window.removeEventListener('storage', onStorage)
     }
   }, [])
+
+  // Auto-fetch expected cash from backend when shift is open
+  useEffect(() => {
+    if (!currentShift?.backendTurnId) {
+      setExpectedCash(null)
+      return
+    }
+    let cancelled = false
+    const cfg = loadRuntimeConfig()
+    getTurnSummary(cfg, currentShift.backendTurnId)
+      .then((raw) => {
+        if (cancelled) return
+        const data = (raw.data ?? raw) as Record<string, unknown>
+        const exp = Number(data.expected_cash ?? 0)
+        if (Number.isFinite(exp)) {
+          setExpectedCash(Math.round(exp * 100) / 100)
+          setClosingCash(exp.toFixed(2))
+        }
+      })
+      .catch(() => {
+        /* summary unavailable */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentShift?.backendTurnId])
 
   const [durationTick, setDurationTick] = useState(0)
 
@@ -364,22 +392,34 @@ export default function ShiftsTab(): ReactElement {
     setMessage(`Corte de turno exportado: ${shift.id}`)
   }
 
-  function applySuggestedExpectedCash(): void {
-    if (!currentShift) {
+  async function applySuggestedExpectedCash(): Promise<void> {
+    if (!currentShift?.backendTurnId) {
       setMessage('No hay turno abierto para proponer cierre.')
       return
     }
-    const scopedReconciliation =
-      reconciliation && reconciliation.shiftId === currentShift.id ? reconciliation : null
-    const base =
-      currentShift.openingCash +
-      (scopedReconciliation ? scopedReconciliation.cashSales : (currentShift.cashSales ?? 0))
-    setClosingCash(base.toFixed(2))
-    setMessage(
-      scopedReconciliation
-        ? 'Esperado ajustado con efectivo conciliado de backend.'
-        : 'Esperado ajustado con efectivo local del turno.'
-    )
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getTurnSummary(cfg, currentShift.backendTurnId)
+      const data = (raw.data ?? raw) as Record<string, unknown>
+      const exp = Number(data.expected_cash ?? 0)
+      if (Number.isFinite(exp)) {
+        setExpectedCash(Math.round(exp * 100) / 100)
+        setClosingCash(exp.toFixed(2))
+        setMessage(`Efectivo esperado: $${exp.toFixed(2)} (calculado por backend)`)
+      }
+    } catch {
+      // Fallback to local calculation
+      const scopedReconciliation =
+        reconciliation && reconciliation.shiftId === currentShift.id ? reconciliation : null
+      const base =
+        currentShift.openingCash +
+        (scopedReconciliation ? scopedReconciliation.cashSales : (currentShift.cashSales ?? 0))
+      setClosingCash(base.toFixed(2))
+      setMessage('Esperado ajustado con datos locales (backend no disponible).')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function loadBackendSummary(): Promise<void> {
@@ -441,7 +481,26 @@ export default function ShiftsTab(): ReactElement {
     }
   }
 
-  function printShiftCut(shift: ShiftRecord): void {
+  async function printShiftCut(shift: ShiftRecord): Promise<void> {
+    if (!shift.backendTurnId) {
+      setMessage('Sin ID de backend — no se puede imprimir.')
+      return
+    }
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      await printShiftReport(cfg, shift.backendTurnId)
+      setMessage(`Corte de turno #${shift.backendTurnId} enviado a impresora.`)
+    } catch {
+      // Fallback: browser print dialog
+      setMessage('Impresora no disponible — abriendo vista de impresion...')
+      printShiftCutBrowser(shift)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function printShiftCutBrowser(shift: ShiftRecord): void {
     const esc = (s: string): string =>
       s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     const scopedReconciliation =
@@ -496,14 +555,15 @@ export default function ShiftsTab(): ReactElement {
       setMessage('No se pudo abrir ventana de impresion. Verifica bloqueador de popups.')
       return
     }
-    popup.onload = () => { popup.focus(); popup.print() }
-    // Revoke blob URL after a delay to allow the popup to finish loading
+    popup.onload = () => {
+      popup.focus()
+      popup.print()
+    }
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
-    setMessage(`Reporte imprimible preparado para turno ${shift.id}.`)
   }
 
   return (
-    <div className="flex h-screen bg-[#09090b] font-sans text-slate-200 select-none overflow-y-auto">
+    <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-y-auto">
       <div className="max-w-7xl mx-auto w-full p-6 md:p-8 space-y-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -519,7 +579,7 @@ export default function ShiftsTab(): ReactElement {
           <div className="flex items-center gap-3">
             {selectedShift && (
               <button
-                onClick={() => printShiftCut(selectedShift)}
+                onClick={() => void printShiftCut(selectedShift)}
                 disabled={busy}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
               >
@@ -629,14 +689,22 @@ export default function ShiftsTab(): ReactElement {
                               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-8 pr-4 text-sm font-bold text-white focus:border-rose-500 focus:outline-none transition-colors"
                             />
                           </div>
+                          {expectedCash !== null && (
+                            <p className="text-xs text-emerald-400/70 mt-1">
+                              Esperado por sistema:{' '}
+                              <span className="font-mono font-bold">
+                                ${expectedCash.toFixed(2)}
+                              </span>
+                            </p>
+                          )}
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={applySuggestedExpectedCash}
+                            onClick={() => void applySuggestedExpectedCash()}
                             disabled={busy}
                             className="flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 py-2 rounded-xl text-xs font-bold text-zinc-400 transition-colors"
                           >
-                            Auto-Efectivo
+                            Recalcular
                           </button>
                           <button
                             onClick={() => void closeShift()}
