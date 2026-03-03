@@ -277,50 +277,38 @@ async def create_sale(
                 _calculate_item(item, locked_map) for item in body.items
             ]
 
-            # 4. Validate stock — aggregate demand per product
-            demand_by_pid: Dict[int, Decimal] = {}
+            # 4. Validate stock — aggregate ALL demand per product (direct + kit components)
+            unified_demand: Dict[int, Decimal] = {}
             for ci in calculated:
-                if ci.is_common or ci.is_kit or not ci.product_id:
+                if ci.is_common or not ci.product_id:
                     continue
-                prod = locked_map[ci.product_id]
-                sale_type = prod.get("sale_type", "unit") or "unit"
-                if sale_type in ("granel", "weight"):
-                    continue
-                demand_by_pid[ci.product_id] = demand_by_pid.get(ci.product_id, Decimal(0)) + ci.qty
+                if ci.is_kit:
+                    # Kit: accumulate demand for each component product
+                    for cr in kit_comp_rows:
+                        if cr["kit_product_id"] == ci.product_id:
+                            cid = cr["component_product_id"]
+                            unified_demand[cid] = unified_demand.get(cid, Decimal(0)) + Decimal(str(cr["quantity"])) * ci.qty
+                else:
+                    # Direct product: accumulate demand (skip granel/weight)
+                    prod = locked_map[ci.product_id]
+                    sale_type = prod.get("sale_type", "unit") or "unit"
+                    if sale_type in ("granel", "weight"):
+                        continue
+                    unified_demand[ci.product_id] = unified_demand.get(ci.product_id, Decimal(0)) + ci.qty
 
-            for pid, demanded in demand_by_pid.items():
-                prod = locked_map[pid]
+            for pid, demanded in unified_demand.items():
+                prod = locked_map.get(pid)
+                if not prod:
+                    continue
+                prod_sku = prod.get("sku", "") or ""
+                if prod_sku.startswith("COM-") or prod_sku.startswith("COMUN-"):
+                    continue
                 current_stock = Decimal(str(prod.get("stock", 0)))
                 if current_stock < demanded:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Stock insuficiente para '{prod['name']}'. "
                                f"Disponible: {current_stock}, Solicitado: {demanded}",
-                    )
-
-            # Validate kit component stock
-            comp_demand: Dict[int, Decimal] = {}
-            for ci in calculated:
-                if not ci.is_kit or not ci.product_id:
-                    continue
-                for cr in kit_comp_rows:
-                    if cr["kit_product_id"] == ci.product_id:
-                        cid = cr["component_product_id"]
-                        comp_demand[cid] = comp_demand.get(cid, Decimal(0)) + Decimal(str(cr["quantity"])) * ci.qty
-
-            for cid, demand in comp_demand.items():
-                child_prod = locked_map.get(cid)
-                if not child_prod:
-                    continue
-                child_sku = child_prod.get("sku", "") or ""
-                if child_sku.startswith("COM-") or child_sku.startswith("COMUN-"):
-                    continue
-                current_stock = Decimal(str(child_prod.get("stock", 0)))
-                if current_stock < demand:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Stock insuficiente para componente '{child_prod['name']}'. "
-                               f"Disponible: {current_stock}, Necesario: {demand}",
                     )
 
             # 5. Calculate totals from pre-calculated items (all quantized to 0.01)

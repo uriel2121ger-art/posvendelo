@@ -59,6 +59,7 @@ type PendingTicket = {
   paymentMethod: PaymentMethod
   globalDiscountPct: number
   cart: CartItem[]
+  wholesaleMode?: boolean
 }
 
 type ActiveTicketMeta = {
@@ -675,8 +676,9 @@ export default function Terminal(): ReactElement {
           const mergedQty = copy[_idx].qty + safeQty
           copy[_idx] = {
             ...copy[_idx],
+            price: effectivePrice,
             qty: mergedQty,
-            subtotal: calculateLineSubtotal(copy[_idx].price, mergedQty, copy[_idx].discountPct)
+            subtotal: calculateLineSubtotal(effectivePrice, mergedQty, copy[_idx].discountPct)
           }
           return copy
         }
@@ -832,7 +834,8 @@ export default function Terminal(): ReactElement {
         customerId
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
-      const saleTotal = saleData.total != null ? Number(saleData.total) : totals.total
+      const rawSaleTotal = Number(saleData.total)
+      const saleTotal = Number.isFinite(rawSaleTotal) && rawSaleTotal > 0 ? rawSaleTotal : totals.total
       const capturedChange = Math.max(0, effectiveReceived - saleTotal)
       setCart([])
       setGlobalDiscountPct(0)
@@ -929,7 +932,8 @@ export default function Terminal(): ReactElement {
       customerId,
       paymentMethod,
       globalDiscountPct,
-      cart
+      cart,
+      wholesaleMode
     }
     setPendingTickets((prev) => [pending, ...prev].slice(0, 30))
     setCart([])
@@ -956,10 +960,15 @@ export default function Terminal(): ReactElement {
         amountReceived
       }
     }))
-    // Look up current prices from products array; fall back to saved price if not found
+    // Restore wholesale mode from the saved ticket
+    const ticketWholesale = found.wholesaleMode ?? false
+    setWholesaleMode(ticketWholesale)
+    // Look up current prices from products array; respect wholesale flag
     const restoredCart = found.cart.map((item) => {
       const currentProduct = products.find((p) => p.sku === item.sku)
-      const currentPrice = currentProduct ? currentProduct.price : item.price
+      const currentPrice = currentProduct
+        ? (ticketWholesale && currentProduct.priceWholesale ? currentProduct.priceWholesale : currentProduct.price)
+        : item.price
       return {
         ...item,
         price: currentPrice,
