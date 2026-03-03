@@ -1074,6 +1074,9 @@ export default function Terminal(): ReactElement {
 
   useEffect((): (() => void) => {
     const onKeyDown = async (event: KeyboardEvent): Promise<void> => {
+      // Bloquear atajos si no estamos estrictamente en la pestaña de Terminal
+      if (window.location.hash !== '#/terminal') return
+
       // Permitir la navegación natural (Tab, Flechas) si hay un modal abierto
       if (document.getElementById('checkout-modal') || document.querySelector('[role="dialog"]')) {
         if (event.key === 'Escape' && isCheckoutModalOpen) {
