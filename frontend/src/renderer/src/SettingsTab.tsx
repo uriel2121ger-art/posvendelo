@@ -139,7 +139,11 @@ export default function SettingsTab(): ReactElement {
     if (!found) return
     setForm({ baseUrl: found.baseUrl, token: found.token, terminalId: found.terminalId })
     setProfileName(found.name)
-    setMessage(`Perfil cargado: ${found.name}`)
+    if (!found.token) {
+      setMessage(`Perfil cargado: ${found.name}. Token vacio — ingresa tu token antes de guardar.`)
+    } else {
+      setMessage(`Perfil cargado: ${found.name}`)
+    }
   }
 
   async function deleteProfile(): Promise<void> {
@@ -158,8 +162,10 @@ export default function SettingsTab(): ReactElement {
   async function testConnection(): Promise<void> {
     setBusy(true)
     try {
-      const info = await getSystemInfo(form)
-      const syncStatus = await getSyncStatus(form)
+      const savedCfg = loadRuntimeConfig()
+      const testCfg = { ...savedCfg, baseUrl: form.baseUrl, terminalId: form.terminalId }
+      const info = await getSystemInfo(testCfg)
+      const syncStatus = await getSyncStatus(testCfg)
       setSystemInfo(info)
       setLastStatus(syncStatus)
       setMessage('Conexion correcta con backend y estado de sync obtenido.')

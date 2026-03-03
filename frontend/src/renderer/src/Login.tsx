@@ -84,7 +84,7 @@ export default function Login(): ReactElement {
       navigate('/terminal')
     } catch (err) {
       setError(
-        err instanceof TypeError
+        err instanceof TypeError || (err instanceof DOMException && err.name === 'AbortError')
           ? 'No se puede conectar al servidor. Verifica que esté encendido.'
           : 'Error inesperado. Intenta de nuevo.'
       )
