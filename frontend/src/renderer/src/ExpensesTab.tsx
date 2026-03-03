@@ -53,13 +53,13 @@ export default function ExpensesTab(): ReactElement {
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (submitting) return
-    const numAmount = parseFloat(amount)
+    const numAmount = Math.round(parseFloat(amount) * 100) / 100
     if (!readCurrentShift()?.backendTurnId) {
       setError('No hay turno abierto. Abre uno en la pestana Turnos (F5) antes de registrar gastos.')
       return
     }
-    if (!Number.isFinite(numAmount) || numAmount <= 0) {
-      setError('Ingresa un monto válido mayor a 0')
+    if (!Number.isFinite(numAmount) || numAmount < 0.01) {
+      setError('Ingresa un monto válido (minimo $0.01)')
       return
     }
     if (!description.trim()) {
@@ -73,7 +73,7 @@ export default function ExpensesTab(): ReactElement {
     try {
       const cfg = loadRuntimeConfig()
       await registerExpense(cfg, {
-        amount: Math.round(numAmount * 100) / 100,
+        amount: numAmount,
         description: description.trim(),
         reason: reason.trim() || undefined
       })

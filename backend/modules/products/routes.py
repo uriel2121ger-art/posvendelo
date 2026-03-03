@@ -29,7 +29,7 @@ _CASHIER_PRODUCT_COLS = (
 
 
 # ============================================================================
-# READ endpoints (existentes)
+# READ endpoints — static paths MUST be registered before /{product_id}
 # ============================================================================
 
 @router.get("/")
@@ -101,6 +101,46 @@ async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=De
     return {"success": True, "data": row}
 
 
+@router.get("/scan/{sku}")
+async def scan_product(sku: str, auth: dict = Depends(verify_token), db=Depends(get_db)):
+    """Scan barcode — exact match then fuzzy ILIKE fallback."""
+    product = await db.fetchrow(
+        "SELECT id, sku, name, price, stock FROM products WHERE (sku = :sku OR barcode = :sku) AND is_active = 1",
+        {"sku": sku},
+    )
+    if product:
+        return {
+            "success": True,
+            "data": {"found": True, "product": dict(product)},
+        }
+
+    suggestions = await db.fetch(
+        """SELECT id, sku, name, stock FROM products
+           WHERE is_active = 1 AND (sku ILIKE :q OR name ILIKE :q OR barcode ILIKE :q)
+           LIMIT 5""",
+        {"q": f"%{escape_like(sku)}%"},
+    )
+    return {
+        "success": True,
+        "data": {"found": False, "suggestions": suggestions},
+    }
+
+
+@router.get("/categories/list")
+async def list_categories(auth: dict = Depends(verify_token), db=Depends(get_db)):
+    """List unique product categories."""
+    rows = await db.fetch(
+        """SELECT DISTINCT category FROM products
+           WHERE category IS NOT NULL AND category != '' AND is_active = 1
+           ORDER BY category"""
+    )
+    return {
+        "success": True,
+        "data": [r["category"] for r in rows],
+    }
+
+
+# Dynamic path — MUST be after all static GET paths to avoid shadowing
 @router.get("/{product_id}")
 async def get_product(product_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get product by ID. Cashiers don't see cost columns."""
@@ -274,31 +314,6 @@ async def delete_product(
 # EXTENDED endpoints (Fase B — migrated from mobile_api.py)
 # ============================================================================
 
-@router.get("/scan/{sku}")
-async def scan_product(sku: str, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Scan barcode — exact match then fuzzy ILIKE fallback."""
-    product = await db.fetchrow(
-        "SELECT id, sku, name, price, stock FROM products WHERE (sku = :sku OR barcode = :sku) AND is_active = 1",
-        {"sku": sku},
-    )
-    if product:
-        return {
-            "success": True,
-            "data": {"found": True, "product": dict(product)},
-        }
-
-    suggestions = await db.fetch(
-        """SELECT id, sku, name, stock FROM products
-           WHERE is_active = 1 AND (sku ILIKE :q OR name ILIKE :q OR barcode ILIKE :q)
-           LIMIT 5""",
-        {"q": f"%{escape_like(sku)}%"},
-    )
-    return {
-        "success": True,
-        "data": {"found": False, "suggestions": suggestions},
-    }
-
-
 @router.post("/stock")
 async def update_stock_remote(
     body: StockUpdateRemote,
@@ -407,20 +422,6 @@ async def update_price_remote(
             "old_price": old_price,
             "new_price": body.new_price,
         },
-    }
-
-
-@router.get("/categories/list")
-async def list_categories(auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """List unique product categories."""
-    rows = await db.fetch(
-        """SELECT DISTINCT category FROM products
-           WHERE category IS NOT NULL AND category != '' AND is_active = 1
-           ORDER BY category"""
-    )
-    return {
-        "success": True,
-        "data": [r["category"] for r in rows],
     }
 
 
