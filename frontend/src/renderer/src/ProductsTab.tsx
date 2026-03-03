@@ -2,8 +2,8 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from './components/ConfirmDialog'
-import { Search, Plus, Package, X, AlertCircle, RefreshCw, PackageOpen, Edit2 } from 'lucide-react'
-import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, scanProduct, getLowStockProducts } from './posApi'
+import { Search, Plus, X, AlertCircle, RefreshCw, PackageOpen, Edit2 } from 'lucide-react'
+import { loadRuntimeConfig, pullTable, syncTable, getProductCategories, getLowStockProducts } from './posApi'
 
 type Product = {
   id?: number | string
@@ -50,13 +50,10 @@ export default function ProductsTab(): ReactElement {
     'Productos (F3): carga, alta, edicion y baja logica funcional.'
   )
   const requestIdRef = useRef(0)
-    const scanInputRef = useRef<HTMLInputElement>(null)
-  const lastScanEnterRef = useRef(0)
   const skuFormRef = useRef<HTMLInputElement>(null)
   const nameFormRef = useRef<HTMLInputElement>(null)
-    const [categories, setCategories] = useState<string[]>([])
+  const [categories, setCategories] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [scanSku, setScanSku] = useState('')
   const [lowStock, setLowStock] = useState<Record<string, unknown>[]>([])
   const [showLowStock, setShowLowStock] = useState(false)
 

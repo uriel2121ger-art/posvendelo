@@ -361,7 +361,7 @@ async def open_drawer_for_sale(
         await printer_svc.open_drawer(drawer_printer, pulse)
     except Exception as e:
         logger.warning("Non-fatal drawer open error: %s", e)
-        return {"success": True, "data": {"message": f"Error abriendo cajon: {e}", "opened": False}}
+        return {"success": True, "data": {"message": "Error abriendo cajon. Verifique la conexion.", "opened": False}}
 
     try:
         await db.execute(

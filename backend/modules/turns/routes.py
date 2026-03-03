@@ -302,6 +302,7 @@ async def create_cash_movement(
     # Verify manager PIN for non-manager roles (bcrypt preferred, SHA-256 fallback)
     import bcrypt
     import hashlib
+    import hmac
     need_pin_check = False
     if not is_manager:
         if not body.manager_pin:
@@ -329,7 +330,11 @@ async def create_cash_movement(
                             mgr_check = row
                             break
                     else:
-                        if hashlib.sha256(body.manager_pin.encode()).hexdigest() == stored:
+                        # Timing-safe comparison for SHA-256 legacy hashes
+                        if hmac.compare_digest(
+                            hashlib.sha256(body.manager_pin.encode()).hexdigest(),
+                            stored,
+                        ):
                             mgr_check = row
                             break
                 except Exception:

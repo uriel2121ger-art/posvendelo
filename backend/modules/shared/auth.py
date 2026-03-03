@@ -45,9 +45,10 @@ def _is_revoked(jti: str) -> bool:
 
 
 def _cleanup_revoked() -> None:
-    """Periodic cleanup is not strictly needed since JWTs expire, but caps memory."""
+    """Periodic cleanup caps memory. Only triggers on extreme growth."""
     with _revoked_lock:
         if len(_revoked_jtis) > 10000:
+            logger.warning("JTI revocation set exceeded 10000 entries — clearing stale entries")
             _revoked_jtis.clear()
 
 # ---------------------------------------------------------------------------

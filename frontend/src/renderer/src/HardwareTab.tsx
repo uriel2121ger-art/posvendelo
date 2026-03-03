@@ -1,5 +1,4 @@
 import type { ReactElement } from 'react'
-import TopNavbar from './components/TopNavbar'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Printer, ScanBarcode, DoorOpen, Building2, RefreshCw } from 'lucide-react'
 import {
@@ -132,7 +131,7 @@ export default function HardwareTab(): ReactElement {
   if (!hw) {
     return (
       <div className="flex flex-col min-h-screen bg-zinc-950 text-slate-200">
-        <TopNavbar />
+
         <div className="flex-1 flex items-center justify-center">
           <p className="text-zinc-500">Cargando configuracion de hardware...</p>
         </div>
@@ -142,7 +141,7 @@ export default function HardwareTab(): ReactElement {
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-950 text-slate-200">
-      <TopNavbar />
+
       <div className="flex-1 overflow-y-auto p-4 md:p-6 max-w-4xl mx-auto w-full">
         <h1 className="text-xl font-bold mb-4">Configuracion de Hardware</h1>
 

@@ -174,7 +174,8 @@ async def search_sat_codes(db, query: str, limit: int = 50) -> List[Dict[str, An
     """Search sat_clave_prod_serv by clave or descripcion using ILIKE."""
     if not query or len(query) < 2:
         return []
-    like = f"%{query.strip()}%"
+    from db.connection import escape_like
+    like = f"%{escape_like(query.strip())}%"
     rows = await db.fetch(
         "SELECT clave, descripcion FROM sat_clave_prod_serv "
         "WHERE clave ILIKE :q OR descripcion ILIKE :q "

@@ -633,6 +633,7 @@ async def cancel_sale(
     # Validate manager PIN (bcrypt preferred, SHA-256 fallback for legacy hashes)
     import bcrypt
     import hashlib
+    import hmac
 
     async with get_connection() as db:
         conn = db.connection
@@ -651,8 +652,11 @@ async def cancel_sale(
                             mgr_check = row
                             break
                     else:
-                        # Fallback: SHA-256 legacy hash
-                        if hashlib.sha256(body.manager_pin.encode()).hexdigest() == stored:
+                        # Fallback: SHA-256 legacy hash (timing-safe comparison)
+                        if hmac.compare_digest(
+                            hashlib.sha256(body.manager_pin.encode()).hexdigest(),
+                            stored,
+                        ):
                             mgr_check = row
                             break
                 except Exception:
@@ -905,7 +909,7 @@ async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(
     user_id = auth.get("sub")
     if role == "cashier":
         sale_row = await db.fetchrow(
-            "SELECT * FROM sales WHERE id = :id AND cashier_id = :uid",
+            "SELECT * FROM sales WHERE id = :id AND user_id = :uid",
             {"id": sale_id, "uid": int(user_id)},
         )
     else:
@@ -933,7 +937,9 @@ async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(
 
 @router.get("/{sale_id}/events")
 async def get_sale_events(sale_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get event sourcing events for a sale."""
+    """Get event sourcing events for a sale. Requires manager+ role."""
+    if auth.get("role") not in ("admin", "manager", "owner"):
+        raise HTTPException(status_code=403, detail="Sin permisos para ver eventos de venta")
     rows = await db.fetch(
         """
         SELECT event_id, event_type, sequence, data, user_id, timestamp

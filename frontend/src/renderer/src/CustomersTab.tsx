@@ -129,7 +129,7 @@ export default function CustomersTab(): ReactElement {
       if (isUpdate) {
         // Update via sync (selectedId is a real DB id)
         const customer = {
-          id: selectedId,
+          id: selectedId as string | number,
           name: trimmedName,
           phone: phone.trim(),
           email: email.trim(),
@@ -281,7 +281,7 @@ export default function CustomersTab(): ReactElement {
     <div className="flex h-screen bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        
+
         {/* Header Area */}
         <div className="px-8 py-6 border-b border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
           <div>
@@ -399,12 +399,12 @@ export default function CustomersTab(): ReactElement {
 
       {/* Drawer Overlay */}
       {isDrawerOpen && (
-         <div 
+         <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity flex justify-end"
             onClick={() => setIsDrawerOpen(false)}
          >
             {/* Drawer Panel */}
-            <div 
+            <div
                className="w-[480px] bg-zinc-950 border-l border-zinc-800 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0 cursor-default"
                onClick={e => e.stopPropagation()}
             >
@@ -455,7 +455,7 @@ export default function CustomersTab(): ReactElement {
                   {selectedId && (
                      <>
                         <div className="h-px bg-zinc-900 w-full" />
-                        
+
                         <div className="grid grid-cols-2 gap-3">
                            <button
                               onClick={() => (showCredit ? setShowCredit(false) : void loadCredit(selectedId))}
