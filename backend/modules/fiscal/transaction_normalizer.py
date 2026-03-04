@@ -5,10 +5,13 @@ Rompe patrones para engañar algoritmos mediante Historical Behavioral Cloning.
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
+from decimal import Decimal
 import logging
 import secrets
 import threading
 import time
+
+from modules.shared.constants import money
 
 _rng = secrets.SystemRandom()
 
@@ -48,7 +51,7 @@ class FiscalNoiseGenerator:
                 return {'daily_noise_target': 3}
             
             real_count = result[0]['count'] or 0
-            real_total = round(float(result[0]['total'] or 0), 2)
+            real_total = money(result[0]['total'])
             
             noise_ratio = _rng.uniform(0.05, 0.15)
             optimal_noise_count = int(real_count * noise_ratio)
@@ -109,7 +112,7 @@ class FiscalNoiseGenerator:
         
         product = _rng.choice(products)
         qty = _rng.choice([1, 1, 1, 2, 2, 3])
-        total = round(float(product['price']), 2) * qty
+        total = money(product['price']) * qty
         
         hour = await self._select_weighted_hour()
         

@@ -5,7 +5,10 @@ Art. 32-F del Código Fiscal de la Federación
 
 from typing import Any, Dict, List
 from datetime import datetime
+from decimal import Decimal
 import logging
+
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +44,10 @@ class MaterialityEngine:
                 )
                 if not p:
                     return {'success': False, 'error': 'Producto no encontrado'}
-                if float(p['stock'] or 0) < quantity:
+                if Decimal(str(p['stock'] or 0)) < Decimal(str(quantity)):
                     return {'success': False, 'error': 'Stock insuficiente para merma'}
 
-                unit_cost = round(float(p['price'] or 0) * 0.7, 2)
+                unit_cost = float((Decimal(str(p['price'] or 0)) * Decimal("0.7")).quantize(Decimal("0.01")))
                 total_value = unit_cost * quantity
                 acta_number = await self._generate_acta_number()
 
@@ -115,5 +118,5 @@ Estado: {r['status'].upper()}"""
         """, year=year)
 
         by_category = {r['category']: dict(r) for r in result}
-        total_valor = round(sum(round(float(r['valor'] or 0), 2) for r in result), 2)
+        total_valor = money(sum(Decimal(str(r['valor'] or 0)) for r in result))
         return {'year': year, 'by_category': by_category, 'total_value': total_valor, 'total_records': sum(r['registros'] for r in result)}

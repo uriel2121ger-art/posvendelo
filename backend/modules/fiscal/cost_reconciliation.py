@@ -4,7 +4,10 @@ Smart Merge Inventory - Conciliación Inteligente de Costos A/B
 
 from typing import Any, Dict, List
 from datetime import datetime
+from decimal import Decimal
 import logging
+
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +83,8 @@ class SmartMerge:
         if not p:
             return
 
-        cost_a, cost_b = round(float(p['cost_a'] or 0), 2), round(float(p['cost_b'] or 0), 2)
-        qty_a, qty_b = float(p['qty_from_a'] or 0), float(p['qty_from_b'] or 0)
+        cost_a, cost_b = money(p['cost_a']), money(p['cost_b'])
+        qty_a, qty_b = money(p['qty_from_a']), money(p['qty_from_b'])
         total_qty = qty_a + qty_b
 
         if total_qty > 0:
@@ -93,12 +96,12 @@ class SmartMerge:
         if not p:
             return {'found': False}
 
-        cost_a, cost_b, cost_real, price = round(float(p['cost_a'] or 0), 2), round(float(p['cost_b'] or 0), 2), round(float(p['cost'] or 0), 2), round(float(p['price'] or 0), 2)
+        cost_a, cost_b, cost_real, price = money(p['cost_a']), money(p['cost_b']), money(p['cost']), money(p['price'])
 
         return {
-            'found': True, 'name': p['name'], 'sku': p['sku'], 'stock': round(float(p['stock'] or 0), 2),
+            'found': True, 'name': p['name'], 'sku': p['sku'], 'stock': money(p['stock']),
             'cost_a': cost_a, 'cost_b': cost_b, 'cost_blended': cost_real,
-            'qty_from_a': round(float(p['qty_from_a'] or 0), 2), 'qty_from_b': round(float(p['qty_from_b'] or 0), 2),
+            'qty_from_a': money(p['qty_from_a']), 'qty_from_b': money(p['qty_from_b']),
             'margin_fiscal': ((price - cost_a) / price * 100) if price > 0 else 0,
             'margin_real': ((price - cost_real) / price * 100) if price > 0 else 0,
             'savings': cost_a - cost_b if cost_a > cost_b else 0
@@ -108,12 +111,12 @@ class SmartMerge:
         p = await self.db.fetchrow("SELECT cost_a, cost FROM products WHERE id = :pid", pid=product_id)
         if not p:
             return 0
-        cost_a = round(float(p['cost_a'] or 0), 2)
-        return cost_a if cost_a > 0 else round(float(p['cost'] or 0), 2)
+        cost_a = money(p['cost_a'])
+        return cost_a if cost_a > 0 else money(p['cost'])
 
     async def get_real_cost(self, product_id: int) -> float:
         p = await self.db.fetchrow("SELECT cost FROM products WHERE id = :pid", pid=product_id)
-        return round(float(p['cost'] or 0), 2) if p else 0
+        return money(p['cost']) if p else 0
 
     async def calculate_fiscal_vs_real_profit(self, sale_id: int) -> Dict[str, Any]:
         items = await self.db.fetch("""
@@ -123,9 +126,9 @@ class SmartMerge:
 
         total_revenue, total_cost_fiscal, total_cost_real = 0.0, 0.0, 0.0
         for item in items:
-            qty, price = round(float(item['qty'] or 0), 2), round(float(item['price'] or 0), 2)
-            cost_real = round(float(item['cost'] or 0), 2)
-            cost_a = round(float(item['cost_a'] or cost_real), 2)
+            qty, price = money(item['qty']), money(item['price'])
+            cost_real = money(item['cost'])
+            cost_a = money(item['cost_a'] if item['cost_a'] else cost_real)
             total_revenue += qty * price
             total_cost_fiscal += qty * cost_a
             total_cost_real += qty * cost_real
@@ -143,9 +146,9 @@ class SmartMerge:
 
         total_fiscal, total_real = 0.0, 0.0
         for p in products:
-            stock = round(float(p['stock'] or 0), 2)
-            total_fiscal += stock * round(float(p['cost_a'] or 0), 2)
-            total_real += stock * round(float(p['cost'] or 0), 2)
+            stock = money(p['stock'])
+            total_fiscal += stock * money(p['cost_a'])
+            total_real += stock * money(p['cost'])
 
         return {
             'products_with_dual_cost': len(products),

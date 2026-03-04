@@ -6,12 +6,12 @@ import {
   Plus,
   Search as SearchIcon,
   ShoppingCart as ShoppingCartIcon,
-  Eye,
-  EyeOff,
-  Settings2,
   CheckCircle2,
   Users,
-  X as XIcon
+  X as XIcon,
+  Banknote,
+  CreditCard,
+  Landmark
 } from 'lucide-react'
 import {
   type RuntimeConfig,
@@ -247,24 +247,6 @@ export default function Terminal(): ReactElement {
   const checkoutModalRef = useRef<HTMLDivElement>(null)
   useFocusTrap(checkoutModalRef, isCheckoutModalOpen)
 
-  const [showQuickCatalog, setShowQuickCatalog] = useState(() => {
-    const saved = localStorage.getItem('titan.showQuickCatalog')
-    return saved ? saved === 'true' : true
-  })
-  const [quickCatalogSkus, setQuickCatalogSkus] = useState<string[]>(() => {
-    const saved = localStorage.getItem('titan.quickCatalogSkus')
-    return saved ? JSON.parse(saved) : []
-  })
-  const [isEditingQuickCatalog, setIsEditingQuickCatalog] = useState(false)
-
-  useEffect(() => {
-    localStorage.setItem('titan.showQuickCatalog', String(showQuickCatalog))
-  }, [showQuickCatalog])
-
-  useEffect(() => {
-    localStorage.setItem('titan.quickCatalogSkus', JSON.stringify(quickCatalogSkus))
-  }, [quickCatalogSkus])
-
   useEffect((): void => {
     saveRuntimeConfig(config)
   }, [config])
@@ -468,16 +450,12 @@ export default function Terminal(): ReactElement {
   const filtered = useMemo((): Product[] => {
     const q = query.trim().toLowerCase()
     if (!q) {
-      if (!showQuickCatalog && !isEditingQuickCatalog) return []
-      if (quickCatalogSkus.length > 0 && !isEditingQuickCatalog) {
-        return products.filter((p) => quickCatalogSkus.includes(p.sku)).slice(0, 100)
-      }
-      return products.slice(0, 40)
+      return []
     }
     return products
       .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
-      .slice(0, 40)
-  }, [products, query, quickCatalogSkus, showQuickCatalog, isEditingQuickCatalog])
+      .slice(0, 50)
+  }, [products, query])
 
   const totals = useMemo((): {
     subtotalBeforeDiscount: number
@@ -1227,9 +1205,9 @@ export default function Terminal(): ReactElement {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200">
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Panel: Ticket (35% width, max 450px) */}
-        <div className="w-full md:w-[35%] max-w-[450px] flex flex-col bg-zinc-950 border-r border-zinc-900 z-10 shadow-[4px_0_24px_rgba(0,0,0,0.5)]">
+      <div className="flex flex-1 overflow-hidden bg-zinc-950 lg:p-4 justify-center">
+        {/* Single Centered Terminal Panel */}
+        <div className="w-full max-w-[1200px] flex flex-col bg-zinc-950 border-x lg:border border-zinc-900 rounded-none lg:rounded-3xl z-10 shadow-[0_0_80px_rgba(0,0,0,0.5)] relative overflow-hidden">
           {/* Ticket Header (Shift + Ticket Actions) */}
           <div className="p-4 border-b border-zinc-900 bg-zinc-950 shrink-0 flex items-center justify-between">
             {/* Ticket tabs/selector */}
@@ -1294,8 +1272,141 @@ export default function Terminal(): ReactElement {
             </div>
           </div>
 
+          {/* Top Search Bar (Integrated) */}
+          <div className="p-4 shrink-0 border-b border-zinc-900/50 bg-[#09090b] relative z-30 shadow-md">
+            <div className="relative w-full flex items-center gap-2">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <input
+                  ref={searchInputRef}
+                  autoFocus
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-12 text-lg font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+                  placeholder="Buscar producto o escanear (F10)..."
+                  value={query}
+                  onChange={(e) => {
+                    lastKeystrokeRef.current = Date.now()
+                    // eslint-disable-next-line no-control-regex
+                    setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      e.stopPropagation()
+
+                      const now = Date.now()
+                      if (now - lastEnterRef.current < 150) return
+                      lastEnterRef.current = now
+
+                      if (!query.trim()) return
+
+                      let scannerMinSpeed = 50
+                      let scannerPrefix = ''
+                      let scannerSuffix = ''
+                      let isScanner = false
+                      try {
+                        const hwRaw = localStorage.getItem('titan.hwConfig')
+                        if (hwRaw) {
+                          const hwCfg = JSON.parse(hwRaw)
+                          if (!hwCfg || typeof hwCfg !== 'object')
+                            throw new Error('invalid hwConfig')
+                          if (hwCfg.scanner?.enabled) {
+                            scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
+                            scannerPrefix = hwCfg.scanner.prefix || ''
+                            scannerSuffix = hwCfg.scanner.suffix || ''
+                            const elapsed = now - lastKeystrokeRef.current
+                            if (elapsed < scannerMinSpeed && query.trim().length > 2) {
+                              isScanner = true
+                            }
+                          }
+                        }
+                      } catch {
+                        /* parse error */
+                      }
+
+                      let searchTerm = query.trim()
+                      if (isScanner) {
+                        if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
+                          searchTerm = searchTerm.slice(scannerPrefix.length)
+                        }
+                        if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
+                          searchTerm = searchTerm.slice(0, -scannerSuffix.length)
+                        }
+                        const exact = products.find(
+                          (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
+                        )
+                        if (exact) {
+                          addProduct(exact)
+                          setQuery('')
+                          searchInputRef.current?.focus()
+                          return
+                        }
+                      }
+                      if (firstMatch) {
+                        addProduct(firstMatch)
+                        setQuery('')
+                        searchInputRef.current?.focus()
+                      }
+                      return
+                    }
+                  }}
+                />
+                {wholesaleMode && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-amber-500 text-amber-950 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse">
+                    Mayoreo
+                  </div>
+                )}
+
+                {/* Embedded Search Results Dropdown */}
+                {query.trim() && (
+                  <div className="absolute top-[calc(100%+8px)] left-0 right-0 bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] max-h-[50vh] overflow-y-auto z-[60] backdrop-blur-md">
+                    {filtered.length === 0 ? (
+                      <div className="p-4 text-center text-zinc-500 text-sm">
+                        Ningún producto coincide con &quot;{query}&quot;
+                      </div>
+                    ) : (
+                      <div className="flex flex-col">
+                        {filtered.slice(0, 50).map((p) => (
+                          <button
+                            key={p.sku}
+                            onClick={() => {
+                              addProduct(p)
+                              setQuery('')
+                              searchInputRef.current?.focus()
+                            }}
+                            className="flex items-center justify-between p-3 border-b border-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
+                          >
+                            <div>
+                              <div className="text-sm font-semibold text-zinc-200 group-hover:text-blue-400 transition-colors">{p.name}</div>
+                              <div className="text-xs text-zinc-500 font-mono mt-0.5">{p.sku}</div>
+                            </div>
+                            <div className="text-right flex flex-col items-end">
+                              <div className="text-emerald-400 font-bold">${p.price.toFixed(2)}</div>
+                              {p.stock !== undefined && (
+                                <div className={`text-[10px] uppercase font-bold mt-1 px-1.5 py-0.5 rounded ${p.stock <= p.minStock ? 'bg-rose-500/20 text-rose-500' : 'bg-zinc-800 text-zinc-500'}`}>
+                                  Stock: {p.stock}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={saveCurrentAsPending}
+                disabled={cart.length === 0}
+                className="hidden sm:flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-6 py-4 rounded-2xl transition-colors shrink-0 disabled:opacity-30 disabled:hover:bg-zinc-800 whitespace-nowrap"
+                title="Pausar y guardar ticket pendiente"
+              >
+                Pausar Compra
+              </button>
+            </div>
+          </div>
+
           {/* Cart Items List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 relative hide-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 relative hide-scrollbar z-10">
             {cart.length === 0 ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600">
                 <ShoppingCartIcon className="w-12 h-12 mb-3 opacity-20" />
@@ -1491,216 +1602,6 @@ export default function Terminal(): ReactElement {
               {busy ? 'Procesando...' : 'COBRAR'}
             </button>
           </div>
-        </div>
-
-        {/* Right Panel: Action Area (Products Grid & Search) */}
-        <div className="flex-1 flex flex-col bg-[#09090b] relative">
-          {/* Top Search Bar */}
-          <div className="p-6 pb-2 shrink-0 border-b border-zinc-900/50">
-            <div className="relative max-w-2xl mx-auto flex items-center gap-2">
-              <div className="relative flex-1">
-                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-                <input
-                  ref={searchInputRef}
-                  autoFocus
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-12 text-lg font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
-                  placeholder="Buscar producto o escanear (F10)..."
-                  value={query}
-                  onChange={(e) => {
-                    lastKeystrokeRef.current = Date.now()
-                    // eslint-disable-next-line no-control-regex
-                    setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      e.stopPropagation()
-
-                      const now = Date.now()
-                      if (now - lastEnterRef.current < 150) return
-                      lastEnterRef.current = now
-
-                      if (!query.trim()) return
-
-                      let scannerMinSpeed = 50
-                      let scannerPrefix = ''
-                      let scannerSuffix = ''
-                      let isScanner = false
-                      try {
-                        const hwRaw = localStorage.getItem('titan.hwConfig')
-                        if (hwRaw) {
-                          const hwCfg = JSON.parse(hwRaw)
-                          if (!hwCfg || typeof hwCfg !== 'object')
-                            throw new Error('invalid hwConfig')
-                          if (hwCfg.scanner?.enabled) {
-                            scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
-                            scannerPrefix = hwCfg.scanner.prefix || ''
-                            scannerSuffix = hwCfg.scanner.suffix || ''
-                            const elapsed = now - lastKeystrokeRef.current
-                            if (elapsed < scannerMinSpeed && query.trim().length > 2) {
-                              isScanner = true
-                            }
-                          }
-                        }
-                      } catch {
-                        /* parse error */
-                      }
-
-                      let searchTerm = query.trim()
-                      if (isScanner) {
-                        if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
-                          searchTerm = searchTerm.slice(scannerPrefix.length)
-                        }
-                        if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
-                          searchTerm = searchTerm.slice(0, -scannerSuffix.length)
-                        }
-                        const exact = products.find(
-                          (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
-                        )
-                        if (exact) {
-                          addProduct(exact)
-                          setQuery('')
-                          searchInputRef.current?.focus()
-                          return
-                        }
-                      }
-                      if (firstMatch) {
-                        addProduct(firstMatch)
-                        setQuery('')
-                        searchInputRef.current?.focus()
-                      }
-                      return
-                    }
-                  }}
-                />
-                {wholesaleMode && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-amber-500 text-amber-950 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse">
-                    Mayoreo
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={saveCurrentAsPending}
-                disabled={cart.length === 0}
-                className="hidden sm:flex items-center gap-2 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-4 rounded-2xl transition-colors shrink-0 disabled:opacity-30 disabled:hover:bg-zinc-800/80"
-                title="Guardar Ticket Pendiente"
-              >
-                Pausar
-              </button>
-            </div>
-          </div>
-
-          {/* Products Grid (Results or Top Products) */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 pb-24 relative">
-            <div className="max-w-[1400px] mx-auto">
-              <div className="flex items-center justify-between mb-4 px-1">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-sm font-bold tracking-wide text-zinc-400 uppercase">
-                    {isEditingQuickCatalog
-                      ? 'Edición: Catálogo'
-                      : query.trim()
-                        ? 'Resultados de Búsqueda'
-                        : 'Catálogo Rápido'}
-                  </h2>
-                  {!query.trim() && (
-                    <div className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => setShowQuickCatalog(!showQuickCatalog)}
-                        title={showQuickCatalog ? 'Ocultar Catálogo' : 'Mostrar Catálogo'}
-                        className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
-                      >
-                        {showQuickCatalog ? (
-                          <Eye className="w-4 h-4" />
-                        ) : (
-                          <EyeOff className="w-4 h-4" />
-                        )}
-                      </button>
-                      {showQuickCatalog && (
-                        <button
-                          onClick={() => {
-                            setIsEditingQuickCatalog(!isEditingQuickCatalog)
-                            setQuery('')
-                          }}
-                          title={isEditingQuickCatalog ? 'Guardar Cambios' : 'Editar Favoritos'}
-                          className={`p-1 rounded hover:bg-zinc-800 ${isEditingQuickCatalog ? 'text-blue-400' : 'text-zinc-400'}`}
-                        >
-                          <Settings2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs text-zinc-600 font-medium">
-                  {isEditingQuickCatalog
-                    ? `${quickCatalogSkus.length} favoritos`
-                    : `${filtered.length} items`}
-                </span>
-              </div>
-
-              {filtered.length === 0 ? (
-                <div className="text-zinc-500 mt-20 text-center font-medium">
-                  {showQuickCatalog || isEditingQuickCatalog || query.trim()
-                    ? `Ningún producto coincide con "${query}"`
-                    : 'Catálogo Rápido Oculto'}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 lg:gap-4">
-                  {filtered.map((p) => {
-                    const isSelected = isEditingQuickCatalog && quickCatalogSkus.includes(p.sku)
-                    return (
-                      <button
-                        key={p.sku}
-                        onClick={() => {
-                          if (isEditingQuickCatalog) {
-                            setQuickCatalogSkus((prev) =>
-                              prev.includes(p.sku)
-                                ? prev.filter((s) => s !== p.sku)
-                                : [...prev, p.sku]
-                            )
-                          } else {
-                            addProduct(p)
-                            setQuery('')
-                            searchInputRef.current?.focus()
-                          }
-                        }}
-                        className={`flex flex-col text-left p-4 rounded-2xl transition-all group ${
-                          isSelected
-                            ? 'bg-blue-900/30 border border-blue-500/50 hover:bg-blue-900/40 relative'
-                            : 'bg-zinc-900/60 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-600 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 active:scale-95'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-2 w-full">
-                          <div
-                            className={`font-semibold text-xs lg:text-sm line-clamp-2 leading-snug transition-colors ${isSelected ? 'text-blue-300' : 'text-zinc-300 group-hover:text-blue-400'}`}
-                          >
-                            {p.name}
-                          </div>
-                          {isSelected && (
-                            <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 ml-2" />
-                          )}
-                        </div>
-                        <div className="mt-auto pt-3 flex items-end justify-between w-full border-t border-zinc-800/50">
-                          <div className="font-black text-emerald-400 text-base xl:text-lg">
-                            ${p.price.toFixed(2)}
-                          </div>
-                          <div className="text-[10px] font-mono text-zinc-600 truncate max-w-[50%]">
-                            {p.sku.substring(0, 6)}
-                          </div>
-                        </div>
-                        {p.stock !== undefined && (
-                          <div
-                            className={`mt-2 text-[9px] font-bold uppercase tracking-wider ${p.stock <= 5 ? 'text-rose-500' : 'text-zinc-600'}`}
-                          >
-                            Stock: {p.stock} uds
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Keyboard Shortcuts Overlay (Bottom Right) */}
           <div className="absolute bottom-6 right-6 hidden md:flex items-center gap-2 pointer-events-none">
@@ -1720,145 +1621,150 @@ export default function Terminal(): ReactElement {
 
           {/* Message Toast (Bottom Left) */}
           {message && message !== 'Cargando productos...' && (
-            <div className="absolute bottom-6 left-6 max-w-sm pointer-events-none">
+            <div className="absolute bottom-6 left-6 max-w-sm pointer-events-none z-50">
               <div className="bg-zinc-900/90 backdrop-blur border border-zinc-700/50 shadow-2xl text-zinc-300 text-xs font-semibold px-4 py-3 rounded-xl">
                 {message}
               </div>
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Checkout Modal */}
-          {isCheckoutModalOpen && (
-            <div
-              id="checkout-modal"
-              role="dialog"
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setIsCheckoutModalOpen(false)
-              }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) setIsCheckoutModalOpen(false)
-              }}
-            >
-              <div
-                ref={checkoutModalRef}
-                className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl animate-fade-in-up"
+      {/* Checkout Modal */}
+      {isCheckoutModalOpen && (
+        <div
+          id="checkout-modal"
+          role="dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setIsCheckoutModalOpen(false)
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCheckoutModalOpen(false)
+          }}
+        >
+          <div
+            ref={checkoutModalRef}
+            className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl animate-fade-in-up"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                <ShoppingCartIcon className="w-6 h-6 text-blue-500" /> Confirmar Cobro
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsCheckoutModalOpen(false)}
+                className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-xl transition-colors"
+                tabIndex={-1}
               >
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-                    <ShoppingCartIcon className="w-6 h-6 text-blue-500" /> Confirmar Cobro
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => setIsCheckoutModalOpen(false)}
-                    className="p-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-xl transition-colors"
-                    tabIndex={-1}
-                  >
-                    <XIcon className="w-5 h-5" />
-                  </button>
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-4 mb-6 text-center">
+              <p className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-1">
+                Monto a Cobrar
+              </p>
+              <p className="text-5xl font-black text-white tracking-tighter tabular-nums">
+                ${totals.total.toFixed(2)}
+              </p>
+            </div>
+
+            <div className="space-y-4 mb-8">
+              <div className="relative">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
+                  Método de Pago
+                </label>
+                <select
+                  autoFocus
+                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer appearance-none"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                >
+                  <option value="cash">Efectivo</option>
+                  <option value="card">Tarjeta</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+                <div className="absolute right-4 top-[38px] pointer-events-none text-zinc-500">
+                  {paymentMethod === 'cash' && <Banknote className="w-5 h-5 opacity-70" />}
+                  {paymentMethod === 'card' && <CreditCard className="w-5 h-5 opacity-70" />}
+                  {paymentMethod === 'transfer' && <Landmark className="w-5 h-5 opacity-70" />}
                 </div>
+              </div>
 
-                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-4 mb-6 text-center">
-                  <p className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-1">
-                    Monto a Cobrar
-                  </p>
-                  <p className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                    ${totals.total.toFixed(2)}
-                  </p>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  <div>
-                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
-                      Método de Pago
-                    </label>
-                    <select
-                      autoFocus
-                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                    >
-                      <option value="cash">Efectivo 💵</option>
-                      <option value="card">Tarjeta 💳</option>
-                      <option value="transfer">Transferencia 🏦</option>
-                    </select>
-                  </div>
-
-                  {paymentMethod === 'cash' ? (
-                    <div>
-                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
-                        Recibido
-                      </label>
-                      <input
-                        type="number"
-                        className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-base font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-700 transition"
-                        placeholder={`Recibido... (Min $${totals.total.toFixed(2)})`}
-                        value={amountReceived}
-                        onChange={(e) => setAmountReceived(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !busy) {
-                            setIsCheckoutModalOpen(false)
-                            void handleCharge()
-                          }
-                        }}
-                      />
-                      {amountReceivedNum > 0 && (
-                        <div className="flex justify-between items-center px-1 mt-3">
-                          <span className="text-xs font-bold text-zinc-500 uppercase">
-                            {pendingAmount > 0 ? 'Faltante' : 'Cambio'}
-                          </span>
-                          <span
-                            className={`text-lg tracking-tight font-black ${pendingAmount > 0 ? 'text-rose-400' : 'text-amber-400'}`}
-                          >
-                            ${pendingAmount > 0 ? pendingAmount.toFixed(2) : changeDue.toFixed(2)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div
-                      className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-center text-sm font-medium text-emerald-400/50 cursor-pointer hover:bg-zinc-900/60 transition"
-                      onClick={() => {
+              {paymentMethod === 'cash' ? (
+                <div>
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
+                    Recibido
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-base font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-700 transition"
+                    placeholder={`Recibido... (Min $${totals.total.toFixed(2)})`}
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !busy) {
                         setIsCheckoutModalOpen(false)
                         void handleCharge()
-                      }}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          setIsCheckoutModalOpen(false)
-                          void handleCharge()
-                        }
-                      }}
-                    >
-                      Cobro Exacto (Enter para confirmar)
+                      }
+                    }}
+                  />
+                  {amountReceivedNum > 0 && (
+                    <div className="flex justify-between items-center px-1 mt-3">
+                      <span className="text-xs font-bold text-zinc-500 uppercase">
+                        {pendingAmount > 0 ? 'Faltante' : 'Cambio'}
+                      </span>
+                      <span
+                        className={`text-lg tracking-tight font-black ${pendingAmount > 0 ? 'text-rose-400' : 'text-amber-400'}`}
+                      >
+                        ${pendingAmount > 0 ? pendingAmount.toFixed(2) : changeDue.toFixed(2)}
+                      </span>
                     </div>
                   )}
                 </div>
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCheckoutModalOpen(false)}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-xl py-3.5 font-bold transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => {
+              ) : (
+                <div
+                  className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-center text-sm font-medium text-emerald-400/50 cursor-pointer hover:bg-zinc-900/60 transition"
+                  onClick={() => {
+                    setIsCheckoutModalOpen(false)
+                    void handleCharge()
+                  }}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
                       setIsCheckoutModalOpen(false)
                       void handleCharge()
-                    }}
-                    disabled={busy || cart.length === 0}
-                    className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3.5 font-black tracking-widest shadow-[0_0_20px_-5px_rgba(37,99,235,0.6)] hover:shadow-[0_0_30px_-5px_rgba(37,99,235,0.8)] transition-all disabled:opacity-50 active:scale-95"
-                  >
-                    {busy ? 'Procesando...' : 'COBRAR'}
-                  </button>
+                    }
+                  }}
+                >
+                  Cobro Exacto (Enter para confirmar)
                 </div>
-              </div>
+              )}
             </div>
-          )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCheckoutModalOpen(false)}
+                className="flex-1 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-xl py-3.5 font-bold transition-colors"
+               >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setIsCheckoutModalOpen(false)
+                  void handleCharge()
+                }}
+                disabled={busy || cart.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3.5 font-black tracking-widest shadow-[0_0_20px_-5px_rgba(37,99,235,0.6)] hover:shadow-[0_0_30px_-5px_rgba(37,99,235,0.8)] transition-all disabled:opacity-50 active:scale-95"
+              >
+                {busy ? 'Procesando...' : 'COBRAR'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

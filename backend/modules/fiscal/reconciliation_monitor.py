@@ -8,6 +8,8 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,10 +82,10 @@ class DiscrepancyMonitor:
             estado, semaforo, porcentaje_riesgo = 'SANO', 'VERDE', 0
 
         return {
-            'period': date_filter, 'period_type': period_type, 'ingresos_serie_a': round(float(total_ingresos), 2),
-            'extracciones_documentadas': round(float(total_extracciones), 2), 'ingresos_justificados': round(float(ingresos_justificados), 2),
-            'gastos_visibles_sat': round(float(total_gastos_visible), 2), 'discrepancia': round(float(discrepancia), 2),
-            'porcentaje_riesgo': round(float(porcentaje_riesgo), 2), 'estado': estado, 'semaforo': semaforo
+            'period': date_filter, 'period_type': period_type, 'ingresos_serie_a': money(total_ingresos),
+            'extracciones_documentadas': money(total_extracciones), 'ingresos_justificados': money(ingresos_justificados),
+            'gastos_visibles_sat': money(total_gastos_visible), 'discrepancia': money(discrepancia),
+            'porcentaje_riesgo': money(porcentaje_riesgo), 'estado': estado, 'semaforo': semaforo
         }
 
     async def get_monthly_trend(self, year: int = None) -> List[Dict[str, Any]]:
@@ -112,7 +114,7 @@ class DiscrepancyMonitor:
         for r in result:
             cat = r['category']
             if cat not in breakdown: breakdown[cat] = {'total': 0, 'by_method': {}}
-            breakdown[cat]['total'] += round(float(r['total'] or 0), 2)
-            breakdown[cat]['by_method'][r['payment_method']] = round(float(r['total'] or 0), 2)
+            breakdown[cat]['total'] += money(r['total'])
+            breakdown[cat]['by_method'][r['payment_method']] = money(r['total'])
 
         return {'period': f'{year}-{month:02d}' if month else str(year), 'by_category': breakdown, 'total': sum(c['total'] for c in breakdown.values())}

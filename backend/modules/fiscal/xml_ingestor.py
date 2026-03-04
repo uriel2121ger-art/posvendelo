@@ -11,6 +11,7 @@ from decimal import Decimal
 import logging
 from pathlib import Path
 from modules.fiscal.constants import IVA_RATE
+from modules.shared.constants import money
 
 # SECURITY: Use defusedxml to prevent XXE (XML External Entity) attacks
 try:
@@ -225,8 +226,8 @@ class XMLIngestor:
                 "sku": sku,
                 "barcode": concepto.get('no_identificacion', ''),
                 "name": concepto['descripcion'][:100],
-                "price": round(float(concepto['precio_sugerido']), 2),
-                "cost_price": round(float(concepto['valor_unitario']), 2),
+                "price": money(concepto['precio_sugerido']),
+                "cost_price": money(concepto['valor_unitario']),
                 "stock": total_qty,
                 "min_stock": 5,
                 "cat": 1,
@@ -254,7 +255,7 @@ class XMLIngestor:
                WHERE id = :pid""",
             {
                 "qty": adicional,
-                "cost": round(float(concepto['valor_unitario']), 2),
+                "cost": money(concepto['valor_unitario']),
                 "sat_prod": concepto['clave_sat'],
                 "sat_unit": concepto['clave_unidad'],
                 "pid": product_id,

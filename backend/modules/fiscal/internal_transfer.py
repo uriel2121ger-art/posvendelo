@@ -5,6 +5,7 @@ Vales de almacén internos sin impacto fiscal
 
 from typing import Any, Dict, List
 from datetime import datetime
+from decimal import Decimal
 import hashlib
 import json
 import logging
@@ -69,7 +70,7 @@ class GhostCarrier:
                 pid, qty = item['product_id'], item['quantity']
                 row = await self.db.fetchrow(
                     "SELECT stock FROM products WHERE id = :pid FOR UPDATE", pid=pid)
-                if not row or float(row['stock'] or 0) < qty:
+                if not row or Decimal(row['stock'] or 0) < qty:
                     raise ValueError(f"Stock insuficiente para producto {pid}")
                 await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=qty, pid=pid)
                 try:

@@ -28,26 +28,13 @@ from modules.shared.auth import verify_token, get_user_id
 from modules.shared.pin_auth import verify_manager_pin
 from modules.shared.rate_limit import check_pin_rate_limit
 from modules.sales.schemas import SaleCreate, SaleItemCreate, SaleCancelRequest
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money, dec
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 TAX_RATE = Decimal("0.16")
 VALID_PAYMENT_METHODS = {"cash", "card", "transfer", "mixed", "credit", "wallet"}
-
-
-# ── Helpers ────────────────────────────────────────────────────────
-
-
-def _dec(val) -> Decimal:
-    """Convert to Decimal safely."""
-    return Decimal(str(val)) if val is not None else Decimal("0")
-
-
-def _f(val) -> float:
-    """Decimal → float for JSON response (rounded to 2 decimals)."""
-    return round(float(val), 2) if val is not None else 0.0
 
 
 @dataclass(slots=True)
@@ -78,21 +65,21 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
 
     if is_common:
         # Common/misc products: trust client price (no DB record to look up)
-        price = _dec(item.price)
+        price = dec(item.price)
         if item.is_wholesale and item.price_wholesale is not None:
-            price = _dec(item.price_wholesale)
+            price = dec(item.price_wholesale)
     else:
         # Regular products: ALWAYS use DB price to prevent price forgery
         if item.is_wholesale:
-            price = _dec(prod.get("price_wholesale") or prod.get("price") or 0)
+            price = dec(prod.get("price_wholesale") or prod.get("price") or 0)
         else:
-            price = _dec(prod.get("price") or 0)
+            price = dec(prod.get("price") or 0)
 
     includes_tax = item.price_includes_tax and price > 0
     if includes_tax:
         price = (price / (1 + TAX_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    raw_disc = _dec(item.discount)
+    raw_disc = dec(item.discount)
     if abs(raw_disc) < Decimal("0.001"):
         line_discount = Decimal("0")
     else:
@@ -102,7 +89,7 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
-    qty = _dec(item.qty)
+    qty = dec(item.qty)
     line_total = max(Decimal("0"), (qty * price) - line_discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     product_name = item.name or prod.get("name", "Producto")
 
@@ -235,15 +222,15 @@ async def _process_credit_payment(
     if cust.get("credit_authorized") != 1:
         raise HTTPException(status_code=400, detail="Cliente no tiene credito habilitado")
 
-    balance = _dec(cust.get("credit_balance") or 0)
-    limit_val = _dec(cust.get("credit_limit") or 0)
+    balance = dec(cust.get("credit_balance") or 0)
+    limit_val = dec(cust.get("credit_limit") or 0)
     new_balance = balance + amount
 
     if limit_val > 0 and new_balance > limit_val:
         raise HTTPException(
             status_code=400,
-            detail=f"Excede limite de credito. Limite: ${_f(limit_val):.2f}, "
-                   f"Balance actual: ${_f(balance):.2f}, Venta: ${_f(amount):.2f}",
+            detail=f"Excede limite de credito. Limite: ${money(limit_val):.2f}, "
+                   f"Balance actual: ${money(balance):.2f}, Venta: ${money(amount):.2f}",
         )
 
     await db.execute(
@@ -280,7 +267,7 @@ async def _process_wallet_payment(
         "SELECT wallet_balance FROM customers WHERE id = :cid AND is_active = 1 FOR UPDATE",
         {"cid": customer_id},
     )
-    if not wallet_row or _dec(wallet_row.get("wallet_balance") or 0) < amount:
+    if not wallet_row or dec(wallet_row.get("wallet_balance") or 0) < amount:
         raise HTTPException(status_code=400, detail="Saldo insuficiente en monedero")
     await db.execute(
         "UPDATE customers SET wallet_balance = wallet_balance - :amount, synced = 0, updated_at = NOW() WHERE id = :cid",
@@ -462,7 +449,7 @@ async def create_sale(
 
             # 6. Validate payment amounts
             if pm == "cash":
-                cash_recv = _dec(body.cash_received or 0)
+                cash_recv = dec(body.cash_received or 0)
                 if cash_recv < total_val:
                     raise HTTPException(
                         status_code=400,
@@ -472,16 +459,16 @@ async def create_sale(
 
             if pm == "mixed":
                 mixed_sum = (
-                    _dec(body.mixed_cash) + _dec(body.mixed_card) +
-                    _dec(body.mixed_transfer) + _dec(body.mixed_wallet) +
-                    _dec(body.mixed_gift_card)
+                    dec(body.mixed_cash) + dec(body.mixed_card) +
+                    dec(body.mixed_transfer) + dec(body.mixed_wallet) +
+                    dec(body.mixed_gift_card)
                 )
                 tolerance = Decimal("0.02")
                 if abs(mixed_sum - total_val) > tolerance:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Suma de pagos mixtos (${_f(mixed_sum):.2f}) "
-                               f"no coincide con total (${_f(total_val):.2f})",
+                        detail=f"Suma de pagos mixtos (${money(mixed_sum):.2f}) "
+                               f"no coincide con total (${money(total_val):.2f})",
                     )
 
             # 7. Ensure sequence exists
@@ -531,12 +518,12 @@ async def create_sale(
                     "uid": user_id,
                     "tid_turn": turn_id,
                     "bid": body.branch_id,
-                    "cash_received": _dec(body.cash_received or 0),
-                    "mc": _dec(body.mixed_cash or 0),
-                    "mcard": _dec(body.mixed_card or 0),
-                    "mt": _dec(body.mixed_transfer or 0),
-                    "mw": _dec(body.mixed_wallet or 0),
-                    "mgc": _dec(body.mixed_gift_card or 0),
+                    "cash_received": dec(body.cash_received or 0),
+                    "mc": dec(body.mixed_cash or 0),
+                    "mcard": dec(body.mixed_card or 0),
+                    "mt": dec(body.mixed_transfer or 0),
+                    "mw": dec(body.mixed_wallet or 0),
+                    "mgc": dec(body.mixed_gift_card or 0),
                     "tid_str": str(terminal_id),
                 },
             )
@@ -602,16 +589,16 @@ async def create_sale(
             if pm == "mixed" and body.mixed_wallet and body.mixed_wallet > 0:
                 if not body.customer_id:
                     raise HTTPException(status_code=400, detail="No se puede usar monedero sin cliente asignado")
-                await _process_wallet_payment(body.customer_id, _dec(body.mixed_wallet), db)
+                await _process_wallet_payment(body.customer_id, dec(body.mixed_wallet), db)
 
         # ── Transaction committed ──
 
     # Calculate change (Decimal arithmetic to avoid float precision errors)
     change = Decimal("0")
     if pm == "cash":
-        change = max(Decimal("0"), _dec(body.cash_received or 0) - total_val)
+        change = max(Decimal("0"), dec(body.cash_received or 0) - total_val)
 
-    logger.info(f"Sale created: ID={sale_id}, folio={folio_visible}, total=${_f(total_val):.2f}")
+    logger.info(f"Sale created: ID={sale_id}, folio={folio_visible}, total=${money(total_val):.2f}")
 
     return {
         "success": True,
@@ -619,10 +606,10 @@ async def create_sale(
             "id": sale_id,
             "uuid": sale_uuid,
             "folio": folio_visible,
-            "subtotal": _f(subtotal_after_discount),
-            "tax": _f(tax_total),
-            "total": _f(total_val),
-            "change": _f(change),
+            "subtotal": money(subtotal_after_discount),
+            "tax": money(tax_total),
+            "total": money(total_val),
+            "change": money(change),
             "payment_method": pm,
             "status": "completed",
         },
@@ -811,12 +798,12 @@ async def cancel_sale(
 
             # Revert credit if applicable
             if sale["payment_method"] == "credit" and sale.get("customer_id"):
-                total_val = _dec(sale["total"])
+                total_val = dec(sale["total"])
                 cust_row = await db.fetchrow(
                     "SELECT credit_balance FROM customers WHERE id = :id FOR UPDATE",
                     {"id": sale["customer_id"]},
                 )
-                balance_before = _dec(cust_row.get("credit_balance") or 0) if cust_row else Decimal("0")
+                balance_before = dec(cust_row.get("credit_balance") or 0) if cust_row else Decimal("0")
                 balance_after = max(Decimal("0"), balance_before - total_val)
                 await db.execute(
                     "UPDATE customers SET credit_balance = GREATEST(0, credit_balance - :amount), synced = 0, updated_at = NOW() "
@@ -842,9 +829,9 @@ async def cancel_sale(
             # Revert wallet if applicable
             wallet_amount = Decimal("0")
             if sale["payment_method"] == "wallet" and sale.get("customer_id"):
-                wallet_amount = _dec(sale.get("total") or 0)
+                wallet_amount = dec(sale.get("total") or 0)
             elif sale["payment_method"] == "mixed" and sale.get("customer_id"):
-                wallet_amount = _dec(sale.get("mixed_wallet") or 0)
+                wallet_amount = dec(sale.get("mixed_wallet") or 0)
 
             if wallet_amount > 0 and sale.get("customer_id"):
                 wallet_row = await db.fetchrow(

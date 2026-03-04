@@ -9,6 +9,8 @@ from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 import logging
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 class CerebroContable:
@@ -66,16 +68,16 @@ class CerebroContable:
             'ingresos': ingresos,
             'gastos': gastos,
             'iva': {
-                'cobrado': round(float(iva_cobrado), 2),
-                'pagado': round(float(iva_pagado), 2),
-                'neto': round(float(iva_neto), 2),
-                'a_pagar': round(float(max(iva_neto, 0)), 2),
-                'a_favor': round(float(abs(min(iva_neto, 0))), 2)
+                'cobrado': money(iva_cobrado),
+                'pagado': money(iva_pagado),
+                'neto': money(iva_neto),
+                'a_pagar': money(max(iva_neto, Decimal("0"))),
+                'a_favor': money(abs(min(iva_neto, Decimal("0"))))
             },
             'isr': {
-                'base': round(float(ingresos['serie_a']['subtotal']), 2),
-                'tasa': float(await self._get_tasa_resico(ingresos['serie_a']['subtotal'])),
-                'a_pagar': round(float(isr_actual), 2)
+                'base': money(ingresos['serie_a']['subtotal']),
+                'tasa': money(await self._get_tasa_resico(ingresos['serie_a']['subtotal']), 4),
+                'a_pagar': money(isr_actual)
             },
             'serie_b_pendiente': serie_b_pendiente,
             'optimizacion': optimizacion,
@@ -175,9 +177,9 @@ class CerebroContable:
         return {
             'ventas': [dict(v) for v in ventas],
             'count': len(ventas),
-            'subtotal': round(float(total_subtotal), 2),
-            'iva': round(float(total_iva), 2),
-            'total': round(float(total), 2)
+            'subtotal': money(total_subtotal),
+            'iva': money(total_iva),
+            'total': money(total)
         }
     
     async def _calcular_isr_resico(self, ingresos: Decimal) -> Decimal:
@@ -231,13 +233,13 @@ class CerebroContable:
         return {
             'ventas_seleccionadas': len(seleccionadas),
             'ids_seleccionados': [v['id'] for v in seleccionadas],
-            'subtotal_global': round(float(subtotal_acumulado), 2),
-            'iva_global': round(float(iva_acumulado), 2),
-            'iva_a_favor_usado': round(float(min(iva_a_favor, iva_acumulado)), 2),
-            'iva_a_pagar': round(float(max(Decimal('0'), iva_acumulado - iva_a_favor)), 2),
-            'isr_adicional': round(float(isr_adicional), 2),
-            'ahorro_total': round(float(iva_a_favor - (iva_acumulado - iva_a_favor).quantize(Decimal('0.01'))), 2),
-            'recomendacion': f'Genera factura global por ${round(float(subtotal_acumulado), 2):,.2f} para optimizar IVA'
+            'subtotal_global': money(subtotal_acumulado),
+            'iva_global': money(iva_acumulado),
+            'iva_a_favor_usado': money(min(iva_a_favor, iva_acumulado)),
+            'iva_a_pagar': money(max(Decimal('0'), iva_acumulado - iva_a_favor)),
+            'isr_adicional': money(isr_adicional),
+            'ahorro_total': money(iva_a_favor - (iva_acumulado - iva_a_favor)),
+            'recomendacion': f'Genera factura global por ${money(subtotal_acumulado):,.2f} para optimizar IVA'
         }
     
     async def _generar_recomendaciones(self, iva_neto: Decimal, isr: Decimal, 
@@ -248,11 +250,11 @@ class CerebroContable:
         # IVA
         if iva_neto > 0:
             recomendaciones.append(
-                f"💰 Tienes IVA a pagar: ${round(float(iva_neto), 2):,.2f}"
+                f"💰 Tienes IVA a pagar: ${float(iva_neto.quantize(Decimal('0.01'))):,.2f}"
             )
         else:
             recomendaciones.append(
-                f"✅ Tienes IVA a favor: ${round(float(abs(iva_neto)), 2):,.2f}"
+                f"✅ Tienes IVA a favor: ${float(abs(iva_neto).quantize(Decimal('0.01'))):,.2f}"
             )
         
         # Serie B pendiente

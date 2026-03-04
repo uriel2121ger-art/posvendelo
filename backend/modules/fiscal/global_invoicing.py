@@ -14,8 +14,10 @@ Removed dead PERIODICIDADES dict and stub schedule_automatic_generation.
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
+from decimal import Decimal
 import logging
 from modules.fiscal.constants import IVA_RATE
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +60,9 @@ class GlobalInvoicingService:
             return {
                 'period': f"{start_date} - {end_date}",
                 'count': row['count'],
-                'subtotal': round(float(row['subtotal'] or 0), 2),
-                'tax': round(float(row['tax'] or 0), 2),
-                'total': round(float(row['total'] or 0), 2),
+                'subtotal': money(row['subtotal']),
+                'tax': money(row['tax']),
+                'total': money(row['total']),
             }
         return {'count': 0, 'subtotal': 0, 'tax': 0, 'total': 0}
 
@@ -188,7 +190,7 @@ class GlobalInvoicingService:
             if method not in by_payment:
                 by_payment[method] = {'count': 0, 'total': 0}
             by_payment[method]['count'] += 1
-            by_payment[method]['total'] += round(float(sale.get('total', 0)), 2)
+            by_payment[method]['total'] += money(sale.get('total', 0))
 
         if format == 'text':
             return self._format_report_text(start_date, end_date, sales, aggregated, by_payment)
@@ -299,9 +301,9 @@ class GlobalInvoicingService:
 
     async def _aggregate_sales_detailed(self, sales: List[Dict]) -> Dict[str, Any]:
         total_sales = len(sales)
-        subtotal = round(sum(round(float(sale.get('subtotal', 0) or 0), 2) for sale in sales), 2)
-        tax = round(sum(round(float(sale.get('tax', 0) or 0), 2) for sale in sales), 2)
-        total = round(sum(round(float(sale.get('total', 0) or 0), 2) for sale in sales), 2)
+        subtotal = money(sum(Decimal(str(sale.get('subtotal', 0) or 0)) for sale in sales))
+        tax = money(sum(Decimal(str(sale.get('tax', 0) or 0)) for sale in sales))
+        total = money(sum(Decimal(str(sale.get('total', 0) or 0)) for sale in sales))
 
         sale_ids = [s['id'] for s in sales]
         items = []
@@ -373,7 +375,7 @@ class GlobalInvoicingService:
             if len(aggregated['items']) <= 50:
                 for item in aggregated['items']:
                     qty = float(item.get('qty', 1)) or 1
-                    total_val = round(float(item.get('total', 0)), 2)
+                    total_val = money(item.get('total', 0))
                     unit_price = total_val / qty if qty else total_val
 
                     sat_code_raw = item.get('sat_code', '01010101')

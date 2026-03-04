@@ -12,6 +12,7 @@ from pathlib import Path
 import aiofiles
 
 from modules.fiscal.constants import IVA_RATE, IVA_RATE_FLOAT
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +116,12 @@ class CFDIService:
                 sat_code_raw = item.get("sat_code", item.get("sat_clave_prod_serv", "01010101"))
                 items.append(
                     {
-                        "quantity": round(float(item.get("quantity", item.get("qty", 1))), 2),
+                        "quantity": money(item.get("quantity", item.get("qty", 1)) or 1),
                         "product": {
                             "description": item.get("name", item.get("product_name", "Producto")),
                             "product_key": normalize_sat_key(sat_code_raw),
                             "unit_key": item.get("sat_unit", item.get("sat_clave_unidad", "H87")),
-                            "price": round(float(item.get("price", item.get("unit_price", 0))), 2),
+                            "price": money(item.get("price", item.get("unit_price", 0))),
                             "taxes": [{"type": "IVA", "rate": IVA_RATE_FLOAT}],
                         },
                     }
@@ -192,9 +193,9 @@ class CFDIService:
                 "nombre_receptor": customer_name or "PUBLICO EN GENERAL",
                 "regimen_receptor": customer_regime,
                 "uso_cfdi": uso_cfdi,
-                "total": round(float(invoice.get("total", sale_data.get("total", 0))), 2),
-                "subtotal": round(float(sale_data.get("subtotal", 0)), 2),
-                "impuestos": round(float(sale_data.get("tax", 0)), 2),
+                "total": money(invoice.get("total", sale_data.get("total", 0))),
+                "subtotal": money(sale_data.get("subtotal", 0)),
+                "impuestos": money(sale_data.get("tax", 0)),
                 "estado": "valid",
                 "facturapi_id": invoice_id,
                 "fecha_emision": datetime.now().isoformat(),

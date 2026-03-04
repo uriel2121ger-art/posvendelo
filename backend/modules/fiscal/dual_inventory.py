@@ -4,7 +4,10 @@ Shadow Inventory - Stock real vs Stock fiscal desacoplados
 
 from typing import Any, Dict, List
 from datetime import datetime
+from decimal import Decimal
 import logging
+
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +41,9 @@ class ShadowInventory:
         if not p:
             return {'found': False}
 
-        real = round(float(p['stock'] or 0), 2)
-        shadow = round(float(p['shadow_stock'] or 0), 2)
-        fiscal = round(real - shadow, 2)
+        real = money(p['stock'])
+        shadow = money(p['shadow_stock'])
+        fiscal = money(Decimal(str(p['stock'] or 0)) - Decimal(str(p['shadow_stock'] or 0)))
 
         return {
             'found': True, 'product_id': product_id, 'name': p['name'],
@@ -87,8 +90,8 @@ class ShadowInventory:
             if not p:
                 return {'success': False, 'error': 'Producto no encontrado'}
 
-            real_stock = round(float(p['stock'] or 0), 2)
-            shadow_stock = round(float(p['shadow_stock'] or 0), 2)
+            real_stock = money(p['stock'])
+            shadow_stock = money(p['shadow_stock'])
 
             if real_stock < quantity:
                 return {'success': False, 'error': 'Stock insuficiente'}
@@ -124,7 +127,7 @@ class ShadowInventory:
             SELECT id, sku, name, (stock - COALESCE(shadow_stock, 0)) as stock_auditable, price
             FROM products WHERE is_active = 1 ORDER BY name
         """)
-        return [{'sku': p['sku'], 'name': p['name'], 'stock': max(0, float(p['stock_auditable'] or 0)), 'price': float(p['price'] or 0)} for p in products]
+        return [{'sku': p['sku'], 'name': p['name'], 'stock': max(0, money(p['stock_auditable'])), 'price': money(p['price'])} for p in products]
 
     async def get_real_view(self) -> List[Dict]:
         await self.ensure_schema()
@@ -134,9 +137,9 @@ class ShadowInventory:
         """)
         return [{
             'sku': p['sku'], 'name': p['name'],
-            'stock_real': round(float(p['stock_real'] or 0), 2), 'stock_shadow': round(float(p['shadow'] or 0), 2),
-            'stock_fiscal': round(max(0, float(p['stock_real'] or 0) - float(p['shadow'] or 0)), 2),
-            'price': round(float(p['price'] or 0), 2)
+            'stock_real': money(p['stock_real']), 'stock_shadow': money(p['shadow']),
+            'stock_fiscal': max(0.0, money(Decimal(str(p['stock_real'] or 0)) - Decimal(str(p['shadow'] or 0)))),
+            'price': money(p['price'])
         } for p in products]
 
     async def reconcile_fiscal(self, product_id: int, fiscal_stock: float) -> Dict:
@@ -149,7 +152,7 @@ class ShadowInventory:
             if not row:
                 return {'success': False, 'error': 'Producto no encontrado'}
 
-            real_stock = round(float(row['stock'] or 0), 2)
+            real_stock = money(row['stock'])
             new_shadow = max(0, real_stock - fiscal_stock)
             await self.db.execute("UPDATE products SET shadow_stock = :sh, synced = 0 WHERE id = :pid", sh=new_shadow, pid=product_id)
         return {'success': True, 'real_stock': real_stock, 'new_fiscal': fiscal_stock, 'new_shadow': new_shadow}
@@ -159,10 +162,10 @@ class ShadowInventory:
             SELECT id, sku, name, stock, COALESCE(shadow_stock, 0) as shadow
             FROM products WHERE COALESCE(shadow_stock, 0) > 0 ORDER BY shadow_stock DESC
         """)
-        total_shadow = round(sum(float(p['shadow'] or 0) for p in products), 2)
+        total_shadow = money(sum(Decimal(str(p['shadow'] or 0)) for p in products))
         return {
             'products_with_shadow': len(products),
             'total_shadow_units': total_shadow,
-            'details': [{'sku': p['sku'], 'name': p['name'], 'real': round(float(p['stock'] or 0), 2),
-                          'shadow': round(float(p['shadow'] or 0), 2), 'fiscal': round(float(p['stock'] or 0) - float(p['shadow'] or 0), 2)} for p in products[:20]]
+            'details': [{'sku': p['sku'], 'name': p['name'], 'real': money(p['stock']),
+                          'shadow': money(p['shadow']), 'fiscal': money(Decimal(str(p['stock'] or 0)) - Decimal(str(p['shadow'] or 0)))} for p in products[:20]]
         }

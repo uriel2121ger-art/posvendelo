@@ -9,6 +9,8 @@ from decimal import Decimal
 import hashlib
 import logging
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ class CashExtractionEngine:
         ext = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye", ys=year_start, ye=year_end)
         total_extracted = Decimal(str(ext['total'] or 0)) if ext else Decimal('0')
 
-        return {'year': year, 'total_serie_b': round(float(total_b), 2), 'total_extracted': round(float(total_extracted), 2), 'available': round(float(total_b - total_extracted), 2), 'transactions': r['transacciones'] if r else 0}
+        return {'year': year, 'total_serie_b': money(total_b), 'total_extracted': money(total_extracted), 'available': money(total_b - total_extracted), 'transactions': r['transacciones'] if r else 0}
 
     async def create_extraction(self, amount: float, document_type: str, related_person_id: int = None, purpose: str = None) -> Dict[str, Any]:
         amount = Decimal(str(amount))
@@ -88,9 +90,9 @@ class CashExtractionEngine:
                 rpid=related_person_id, bname=person['name'] if person else None, purpose=purpose,
                 hash=contract_hash, rn=1 if requires_notary else 0, ts=datetime.now().isoformat())
 
-            result = {'success': True, 'amount': round(float(amount), 2), 'type': document_type, 'hash': contract_hash[:16] + '...', 'requires_notary': requires_notary}
+            result = {'success': True, 'amount': money(amount), 'type': document_type, 'hash': contract_hash[:16] + '...', 'requires_notary': requires_notary}
             if requires_notary:
-                result['warning'] = f'Monto superior a ${round(float(self.UMBRAL_FECHA_CIERTA), 2):,.0f}. Recomendable fecha cierta ante Notario.'
+                result['warning'] = f'Monto superior a ${money(self.UMBRAL_FECHA_CIERTA):,.0f}. Recomendable fecha cierta ante Notario.'
             return result
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -104,7 +106,7 @@ class CashExtractionEngine:
         fecha = datetime.now()
         return f"""CONTRATO DE {e['document_type']}
 Fecha: {fecha.strftime('%d de %B de %Y')}
-Monto: ${round(float(e['amount']), 2):,.2f} MXN
+Monto: ${money(e['amount']):,.2f} MXN
 Donante/Mutuante: {e.get('donor_name', 'N/A')} (RFC: {e.get('donor_rfc', 'N/A')})
 Parentesco: {self.PARENTESCOS.get(e.get('parentesco', ''), 'N/A')}
 Hash: {e['contract_hash']}
@@ -120,5 +122,5 @@ Hash: {e['contract_hash']}
             FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye GROUP BY document_type
         """, ys=year_start, ye=year_end)
         total = sum((Decimal(str(r['total'] or 0)) for r in result), Decimal('0'))
-        return {'year': year, 'by_type': {r['document_type']: dict(r) for r in result}, 'total_extracted': round(float(total), 2),
-                'limite_informable': float(self.LIMITE_INFORMABLE), 'requires_annual_declaration': total >= self.LIMITE_INFORMABLE}
+        return {'year': year, 'by_type': {r['document_type']: dict(r) for r in result}, 'total_extracted': money(total),
+                'limite_informable': money(self.LIMITE_INFORMABLE), 'requires_annual_declaration': total >= self.LIMITE_INFORMABLE}

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.shared.auth import verify_token
-from modules.shared.constants import PRIVILEGED_ROLES, RESICO_ANNUAL_LIMIT
+from modules.shared.constants import PRIVILEGED_ROLES, RESICO_ANNUAL_LIMIT, money, dec
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -40,10 +40,10 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
            AND status = 'completed'""",
         {"year_start": year_start, "year_end": year_end},
     )
-    facturado_a = round(float(result["total_a"]), 2) if result else 0.0
-    facturado_b = round(float(result["total_b"]), 2) if result else 0.0
+    facturado_a = money(result["total_a"]) if result else 0.0
+    facturado_b = money(result["total_b"]) if result else 0.0
 
-    limite = float(RESICO_ANNUAL_LIMIT)
+    limite = money(RESICO_ANNUAL_LIMIT)
     restante = limite - facturado_a
     porcentaje = (facturado_a / limite) * 100
 
@@ -68,8 +68,8 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
             "total": facturado_a + facturado_b,
             "limite_resico": limite,
             "restante": restante,
-            "porcentaje": round(porcentaje, 2),
-            "proyeccion_anual": round(proyeccion, 2),
+            "porcentaje": money(porcentaje),
+            "proyeccion_anual": money(proyeccion),
             "status": status,
             "dias_restantes": 365 - dias,
         },
@@ -99,7 +99,7 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
         "success": True,
         "data": {
             "ventas_hoy": sales["count"] if sales else 0,
-            "total_hoy": round(float(sales["total"]), 2) if sales else 0.0,
+            "total_hoy": money(sales["total"]) if sales else 0.0,
             "mermas_pendientes": mermas["c"] if mermas else 0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
@@ -142,8 +142,8 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
     return {
         "success": True,
         "data": {
-            "month": round(float(month_row["total"]), 2) if month_row else 0.0,
-            "year": round(float(year_row["total"]), 2) if year_row else 0.0,
+            "month": money(month_row["total"]) if month_row else 0.0,
+            "year": money(year_row["total"]) if year_row else 0.0,
         },
     }
 
@@ -191,15 +191,15 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
             logger.warning("Error consultando gastos wealth: %s", e)
             expenses = None
 
-        ingresos = round(float(income["total"]) if income else 0.0, 2)
-        serie_a = round(float(income["serie_a"]) if income else 0.0, 2)
-        serie_b = round(float(income["serie_b"]) if income else 0.0, 2)
-        gastos = round(float(expenses["total"]) if expenses else 0.0, 2)
-        impuestos = round(serie_a - serie_a / 1.16, 2)  # IVA extraido de precio IVA-incluido
-        utilidad_bruta = round(ingresos - gastos, 2)
-        utilidad_neta = round(utilidad_bruta - impuestos, 2)
-        disponible = round(max(0.0, utilidad_neta), 2)
-        ratio = round((utilidad_neta / ingresos * 100) if ingresos > 0 else 0.0, 2)
+        ingresos = money(income["total"] if income else 0)
+        serie_a = money(income["serie_a"] if income else 0)
+        serie_b = money(income["serie_b"] if income else 0)
+        gastos = money(expenses["total"] if expenses else 0)
+        impuestos = money(serie_a - serie_a / 1.16)  # IVA extraido de precio IVA-incluido
+        utilidad_bruta = money(ingresos - gastos)
+        utilidad_neta = money(utilidad_bruta - impuestos)
+        disponible = money(max(0.0, utilidad_neta))
+        ratio = money((utilidad_neta / ingresos * 100) if ingresos > 0 else 0.0)
 
         return {
             "success": True,
@@ -258,15 +258,15 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
         "data": {
             "alerts": [{
                 "product_name": p["name"],
-                "urgency": "CRITICAL" if round(float(p.get("stock") or 0), 2) <= 2 else "WARNING",
-                "current_stock": round(float(p.get("stock") or 0), 2),
+                "urgency": "CRITICAL" if float(p.get("stock") or 0) <= 2 else "WARNING",
+                "current_stock": float(p.get("stock") or 0),
                 "days_until_stockout": max(1, int(float(p.get("stock") or 0) / max(float(p.get("sold_30d") or 0) / 30, 0.01))),
                 "recommended_order": int(float(p.get("min_stock") or 5) * 2),
             } for p in low_stock],
             "top_products": [{
                 "name": t["name"],
                 "sales_count": t["sales_count"],
-                "revenue": round(float(t["revenue"]), 2),
+                "revenue": money(t["revenue"]),
             } for t in top_products],
             "anomalies": [],
         },
@@ -318,10 +318,10 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "kpis": {
                 "transactions": kpis["transactions"] if kpis else 0,
-                "revenue": round(float(kpis["revenue"]), 2) if kpis else 0.0,
-                "avg_ticket": round(float(kpis["avg_ticket"]), 2) if kpis else 0.0,
+                "revenue": money(kpis["revenue"]) if kpis else 0.0,
+                "avg_ticket": money(kpis["avg_ticket"]) if kpis else 0.0,
             },
-            "hourly_sales": [{"hour": h["hour"], "count": h["count"], "total": round(float(h["total"]), 2)} for h in hourly],
-            "top_products": [{"name": t["name"], "qty": t["qty"], "revenue": round(float(t["revenue"]), 2)} for t in top],
+            "hourly_sales": [{"hour": h["hour"], "count": h["count"], "total": money(h["total"])} for h in hourly],
+            "top_products": [{"name": t["name"], "qty": t["qty"], "revenue": money(t["revenue"])} for t in top],
         },
     }

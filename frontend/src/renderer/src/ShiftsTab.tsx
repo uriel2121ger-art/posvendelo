@@ -726,7 +726,7 @@ export default function ShiftsTab(): ReactElement {
                         <select
                           className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-bold focus:border-blue-500 focus:outline-none"
                           value={cashMovType}
-                          onChange={(e) => setCashMovType(e.target.value as any)}
+                          onChange={(e) => setCashMovType(e.target.value as 'in' | 'out' | 'expense')}
                         >
                           <option value="in">Entrada (+)</option>
                           <option value="out">Retiro (-)</option>

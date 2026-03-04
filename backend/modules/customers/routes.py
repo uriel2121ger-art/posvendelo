@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money, dec
 from modules.customers.schemas import CustomerCreate, CustomerUpdate
 
 logger = logging.getLogger(__name__)
@@ -238,9 +238,9 @@ async def get_customer_credit(
         "data": {
             "customer_id": customer["id"],
             "name": customer["name"],
-            "credit_limit": round(float(customer["credit_limit"] or 0), 2),
-            "credit_balance": round(float(customer["credit_balance"] or 0), 2),
-            "available_credit": round(max(0.0, float(customer["credit_limit"] or 0) - float(customer["credit_balance"] or 0)), 2),
+            "credit_limit": money(customer["credit_limit"]),
+            "credit_balance": money(customer["credit_balance"]),
+            "available_credit": money(max(dec("0"), dec(customer["credit_limit"]) - dec(customer["credit_balance"]))),
             "pending_sales": pending_sales,
         },
     }

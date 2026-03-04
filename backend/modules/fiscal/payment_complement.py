@@ -9,11 +9,13 @@ Added missing awaits, XML escaping for string interpolation.
 
 from typing import Any, Dict, List
 from datetime import datetime
+from decimal import Decimal
 from xml.sax.saxutils import escape as xml_escape
 import logging
 import aiofiles
 
 from modules.fiscal.constants import IVA_RATE
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +123,7 @@ class PaymentReceiptService:
         """Build payment complement XML following SAT Pagos 2.0 specification."""
         pago_ns = "http://www.sat.gob.mx/Pagos20"
 
-        total_amount = round(float(payment_data.get("amount", 0)), 2)
+        total_amount = money(payment_data.get("amount", 0))
         currency = xml_escape(payment_data.get("currency", "MXN"))
 
         xml = f'<pago20:Pagos xmlns:pago20="{pago_ns}" Version="2.0">\n'
@@ -148,7 +150,7 @@ class PaymentReceiptService:
                 {"uuid": uuid},
             )
             if cfdi_row:
-                cfdi_total = round(float(cfdi_row.get("total", 0)), 2)
+                cfdi_total = money(cfdi_row.get("total", 0))
                 paid_amount = min(total_amount, cfdi_total)
                 remaining = max(0, cfdi_total - paid_amount)
 

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.products.schemas import ProductCreate, ProductUpdate, StockUpdateRemote, SimplePriceUpdate
 
 logger = logging.getLogger(__name__)
@@ -270,9 +270,9 @@ async def update_product(
         user_id = get_user_id(auth)
         for price_field in ("price", "price_wholesale"):
             if price_field in fields:
-                old_val = round(float(existing.get(price_field) or 0), 2)
-                new_val = round(float(fields[price_field]), 2)
-                if round(new_val, 2) != round(old_val, 2):
+                old_val = money(existing.get(price_field))
+                new_val = money(fields[price_field])
+                if new_val != old_val:
                     await db.execute(
                         """
                         INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
@@ -408,14 +408,14 @@ async def update_price_remote(
         if not product:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-        old_price = round(float(product["price"]), 2)
+        old_price = money(product["price"])
 
         await conn.execute(
             "UPDATE products SET price = $1, synced = 0, updated_at = NOW() WHERE id = $2",
             body.new_price, product["id"],
         )
 
-        if round(body.new_price, 2) != round(old_price, 2):
+        if money(body.new_price) != old_price:
             await conn.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES ($1, 'price', $2, $3, $4, NOW())""",
@@ -450,8 +450,8 @@ async def get_stock_by_branch(product_id: int, auth: dict = Depends(verify_token
         {
             "branch_id": b["id"],
             "branch_name": b["name"],
-            "stock": round(float(product["stock"] or 0), 2),
-            "price": round(float(product["price"] or 0), 2),
+            "stock": money(product["stock"]),
+            "price": money(product["price"]),
         }
         for b in branches
     ]
@@ -460,8 +460,8 @@ async def get_stock_by_branch(product_id: int, auth: dict = Depends(verify_token
         branch_data = [{
             "branch_id": 1,
             "branch_name": "Sucursal Principal",
-            "stock": round(float(product["stock"] or 0), 2),
-            "price": round(float(product["price"] or 0), 2),
+            "stock": money(product["stock"]),
+            "price": money(product["price"]),
         }]
 
     return {

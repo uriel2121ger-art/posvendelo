@@ -5,7 +5,10 @@ Algoritmo de decisión para compras fiscales vs efectivo
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
+from decimal import Decimal
 import logging
+
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,7 @@ class SupplierMatcher:
                 'id': product_id,
                 'name': product.get('name', 'Producto'),
                 'current_stock': product.get('stock', 0),
-                'current_cost': round(float(product.get('cost', 0)), 2)
+                'current_cost': money(product.get('cost', 0))
             },
             'quantity': quantity,
             'option_a': {
@@ -93,17 +96,17 @@ class SupplierMatcher:
                     FROM cash_expenses
                     WHERE expense_date >= CURRENT_DATE - INTERVAL '30 days'
                 """)
-                gastos_b = round(float(row_exp['total'] or 0), 2) if row_exp else 0
+                gastos_b = money(row_exp['total']) if row_exp else 0
             except Exception:
                 gastos_b = 0
-            
-            cash_b = (round(float(row_b['total'] or 0), 2) if row_b else 0) - gastos_b
-            
+
+            cash_b = (money(row_b['total']) if row_b else 0) - gastos_b
+
             row_a = await self.db.fetchrow("""
                 SELECT COALESCE(SUM(total), 0) as total
                 FROM sales WHERE serie = 'A' AND timestamp::date >= CURRENT_DATE - INTERVAL '30 days'
             """)
-            cash_a = round(float(row_a['total'] or 0), 2) if row_a else 0
+            cash_a = money(row_a['total']) if row_a else 0
             
             total = cash_a + cash_b
             ratio_b = (cash_b / total * 100) if total > 0 else 0
@@ -136,10 +139,10 @@ class SupplierMatcher:
         return dict(row) if row else {}
     
     def _calculate_margin_impact(self, product: Dict, quantity: int, price_a: float, price_b: float) -> Dict[str, Any]:
-        sale_price = round(float(product.get('price', 0)), 2)
+        sale_price = money(product.get('price', 0))
         if sale_price == 0: return {'current_margin': 0, 'margin_if_a': 0, 'margin_if_b': 0}
-        
-        current_cost = round(float(product.get('cost', 0)), 2)
+
+        current_cost = money(product.get('cost', 0))
         return {
             'current_margin': ((sale_price - current_cost) / sale_price) * 100,
             'margin_if_a': ((sale_price - price_a) / sale_price) * 100,

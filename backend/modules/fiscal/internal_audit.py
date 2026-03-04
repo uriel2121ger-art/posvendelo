@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT
+from ..shared.constants import RESICO_ANNUAL_LIMIT, money
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +128,9 @@ class GeneralDeGuerra:
                 LIMIT 100
             """)
             for p in rows:
-                sold = round(float(p['sold'] or 0), 2)
-                shrink = round(float(p['shrink'] or 0), 2)
-                stock = round(float(p['stock'] or 0), 2)
+                sold = money(p['sold'])
+                shrink = money(p['shrink'])
+                stock = money(p['stock'])
                 
                 # If there's high shrinkage recorded compared to stock/sales, it's an anomaly 
                 if shrink > (stock * 0.2) + sold:
@@ -156,7 +156,7 @@ class GeneralDeGuerra:
                 AND timestamp >= DATE_TRUNC('month', CURRENT_DATE)
             """)
             if row:
-                total = round(float(row['total'] or 0), 2)
+                total = money(row['total'])
                 if total > 45000:
                     findings.append({
                         'type': 'ANTI_MONEY_LAUNDERING',

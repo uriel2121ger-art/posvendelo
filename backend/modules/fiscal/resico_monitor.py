@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 import logging
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT
+from ..shared.constants import RESICO_ANNUAL_LIMIT, money
 
 logger = logging.getLogger(__name__)
 
@@ -72,17 +72,17 @@ class RESICOMonitor:
 
         return {
             'year': year,
-            'ventas_serie_a': round(float(ventas_a), 2),
-            'limite_anual': round(float(self.LIMITE_ANUAL), 2),
-            'restante': round(float(restante), 2),
-            'porcentaje_usado': round(float(porcentaje_usado), 2),
-            'proyeccion_anual': round(float(proyeccion_anual), 2),
-            'promedio_diario': round(float(daily_average), 2) if days_elapsed > 0 else 0,
+            'ventas_serie_a': money(ventas_a),
+            'limite_anual': money(self.LIMITE_ANUAL),
+            'restante': money(restante),
+            'porcentaje_usado': money(porcentaje_usado),
+            'proyeccion_anual': money(proyeccion_anual),
+            'promedio_diario': money(daily_average) if days_elapsed > 0 else 0,
             'dias_transcurridos': days_elapsed,
             'dias_para_limite': dias_para_limite,
             'estado': estado,
             'recomendaciones': self._generar_recomendaciones(estado, ventas_a, restante, dias_para_limite),
-            'tasa_isr_actual': float(self._get_tasa_mensual((ventas_a / Decimal(str(max(1, days_elapsed)))) * Decimal('30'))),
+            'tasa_isr_actual': money(self._get_tasa_mensual((ventas_a / Decimal(str(max(1, days_elapsed)))) * Decimal('30')), 4),
             'timestamp': datetime.now().isoformat(),
         }
 
@@ -139,15 +139,15 @@ class RESICOMonitor:
             recs.append("Contacta a tu contador para migrar a Regimen General")
             recs.append("Las ventas adicionales tributaran a tasa mayor")
         elif estado['codigo'] == 'CRITICO':
-            recs.append(f"Solo puedes facturar ${round(float(restante), 2):,.2f} mas este anio")
+            recs.append(f"Solo puedes facturar ${float(restante.quantize(Decimal('0.01'))):,.2f} mas este anio")
             recs.append("Considera pausar pagos con tarjeta/transferencia")
             recs.append(f"A este ritmo, llegaras al limite en {dias} dias")
         elif estado['codigo'] == 'PRECAUCION':
-            recs.append(f"Te quedan ${round(float(restante), 2):,.2f} de capacidad")
+            recs.append(f"Te quedan ${float(restante.quantize(Decimal('0.01'))):,.2f} de capacidad")
             recs.append("Revisa tu estrategia de facturacion global")
         else:
             recs.append("Continua con tu operacion normal")
-            recs.append(f"Capacidad restante: ${round(float(restante), 2):,.2f}")
+            recs.append(f"Capacidad restante: ${float(restante.quantize(Decimal('0.01'))):,.2f}")
 
         return recs
 
@@ -213,11 +213,11 @@ class RESICOMonitor:
             months.append({
                 'mes': int(row['mes']),
                 'transacciones': row['transacciones'],
-                'subtotal': round(float(subtotal), 2),
-                'iva': round(float(Decimal(str(row['iva'] or 0))), 2),
-                'total': round(float(Decimal(str(row['total'] or 0))), 2),
-                'acumulado': round(float(acumulado), 2),
-                'porcentaje_limite': round(float((acumulado / self.LIMITE_ANUAL) * 100), 2),
+                'subtotal': money(subtotal),
+                'iva': money(row['iva']),
+                'total': money(row['total']),
+                'acumulado': money(acumulado),
+                'porcentaje_limite': money((acumulado / self.LIMITE_ANUAL) * 100),
             })
 
         return months

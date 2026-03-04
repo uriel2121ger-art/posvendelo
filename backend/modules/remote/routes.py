@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.remote.schemas import NotificationCreate, PriceChangeRemote
 from modules.hardware.printer import open_drawer as hw_open_drawer
 
@@ -115,11 +115,11 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
             "turn_id": turn["id"],
             "user": turn["username"] or f"Usuario #{turn['user_id']}",
             "started_at": turn["start_timestamp"],
-            "initial_cash": round(float(turn["initial_cash"] or 0), 2),
+            "initial_cash": money(turn["initial_cash"]),
             "sales_count": int(summary["sales_count"]) if summary else 0,
-            "cash_sales": round(float(summary["cash_sales"]), 2) if summary else 0,
-            "card_sales": round(float(summary["card_sales"]), 2) if summary else 0,
-            "total_sales": round(float(summary["total_sales"]), 2) if summary else 0,
+            "cash_sales": money(summary["cash_sales"]) if summary else 0.0,
+            "card_sales": money(summary["card_sales"]) if summary else 0.0,
+            "total_sales": money(summary["total_sales"]) if summary else 0.0,
         },
     }
 
@@ -149,7 +149,7 @@ async def get_live_sales(
             "sales": [{
                 "id": s["id"],
                 "folio": s["folio_visible"] or f"#{s['id']}",
-                "total": round(float(s["total"] or 0), 2),
+                "total": money(s["total"]),
                 "payment": s["payment_method"],
                 "serie": s["serie"],
                 "customer": s["customer_name"] or "Publico General",
@@ -304,7 +304,7 @@ async def get_system_status(auth: dict = Depends(verify_token), db=Depends(get_d
             "pos_online": True,
             "turn_active": (turn_row["c"] > 0) if turn_row else False,
             "sales_today": sales_row["count"] if sales_row else 0,
-            "total_today": round(float(sales_row["total"]), 2) if sales_row else 0.0,
+            "total_today": money(sales_row["total"]) if sales_row else 0.0,
             "low_stock_alerts": low_stock_row["c"] if low_stock_row else 0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },

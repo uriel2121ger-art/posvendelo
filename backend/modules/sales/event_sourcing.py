@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 
@@ -215,7 +217,7 @@ class SaleEventStore:
         state["items"] = sorted(state["items"].values(), key=lambda x: x.get("product_id", 0))
         # Convert Decimal to float for JSON serialization
         for key in ("subtotal", "discount_total", "tax_total", "total"):
-            state[key] = round(float(state[key]), 2)
+            state[key] = money(state[key])
 
         return state
 
@@ -274,7 +276,7 @@ class SaleEventStore:
         elif et == SaleEventTypes.PAYMENT_RECEIVED:
             state["payments"].append({
                 "method": d.get("method", "cash"),
-                "amount": round(float(d.get("amount", 0)), 2),
+                "amount": money(d.get("amount", 0)),
                 "reference": d.get("reference"),
             })
 

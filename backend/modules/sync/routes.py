@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db.connection import get_db
 from modules.shared.auth import verify_token
 from modules.sync.schemas import SyncPushPayload
-from modules.shared.constants import PRIVILEGED_ROLES, OWNER_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, OWNER_ROLES, money
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,7 +32,7 @@ ALLOWED_TABLES = {"products", "customers", "sales", "shifts"}
 def _serialize(value):
     """Convert DB values to JSON-safe types."""
     if isinstance(value, Decimal):
-        return round(float(value), 2)
+        return float(value.quantize(Decimal("0.01")))
     if isinstance(value, datetime):
         return value.isoformat()
     return value
@@ -296,9 +296,10 @@ async def sync_push(
                 skip_row = False
                 for fname, fval in num_fields.items():
                     try:
-                        f = round(float(fval), 2)
-                        if math.isnan(f) or math.isinf(f):
+                        flt = float(fval)
+                        if math.isnan(flt) or math.isinf(flt):
                             raise ValueError("NaN or Inf")
+                        f = money(fval)
                     except (ValueError, TypeError):
                         logger.warning(
                             "Sync push: campo numerico invalido '%s'=%r en SKU '%s', saltando fila",

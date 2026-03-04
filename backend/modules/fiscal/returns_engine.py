@@ -13,6 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 from modules.fiscal.constants import IVA_RATE
+from modules.shared.constants import money
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +197,7 @@ class ReturnsEngine:
                 processed_items.append({
                     'product': original_item['name'],
                     'quantity': float(qty),
-                    'refund': round(float(total), 2),
+                    'refund': money(total),
                 })
 
         requires_cfdi_egreso = serie == 'A'
@@ -207,7 +208,7 @@ class ReturnsEngine:
             'original_sale': sale_id,
             'original_serie': serie,
             'items_returned': len(processed_items),
-            'total_refund': round(float(total_return), 2),
+            'total_refund': money(total_return),
             'requires_cfdi_egreso': requires_cfdi_egreso,
             'items': processed_items,
         }
@@ -287,5 +288,5 @@ class ReturnsEngine:
             'period': f'{start} a {end}',
             'by_serie': {r['original_serie']: dict(r) for r in rows},
             'total_returns': sum(r['count'] for r in rows),
-            'total_amount': round(sum(round(float(r['total'] or 0), 2) for r in rows), 2),
+            'total_amount': money(sum(Decimal(str(r['total'] or 0)) for r in rows)),
         }

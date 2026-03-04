@@ -10,6 +10,8 @@ import logging
 import statistics
 import random
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 class PredictiveExtraction:
@@ -52,11 +54,11 @@ class PredictiveExtraction:
         available = total_serie_b - total_expenses - total_extracted
 
         return {
-            'serie_b_month': float(total_serie_b),
-            'expenses_month': float(total_expenses),
-            'extracted_month': float(total_extracted),
-            'available': float(max(Decimal('0'), available)),
-            'remaining_monthly_limit': float(max(Decimal('0'), self.MAX_MONTHLY_CASH - total_extracted))
+            'serie_b_month': money(total_serie_b),
+            'expenses_month': money(total_expenses),
+            'extracted_month': money(total_extracted),
+            'available': money(max(Decimal('0'), available)),
+            'remaining_monthly_limit': money(max(Decimal('0'), self.MAX_MONTHLY_CASH - total_extracted))
         }
     
     async def generate_extraction_plan(self, target_amount: float) -> Dict[str, Any]:
@@ -87,7 +89,7 @@ class PredictiveExtraction:
 
             plan.append({
                 'date': current_date.strftime('%Y-%m-%d'),
-                'amount': float(amount),
+                'amount': money(amount),
                 'method': await self._suggest_extraction_method(amount),
                 'contract_type': 'donacion' if amount < 10000 else 'prestamo'
             })
@@ -98,8 +100,8 @@ class PredictiveExtraction:
         contracts = await self._prepare_contracts(plan)
 
         return {
-            'success': True, 'target': float(target), 'days': len(plan),
-            'daily_average': float(target / len(plan)) if plan else 0,
+            'success': True, 'target': money(target), 'days': len(plan),
+            'daily_average': money(target / len(plan)) if plan else 0,
             'plan': plan, 'contracts': contracts,
             'message': f'Plan generado. Promedio ${float(target/len(plan)):,.0f}/día' if plan else 'Plan vacío'
         }
@@ -144,15 +146,15 @@ class PredictiveExtraction:
 
         if not daily_sales:
             half = (self.MAX_DAILY_CASH / 2).quantize(Q, rounding=ROUND_HALF_UP)
-            return {'optimal_daily': float(half), 'basis': 'Sin datos históricos'}
+            return {'optimal_daily': money(half), 'basis': 'Sin datos históricos'}
 
         daily_totals = [Decimal(str(d['total'] or 0)).quantize(Q, rounding=ROUND_HALF_UP) for d in daily_sales]
         avg_daily = sum(daily_totals) / len(daily_totals)
         optimal = min(avg_daily * Decimal('0.9'), self.MAX_DAILY_CASH).quantize(Q, rounding=ROUND_HALF_UP)
 
         return {
-            'avg_daily_serie_b': float(avg_daily.quantize(Q, rounding=ROUND_HALF_UP)),
-            'optimal_daily': float(optimal),
+            'avg_daily_serie_b': money(avg_daily),
+            'optimal_daily': money(optimal),
             'days_sampled': len(daily_sales),
             'recommendation': f'Retira ${float(optimal):,.0f}/día'
         }

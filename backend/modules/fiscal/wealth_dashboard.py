@@ -8,6 +8,8 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,16 +29,16 @@ class WealthDashboard:
         impuestos = await self._calculate_taxes(ingresos, period_type)
         extracciones = await self._get_extractions(date_filter, period_type)
 
-        utilidad_bruta = ingresos['total'] - gastos['total']
-        utilidad_neta = utilidad_bruta - impuestos['total']
-        disponible = utilidad_neta - extracciones['total']
+        utilidad_bruta = Decimal(str(ingresos['total'])) - Decimal(str(gastos['total']))
+        utilidad_neta = utilidad_bruta - Decimal(str(impuestos['total']))
+        disponible = utilidad_neta - Decimal(str(extracciones['total']))
 
         return {
             'period': date_filter, 'period_type': period_type, 'ingresos': ingresos,
             'gastos': gastos, 'impuestos': impuestos, 'extracciones': extracciones,
-            'utilidad_bruta': round(float(utilidad_bruta), 2), 'utilidad_neta': round(float(utilidad_neta), 2),
-            'disponible_retiro': round(float(disponible), 2),
-            'ratio_utilidad': round((float(utilidad_neta) / float(ingresos['total'])) * 100, 2) if ingresos['total'] > 0 else 0
+            'utilidad_bruta': money(utilidad_bruta), 'utilidad_neta': money(utilidad_neta),
+            'disponible_retiro': money(disponible),
+            'ratio_utilidad': money(utilidad_neta / Decimal(str(ingresos['total'])) * 100) if ingresos['total'] > 0 else 0
         }
 
     async def _get_total_income(self, date_filter: str, period_type: str) -> Dict[str, Any]:
@@ -50,9 +52,9 @@ class WealthDashboard:
         for r in result:
             s = r['serie'] or 'A'
             amt = Decimal(str(r['total'] or 0))
-            by_serie[s] = {'total': round(float(amt), 2), 'transactions': r['transactions']}
+            by_serie[s] = {'total': money(amt), 'transactions': r['transactions']}
             total += amt
-        return {'serie_a': by_serie.get('A', {'total': 0, 'transactions': 0}), 'serie_b': by_serie.get('B', {'total': 0, 'transactions': 0}), 'total': round(float(total), 2)}
+        return {'serie_a': by_serie.get('A', {'total': 0, 'transactions': 0}), 'serie_b': by_serie.get('B', {'total': 0, 'transactions': 0}), 'total': money(total)}
 
     async def _get_operating_expenses(self, date_filter: str, period_type: str) -> Dict[str, Any]:
         if period_type == 'month':
@@ -62,7 +64,7 @@ class WealthDashboard:
         ventas = Decimal(str(r['total'] or 0)) if r else Decimal('0')
         costo_venta = ventas * Decimal('0.65')
         gastos_fijos = ventas * Decimal('0.10')
-        return {'costo_venta': round(float(costo_venta), 2), 'gastos_fijos': round(float(gastos_fijos), 2), 'total': round(float(costo_venta + gastos_fijos), 2)}
+        return {'costo_venta': money(costo_venta), 'gastos_fijos': money(gastos_fijos), 'total': money(costo_venta + gastos_fijos)}
 
     async def _calculate_taxes(self, ingresos: Dict, period_type: str) -> Dict[str, Any]:
         serie_a = Decimal(str(ingresos['serie_a']['total']))
@@ -70,7 +72,7 @@ class WealthDashboard:
         iva_cobrado = serie_a * Decimal('0.16') / Decimal('1.16')
         iva_acreditable = iva_cobrado * Decimal('0.70')
         iva_neto = iva_cobrado - iva_acreditable
-        return {'isr': round(float(isr), 2), 'iva_cobrado': round(float(iva_cobrado), 2), 'iva_acreditable': round(float(iva_acreditable), 2), 'iva_neto': round(float(iva_neto), 2), 'total': round(float(isr + iva_neto), 2)}
+        return {'isr': money(isr), 'iva_cobrado': money(iva_cobrado), 'iva_acreditable': money(iva_acreditable), 'iva_neto': money(iva_neto), 'total': money(isr + iva_neto)}
 
     async def _get_extractions(self, date_filter: str, period_type: str) -> Dict[str, Any]:
         try:
@@ -78,7 +80,7 @@ class WealthDashboard:
                 r = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM cash_extractions WHERE TO_CHAR(extraction_date::timestamp, 'YYYY-MM') = :df", df=date_filter)
             else:
                 r = await self.db.fetchrow("SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM cash_extractions WHERE EXTRACT(YEAR FROM extraction_date::timestamp) = :df", df=int(date_filter))
-            return {'total': round(float(r['total'] or 0), 2) if r else 0, 'count': (r['count'] or 0) if r else 0}
+            return {'total': money(r['total']) if r else 0, 'count': (r['count'] or 0) if r else 0}
         except Exception:
             return {'total': 0, 'count': 0}
 
