@@ -1,0 +1,9 @@
+# NetworkManager: no gestionar interfaces virtuales de Docker
+# Copiar a /etc/NetworkManager/conf.d/99-docker-unmanaged.conf
+# y reiniciar: sudo systemctl restart NetworkManager
+#
+# Así las veth/docker no aparecen como "Ethernet" extra y se evitan
+# conflictos que pueden afectar la conexión del host.
+
+[keyfile]
+unmanaged-devices=interface-name:veth*;interface-name:docker*;interface-name:br-*

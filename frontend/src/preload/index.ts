@@ -1,7 +1,9 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
-// Custom APIs for renderer (IPC not used — frontend connects to backend via HTTP)
-const api = {}
+// Custom APIs for renderer (IPC solo para cerrar app; resto vía HTTP al backend)
+const api = {
+  closeApp: () => ipcRenderer.invoke('app:close')
+}
 
 if (process.contextIsolated) {
   try {

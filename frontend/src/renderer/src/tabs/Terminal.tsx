@@ -35,6 +35,7 @@ type Product = {
   price: number
   priceWholesale?: number
   stock?: number
+  minStock?: number
   satClaveProdServ?: string
   satClaveUnidad?: string
 }
@@ -243,6 +244,9 @@ export default function Terminal(): ReactElement {
   const [message, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
+  const [isDiscountModalOpen] = useState(false)
+  const [isCommonModalOpen] = useState(false)
+  const [isNoteModalOpen] = useState(false)
 
   const checkoutModalRef = useRef<HTMLDivElement>(null)
   useFocusTrap(checkoutModalRef, isCheckoutModalOpen)
@@ -1387,7 +1391,7 @@ export default function Terminal(): ReactElement {
                               </div>
                               {p.stock !== undefined && (
                                 <div
-                                  className={`text-[10px] uppercase font-bold mt-1 px-1.5 py-0.5 rounded ${p.stock <= p.minStock ? 'bg-rose-500/20 text-rose-500' : 'bg-zinc-800 text-zinc-500'}`}
+                                  className={`text-[10px] uppercase font-bold mt-1 px-1.5 py-0.5 rounded ${p.stock <= (p.minStock ?? 0) ? 'bg-rose-500/20 text-rose-500' : 'bg-zinc-800 text-zinc-500'}`}
                                 >
                                   Stock: {p.stock}
                                 </div>

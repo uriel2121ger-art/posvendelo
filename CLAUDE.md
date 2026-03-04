@@ -33,6 +33,7 @@ frontend/src/
 - RBAC: `if auth.get("role") not in ("admin","manager","owner"): raise 403`
 - User ID: `get_user_id(auth)` | Timezone core: UTC naive | Timezone fiscal: local (SAT)
 - Migraciones: siempre IF NOT EXISTS / ON CONFLICT DO NOTHING
+- asyncpg + TIMESTAMP: escribir hora actual con `NOW()` en SQL; no pasar datetime desde Python (bug naive/aware). Ver docs/bug-investigation-cierre-turno-500.md
 - CORS: `CORS_ALLOWED_ORIGINS` env var (main.py auto-agrega null + LAN IPs)
 - Frontend: posApi.ts(apiFetch 3s / apiFetchLong 15s), localStorage(titan.*), localhost en discovery
 

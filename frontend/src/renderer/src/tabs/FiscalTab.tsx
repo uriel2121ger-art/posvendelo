@@ -271,7 +271,7 @@ export default function FiscalTab(): ReactElement {
                   setResult(data)
                   setMessage(
                     data.success
-                      ? `CFDI Timbrado Exitosamente. UUID: ${data.data?.uuid || 'Generado'}`
+                      ? `CFDI Timbrado Exitosamente. UUID: ${(data.data as Record<string, unknown>)?.uuid ?? 'Generado'}`
                       : 'CFDI Generado pero sin confirmacion UUID.'
                   )
                 } catch (error) {
@@ -319,7 +319,7 @@ export default function FiscalTab(): ReactElement {
                   setResult(data)
                   setMessage(
                     data.success
-                      ? `CFDI Global Timbrado. UUID: ${data.data?.uuid || 'Generado'}`
+                      ? `CFDI Global Timbrado. UUID: ${(data.data as Record<string, unknown>)?.uuid ?? 'Generado'}`
                       : 'CFDI Global Generado sin confirmacion UUID.'
                   )
                 } catch (error) {

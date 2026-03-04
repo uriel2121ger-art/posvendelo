@@ -161,7 +161,46 @@ export default function ShiftStartupModal({
         saveCurrentShift(shift)
         onComplete()
       } catch (err) {
-        setError((err as Error).message)
+        const msg = (err as Error).message ?? ''
+        // Backend dice que ya hay un turno abierto: resincronizar y mostrar "Turno Abierto"
+        if (/ya tienes un turno abierto|turno abierto/i.test(msg)) {
+          try {
+            const cfgLoaded = loadRuntimeConfig()
+            const turn = await getCurrentTurn(cfgLoaded)
+            const data = (turn?.data ?? turn) as Record<string, unknown> | null
+            if (data?.id != null && data?.status === 'open') {
+              const recovered: ShiftRecord = {
+                id: `shift-recovered-${data.id}`,
+                backendTurnId: Number(data.id),
+                terminalId: Number(data.terminal_id ?? data.branch_id ?? cfgLoaded.terminalId),
+                openedAt: String(data.start_timestamp ?? new Date().toISOString()),
+                openedBy: operator,
+                openingCash: Number(data.initial_cash ?? 0),
+                status: 'open',
+                salesCount: 0,
+                totalSales: 0
+              }
+              try {
+                const raw = await getTurnSummary(cfgLoaded, Number(data.id))
+                const summary = (raw.data ?? raw) as Record<string, unknown>
+                recovered.salesCount = Number(summary.sales_count ?? 0)
+                recovered.totalSales = Math.round(Number(summary.total_sales ?? 0) * 100) / 100
+              } catch {
+                /* resumen opcional */
+              }
+              saveCurrentShift(recovered)
+              setExistingShift(recovered)
+              setPhase('existing_shift')
+              setError('')
+              return
+            }
+          } catch {
+            /* fallback: mostrar error tal cual */
+          }
+          setError('Ya tienes un turno abierto. Elige continuar o cerrarlo primero.')
+        } else {
+          setError(msg)
+        }
       } finally {
         setBusy(false)
       }
@@ -256,7 +295,17 @@ export default function ShiftStartupModal({
 
         setPhase('cut_summary')
       } catch (err) {
-        setError((err as Error).message)
+        const msg = (err as Error).message ?? ''
+        // Si el backend dice que el turno ya estaba cerrado, limpiar estado local
+        // para no permitir "Volver" a un turno fantasma
+        if (msg.toLowerCase().includes('cerrado')) {
+          saveCurrentShift(null)
+          setExistingShift(null)
+          setPhase('no_shift')
+          setError('Ese turno ya estaba cerrado. Puedes abrir uno nuevo.')
+        } else {
+          setError(msg)
+        }
       } finally {
         setBusy(false)
       }
@@ -358,10 +407,10 @@ export default function ShiftStartupModal({
         <div
           ref={modalRef as React.RefObject<HTMLDivElement>}
           onClick={(e) => e.stopPropagation()}
-          className={card}
+          className={`${card} text-center`}
         >
           <h2 className="text-lg font-bold text-amber-400 mb-4">Turno Abierto</h2>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 mb-4 space-y-1">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 mb-4 space-y-1 text-left">
             <div className="flex justify-between text-sm">
               <span className="text-zinc-500">Turno por:</span>
               <span className="font-semibold text-zinc-200">{existingShift.openedBy}</span>
@@ -435,7 +484,7 @@ export default function ShiftStartupModal({
             <button
               type="submit"
               disabled={busy}
-              className="flex-1 rounded-xl bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors disabled:opacity-40"
+              className="flex flex-1 flex-col justify-start items-start rounded-xl bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors disabled:opacity-40"
             >
               {busy ? 'Cerrando...' : 'Cerrar turno'}
             </button>

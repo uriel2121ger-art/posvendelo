@@ -601,10 +601,15 @@ function RoutedApp(): ReactElement {
         <ShiftStartupModal
           onComplete={() => setShiftResolved(true)}
           onExit={() => {
-            try {
-              window.close()
-            } catch {
-              /* noop */
+            const api = (window as Window & { api?: { closeApp?: () => Promise<void> } }).api
+            if (typeof api?.closeApp === 'function') {
+              void api.closeApp()
+            } else {
+              try {
+                window.close()
+              } catch {
+                /* en navegador window.close() suele no hacer nada */
+              }
             }
           }}
         />

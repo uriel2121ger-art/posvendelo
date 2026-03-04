@@ -2,9 +2,6 @@ import type { ReactElement } from 'react'
 import { useState } from 'react'
 import type { RuntimeConfig } from '../../posApi'
 import {
-  generateDestructionActa,
-  generateReturnDocument,
-  generateLegalSelfConsumptionVoucher,
   getLegalMonthlySummary,
   registerSelfConsumption,
   registerSample,

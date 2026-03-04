@@ -319,7 +319,7 @@ export default function SettingsTab(): ReactElement {
 
   // -- HW METHODS --
   const handleSaveHw = async (
-    sec: typeof activeTab,
+    sec: 'printer' | 'business' | 'scanner' | 'drawer',
     body: Record<string, unknown>
   ): Promise<void> => {
     setBusy(true)

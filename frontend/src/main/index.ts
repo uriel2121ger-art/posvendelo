@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -87,6 +87,12 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  // Cerrar ventana desde el renderer (botón "Cerrar programa" en ShiftStartupModal)
+  ipcMain.handle('app:close', () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) win.close()
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

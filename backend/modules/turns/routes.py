@@ -8,7 +8,6 @@ Columns: id, user_id, pos_id, branch_id, terminal_id, start_timestamp, end_times
 
 import json
 import logging
-from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
@@ -48,15 +47,14 @@ async def open_turn(
                 detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
             )
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-
+        # Usar NOW() de PostgreSQL para start_timestamp (evita bug asyncpg naive/aware en close_turn)
         row = await conn.fetchrow(
             """
             INSERT INTO turns (user_id, branch_id, initial_cash, status, notes, start_timestamp, synced)
-            VALUES ($1, $2, $3, 'open', $4, $5, 0)
+            VALUES ($1, $2, $3, 'open', $4, NOW(), 0)
             RETURNING id
             """,
-            user_id, body.branch_id, body.initial_cash, body.notes, now,
+            user_id, body.branch_id, body.initial_cash, body.notes,
         )
 
     if not row:
@@ -90,8 +88,6 @@ async def close_turn(
         if turn["user_id"] != user_id and role not in PRIVILEGED_ROLES:
             raise HTTPException(status_code=403, detail="No puedes cerrar el turno de otro usuario")
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-
         # Calculate expected cash using shared service
         ts = await calculate_turn_summary(turn_id, turn["initial_cash"], conn)
         system_sales_total = ts["cash_sales"]
@@ -104,6 +100,7 @@ async def close_turn(
                 [d.model_dump(mode="json") for d in body.denominations]
             )
 
+        # Usar NOW() de PostgreSQL para end_timestamp y evitar conflictos naive/aware con asyncpg
         await conn.execute(
             """
             UPDATE turns SET
@@ -113,12 +110,12 @@ async def close_turn(
                 difference = $3,
                 denominations = $4::jsonb,
                 notes = COALESCE($5, notes),
-                end_timestamp = $6,
+                end_timestamp = NOW(),
                 synced = 0
-            WHERE id = $7
+            WHERE id = $6
             """,
             body.final_cash, system_sales_total, difference,
-            denominations_json, body.notes, now, turn_id,
+            denominations_json, body.notes, turn_id,
         )
 
     return {
@@ -314,17 +311,16 @@ async def create_cash_movement(
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno esta cerrado")
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-
+        # Patrón seguro: usar NOW() de PostgreSQL para columnas TIMESTAMP (evita bug asyncpg naive/aware)
         row = await conn.fetchrow(
             """
             INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
             RETURNING id
             """,
             turn_id, body.movement_type, body.amount,
             f"Movimiento {body.movement_type}: {body.reason}",
-            body.reason, user_id, now,
+            body.reason, user_id,
         )
 
     return {"success": True, "data": {"id": row["id"]}}

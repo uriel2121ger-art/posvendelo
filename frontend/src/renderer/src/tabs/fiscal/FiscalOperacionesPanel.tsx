@@ -116,7 +116,7 @@ export default function FiscalOperacionesPanel({
             onChange={(e) => setCrossConcept(e.target.value)}
           />
           <button
-            className={btnPrimary col-span-2 md:col-span-1}
+            className={`${btnPrimary} col-span-2 md:col-span-1`}
             disabled={
               busy ||
               !crossSaleId.trim() ||
