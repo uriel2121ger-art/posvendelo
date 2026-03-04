@@ -14,11 +14,18 @@ import {
   getShadowRealView,
   getShadowDiscrepancy,
   reconcileShadow,
+  getShadowDualStock,
+  shadowAdd,
+  shadowSell,
   createGhostTransfer,
   receiveGhostTransfer,
   getPendingGhostTransfers,
+  getGhostTransferSlip,
   getFederationOperational,
   getFederationFiscal,
+  getFederationWealth,
+  federationLockdown,
+  federationRelease,
   createGhostWallet,
   addWalletPoints,
   redeemWalletPoints,
@@ -35,17 +42,30 @@ import {
   surgicalDelete,
   triggerPanic,
   triggerFakeScreen,
+  triggerDeadDrive,
   runShaper
 } from '../posApi'
+import FiscalDashboardPanel from './fiscal/FiscalDashboardPanel'
+import FiscalCostosPanel from './fiscal/FiscalCostosPanel'
+import FiscalExtraccionesPanel from './fiscal/FiscalExtraccionesPanel'
+import FiscalDocumentosPanel from './fiscal/FiscalDocumentosPanel'
+import FiscalAnalyticsPanel from './fiscal/FiscalAnalyticsPanel'
+import FiscalOperacionesPanel from './fiscal/FiscalOperacionesPanel'
 
 type SubTab =
   | 'facturacion'
+  | 'dashboard'
   | 'inventario'
+  | 'costos'
   | 'logistica'
   | 'federation'
+  | 'extracciones'
+  | 'documentos'
   | 'auditoria'
+  | 'analytics'
   | 'wallet'
   | 'crypto'
+  | 'operaciones'
   | 'seguridad'
 
 function toNumber(value: unknown): number {
@@ -104,6 +124,19 @@ export default function FiscalTab(): ReactElement {
   const [recvCode, setRecvCode] = useState('')
   const [recvUserId, setRecvUserId] = useState('')
   const [ghostBranch, setGhostBranch] = useState('')
+  const [slipCode, setSlipCode] = useState('')
+  const [dualProductId, setDualProductId] = useState('')
+  const [shadowAddProductId, setShadowAddProductId] = useState('')
+  const [shadowAddQty, setShadowAddQty] = useState('')
+  const [shadowAddSource, setShadowAddSource] = useState('')
+  const [shadowSellProductId, setShadowSellProductId] = useState('')
+  const [shadowSellQty, setShadowSellQty] = useState('')
+  const [shadowSellSerie, setShadowSellSerie] = useState('B')
+  const [lockdownBranchId, setLockdownBranchId] = useState('')
+  const [releaseBranchId, setReleaseBranchId] = useState('')
+  const [releaseAuthCode, setReleaseAuthCode] = useState('')
+  const [deadDriveDevice, setDeadDriveDevice] = useState('')
+  const [deadDriveConfirm, setDeadDriveConfirm] = useState('')
 
   // --- Auditoria state ---
   const [supProductId, setSupProductId] = useState('')
@@ -152,12 +185,18 @@ export default function FiscalTab(): ReactElement {
 
   const tabs: { key: SubTab; label: string }[] = [
     { key: 'facturacion', label: 'Facturacion' },
+    { key: 'dashboard', label: 'Dashboard' },
     { key: 'inventario', label: 'Inv. Fiscal' },
+    { key: 'costos', label: 'Costos' },
     { key: 'logistica', label: 'Logistica' },
     { key: 'federation', label: 'Federation' },
+    { key: 'extracciones', label: 'Extracciones' },
+    { key: 'documentos', label: 'Documentos' },
     { key: 'auditoria', label: 'Auditoria' },
+    { key: 'analytics', label: 'Analytics' },
     { key: 'wallet', label: 'Wallet' },
     { key: 'crypto', label: 'Crypto' },
+    { key: 'operaciones', label: 'Operaciones' },
     { key: 'seguridad', label: 'Seguridad' }
   ]
 
@@ -408,6 +447,102 @@ export default function FiscalTab(): ReactElement {
           >
             Discrepancias
           </button>
+          <input
+            className={inputCls + ' max-w-[100px]'}
+            placeholder="Product ID"
+            type="number"
+            value={dualProductId}
+            onChange={(e) => setDualProductId(e.target.value)}
+          />
+          <button
+            className={btnSecondary}
+            disabled={busy || !dualProductId.trim()}
+            onClick={() => void wrap(() => getShadowDualStock(cfg(), toNumber(dualProductId)))}
+          >
+            Stock dual
+          </button>
+        </div>
+        <div className={cardCls}>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Shadow add</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <input
+              className={inputCls}
+              placeholder="Product ID"
+              type="number"
+              value={shadowAddProductId}
+              onChange={(e) => setShadowAddProductId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Cantidad"
+              type="number"
+              value={shadowAddQty}
+              onChange={(e) => setShadowAddQty(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Origen (opcional)"
+              value={shadowAddSource}
+              onChange={(e) => setShadowAddSource(e.target.value)}
+            />
+            <button
+              className={btnPrimary}
+              disabled={busy || !shadowAddProductId.trim()}
+              onClick={() =>
+                void wrap(() =>
+                  shadowAdd(cfg(), {
+                    product_id: toNumber(shadowAddProductId),
+                    quantity: toNumber(shadowAddQty),
+                    source: shadowAddSource.trim() || undefined
+                  })
+                )
+              }
+            >
+              Agregar shadow
+            </button>
+          </div>
+        </div>
+        <div className={cardCls}>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Shadow sell</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <input
+              className={inputCls}
+              placeholder="Product ID"
+              type="number"
+              value={shadowSellProductId}
+              onChange={(e) => setShadowSellProductId(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Cantidad"
+              type="number"
+              value={shadowSellQty}
+              onChange={(e) => setShadowSellQty(e.target.value)}
+            />
+            <select
+              className={inputCls + ' max-w-[80px]'}
+              value={shadowSellSerie}
+              onChange={(e) => setShadowSellSerie(e.target.value)}
+            >
+              <option value="A">A</option>
+              <option value="B">B</option>
+            </select>
+            <button
+              className={btnPrimary}
+              disabled={busy || !shadowSellProductId.trim()}
+              onClick={() =>
+                void wrap(() =>
+                  shadowSell(cfg(), {
+                    product_id: toNumber(shadowSellProductId),
+                    quantity: toNumber(shadowSellQty),
+                    serie: shadowSellSerie
+                  })
+                )
+              }
+            >
+              Venta shadow
+            </button>
+          </div>
         </div>
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">Reconciliar</h3>
@@ -557,6 +692,24 @@ export default function FiscalTab(): ReactElement {
             </button>
           </div>
         </div>
+        <div className={cardCls}>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Remisión / Slip</h3>
+          <div className="flex gap-2">
+            <input
+              className={inputCls}
+              placeholder="Código transferencia"
+              value={slipCode}
+              onChange={(e) => setSlipCode(e.target.value)}
+            />
+            <button
+              className={btnSecondary}
+              disabled={busy || !slipCode.trim()}
+              onClick={() => void wrap(() => getGhostTransferSlip(cfg(), slipCode.trim()))}
+            >
+              Obtener remisión
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -579,7 +732,68 @@ export default function FiscalTab(): ReactElement {
           >
             Inteligencia Fiscal
           </button>
+          {canAdmin && (
+            <button
+              className={btnSecondary}
+              disabled={busy}
+              onClick={() => void wrap(() => getFederationWealth(cfg()))}
+            >
+              Wealth
+            </button>
+          )}
         </div>
+        {canAdmin && (
+          <div className={cardCls}>
+            <h3 className="text-sm font-semibold mb-3 text-zinc-400">Lockdown / Release</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+              <input
+                className={inputCls}
+                type="number"
+                placeholder="Branch ID (lockdown)"
+                value={lockdownBranchId}
+                onChange={(e) => setLockdownBranchId(e.target.value)}
+              />
+              <button
+                className={btnDanger}
+                disabled={busy || !lockdownBranchId.trim()}
+                onClick={() =>
+                  void wrap(() =>
+                    federationLockdown(cfg(), { branch_id: toNumber(lockdownBranchId) })
+                  )
+                }
+              >
+                Lockdown
+              </button>
+              <input
+                className={inputCls}
+                type="number"
+                placeholder="Branch ID (release)"
+                value={releaseBranchId}
+                onChange={(e) => setReleaseBranchId(e.target.value)}
+              />
+              <input
+                className={inputCls}
+                placeholder="Código auth"
+                value={releaseAuthCode}
+                onChange={(e) => setReleaseAuthCode(e.target.value)}
+              />
+              <button
+                className={btnPrimary}
+                disabled={busy || !releaseBranchId.trim() || !releaseAuthCode.trim()}
+                onClick={() =>
+                  void wrap(() =>
+                    federationRelease(cfg(), {
+                      branch_id: toNumber(releaseBranchId),
+                      auth_code: releaseAuthCode.trim()
+                    })
+                  )
+                }
+              >
+                Release
+              </button>
+            </div>
+          </div>
+        )}
         {!canAdmin && (
           <p className="text-xs text-zinc-500">
             Acciones de lockdown/release solo para admin/owner.
@@ -982,8 +1196,8 @@ export default function FiscalTab(): ReactElement {
                   return
                 const ids = sdSaleIds
                   .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean)
+                  .map((s) => parseInt(s.trim(), 10))
+                  .filter((n) => !Number.isNaN(n))
                 void wrap(() =>
                   surgicalDelete(cfg(), { sale_ids: ids, confirm_phrase: sdConfirm.trim() })
                 )
@@ -1048,18 +1262,98 @@ export default function FiscalTab(): ReactElement {
             </button>
           </div>
         </div>
+        <div className={cardCls}>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Dead drive</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <input
+              className={inputCls}
+              placeholder="Dispositivo"
+              value={deadDriveDevice}
+              onChange={(e) => setDeadDriveDevice(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              placeholder="Frase confirmación"
+              value={deadDriveConfirm}
+              onChange={(e) => setDeadDriveConfirm(e.target.value)}
+            />
+            <button
+              className={btnDanger}
+              disabled={busy || !deadDriveDevice.trim() || !deadDriveConfirm.trim() || !canAdmin}
+              onClick={async () => {
+                if (
+                  !(await confirm('¿Ejecutar dead-drive? Esta acción es irreversible.', {
+                    variant: 'danger',
+                    title: 'Dead drive'
+                  }))
+                )
+                  return
+                void wrap(() =>
+                  triggerDeadDrive(cfg(), {
+                    device: deadDriveDevice.trim(),
+                    confirm: deadDriveConfirm.trim()
+                  })
+                )
+              }}
+            >
+              Dead drive
+            </button>
+          </div>
+        </div>
       </div>
+    )
+  }
+
+  function renderDashboard(): ReactElement {
+    return (
+      <FiscalDashboardPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
+    )
+  }
+
+  function renderCostos(): ReactElement {
+    return (
+      <FiscalCostosPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
+    )
+  }
+
+  function renderExtracciones(): ReactElement {
+    return (
+      <FiscalExtraccionesPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
+    )
+  }
+
+  function renderDocumentos(): ReactElement {
+    return (
+      <FiscalDocumentosPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
+    )
+  }
+
+  function renderAnalytics(): ReactElement {
+    return (
+      <FiscalAnalyticsPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
+    )
+  }
+
+  function renderOperaciones(): ReactElement {
+    return (
+      <FiscalOperacionesPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
     )
   }
 
   const tabRenderers: Record<SubTab, () => ReactElement> = {
     facturacion: renderFacturacion,
+    dashboard: renderDashboard,
     inventario: renderInventarioFiscal,
+    costos: renderCostos,
     logistica: renderLogistica,
     federation: renderFederation,
+    extracciones: renderExtracciones,
+    documentos: renderDocumentos,
     auditoria: renderAuditoria,
+    analytics: renderAnalytics,
     wallet: renderWallet,
     crypto: renderCrypto,
+    operaciones: renderOperaciones,
     seguridad: renderSeguridad
   }
 
