@@ -105,39 +105,21 @@ async def test_null_byte_json_body_safe(client, seed_all, admin_token):
     assert resp.status_code != 500, f"Null byte in body caused 500"
 
 
-# ── 3. PIN Validation — Cash Movements ───────────────────────────
+# ── 3. Cash movements — no PIN required ───────────────────────────
 
 
-async def test_cash_movement_valid_pin(client, seed_all, cashier_token):
-    """Cashier with valid manager PIN should be able to create cash movement."""
+async def test_cash_movement_without_pin(client, seed_all, cashier_token):
+    """Cashier can create cash movement without manager PIN."""
     resp = await client.post(
         f"/api/v1/turns/{TURN_ID}/movements",
         json={
             "amount": "100.00",
             "movement_type": "out",
-            "reason": "Test retiro con PIN valido",
-            "manager_pin": TEST_MANAGER_PIN,
+            "reason": "Test retiro sin PIN",
         },
         headers=auth_header(cashier_token),
     )
-    # The turn belongs to ADMIN_ID, but PIN should still validate
-    # (cashier needs manager PIN for cash movements)
-    assert resp.status_code == 200, f"Valid PIN rejected: {resp.text}"
-
-
-async def test_cash_movement_invalid_pin(client, seed_all, cashier_token):
-    """Cashier with invalid PIN must get 403, not 500."""
-    resp = await client.post(
-        f"/api/v1/turns/{TURN_ID}/movements",
-        json={
-            "amount": "100.00",
-            "movement_type": "out",
-            "reason": "Test retiro con PIN invalido",
-            "manager_pin": "9999",
-        },
-        headers=auth_header(cashier_token),
-    )
-    assert resp.status_code == 403, f"Expected 403, got {resp.status_code}: {resp.text}"
+    assert resp.status_code == 200, f"Cash movement rejected: {resp.text}"
 
 
 # ── 4. Cancel Sale PIN Requirement ───────────────────────────────

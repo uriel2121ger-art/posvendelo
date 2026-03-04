@@ -29,7 +29,7 @@ describe('TopNavbar', () => {
     clearAuth()
   })
 
-  it('renderiza los 14 links de navegación principal', () => {
+  it('renderiza los 13 links de navegación principal', () => {
     renderTopNavbar()
     const expectedLabels = [
       'Ventas',
@@ -38,7 +38,6 @@ describe('TopNavbar', () => {
       'Inventario',
       'Turnos',
       'Historial',
-      'Gastos',
       'Mermas',
       'Reportes',
       'Estadísticas',

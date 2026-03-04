@@ -175,10 +175,10 @@ class TestCashMovements:
         )
         assert r.status_code == 200
 
-    async def test_cash_movement_cashier_needs_pin(
+    async def test_cash_movement_cashier_without_pin(
         self, client, cashier_token, db_conn, seed_turn
     ):
-        # Create a turn for the cashier
+        """Cashier can register cash in/out without manager PIN."""
         from conftest import CASHIER_ID
         await db_conn.execute(
             "INSERT INTO turns (user_id, branch_id, terminal_id, initial_cash, "
@@ -196,5 +196,5 @@ class TestCashMovements:
             headers=auth_header(cashier_token),
             json={"movement_type": "in", "amount": 100, "reason": "Test"},
         )
-        assert r.status_code == 403
-        assert "PIN" in r.json()["detail"]
+        assert r.status_code == 200
+        assert r.json()["data"]["id"] > 0

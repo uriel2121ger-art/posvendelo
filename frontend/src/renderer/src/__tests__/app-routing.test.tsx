@@ -190,13 +190,13 @@ describe('App Routing', () => {
     })
   })
 
-  it('muestra Gastos en /gastos con token', async () => {
+  it('redirige /gastos a /turnos (Gastos está dentro de Turnos)', async () => {
     setAuthToken()
     window.location.hash = '#/gastos'
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('expenses-tab')).toBeInTheDocument()
+      expect(screen.getByTestId('shifts-tab')).toBeInTheDocument()
     })
   })
 

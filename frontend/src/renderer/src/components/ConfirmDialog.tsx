@@ -201,7 +201,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
               <div className="flex gap-3">
                 <button
                   onClick={() => handleConfirmResult(false)}
-                  className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  className="flex-1 rounded-xl border border-rose-600 bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors"
                 >
                   {dialog.options.cancelText ?? 'Cancelar'}
                 </button>
@@ -244,7 +244,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
                 <button
                   type="button"
                   onClick={handlePromptCancel}
-                  className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  className="flex-1 rounded-xl border border-rose-600 bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors"
                 >
                   {promptDialog.options.cancelText ?? 'Cancelar'}
                 </button>

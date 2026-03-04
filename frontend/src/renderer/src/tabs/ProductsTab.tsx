@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from '../components/ConfirmDialog'
-import { Search, Plus, X, AlertCircle, RefreshCw, PackageOpen, Edit2 } from 'lucide-react'
+import { Search, Plus, X, AlertCircle, RefreshCw, PackageOpen, Edit2, Download, Upload } from 'lucide-react'
 import {
   loadRuntimeConfig,
   pullTable,
@@ -15,6 +15,7 @@ import {
   updateProduct
 } from '../posApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import * as XLSX from 'xlsx'
 
 type Product = {
   id?: number | string
@@ -23,6 +24,7 @@ type Product = {
   price: number
   stock: number
   category?: string
+  barcode?: string
   satClaveProdServ?: string
   satClaveUnidad?: string
   satDescripcion?: string
@@ -46,11 +48,109 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
     price,
     stock,
     category: String(raw.category ?? '').trim() || undefined,
+    barcode: String(raw.barcode ?? '').trim() || undefined,
     satClaveProdServ:
       String(raw.sat_clave_prod_serv ?? raw.satClaveProdServ ?? '').trim() || undefined,
     satClaveUnidad: String(raw.sat_clave_unidad ?? raw.satClaveUnidad ?? '').trim() || undefined,
     satDescripcion: String(raw.sat_descripcion ?? raw.satDescripcion ?? '').trim() || undefined
   }
+}
+
+// ─── Exportar / Importar CSV ─────────────────────────────────────────────────
+
+function toCsvCell(value: string): string {
+  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
+  return `"${safe.replace(/"/g, '""')}"`
+}
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
+  const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
+  const blob = new Blob([`\uFEFF${csv}\n`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  setTimeout(() => URL.revokeObjectURL(url), 100)
+}
+
+/** Parsea una línea CSV respetando comillas (campos con coma). */
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+        continue
+      }
+      inQuotes = !inQuotes
+      continue
+    }
+    if (!inQuotes && c === ',') {
+      result.push(current.trim())
+      current = ''
+      continue
+    }
+    current += c
+  }
+  result.push(current.trim())
+  return result
+}
+
+/** Campos del sistema para importación y su mapeo amigable. */
+const IMPORT_FIELDS: { key: keyof Product | 'barcode'; label: string; required: boolean }[] = [
+  { key: 'sku', label: 'Código (SKU)', required: true },
+  { key: 'name', label: 'Nombre del producto', required: true },
+  { key: 'price', label: 'Precio', required: true },
+  { key: 'stock', label: 'Stock', required: false },
+  { key: 'category', label: 'Categoría', required: false },
+  { key: 'barcode', label: 'Código de barras', required: false },
+  { key: 'satClaveProdServ', label: 'Clave SAT producto', required: false },
+  { key: 'satClaveUnidad', label: 'Clave SAT unidad', required: false },
+  { key: 'satDescripcion', label: 'Descripción SAT', required: false }
+]
+
+/** Sugiere mapeo: nombre de columna del archivo → key de IMPORT_FIELDS. */
+function suggestMapping(fileHeaders: string[]): Record<string, string> {
+  const normal = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-z0-9]/g, '')
+  const aliases: Record<string, string[]> = {
+    sku: ['sku', 'codigo', 'code', 'clave'],
+    name: ['nombre', 'name', 'producto', 'descripcion'],
+    price: ['precio', 'price', 'precioventa'],
+    stock: ['stock', 'existencia', 'cantidad'],
+    category: ['categoria', 'category', 'categoría'],
+    barcode: ['barcode', 'codigobarras', 'ean'],
+    satClaveProdServ: ['sat', 'clavesat', 'claveprodserv'],
+    satClaveUnidad: ['unidad', 'satunidad'],
+    satDescripcion: ['descripcionsat', 'satdesc']
+  }
+  const mapping: Record<string, string> = {}
+  const used = new Set<string>()
+  for (const header of fileHeaders) {
+    const n = normal(header)
+    for (const f of IMPORT_FIELDS) {
+      if (used.has(f.key)) continue
+      const fn = normal(f.label)
+      const keys = aliases[f.key] ?? [f.key]
+      const match = n === fn || keys.some((k) => n.includes(k) || k.includes(n))
+      if (match) {
+        mapping[header] = f.key
+        used.add(f.key)
+        break
+      }
+    }
+  }
+  return mapping
 }
 
 export default function ProductsTab(): ReactElement {
@@ -88,6 +188,14 @@ export default function ProductsTab(): ReactElement {
 
   const PAGE_SIZE = 50
   const [page, setPage] = useState(0)
+
+  // Importar CSV: archivo parseado, mapeo columna → campo, y estado del modal
+  const [importOpen, setImportOpen] = useState(false)
+  const [importHeaders, setImportHeaders] = useState<string[]>([])
+  const [importRows, setImportRows] = useState<string[][]>([])
+  const [importMapping, setImportMapping] = useState<Record<string, string>>({}) // columna archivo → key
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number; error?: string } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const filtered = useMemo(() => {
     let result = products
@@ -306,6 +414,173 @@ export default function ProductsTab(): ReactElement {
     setMessage(`Producto seleccionado: ${product.sku}`)
   }
 
+  function exportProductsCsv(): void {
+    const headers = [
+      'Código (SKU)',
+      'Nombre',
+      'Precio',
+      'Stock',
+      'Categoría',
+      'Código de barras',
+      'Clave SAT producto',
+      'Clave SAT unidad',
+      'Descripción SAT'
+    ]
+    const rows = products.map((p) => [
+      p.sku,
+      p.name,
+      String(p.price),
+      String(p.stock),
+      p.category ?? '',
+      p.barcode ?? '',
+      p.satClaveProdServ ?? '',
+      p.satClaveUnidad ?? '',
+      p.satDescripcion ?? ''
+    ])
+    downloadCsv(`productos_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
+    setMessage(`Exportados ${products.length} productos a CSV.`)
+  }
+
+  function openImportDialog(): void {
+    setImportOpen(true)
+    setImportHeaders([])
+    setImportRows([])
+    setImportMapping({})
+    setImportProgress(null)
+    importFileInputRef.current?.click()
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>): void {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const isXlsx = /\.xlsx$/i.test(file.name) || /\.xls$/i.test(file.name)
+    if (isXlsx) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const ab = reader.result as ArrayBuffer
+          const wb = XLSX.read(ab, { type: 'array' })
+          const firstSheetName = wb.SheetNames[0]
+          if (!firstSheetName) {
+            setMessage('El archivo Excel no tiene hojas.')
+            return
+          }
+          const ws = wb.Sheets[firstSheetName]
+          const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as (string | number)[][]
+          if (!raw.length) {
+            setMessage('La primera hoja está vacía.')
+            return
+          }
+          const toString = (v: string | number): string => (v == null ? '' : String(v)).trim()
+          const headerRow = raw[0].map(toString)
+          const headers = headerRow.map((h, i) => h || `Columna ${i + 1}`)
+          const rows = raw.slice(1).map((row) => {
+            const arr: string[] = []
+            for (let i = 0; i < headers.length; i++) arr.push(toString(row[i]))
+            return arr
+          })
+          setImportHeaders(headers)
+          setImportRows(rows)
+          setImportMapping(suggestMapping(headers))
+          setImportProgress(null)
+        } catch (err) {
+          setMessage((err as Error).message)
+        }
+      }
+      reader.readAsArrayBuffer(file)
+    } else {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const text = (reader.result as string) ?? ''
+        const bom = /^\uFEFF/
+        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter((l) => l.trim())
+        if (lines.length < 2) {
+          setMessage('El archivo debe tener al menos una fila de encabezados y una de datos.')
+          return
+        }
+        const rawHeaders = parseCsvLine(lines[0].replace(bom, ''))
+        const headers = rawHeaders.map((h) => h.trim() || `Columna ${rawHeaders.indexOf(h) + 1}`)
+        const rows = lines.slice(1).map((line) => parseCsvLine(line))
+        setImportHeaders(headers)
+        setImportRows(rows)
+        setImportMapping(suggestMapping(headers))
+        setImportProgress(null)
+      }
+      reader.readAsText(file, 'UTF-8')
+    }
+  }
+
+  function getMappedRow(row: string[]): Record<string, string> {
+    const out: Record<string, string> = {}
+    importHeaders.forEach((col, i) => {
+      const field = importMapping[col]
+      if (field && row[i] !== undefined) out[field] = String(row[i]).trim()
+    })
+    return out
+  }
+
+  async function runImport(): Promise<void> {
+    if (importRows.length === 0) {
+      setMessage('No hay filas para importar.')
+      return
+    }
+    const cfg = loadRuntimeConfig()
+    const requiredKeys = IMPORT_FIELDS.filter((f) => f.required).map((f) => f.key)
+    const mapped = importRows.map((r) => getMappedRow(r))
+    const valid = mapped.filter((row) => requiredKeys.every((k) => row[k]))
+    if (valid.length === 0) {
+      setMessage('Ninguna fila tiene SKU, Nombre y Precio. Revisa el mapeo de columnas.')
+      return
+    }
+    setImportProgress({ done: 0, total: valid.length })
+    let done = 0
+    let lastError: string | undefined
+    for (const row of valid) {
+      try {
+        const payload: Record<string, unknown> = {
+          sku: row.sku,
+          name: row.name,
+          price: toNumber(row.price) || 0,
+          stock: Math.max(0, Math.floor(toNumber(row.stock))),
+          sat_clave_prod_serv: row.satClaveProdServ || '01010101',
+          sat_clave_unidad: row.satClaveUnidad || 'H87',
+          sat_descripcion: row.satDescripcion || ''
+        }
+        if (row.category) payload.category = row.category
+        if (row.barcode) payload.barcode = row.barcode
+        await createProduct(cfg, payload)
+        const product: Product = {
+          sku: row.sku,
+          name: row.name,
+          price: toNumber(row.price),
+          stock: toNumber(row.stock),
+          category: row.category || undefined,
+          barcode: row.barcode || undefined,
+          satClaveProdServ: row.satClaveProdServ || undefined,
+          satClaveUnidad: row.satClaveUnidad || undefined,
+          satDescripcion: row.satDescripcion || undefined
+        }
+        setProducts((prev) => {
+          const idx = prev.findIndex((p) => p.sku === product.sku)
+          if (idx >= 0) return prev.map((p, i) => (i === idx ? { ...p, ...product } : p))
+          return [product, ...prev]
+        })
+      } catch (err) {
+        lastError = (err as Error).message
+      }
+      done++
+      setImportProgress((p) => (p ? { ...p, done, error: lastError } : null))
+    }
+    setMessage(
+      lastError
+        ? `Importados ${done - 1}/${valid.length}. Último error: ${lastError}`
+        : `Importados ${valid.length} productos correctamente.`
+    )
+    setImportOpen(false)
+    setImportProgress(null)
+  }
+
   async function loadLowStock(): Promise<void> {
     try {
       const cfg = loadRuntimeConfig()
@@ -349,7 +624,7 @@ export default function ProductsTab(): ReactElement {
               {products.length} productos registrados en total
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => void handleLoad()}
               disabled={busy}
@@ -357,6 +632,31 @@ export default function ProductsTab(): ReactElement {
             >
               <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
               <span>Sincronizar</span>
+            </button>
+            <button
+              onClick={exportProductsCsv}
+              disabled={busy || products.length === 0}
+              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
+              title="Descargar catálogo en CSV (Excel)"
+            >
+              <Download className="w-4 h-4" />
+              <span>Exportar CSV</span>
+            </button>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <button
+              onClick={openImportDialog}
+              disabled={busy}
+              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
+              title="Cargar productos desde CSV o Excel (.xlsx, .xls)"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Importar CSV / Excel</span>
             </button>
             <button
               onClick={() => {
@@ -726,6 +1026,158 @@ export default function ProductsTab(): ReactElement {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Importar CSV: mapeo de columnas y vista previa */}
+      {importOpen && (
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => !importProgress && setImportOpen(false)}
+        >
+          <div
+            className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-blue-500" />
+                Importar productos (CSV o Excel)
+              </h2>
+              <button
+                type="button"
+                onClick={() => !importProgress && setImportOpen(false)}
+                className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {importHeaders.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-zinc-400 mb-4">
+                    Selecciona un archivo CSV o Excel (.xlsx, .xls). La primera fila debe ser los encabezados de columna.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => importFileInputRef.current?.click()}
+                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm font-medium"
+                  >
+                    Elegir archivo
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-3">
+                      Asigna cada <strong className="text-zinc-400">columna de tu archivo</strong> al <strong className="text-zinc-400">campo del sistema</strong>. Los obligatorios son Código (SKU), Nombre y Precio.
+                    </p>
+                    <div className="space-y-2">
+                      {IMPORT_FIELDS.map((f) => (
+                        <div key={f.key} className="flex items-center gap-3 flex-wrap">
+                          <label className="w-40 text-sm font-medium text-zinc-300 shrink-0">
+                            {f.label}
+                            {f.required && <span className="text-rose-400 ml-0.5">*</span>}
+                          </label>
+                          <select
+                            className="flex-1 min-w-[140px] bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-blue-500"
+                            value={Object.keys(importMapping).find((col) => importMapping[col] === f.key) ?? ''}
+                            onChange={(e) => {
+                              const col = e.target.value
+                              setImportMapping((prev) => {
+                                const next = { ...prev }
+                                Object.keys(next).forEach((k) => { if (next[k] === f.key) delete next[k] })
+                                if (col) next[col] = f.key
+                                return next
+                              })
+                            }}
+                          >
+                            <option value="">— No usar esta columna —</option>
+                            {importHeaders.map((col) => (
+                              <option key={col} value={col}>
+                                {col}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-2">Vista previa (primeras 5 filas)</p>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-700 max-h-40 overflow-y-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="bg-zinc-800/80 text-zinc-400">
+                            {IMPORT_FIELDS.filter((f) => importHeaders.some((col) => importMapping[col] === f.key)).map((f) => (
+                              <th key={f.key} className="px-3 py-2 font-medium">{f.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importRows.slice(0, 5).map((row, i) => {
+                            const mapped = getMappedRow(row)
+                            return (
+                              <tr key={i} className="border-t border-zinc-800">
+                                {IMPORT_FIELDS.filter((f) => importHeaders.some((col) => importMapping[col] === f.key)).map((f) => (
+                                  <td key={f.key} className="px-3 py-2 text-zinc-300">{mapped[f.key] ?? '—'}</td>
+                                ))}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-2">
+                      Total en archivo: <strong className="text-zinc-300">{importRows.length}</strong> filas. Se importarán las que tengan Código (SKU), Nombre y Precio asignados.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            {importHeaders.length > 0 && (
+              <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-between gap-4 shrink-0 bg-zinc-950/50">
+                {importProgress ? (
+                  <span className="text-sm text-zinc-400">
+                    Importando… {importProgress.done} / {importProgress.total}
+                    {importProgress.error && <span className="text-amber-400 ml-2">({importProgress.error})</span>}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => importFileInputRef.current?.click()}
+                      className="text-sm text-zinc-500 hover:text-zinc-300"
+                    >
+                      Cambiar archivo
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setImportOpen(false)}
+                        className="px-4 py-2 rounded-xl border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runImport()}
+                        disabled={
+                          busy ||
+                          !IMPORT_FIELDS.filter((f) => f.required).every((f) =>
+                            Object.values(importMapping).includes(f.key)
+                          )
+                        }
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold disabled:opacity-50"
+                      >
+                        Importar productos
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -11,7 +11,8 @@ import {
   X as XIcon,
   Banknote,
   CreditCard,
-  Landmark
+  Landmark,
+  Tag
 } from 'lucide-react'
 import {
   type RuntimeConfig,
@@ -1208,43 +1209,59 @@ export default function Terminal(): ReactElement {
   ])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200">
-      <div className="flex flex-1 overflow-hidden bg-zinc-950 lg:p-4 justify-center">
-        {/* Single Centered Terminal Panel */}
-        <div className="w-full max-w-[1200px] flex flex-col bg-zinc-950 border-x lg:border border-zinc-900 rounded-none lg:rounded-3xl z-10 shadow-[0_0_80px_rgba(0,0,0,0.5)] relative overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-zinc-950">
+        {/* Panel: ancho y alto completos, sin márgenes para evitar espacio muerto */}
+        <div className="w-full h-full flex flex-col min-h-0 bg-zinc-950 border-x border-zinc-900 relative overflow-hidden">
           {/* Ticket Header (Shift + Ticket Actions) */}
-          <div className="p-4 border-b border-zinc-900 bg-zinc-950 shrink-0 flex items-center justify-between">
-            {/* Ticket tabs/selector */}
-            <div className="flex items-center gap-2">
-              <select
-                className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-bold text-blue-400 focus:outline-none"
-                value={activeTicketId}
-                onChange={(e) => switchActiveTicket(e.target.value)}
-              >
+          <div className="shrink-0 flex flex-wrap items-stretch justify-between gap-3 border-b border-zinc-900 bg-zinc-950 px-4 pt-3 pb-0">
+            {/* Pestañas tipo navegador */}
+            <div className="flex items-end gap-0 min-w-0 flex-1">
+              <div className="flex items-end gap-0 overflow-x-auto hide-scrollbar">
                 {activeTickets.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
+                  <div
+                    key={t.id}
+                    className={`shrink-0 flex items-center rounded-t-lg border border-zinc-800 border-b-0 overflow-hidden ${
+                      t.id === activeTicketId
+                        ? 'bg-zinc-950 border-b-2 border-b-zinc-950 -mb-px'
+                        : 'bg-zinc-800/90'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => switchActiveTicket(t.id)}
+                      className={`px-2.5 py-2 text-xs font-bold transition text-left whitespace-nowrap ${
+                        t.id === activeTicketId ? 'text-blue-400' : 'text-zinc-400 hover:text-zinc-300'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                    {activeTickets.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          closeActiveTicket(t.id)
+                        }}
+                        className="p-1 rounded hover:bg-zinc-600/80 text-zinc-400 hover:text-rose-400 transition shrink-0"
+                        title="Cerrar pestaña"
+                      >
+                        <XIcon className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 ))}
-              </select>
+              </div>
               <button
                 onClick={createNewActiveTicket}
-                className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition"
+                className="shrink-0 p-1.5 rounded-t-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition border border-zinc-800 border-b-0"
                 title="Nuevo (Ctrl+N)"
               >
                 <Plus className="w-4 h-4" />
               </button>
-              {activeTickets.length > 1 && (
-                <button
-                  onClick={() => closeActiveTicket(activeTicketId)}
-                  className="p-1.5 rounded-lg bg-rose-950/30 text-rose-500 hover:bg-rose-900/50 transition"
-                >
-                  &times;
-                </button>
-              )}
             </div>
             {/* Shift Info & Pending */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0 min-w-0">
               {pendingTickets.length > 0 && (
                 <select
                   className="bg-amber-950/30 border border-amber-900/50 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-500 focus:outline-none focus:border-amber-500 cursor-pointer max-w-[120px]"
@@ -1263,13 +1280,13 @@ export default function Terminal(): ReactElement {
                 </select>
               )}
               <div
-                className="text-xs font-medium text-zinc-500 flex items-center gap-1.5"
+                className="text-sm font-medium text-zinc-400 flex items-center gap-1.5 min-w-0"
                 title={currentShift ? `Turno: ${currentShift.openedBy}` : 'Sin turno'}
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${currentShift ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                  className={`w-2 h-2 rounded-full shrink-0 ${currentShift ? 'bg-emerald-500' : 'bg-rose-500'}`}
                 />
-                <span className="max-w-[80px] truncate">
+                <span className="min-w-0 max-w-[160px] truncate">
                   {currentShift ? currentShift.openedBy : 'Cerrado'}
                 </span>
               </div>
@@ -1279,12 +1296,12 @@ export default function Terminal(): ReactElement {
           {/* Top Search Bar (Integrated) */}
           <div className="p-4 shrink-0 border-b border-zinc-900/50 bg-[#09090b] relative z-30 shadow-md">
             <div className="relative w-full flex items-center gap-2">
-              <div className="relative flex-1">
-                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+              <div className="relative flex-1 min-w-0">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   ref={searchInputRef}
                   autoFocus
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-4 pl-12 pr-12 text-lg font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-10 text-sm font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-2 focus:ring-blue-500/10 transition-all shadow-inner"
                   placeholder="Buscar producto o escanear (F10)..."
                   value={query}
                   onChange={(e) => {
@@ -1405,22 +1422,31 @@ export default function Terminal(): ReactElement {
                 )}
               </div>
               <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('titan-open-price-check'))}
+                className="hidden sm:flex items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2.5 rounded-xl transition-colors shrink-0 whitespace-nowrap text-sm"
+                title="Consulta de precios y unidades (F9)"
+              >
+                <Tag className="w-4 h-4 shrink-0" />
+                Consulta precios (F9)
+              </button>
+              <button
                 onClick={saveCurrentAsPending}
                 disabled={cart.length === 0}
                 className="hidden sm:flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-6 py-4 rounded-2xl transition-colors shrink-0 disabled:opacity-30 disabled:hover:bg-zinc-800 whitespace-nowrap"
-                title="Pausar y guardar ticket pendiente"
+                title="Guardar ticket como pendiente"
               >
-                Pausar Compra
+                Ticket pendiente
               </button>
             </div>
           </div>
 
-          {/* Cart Items List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 relative hide-scrollbar z-10">
+          {/* Cart Items List — ocupa todo el espacio central */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 space-y-3 relative hide-scrollbar z-10">
             {cart.length === 0 ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600">
-                <ShoppingCartIcon className="w-12 h-12 mb-3 opacity-20" />
-                <p className="text-sm font-medium">Ticket vacio</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 pointer-events-none">
+                <ShoppingCartIcon className="w-16 h-16 mb-4 opacity-20" />
+                <p className="text-base font-medium">Ticket vacio</p>
               </div>
             ) : (
               cart.map((item) => (
@@ -1497,10 +1523,10 @@ export default function Terminal(): ReactElement {
             )}
           </div>
 
-          {/* Totals & Payment Area (Sticky Bottom) */}
-          <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 p-4 pb-6">
+          {/* Totals & Payment Area — ancho, bajo */}
+          <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 p-3 lg:p-4 pb-4 space-y-2 max-w-4xl mx-auto w-full">
             {globalDiscountPct > 0 && (
-              <div className="flex justify-between items-center text-xs mb-2">
+              <div className="flex justify-between items-center text-xs">
                 <span className="text-zinc-500 font-bold uppercase tracking-wider">
                   Descuento ({globalDiscountPct}%)
                 </span>
@@ -1509,15 +1535,15 @@ export default function Terminal(): ReactElement {
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-end mb-4">
-              <div className="flex flex-col relative" ref={customerPickerRef}>
+            <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+              <div className="min-w-0 flex flex-col relative" ref={customerPickerRef}>
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1 cursor-pointer hover:text-blue-400 transition"
+                  className="flex items-center gap-1 text-xs text-zinc-300 font-bold uppercase tracking-wider mb-1 cursor-pointer hover:text-blue-400 transition text-left min-w-0 w-full"
                   onClick={() => setCustomerPickerOpen((v) => !v)}
                 >
-                  <Users className="w-3 h-3" />
-                  {customerName === 'Publico General' ? 'Cliente' : customerName}
+                  <Users className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{customerName === 'Publico General' ? 'Cliente' : customerName}</span>
                 </button>
                 {/* Customer picker dropdown */}
                 {customerPickerOpen && (
@@ -1595,48 +1621,28 @@ export default function Terminal(): ReactElement {
                     </div>
                   </div>
                 )}
-                <span className="text-xs text-zinc-600 font-medium">
+                <span className="text-xs text-zinc-400 font-medium">
                   {cart.reduce((a, i) => a + i.qty, 0)} articulos
                 </span>
               </div>
-              <div className="text-4xl font-black text-white tabular-nums tracking-tight">
+              <div className="text-3xl lg:text-4xl font-black text-white tabular-nums tracking-tight text-right">
                 ${totals.total.toFixed(2)}
               </div>
+            </div>
+
+            <div className="text-[11px] text-zinc-400 uppercase tracking-wider text-center">
+              F9 Precios · F10 Buscar · F11 Mayoreo · F12 Cobrar
             </div>
 
             <button
               onClick={() => setIsCheckoutModalOpen(true)}
               disabled={busy || cart.length === 0}
-              className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl py-4 font-black text-xl tracking-widest shadow-[0_0_40px_-10px_rgba(37,99,235,0.6)] hover:shadow-[0_0_60px_-10px_rgba(37,99,235,0.8)] transition-all disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-2 font-bold text-sm tracking-wide transition-colors disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
             >
               {busy ? 'Procesando...' : 'COBRAR'}
             </button>
           </div>
 
-          {/* Keyboard Shortcuts Overlay (Bottom Right) */}
-          <div className="absolute bottom-6 right-6 hidden md:flex items-center gap-2 pointer-events-none">
-            <div className="bg-zinc-950/80 backdrop-blur border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex flex-col items-center">
-              <span className="text-[10px] font-bold text-zinc-300 tracking-wider">F10</span>
-              <span className="text-[8px] uppercase tracking-widest text-zinc-500">Buscar</span>
-            </div>
-            <div className="bg-zinc-950/80 backdrop-blur border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex flex-col items-center">
-              <span className="text-[10px] font-bold text-zinc-300 tracking-wider">F11</span>
-              <span className="text-[8px] uppercase tracking-widest text-zinc-500">Mayoreo</span>
-            </div>
-            <div className="bg-zinc-950/80 backdrop-blur border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex flex-col items-center">
-              <span className="text-[10px] font-bold text-zinc-300 tracking-wider">F12</span>
-              <span className="text-[8px] uppercase tracking-widest text-zinc-500">Cobrar</span>
-            </div>
-          </div>
-
-          {/* Message Toast (Bottom Left) */}
-          {message && message !== 'Cargando productos...' && (
-            <div className="absolute bottom-6 left-6 max-w-sm pointer-events-none z-50">
-              <div className="bg-zinc-900/90 backdrop-blur border border-zinc-700/50 shadow-2xl text-zinc-300 text-xs font-semibold px-4 py-3 rounded-xl">
-                {message}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -1757,7 +1763,7 @@ export default function Terminal(): ReactElement {
               <button
                 type="button"
                 onClick={() => setIsCheckoutModalOpen(false)}
-                className="flex-1 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-xl py-3.5 font-bold transition-colors"
+                className="flex-1 bg-rose-600 border border-rose-500 hover:bg-rose-500 text-white rounded-xl py-3.5 font-bold transition-colors"
               >
                 Cancelar
               </button>

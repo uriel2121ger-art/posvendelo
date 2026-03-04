@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, User, Terminal as TerminalIcon, LogIn } from 'lucide-react'
+import { Lock, User, LogIn } from 'lucide-react'
 import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 
 export default function Login(): ReactElement {
@@ -100,34 +100,9 @@ export default function Login(): ReactElement {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-8 bg-zinc-950 text-slate-200 font-sans selection:bg-blue-500/30 relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-900/10 blur-[120px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none"></div>
-
-      <div className="z-10 w-full max-w-4xl flex flex-col md:flex-row bg-zinc-900/60 border border-zinc-800/80 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-md">
-        {/* Left Side: Branding / Info */}
-        <div className="hidden md:flex flex-col flex-1 p-12 bg-gradient-to-br from-zinc-900 to-zinc-950 border-r border-zinc-800/80 justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(255,255,255,0.02)_10px,rgba(255,255,255,0.02)_20px)]"></div>
-
-          <div className="relative z-10">
-            <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 shadow-inner mb-8">
-              <TerminalIcon className="w-10 h-10 text-blue-400" />
-            </div>
-
-            <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent mb-4">
-              TITAN POS
-            </h1>
-            <p className="text-zinc-400 text-lg font-medium leading-relaxed max-w-sm">
-              Sistema de gestión integral para abarrotes. Ingresa tus credenciales para iniciar tu
-              turno.
-            </p>
-
-            <div className="mt-12 text-xs font-mono text-zinc-600">TITAN POS v0.1.0</div>
-          </div>
-        </div>
-
-        {/* Right Side: Login Form */}
+    <div className="flex min-h-screen items-center justify-center p-8 bg-zinc-950 text-slate-200 font-sans selection:bg-blue-500/30">
+      <div className="z-10 w-full max-w-md flex flex-col bg-zinc-900/95 border border-zinc-800/80 rounded-3xl shadow-2xl overflow-hidden">
+        {/* Login Form */}
         <div className="flex-1 p-8 sm:p-12 flex flex-col justify-center items-center relative">
           <div className="w-full max-w-sm">
             <div className="text-center mb-10 md:hidden">
@@ -137,7 +112,7 @@ export default function Login(): ReactElement {
               <p className="text-zinc-400 text-sm">Inicia sesión para continuar</p>
             </div>
 
-            <h2 className="text-2xl font-bold text-zinc-100 mb-8 flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-zinc-100 mb-8 flex items-center justify-center gap-3">
               <User className="w-6 h-6 text-blue-500" />
               Acceso a Caja
             </h2>
@@ -196,7 +171,7 @@ export default function Login(): ReactElement {
                 disabled={
                   loading || discovering || password.length === 0 || username.trim().length === 0
                 }
-                className="w-full flex justify-center items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 px-4 py-4 font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all hover:-translate-y-0.5 mt-8 relative z-10"
+                className="w-full flex justify-center items-center gap-2 rounded-xl bg-blue-500 hover:bg-blue-400 disabled:bg-zinc-800 disabled:text-zinc-500 px-4 py-4 font-bold text-white transition-colors mt-8 relative z-10"
               >
                 {loading ? (
                   <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -209,7 +184,7 @@ export default function Login(): ReactElement {
               </button>
             </form>
 
-            <p className="mt-8 text-center text-xs text-zinc-600 font-medium">
+            <p className="mt-8 text-center text-xs text-zinc-400 font-medium">
               {discovering ? (
                 <span className="text-blue-400 animate-pulse">Buscando servidor...</span>
               ) : (

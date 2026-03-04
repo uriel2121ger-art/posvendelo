@@ -87,31 +87,31 @@ async def create_employee(
     if existing:
         raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    hire_date_val = (
+        datetime.strptime(body.hire_date, "%Y-%m-%d").date()
+        if isinstance(body.hire_date, str)
+        else body.hire_date
+    ) if body.hire_date is not None else datetime.now(timezone.utc).date()
 
     try:
+        # Patrón seguro: usar NOW() en SQL para created_at (evita bug asyncpg naive/aware)
         row = await db.fetchrow(
             """
             INSERT INTO employees (employee_code, name, position, hire_date, base_salary,
                                    commission_rate, phone, email, notes, is_active, created_at)
-            VALUES (:code, :name, :position, :hire_date, :salary, :commission, :phone, :email, :notes, 1, :now)
+            VALUES (:code, :name, :position, :hire_date, :salary, :commission, :phone, :email, :notes, 1, NOW())
             RETURNING id
             """,
             {
                 "code": body.employee_code,
                 "name": body.name,
                 "position": body.position,
-                "hire_date": (
-                    datetime.strptime(body.hire_date, "%Y-%m-%d").date()
-                    if isinstance(body.hire_date, str)
-                    else body.hire_date
-                ) if body.hire_date is not None else now.date(),
+                "hire_date": hire_date_val,
                 "salary": body.base_salary if body.base_salary is not None else 0.0,
                 "commission": body.commission_rate if body.commission_rate is not None else 0.0,
                 "phone": body.phone,
                 "email": body.email,
                 "notes": body.notes,
-                "now": now,
             },
         )
     except Exception as e:

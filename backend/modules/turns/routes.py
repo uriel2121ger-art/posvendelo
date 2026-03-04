@@ -12,15 +12,12 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from starlette.requests import Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.pin_auth import verify_manager_pin
-from modules.shared.rate_limit import check_pin_rate_limit
+from modules.shared.constants import PRIVILEGED_ROLES
 from modules.shared.turn_service import calculate_turn_summary
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
-from modules.shared.constants import PRIVILEGED_ROLES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -273,35 +270,13 @@ async def get_turn_summary(
 async def create_cash_movement(
     turn_id: int,
     body: CashMovementCreate,
-    request: Request,
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Register a cash movement (in/out) for a turn. Requires manager PIN for non-managers."""
+    """Register a cash movement (in/out) for a turn. No PIN required."""
     user_id = get_user_id(auth)
-    role = auth.get("role", "")
-    is_manager = role in PRIVILEGED_ROLES
-
-    # PIN brute-force protection: 5 attempts per 5 min per IP
-    if not is_manager:
-        client_ip = request.client.host if request.client else "127.0.0.1"
-        check_pin_rate_limit(client_ip)
-
-    # Verify manager PIN for non-manager roles
-    if not is_manager:
-        if not body.manager_pin:
-            raise HTTPException(
-                status_code=403,
-                detail="Se requiere PIN de gerente para movimientos de caja",
-            )
-
-    # Atomic: lock turn row + verify PIN inside transaction to prevent TOCTOU
     conn = db.connection
     async with conn.transaction():
-        # Verify PIN inside transaction to prevent TOCTOU race
-        if not is_manager:
-            await verify_manager_pin(body.manager_pin, conn)
-
         turn = await conn.fetchrow(
             "SELECT id, status FROM turns WHERE id = $1 FOR UPDATE",
             turn_id,

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from '../components/ConfirmDialog'
-import { Search, Package, X, ArrowRightLeft, AlertCircle, RefreshCw, BarChart2 } from 'lucide-react'
+import { Search, Package, X, ArrowRightLeft, AlertCircle, RefreshCw, BarChart2, Check } from 'lucide-react'
 import {
   loadRuntimeConfig,
   pullTable,
@@ -527,7 +527,7 @@ export default function InventoryTab(): ReactElement {
                   />
                   {rows.find((r) => r.sku.toLowerCase() === sku.trim().toLowerCase()) && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <span className="text-zinc-950 text-[10px] font-black">✓</span>
+                      <Check className="w-2.5 h-2.5 text-zinc-950 stroke-[3]" />
                     </div>
                   )}
                 </div>

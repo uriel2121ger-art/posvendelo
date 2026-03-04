@@ -13,7 +13,6 @@ import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-
 import { loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
 import CustomersTab from './tabs/CustomersTab'
 import DashboardStatsTab from './tabs/DashboardStatsTab'
-import ExpensesTab from './tabs/ExpensesTab'
 import HistoryTab from './tabs/HistoryTab'
 import InventoryTab from './tabs/InventoryTab'
 import Login from './Login'
@@ -195,7 +194,6 @@ function CashMovementModal({
 }): ReactElement {
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
-  const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -239,8 +237,7 @@ function CashMovementModal({
         await createCashMovement(cfg, shift.backendTurnId, {
           movement_type: mode === 'in' ? 'cash_in' : 'cash_out',
           amount: num,
-          reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo'),
-          ...(pin.trim() ? { manager_pin: pin.trim() } : {})
+          reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo')
         })
         // Auto-open cash drawer (fire-and-forget)
         try {
@@ -263,7 +260,7 @@ function CashMovementModal({
         setBusy(false)
       }
     },
-    [amount, reason, pin, mode, onClose]
+    [amount, reason, mode, onClose]
   )
 
   const title = mode === 'in' ? 'Entrada de Efectivo' : 'Retiro de Efectivo'
@@ -321,35 +318,24 @@ function CashMovementModal({
           Motivo
         </label>
         <input
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-3 focus:border-blue-500 focus:outline-none"
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder={mode === 'in' ? 'Fondo de caja' : 'Pago a proveedor'}
-        />
-        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-          PIN gerente (opcional)
-        </label>
-        <input
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 py-2.5 px-3 text-sm font-semibold mb-4 focus:border-blue-500 focus:outline-none"
-          type="password"
-          maxLength={6}
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          placeholder="****"
         />
         {error && <p className="text-rose-400 text-sm mb-3">{error}</p>}
         <div className="flex gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="flex-1 rounded-xl border border-rose-600 bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={busy}
-            className={`flex-1 rounded-xl bg-${accent}-600 py-2.5 font-bold text-white hover:bg-${accent}-500 transition-colors disabled:opacity-40`}
+            className="flex-1 rounded-xl bg-emerald-600 py-2.5 font-bold text-white hover:bg-emerald-500 transition-colors disabled:opacity-40"
           >
             {busy ? 'Registrando...' : 'Registrar'}
           </button>
@@ -515,6 +501,13 @@ function RoutedApp(): ReactElement {
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  // Abrir modal consulta precios (F9) desde Terminal u otros componentes
+  useEffect((): (() => void) => {
+    const onOpen = (): void => setPriceCheckModal(true)
+    window.addEventListener('titan-open-price-check', onOpen)
+    return () => window.removeEventListener('titan-open-price-check', onOpen)
   }, [])
 
   useEffect((): (() => void) => {
@@ -710,14 +703,7 @@ function RoutedApp(): ReactElement {
               </TabErrorBoundary>
             }
           />
-          <Route
-            path="/gastos"
-            element={
-              <TabErrorBoundary tabName="Gastos">
-                <ExpensesTab />
-              </TabErrorBoundary>
-            }
-          />
+          <Route path="/gastos" element={<Navigate to="/turnos" replace />} />
           <Route
             path="/empleados"
             element={

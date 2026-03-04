@@ -6,7 +6,8 @@ import {
   openTurn,
   closeTurn,
   getTurnSummary,
-  getCurrentTurn
+  getCurrentTurn,
+  printShiftReport
 } from '../posApi'
 import {
   type ShiftRecord,
@@ -16,6 +17,7 @@ import {
   saveShiftHistory
 } from '../types/shiftTypes'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { Printer, Check } from 'lucide-react'
 
 type Phase =
   | 'checking'
@@ -46,6 +48,8 @@ export default function ShiftStartupModal({
   const [error, setError] = useState('')
   const [cut, setCut] = useState<CutData | null>(null)
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
+  const [printStatus, setPrintStatus] = useState<'idle' | 'printing' | 'ok' | 'error'>('idle')
+  const [printMessage, setPrintMessage] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const modalRef = useRef<HTMLFormElement | HTMLDivElement>(null)
 
@@ -86,7 +90,6 @@ export default function ShiftStartupModal({
       .then((result) => {
         const turn = (result?.data ?? result) as Record<string, unknown> | null
         if (turn && turn.id && turn.status === 'open') {
-          // Hydrate local state from backend turn
           const recovered: ShiftRecord = {
             id: `shift-recovered-${turn.id}`,
             backendTurnId: Number(turn.id),
@@ -98,28 +101,28 @@ export default function ShiftStartupModal({
             salesCount: 0,
             totalSales: 0
           }
-          // Fetch real counters from backend summary
+          saveCurrentShift(recovered)
+          setExistingShift(recovered)
+          setPhase('existing_shift')
+          // Actualizar ventas/total en segundo plano (no bloquear la pantalla)
           getTurnSummary(cfg, Number(turn.id))
             .then((raw) => {
               const summary = (raw.data ?? raw) as Record<string, unknown>
-              recovered.salesCount = Number(summary.sales_count ?? 0)
-              recovered.totalSales = Math.round(Number(summary.total_sales ?? 0) * 100) / 100
+              const updated: ShiftRecord = {
+                ...recovered,
+                salesCount: Number(summary.sales_count ?? 0),
+                totalSales: Math.round(Number(summary.total_sales ?? 0) * 100) / 100
+              }
+              saveCurrentShift(updated)
+              setExistingShift(updated)
             })
-            .catch(() => {
-              /* summary unavailable — keep zeros */
-            })
-            .finally(() => {
-              saveCurrentShift(recovered)
-              setExistingShift(recovered)
-              setPhase('existing_shift')
-            })
+            .catch(() => { /* resumen opcional */ })
           return
         } else {
           setPhase('no_shift')
         }
       })
       .catch(() => {
-        // Network error — fall back to no_shift (user can retry)
         setPhase('no_shift')
       })
   }, [operator])
@@ -314,10 +317,33 @@ export default function ShiftStartupModal({
   )
 
   const handleAfterCut = useCallback((): void => {
+    setExistingShift(null)
     setInitialCash('')
     setError('')
+    setPrintStatus('idle')
+    setPrintMessage('')
     setPhase('opening_shift')
   }, [])
+
+  const handlePrintCut = useCallback(async (): Promise<void> => {
+    if (!existingShift?.backendTurnId) {
+      setPrintMessage('No hay turno para imprimir.')
+      setPrintStatus('error')
+      return
+    }
+    setPrintStatus('printing')
+    setPrintMessage('')
+    try {
+      const cfg = loadRuntimeConfig()
+      await printShiftReport(cfg, existingShift.backendTurnId)
+      setPrintMessage('Corte enviado a impresora.')
+      setPrintStatus('ok')
+    } catch (err) {
+      const msg = (err as Error).message ?? 'Error al imprimir'
+      setPrintMessage(msg)
+      setPrintStatus('error')
+    }
+  }, [existingShift?.backendTurnId])
 
   const handleNewShiftSubmit = useCallback(
     (e: FormEvent): void => {
@@ -559,12 +585,34 @@ export default function ShiftStartupModal({
               </div>
             )}
           </div>
-          <p className="text-emerald-400 text-sm mb-4 flex items-center gap-1">
-            <span>&#10003;</span> Turno cerrado
+          <p className="text-emerald-400 text-sm mb-4 flex items-center justify-center gap-1">
+            <Check className="w-4 h-4" /> Turno cerrado
           </p>
-          <button onClick={handleAfterCut} className={btnPrimary}>
-            Abrir nuevo turno
-          </button>
+          {printMessage && (
+            <p
+              className={`text-sm mb-3 ${
+                printStatus === 'error' ? 'text-rose-400' : printStatus === 'ok' ? 'text-emerald-400' : 'text-zinc-400'
+              }`}
+            >
+              {printMessage}
+            </p>
+          )}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => void handlePrintCut()}
+              disabled={printStatus === 'printing'}
+              className={btnSecondary}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <Printer className="w-4 h-4" />
+                {printStatus === 'printing' ? 'Imprimiendo...' : 'Imprimir corte de caja'}
+              </span>
+            </button>
+            <button onClick={handleAfterCut} className={btnPrimary}>
+              Abrir nuevo turno
+            </button>
+          </div>
         </div>
       </div>
     )

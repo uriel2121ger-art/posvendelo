@@ -32,6 +32,7 @@ Sistema de protección anti-fraude interno. Las funciones de emergencia son prot
 - Docs → subagente `docs-manager`
 
 ## Reglas de código
+- **UI:** No usar emojis en la interfaz; usar iconos SVG (p. ej. lucide-react: Check, AlertCircle, etc.).
 - Siempre async/await para operaciones de DB
 - Pydantic v2 para todos los schemas
 - **asyncpg + TIMESTAMP:** Para escribir "hora actual" en columnas TIMESTAMP, usar `NOW()` o `CURRENT_TIMESTAMP` en el SQL; no pasar `datetime` desde Python (evita bug naive/aware). Ver `docs/bug-investigation-cierre-turno-500.md`.

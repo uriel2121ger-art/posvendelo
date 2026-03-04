@@ -48,15 +48,17 @@ export async function autoDiscoverBackend(): Promise<string | null> {
     }
   }
   for (const port of getDiscoverPorts()) {
-    const url = `http://localhost:${port}`
-    try {
-      const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
-      if (r.status === 401 || r.ok) {
-        localStorage.setItem('titan.baseUrl', url)
-        return url
+    for (const host of ['127.0.0.1', 'localhost']) {
+      const url = `http://${host}:${port}`
+      try {
+        const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
+        if (r.status === 401 || r.ok) {
+          localStorage.setItem('titan.baseUrl', url)
+          return url
+        }
+      } catch {
+        /* host:port not responding */
       }
-    } catch {
-      /* port not responding */
     }
   }
   return null
@@ -84,20 +86,22 @@ function _isTokenExpired(token: string): boolean {
   }
 }
 
+const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
+
 /** En modo navegador (Vite dev puerto 5173) usar '' para que las peticiones pasen por el proxy a 8000. */
 function getEffectiveBaseUrl(saved: string): string {
-  if (typeof window === 'undefined') return _isValidBaseUrl(saved) ? saved : 'http://localhost:8000'
+  if (typeof window === 'undefined') return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
   const origin = window.location.origin
   const isViteDev = window.location.port === '5173' && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
   const pointsToLocal8000 =
     saved === 'http://localhost:8000' || saved === 'http://127.0.0.1:8000' || saved === ''
   if (isViteDev && pointsToLocal8000) return ''
-  return _isValidBaseUrl(saved) ? saved : 'http://localhost:8000'
+  return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
 }
 
 export function loadRuntimeConfig(): RuntimeConfig {
   try {
-    const baseUrl = localStorage.getItem('titan.baseUrl') ?? 'http://localhost:8000'
+    const baseUrl = localStorage.getItem('titan.baseUrl') ?? DEFAULT_BASE_URL
     let token = localStorage.getItem('titan.token') ?? ''
     // Auto-clear expired tokens to force re-login
     if (token && _isTokenExpired(token)) {
@@ -110,7 +114,7 @@ export function loadRuntimeConfig(): RuntimeConfig {
       terminalId: Math.max(1, parseInt(localStorage.getItem('titan.terminalId') ?? '1', 10) || 1)
     }
   } catch {
-    return { baseUrl: 'http://localhost:8000', token: '', terminalId: 1 }
+    return { baseUrl: DEFAULT_BASE_URL, token: '', terminalId: 1 }
   }
 }
 
@@ -201,7 +205,7 @@ async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): 
     const msg = err instanceof Error ? err.message : String(err)
     if (/failed to fetch|network error|load failed/i.test(msg) || err instanceof TypeError) {
       throw new Error(
-        'No se pudo conectar al servidor. Comprueba que el backend este en marcha (ej. docker compose up -d o uvicorn en puerto 8000).'
+        'No se pudo conectar al servidor. Comprueba que el backend este en marcha (docker compose up -d o uvicorn en puerto 8000). Si ya esta en marcha, en Configuracion pon la URL del API en http://127.0.0.1:8000.'
       )
     }
     throw err
@@ -850,7 +854,7 @@ export async function getTurnSummary(
 export async function createCashMovement(
   cfg: RuntimeConfig,
   turnId: number,
-  body: { movement_type: string; amount: number; reason: string; manager_pin?: string }
+  body: { movement_type: string; amount: number; reason: string }
 ): Promise<Record<string, unknown>> {
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/turns/${turnId}/movements`, {
     method: 'POST',

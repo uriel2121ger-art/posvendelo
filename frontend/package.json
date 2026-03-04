@@ -28,6 +28,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:browser": "vite --config vite.browser.config.ts",
+    "dev:browser:open": "node scripts/dev-browser-open.mjs",
+    "build:browser": "vite build --config vite.browser.config.ts",
+    "preview:browser": "npm run build:browser && vite preview --config vite.browser.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -36,12 +39,14 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/postcss": "^4.2.0",
     "lucide-react": "^0.575.0",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@playwright/test": "^1.49.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -67,8 +72,7 @@
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
-    "vitest": "^4.0.18",
-    "@playwright/test": "^1.49.0"
+    "vitest": "^4.0.18"
   },
   "overrides": {
     "minimatch": "^10.2.2",

@@ -82,29 +82,68 @@ Ventajas:
 
 | Archivo | Operación | Columna | Cambio |
 |--------|-----------|---------|--------|
-| `modules/turns/routes.py` | `close_turn` | `turns.end_timestamp` | `end_timestamp = NOW()` en el `UPDATE`; se deja de enviar un parámetro datetime. |
-| `modules/turns/routes.py` | `open_turn` | `turns.start_timestamp` | `VALUES (..., NOW(), 0)` en el `INSERT`; se deja de enviar un parámetro datetime. |
-| `modules/turns/routes.py` | registro de movimiento de caja | `cash_movements.timestamp` | `VALUES (..., NOW())` en el `INSERT`; se deja de enviar un parámetro datetime. |
+| `modules/turns/routes.py` | `close_turn` | `turns.end_timestamp` | `end_timestamp = NOW()` en el `UPDATE`. |
+| `modules/turns/routes.py` | `open_turn` | `turns.start_timestamp` | `VALUES (..., NOW(), 0)` en el `INSERT`. |
+| `modules/turns/routes.py` | movimiento de caja | `cash_movements.timestamp` | `VALUES (..., NOW())` en el `INSERT`. |
+| `modules/expenses/routes.py` | `register_expense` | `cash_movements.timestamp` | `VALUES (..., NOW())` en el `INSERT`; eliminado `:now`. |
+| `modules/sales/saga.py` | `_create_transfer_record` | `inventory_movements.timestamp` | `VALUES (..., NOW(), 0)` en el `INSERT`; eliminado `:ts`. |
+| `modules/sales/saga.py` | `_receive_at_destination` | `inventory_movements.timestamp` | `VALUES (..., NOW(), 0)` en el `INSERT`; eliminado `:ts`. |
+| `modules/employees/routes.py` | `create_employee` | `employees.created_at` | `VALUES (..., NOW())` en el `INSERT`; eliminado `:now`. |
 
-Además se eliminó el import no usado de `datetime` y `timezone` en `turns/routes.py`.
-
----
-
-## 5. Regla para el codebase (patrón del bug)
-
-**Regla:** Al escribir en columnas **TIMESTAMP** (con o sin time zone) con **asyncpg**, evitar pasar un `datetime` (o string) desde Python para el “momento actual”. Usar en el SQL `NOW()` o `CURRENT_TIMESTAMP`.
-
-**Puntos de riesgo** (otros sitios que hoy pasan `datetime` a asyncpg para columnas de timestamp):
-
-- **`modules/expenses/routes.py`** – `register_expense`: inserta en `cash_movements` con `:now` (naive). Mismo tipo de columna que el movimiento de caja en turns; podría sufrir el mismo fallo según versión/entorno. Recomendación: usar `NOW()` en el `INSERT` y quitar el parámetro `now`.
-- **`modules/sales/saga.py`** – usa `now` naive en escrituras. Revisar si esas columnas son TIMESTAMP sin TZ y, si es “hora actual”, valorar usar `NOW()` en SQL.
-- **`modules/employees/routes.py`** – usa `now` naive. Revisar columnas afectadas y aplicar el mismo criterio.
-
-No hace falta cambiar lecturas: al **leer**, asyncpg devuelve naive para `TIMESTAMP` y aware para `TIMESTAMPTZ`; eso no dispara el bug.
+En `turns/routes.py` se eliminó el import no usado de `datetime` y `timezone`.
 
 ---
 
-## 6. Esquema y convenciones del proyecto
+## 5. Análisis más profundo del codec asyncpg
+
+### 5.1 Ruta del fallo en el codec
+
+El codec de asyncpg para tipos fecha/hora vive en `protocol/codecs/datetime.pyx`. Al **escribir** un parámetro que el servidor espera como `TIMESTAMP` (sin TZ):
+
+1. asyncpg recibe el valor Python (p. ej. `datetime`).
+2. Para normalizar a “timestamp sin zona”, el codec puede usar la **zona horaria de la sesión** de PostgreSQL (`TimeZone` en la conexión). Esa zona se obtiene como valor **aware** en Python.
+3. Si en ese camino se hace una operación que mezcla el valor enviado (naive) con la zona de sesión (aware), Python lanza: `can't subtract offset-naive and offset-aware datetimes`.
+4. El comportamiento exacto depende de la **versión de asyncpg** y de si la conexión tiene `server_settings={"timezone": "UTC"}` o no. Por eso el bug puede aparecer en un entorno (p. ej. Docker, CI) y no en otro.
+
+Conclusión: **no confiar en “pasar siempre naive”** como solución universal. La única garantía es no pasar datetime para “ahora” y usar `NOW()` en SQL.
+
+### 5.2 Por qué string tampoco sirve
+
+El binding de asyncpg para tipos fecha/hora **no** hace `str` → `datetime` automáticamente. El codec espera `datetime.date` o `datetime.datetime`. Si se pasa un `str`, asyncpg devuelve `DataError: expected a datetime.date or datetime.datetime instance, got 'str'`. Por tanto, formatear la hora como string y castear en SQL (`$1::timestamp`) no es alternativa sin cambiar de codec/capa.
+
+### 5.3 Regla para el codebase
+
+**Regla:** Al escribir en columnas **TIMESTAMP** (con o sin time zone) con **asyncpg**, no pasar un `datetime` ni un `str` desde Python para el “momento actual”. Usar en el SQL **`NOW()`** o **`CURRENT_TIMESTAMP`**.
+
+**Lecturas:** No hace falta cambiar lecturas; al leer, asyncpg devuelve naive para `TIMESTAMP` y aware para `TIMESTAMPTZ`, y eso no dispara el bug.
+
+---
+
+## 6. Auditoría del codebase (escrituras en columnas TIMESTAMP)
+
+Tabla de todos los puntos que escriben en columnas `TIMESTAMP` (sin TZ) o que podrían afectar el codec. Estado: **OK** = ya usa `NOW()`/`CURRENT_TIMESTAMP` en SQL; **N/A** = no es “hora actual” o no usa asyncpg para ese campo.
+
+| Módulo | Función / flujo | Tabla.columna | Tipo columna | Estado |
+|--------|------------------|---------------|--------------|--------|
+| turns/routes.py | close_turn | turns.end_timestamp | TIMESTAMP | OK (NOW()) |
+| turns/routes.py | open_turn | turns.start_timestamp | TIMESTAMP | OK (NOW()) |
+| turns/routes.py | cash movement | cash_movements.timestamp | TIMESTAMP | OK (NOW()) |
+| expenses/routes.py | register_expense | cash_movements.timestamp | TIMESTAMP | OK (NOW()) |
+| sales/saga.py | _create_transfer_record | inventory_movements.timestamp | TIMESTAMP | OK (NOW()) |
+| sales/saga.py | _receive_at_destination | inventory_movements.timestamp | TIMESTAMP | OK (NOW()) |
+| employees/routes.py | create_employee | employees.created_at | TIMESTAMP | OK (NOW()) |
+| products/routes.py | varios | products.updated_at, inventory_movements.timestamp | TIMESTAMP | OK (NOW() en SQL) |
+| sales/routes.py | credit/wallet | customer_ledger: NOW() en SQL | — | OK |
+| remote/routes.py | audit_log, notifications, products | NOW() en SQL | — | OK |
+| fiscal (dual_inventory, xml_ingestor, etc.) | INSERT inventory_movements | timestamp | TIMESTAMP | OK (NOW() en SQL) |
+| fiscal/fiscal_forecast.py | consultas con :ms (month_start) | cash_movements.timestamp (lectura) | — | N/A (solo lectura; :ms es para WHERE) |
+| dashboard, reports | lecturas | — | — | N/A |
+
+**Resumen:** Todos los INSERT/UPDATE que fijan “hora actual” en columnas TIMESTAMP sin TZ usan ya el patrón seguro (NOW() en SQL). No quedan puntos que pasen `datetime` desde Python para esas columnas.
+
+---
+
+## 7. Esquema y convenciones del proyecto
 
 - **turns:** `start_timestamp` y `end_timestamp` son **TIMESTAMP** (sin TZ) en schema.sql y en migración 032.
 - **cash_movements:** `timestamp` es **TIMESTAMP** (sin TZ) (migración 032).
@@ -114,7 +153,7 @@ En comentarios del repo ya se documenta: para columnas TIMESTAMP sin TZ “pass 
 
 ---
 
-## 7. Resumen de errores observados (orden cronológico)
+## 8. Resumen de errores observados (orden cronológico)
 
 | Intento | Qué se pasaba | Error |
 |--------|----------------|-------|
@@ -124,7 +163,7 @@ En comentarios del repo ya se documenta: para columnas TIMESTAMP sin TZ “pass 
 
 ---
 
-## 8. Referencias
+## 9. Referencias
 
 - [asyncpg #138](https://github.com/MagicStack/asyncpg/issues/138) – error al pasar datetime aware a `::TIMESTAMP`.
 - [asyncpg #791](https://github.com/MagicStack/asyncpg/issues/791) – tipo del parámetro (TIMESTAMP vs TIMESTAMPTZ) y SQLAlchemy.
@@ -134,7 +173,7 @@ En comentarios del repo ya se documenta: para columnas TIMESTAMP sin TZ “pass 
 
 ---
 
-## 9. Cómo verificar la corrección
+## 10. Cómo verificar la corrección
 
 1. Reconstruir y levantar la API:  
    `docker compose up -d --build api`

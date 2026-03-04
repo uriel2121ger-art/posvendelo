@@ -50,7 +50,6 @@ class CashMovementCreate(BaseModel):
     amount: Decimal = Field(..., gt=0)
     movement_type: str = Field(..., pattern="^(in|out|expense)$")
     reason: str = Field(..., min_length=1, max_length=500)
-    manager_pin: Optional[str] = Field(None, max_length=20)
 
     @field_validator("amount")
     @classmethod

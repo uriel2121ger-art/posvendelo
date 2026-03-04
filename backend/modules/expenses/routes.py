@@ -78,7 +78,6 @@ async def register_expense(
     if role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Solo gerentes pueden registrar gastos")
     user_id = get_user_id(auth)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     conn = db.connection
     async with conn.transaction():
@@ -89,9 +88,10 @@ async def register_expense(
         )
         turn_id = turn["id"] if turn else None
 
+        # Patrón seguro: usar NOW() de PostgreSQL para timestamp (evita bug asyncpg naive/aware)
         row = await db.fetchrow(
             """INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
-               VALUES (:turn_id, 'expense', :amount, :desc, :reason, :uid, :now)
+               VALUES (:turn_id, 'expense', :amount, :desc, :reason, :uid, NOW())
                RETURNING id""",
             {
                 "turn_id": turn_id,
@@ -99,7 +99,6 @@ async def register_expense(
                 "desc": body.description,
                 "reason": body.reason,
                 "uid": user_id,
-                "now": now,
             },
         )
 

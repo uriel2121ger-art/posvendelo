@@ -8,7 +8,6 @@ import {
   ClipboardList,
   Clock,
   FileText,
-  Receipt,
   PackageX,
   BarChart3,
   LayoutDashboard,
@@ -34,7 +33,6 @@ const navGroups: NavItem[][] = [
   [
     { path: '/turnos', label: 'Turnos', icon: Clock },
     { path: '/historial', label: 'Historial', icon: FileText },
-    { path: '/gastos', label: 'Gastos', icon: Receipt },
     { path: '/mermas', label: 'Mermas', icon: PackageX }
   ],
   // Reportes
@@ -111,13 +109,10 @@ export default function TopNavbar(): ReactElement {
         T
       </Link>
 
-      <div className="w-px h-8 bg-zinc-800 mx-1 shrink-0" />
-
       {/* Nav groups */}
       <nav className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto hide-scrollbar">
         {navGroups.map((group, gi) => (
           <div key={gi} className="contents">
-            {gi > 0 && <div className="w-px h-8 bg-zinc-800 mx-1 shrink-0" />}
             {group.map((item) => {
               const isActive = location.pathname === item.path
               return (
@@ -142,8 +137,6 @@ export default function TopNavbar(): ReactElement {
           </div>
         ))}
       </nav>
-
-      <div className="w-px h-8 bg-zinc-800 mx-1 shrink-0" />
 
       {/* User + Logout */}
       <div className="flex items-center gap-1.5 shrink-0">

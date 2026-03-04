@@ -294,30 +294,28 @@ async def _release_source_reservation(context: Dict[str, Any], step_result: Any)
 async def _create_transfer_record(context: Dict[str, Any]):
     """Create the inventory transfer record in DB."""
     from db.connection import get_connection
-    from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
     transfer_id = f"TRF-{uuid.uuid4().hex[:8].upper()}"
 
     async with get_connection() as db:
+        # Patrón seguro: usar NOW() en SQL para timestamp (evita bug asyncpg naive/aware)
         await db.execute(
             """
             INSERT INTO inventory_movements
                 (product_id, movement_type, type, quantity, reason, reference_type, reference_id, user_id, timestamp, synced)
             VALUES
-                (:pid, 'OUT', 'transfer', :qty, :reason, 'transfer', :ref, 0, :ts, 0)
+                (:pid, 'OUT', 'transfer', :qty, :reason, 'transfer', :ref, 0, NOW(), 0)
             """,
             {
                 "pid": context["product_id"],
                 "qty": round(abs(float(context["qty"])), 2),
                 "reason": f"Transfer to branch {context['dest_branch_id']}",
                 "ref": transfer_id,
-                "ts": now,
             },
         )
 
     logger.info(f"Transfer record created: {transfer_id}")
-    return {"transfer_id": transfer_id, "timestamp": now}
+    return {"transfer_id": transfer_id, "timestamp": None}
 
 
 async def _cancel_transfer_record(context: Dict[str, Any], step_result: Any):
@@ -339,25 +337,23 @@ async def _cancel_transfer_record(context: Dict[str, Any], step_result: Any):
 async def _receive_at_destination(context: Dict[str, Any]):
     """Add stock at destination branch and record incoming movement."""
     from db.connection import get_connection
-    from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
     transfer_id = context.get("_step_create_transfer_result", {}).get("transfer_id", "")
 
     async with get_connection() as db:
+        # Patrón seguro: usar NOW() en SQL para timestamp (evita bug asyncpg naive/aware)
         await db.execute(
             """
             INSERT INTO inventory_movements
                 (product_id, movement_type, type, quantity, reason, reference_type, reference_id, user_id, timestamp, synced)
             VALUES
-                (:pid, 'IN', 'transfer', :qty, :reason, 'transfer', :ref, 0, :ts, 0)
+                (:pid, 'IN', 'transfer', :qty, :reason, 'transfer', :ref, 0, NOW(), 0)
             """,
             {
                 "pid": context["product_id"],
                 "qty": round(abs(float(context["qty"])), 2),
                 "reason": f"Transfer from branch {context['source_branch_id']}",
                 "ref": transfer_id,
-                "ts": now,
             },
         )
 

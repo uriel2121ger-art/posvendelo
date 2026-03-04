@@ -13,8 +13,7 @@ import {
   List,
   Printer,
   AlertCircle,
-  ArrowRightLeft,
-  ShieldAlert
+  ArrowRightLeft
 } from 'lucide-react'
 import {
   loadRuntimeConfig,
@@ -101,7 +100,6 @@ export default function ShiftsTab(): ReactElement {
   const [cashMovType, setCashMovType] = useState<'in' | 'out' | 'expense'>('in')
   const [cashMovAmount, setCashMovAmount] = useState('')
   const [cashMovReason, setCashMovReason] = useState('')
-  const [cashMovPin, setCashMovPin] = useState('')
   const role = getUserRole()
   const canManage = role === 'manager' || role === 'owner' || role === 'admin'
   const [expectedCash, setExpectedCash] = useState<number | null>(null)
@@ -350,7 +348,7 @@ export default function ShiftsTab(): ReactElement {
         reconciledAt: new Date().toISOString()
       }
       setReconciliation(result)
-      setMessage(`Conciliacion completada para turno ${shift.id}.`)
+      setMessage(`Verificación completada. Los totales del turno se compararon con el servidor.`)
     } catch (error) {
       setMessage((error as Error).message)
       setReconciliation(null)
@@ -435,7 +433,7 @@ export default function ShiftsTab(): ReactElement {
       const raw = await getTurnSummary(cfg, shift.backendTurnId)
       const data = (raw.data ?? raw) as Record<string, unknown>
       setBackendSummary(data)
-      setMessage(`Resumen backend cargado para turno ${shift.backendTurnId}.`)
+      setMessage('Datos del servidor cargados. Revisa el detalle abajo.')
     } catch (err) {
       setMessage((err as Error).message)
       setBackendSummary(null)
@@ -468,13 +466,11 @@ export default function ShiftsTab(): ReactElement {
       await createCashMovement(cfg, currentShift.backendTurnId, {
         movement_type: cashMovType,
         amount,
-        reason: cashMovReason.trim(),
-        manager_pin: cashMovPin.trim() || undefined
+        reason: cashMovReason.trim()
       })
       setMessage(`Movimiento ${cashMovType} de $${amount.toFixed(2)} registrado.`)
       setCashMovAmount('')
       setCashMovReason('')
-      setCashMovPin('')
     } catch (err) {
       setMessage((err as Error).message)
     } finally {
@@ -569,12 +565,12 @@ export default function ShiftsTab(): ReactElement {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
-              <Clock className="w-8 h-8 text-amber-500" />
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Clock className="w-7 h-7 text-amber-500" />
               Gestión de Turnos
             </h1>
-            <p className="text-zinc-500 mt-2 font-medium">
-              Apertura, cuadre de caja y reconciliación de ventas.
+            <p className="text-zinc-500 mt-1">
+              Apertura, cuadre de caja y reconciliación.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -582,7 +578,7 @@ export default function ShiftsTab(): ReactElement {
               <button
                 onClick={() => void printShiftCut(selectedShift)}
                 disabled={busy}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-medium hover:bg-zinc-800 transition-colors disabled:opacity-50"
               >
                 <Printer className="w-4 h-4" /> Imprimir
               </button>
@@ -591,7 +587,7 @@ export default function ShiftsTab(): ReactElement {
               <button
                 onClick={() => exportShiftCutCsv(selectedShift)}
                 disabled={busy}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 font-medium hover:bg-zinc-800 transition-colors disabled:opacity-50"
               >
                 <FileText className="w-4 h-4" /> Exportar CSV
               </button>
@@ -600,7 +596,7 @@ export default function ShiftsTab(): ReactElement {
         </div>
 
         {message && message !== 'Turnos (F5): apertura y cierre operativos.' && (
-          <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-semibold animate-fade-in-up">
+          <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium">
             <AlertCircle className="w-5 h-5 shrink-0" />
             <p>{message}</p>
           </div>
@@ -609,108 +605,92 @@ export default function ShiftsTab(): ReactElement {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Left/Main Column: Active Shift & KPIs */}
           <div className="xl:col-span-2 space-y-8">
-            {/* CURRENT SHIFT DASHBOARD */}
-            <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-3xl p-6 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500"></div>
-
-              <div className="flex items-center justify-between mb-8">
+            {/* CURRENT SHIFT DASHBOARD — esencia POS: números grandes, estado claro */}
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500" />
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-3 h-3 rounded-full ${currentShift ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}
-                  ></div>
+                  />
                   <h2 className="text-xl font-bold text-white">
                     {currentShift ? 'Turno en Curso' : 'Caja Cerrada'}
                   </h2>
                 </div>
                 {currentShift && (
-                  <div className="bg-zinc-950 border border-zinc-800 px-4 py-1.5 rounded-full text-sm font-mono text-zinc-400 flex items-center gap-2 shadow-inner">
-                    <User className="w-4 h-4 text-zinc-500" />
+                  <div className="bg-zinc-950 border border-zinc-800 px-4 py-2 rounded-xl text-sm font-medium text-zinc-300 flex items-center gap-2">
+                    <User className="w-4 h-4" />
                     {currentShift.openedBy}
                   </div>
                 )}
               </div>
 
               {currentShift ? (
-                <div className="space-y-8">
-                  {/* KPIs */}
+                <div className="space-y-6">
+                  {/* KPIs — números grandes para leer en caja */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800/80">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">
-                        Duración
-                      </p>
-                      <p className="text-2xl font-black text-white font-mono">{shiftDuration}</p>
+                    <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Duración</p>
+                      <p className="text-2xl font-bold text-white tabular-nums">{shiftDuration}</p>
                     </div>
-                    <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800/80">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">
-                        Ventas
-                      </p>
-                      <p className="text-2xl font-black text-white font-mono">
+                    <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Ventas</p>
+                      <p className="text-2xl font-bold text-white tabular-nums">
                         {currentShift.salesCount ?? 0}
                       </p>
                     </div>
-                    <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800/80">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">
-                        Efectivo Acum.
-                      </p>
-                      <p className="text-2xl font-black text-emerald-400 font-mono">
+                    <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Efectivo acum.</p>
+                      <p className="text-2xl font-bold text-emerald-400 tabular-nums">
                         ${(currentShift.cashSales ?? 0).toFixed(2)}
                       </p>
                     </div>
-                    <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800/80">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">
-                        Total Turno
-                      </p>
-                      <p className="text-2xl font-black text-blue-400 font-mono">
+                    <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Total turno</p>
+                      <p className="text-2xl font-bold text-blue-400 tabular-nums">
                         ${(currentShift.totalSales ?? 0).toFixed(2)}
                       </p>
                     </div>
                   </div>
 
-                  {/* Cash Movement & Close */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-zinc-950/50 p-5 rounded-2xl border border-zinc-800/50">
+                  {/* Cash Movement & Close — acciones de caja visibles */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-zinc-950/50 p-5 rounded-xl border border-zinc-800">
                     {/* Left: Close Shift Form */}
                     <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-rose-400 uppercase tracking-widest flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-rose-400 uppercase tracking-wider flex items-center gap-2">
                         <Square className="w-4 h-4" /> Cierre de Turno
                       </h3>
                       <div className="space-y-3">
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-500 mb-1">
-                            EFECTIVO EN CAJA (CONTEO)
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">
-                              $
-                            </span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={closingCash}
-                              onChange={(e) => setClosingCash(e.target.value)}
-                              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-8 pr-4 text-sm font-bold text-white focus:border-rose-500 focus:outline-none transition-colors"
-                            />
-                          </div>
-                          {expectedCash !== null && (
-                            <p className="text-xs text-emerald-400/70 mt-1">
-                              Esperado por sistema:{' '}
-                              <span className="font-mono font-bold">
-                                ${expectedCash.toFixed(2)}
-                              </span>
-                            </p>
-                          )}
+                        <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                          Efectivo en caja (conteo)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={closingCash}
+                            onChange={(e) => setClosingCash(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-8 pr-4 text-sm font-bold text-white focus:border-rose-500 focus:outline-none"
+                          />
                         </div>
+                        {expectedCash !== null && (
+                          <p className="text-xs text-emerald-400/80">
+                            Esperado por sistema: <span className="font-bold">${expectedCash.toFixed(2)}</span>
+                          </p>
+                        )}
                         <div className="flex gap-2">
                           <button
                             onClick={() => void applySuggestedExpectedCash()}
                             disabled={busy}
-                            className="flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 py-2 rounded-xl text-xs font-bold text-zinc-400 transition-colors"
+                            className="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 py-2.5 rounded-xl text-xs font-bold text-zinc-300 transition-colors"
                           >
                             Recalcular
                           </button>
                           <button
                             onClick={() => void closeShift()}
                             disabled={busy}
-                            className="flex-[2] bg-rose-600 hover:bg-rose-500 text-white py-2 rounded-xl font-bold shadow-[0_0_15px_rgba(225,29,72,0.3)] transition-all"
+                            className="flex-[2] bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl font-bold text-sm transition-colors"
                           >
                             CERRAR CAJA
                           </button>
@@ -719,8 +699,8 @@ export default function ShiftsTab(): ReactElement {
                     </div>
 
                     {/* Right: Cash Movements */}
-                    <div className="space-y-4 border-t lg:border-t-0 lg:border-l border-zinc-800/50 pt-5 lg:pt-0 lg:pl-6">
-                      <h3 className="text-sm font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                    <div className="space-y-4 border-t lg:border-t-0 lg:border-l border-zinc-800 pt-5 lg:pt-0 lg:pl-6">
+                      <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
                         <ArrowRightLeft className="w-4 h-4" /> Mov. Efectivo
                       </h3>
                       <div className="grid grid-cols-2 gap-2">
@@ -745,27 +725,15 @@ export default function ShiftsTab(): ReactElement {
                         />
                       </div>
                       <input
-                        placeholder="Concepto (Ej. Pago proveedor)"
+                        placeholder="Concepto (ej. Pago proveedor)"
                         value={cashMovReason}
                         onChange={(e) => setCashMovReason(e.target.value)}
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-medium focus:border-blue-500 focus:outline-none"
                       />
-                      {!canManage && (
-                        <div className="relative">
-                          <ShieldAlert className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500" />
-                          <input
-                            type="password"
-                            placeholder="PIN de Manager"
-                            value={cashMovPin}
-                            onChange={(e) => setCashMovPin(e.target.value)}
-                            className="w-full bg-amber-500/10 border border-amber-500/30 rounded-xl py-2 pl-9 pr-3 text-xs font-medium text-amber-100 focus:border-amber-500 focus:outline-none"
-                          />
-                        </div>
-                      )}
                       <button
                         onClick={() => void handleCashMovement()}
                         disabled={busy || !cashMovAmount || !cashMovReason.trim()}
-                        className="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50 border border-zinc-700"
+                        className="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 border border-zinc-700"
                       >
                         REGISTRAR MOVIMIENTO
                       </button>
@@ -776,39 +744,37 @@ export default function ShiftsTab(): ReactElement {
                 /* OPEN SHIFT FORM */
                 <div className="max-w-md space-y-5">
                   <div>
-                    <label className="block text-xs font-bold text-zinc-500 mb-2 uppercase tracking-wider">
-                      Nombre del Operador
+                    <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                      Nombre del operador
                     </label>
                     <input
                       value={operator}
                       onChange={(e) => setOperator(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none transition-colors"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 px-4 text-sm font-medium text-white focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-zinc-500 mb-2 uppercase tracking-wider">
-                      Fondo Inicial de Caja
+                    <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                      Fondo inicial de caja
                     </label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">
-                        $
-                      </span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
                       <input
                         type="number"
                         min={0}
                         value={openingCash}
                         onChange={(e) => setOpeningCash(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 pl-8 pr-4 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none transition-colors"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-3 pl-8 pr-4 text-sm font-bold text-white focus:border-emerald-500 focus:outline-none"
                       />
                     </div>
-                    <p className="text-xs text-zinc-600 mt-2">
-                      Monedas y billetes para cambio base al iniciar el día.
+                    <p className="text-xs text-zinc-500 mt-2">
+                      Monedas y billetes para cambio al iniciar.
                     </p>
                   </div>
                   <button
                     onClick={() => void openShift()}
                     disabled={busy || !operator.trim()}
-                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98] mt-4 flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-base mt-2 flex items-center justify-center gap-2"
                   >
                     <Play className="w-5 h-5 fill-current" /> INICIAR TURNO
                   </button>
@@ -816,90 +782,206 @@ export default function ShiftsTab(): ReactElement {
               )}
             </div>
 
-            {/* RECONCILIATION & SYNC PANEL */}
-            <div className="bg-zinc-900/20 border border-zinc-800/40 rounded-3xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" /> Conciliación Backend
+            {/* Verificar con el servidor — lenguaje amigable */}
+            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6">
+              <div className="mb-4">
+                <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" /> Verificar con el servidor
                 </h3>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Compara los totales de este equipo con lo que tiene guardado el sistema. Así puedes confirmar que todo cuadra.
+                </p>
+              </div>
+              <div className="mb-5">
+                <label className="block text-xs text-zinc-500 mb-2">Selecciona el turno a verificar</label>
                 <select
-                  className="bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-xs font-bold text-zinc-300 focus:outline-none focus:border-blue-500"
+                  className="w-full sm:w-auto min-w-[200px] bg-zinc-950 border border-zinc-800 rounded-xl py-2.5 px-4 text-sm text-zinc-200 focus:outline-none focus:border-blue-500"
                   value={selectedShiftId ?? ''}
                   onChange={(e) => setSelectedShiftId(e.target.value || null)}
                 >
-                  <option value="">Turno Actual / Activo</option>
+                  <option value="">Turno actual</option>
                   {history.slice(0, 5).map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.openedAt.slice(0, 10)} - {s.openedBy}{' '}
-                      {s.status === 'open' ? '(Abierto)' : ''}
+                      {s.openedAt.slice(0, 10)} — {s.openedBy}{' '}
+                      {s.status === 'open' ? '(abierto)' : '(cerrado)'}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row gap-3 mb-5">
                 <button
                   onClick={() => selectedShift && void reconcileShift(selectedShift)}
                   disabled={busy || !selectedShift}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
                 >
-                  <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Calcular
-                  Diferencias Reales
+                  <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Comparar totales
                 </button>
                 <button
                   onClick={() => void loadBackendSummary()}
                   disabled={busy || !selectedShift?.backendTurnId}
-                  className="flex-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 border border-zinc-700"
                 >
-                  Ver Resumen Bruto API
+                  Ver detalle técnico
                 </button>
               </div>
 
               {selectedShiftReconciliation && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in-up">
-                  <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4">
-                    <p className="text-[10px] uppercase text-zinc-500 font-bold mb-1">
-                      Ventas Reales Backend
-                    </p>
-                    <p className="text-xl font-mono text-white">
-                      {selectedShiftReconciliation.salesCount}
-                    </p>
+                <>
+                  {Math.abs(selectedShiftReconciliation.diffCash) <= 0.1 &&
+                  Math.abs(selectedShiftReconciliation.diffTotal) <= 0.1 ? (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-4">
+                      <p className="text-sm font-medium text-emerald-400">
+                        Los totales coinciden con el servidor. Todo cuadra.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4">
+                      <p className="text-sm font-medium text-amber-400">
+                        Hay diferencias. Revisa los montos abajo o contacta a soporte si persisten.
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+                      <p className="text-xs text-zinc-500 mb-1">Ventas registradas en el sistema</p>
+                      <p className="text-xl font-bold text-white tabular-nums">
+                        {selectedShiftReconciliation.salesCount} <span className="text-sm font-normal text-zinc-500">tickets</span>
+                      </p>
+                    </div>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+                      <p className="text-xs text-zinc-500 mb-1">Diferencia en efectivo</p>
+                      <p
+                        className={`text-xl font-bold tabular-nums ${Math.abs(selectedShiftReconciliation.diffCash) > 0.1 ? 'text-amber-400' : 'text-emerald-400'}`}
+                      >
+                        ${selectedShiftReconciliation.diffCash.toFixed(2)}
+                        {Math.abs(selectedShiftReconciliation.diffCash) <= 0.1 && (
+                          <span className="block text-sm font-normal text-emerald-400/80">Cuadra</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+                      <p className="text-xs text-zinc-500 mb-1">Diferencia total</p>
+                      <p
+                        className={`text-xl font-bold tabular-nums ${Math.abs(selectedShiftReconciliation.diffTotal) > 0.1 ? 'text-amber-400' : 'text-emerald-400'}`}
+                      >
+                        ${selectedShiftReconciliation.diffTotal.toFixed(2)}
+                        {Math.abs(selectedShiftReconciliation.diffTotal) <= 0.1 && (
+                          <span className="block text-sm font-normal text-emerald-400/80">Cuadra</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4">
-                    <p className="text-[10px] uppercase text-zinc-500 font-bold mb-1">
-                      Diff. Efectivo (API vs Caja)
-                    </p>
-                    <p
-                      className={`text-xl font-mono font-bold ${Math.abs(selectedShiftReconciliation.diffCash) > 0.1 ? 'text-amber-400' : 'text-emerald-400'}`}
-                    >
-                      ${selectedShiftReconciliation.diffCash.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-950 border border-zinc-800/80 rounded-xl p-4">
-                    <p className="text-[10px] uppercase text-zinc-500 font-bold mb-1">
-                      Diff. Total (Sobrante/Faltante)
-                    </p>
-                    <p
-                      className={`text-xl font-mono font-bold ${Math.abs(selectedShiftReconciliation.diffTotal) > 0.1 ? 'text-amber-400' : 'text-emerald-400'}`}
-                    >
-                      ${selectedShiftReconciliation.diffTotal.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
+                </>
               )}
               {backendSummary && (
-                <pre className="mt-4 p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-400 max-h-40 overflow-y-auto w-full">
-                  {JSON.stringify(backendSummary, null, 2)}
-                </pre>
+                <div className="mt-4 space-y-4">
+                  <p className="text-xs text-zinc-500">
+                    Lo que tiene guardado el servidor para este turno:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {typeof backendSummary.turn_id === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Turno en servidor</p>
+                        <p className="text-sm font-bold text-zinc-200">#{backendSummary.turn_id}</p>
+                      </div>
+                    )}
+                    {backendSummary.status != null && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Estado</p>
+                        <p className="text-sm font-bold text-zinc-200">
+                          {String(backendSummary.status) === 'open' ? 'Abierto' : 'Cerrado'}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.initial_cash === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Efectivo inicial</p>
+                        <p className="text-sm font-bold text-white tabular-nums">
+                          ${Number(backendSummary.initial_cash).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.sales_count === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Ventas (tickets)</p>
+                        <p className="text-sm font-bold text-white tabular-nums">
+                          {backendSummary.sales_count}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.total_sales === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Total ventas</p>
+                        <p className="text-sm font-bold text-white tabular-nums">
+                          ${Number(backendSummary.total_sales).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.cash_in === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Entradas de efectivo</p>
+                        <p className="text-sm font-bold text-emerald-400 tabular-nums">
+                          +${Number(backendSummary.cash_in).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.cash_out === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Salidas / retiros</p>
+                        <p className="text-sm font-bold text-amber-400 tabular-nums">
+                          −${Number(backendSummary.cash_out).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.expenses === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500">Gastos</p>
+                        <p className="text-sm font-bold text-amber-400 tabular-nums">
+                          −${Number(backendSummary.expenses).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                    {typeof backendSummary.expected_cash === 'number' && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 sm:col-span-2">
+                        <p className="text-xs text-zinc-500">Efectivo esperado en caja</p>
+                        <p className="text-lg font-bold text-white tabular-nums">
+                          ${Number(backendSummary.expected_cash).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {Array.isArray(backendSummary.sales_by_method) && (backendSummary.sales_by_method as { payment_method?: string; count?: number; total?: number }[]).length > 0 && (
+                    <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                      <p className="text-xs text-zinc-500 mb-2">Ventas por forma de pago</p>
+                      <ul className="space-y-1.5 text-sm">
+                        {(backendSummary.sales_by_method as { payment_method?: string; count?: number; total?: number }[]).map((m: { payment_method?: string; count?: number; total?: number }, i: number) => (
+                          <li key={i} className="flex justify-between text-zinc-300">
+                            <span className="capitalize">{m.payment_method === 'cash' ? 'Efectivo' : m.payment_method === 'card' ? 'Tarjeta' : m.payment_method === 'mixed' ? 'Mixto' : m.payment_method ?? '—'}</span>
+                            <span className="font-medium tabular-nums">{m.count ?? 0} tickets · ${Number(m.total ?? 0).toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <details className="group">
+                    <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400 py-1">
+                      Ver datos crudos (para soporte)
+                    </summary>
+                    <pre className="mt-2 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs font-mono text-zinc-500 max-h-32 overflow-y-auto">
+                      {JSON.stringify(backendSummary, null, 2)}
+                    </pre>
+                  </details>
+                </div>
               )}
             </div>
           </div>
 
           {/* Right Column: Mini History & Ledger */}
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-3xl flex flex-col overflow-hidden h-full max-h-[800px]">
-            <div className="p-5 border-b border-zinc-800/80 bg-zinc-900/50">
-              <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-2">
-                <List className="w-4 h-4" /> Historial Reciente
+          <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden h-full max-h-[800px]">
+            <div className="p-5 border-b border-zinc-800 bg-zinc-900/50">
+              <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                <List className="w-4 h-4" /> Historial reciente
               </h3>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
