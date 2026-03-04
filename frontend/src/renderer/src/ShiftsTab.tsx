@@ -64,6 +64,7 @@ function toNumber(value: string): number {
 
 function toCsvCell(value: string): string {
   // Sanitize first: strip control chars, then prefix formula-triggering chars
+  // eslint-disable-next-line no-control-regex
   const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
   const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
   return `"${safe.replace(/"/g, '""')}"`
@@ -726,7 +727,9 @@ export default function ShiftsTab(): ReactElement {
                         <select
                           className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-bold focus:border-blue-500 focus:outline-none"
                           value={cashMovType}
-                          onChange={(e) => setCashMovType(e.target.value as 'in' | 'out' | 'expense')}
+                          onChange={(e) =>
+                            setCashMovType(e.target.value as 'in' | 'out' | 'expense')
+                          }
                         >
                           <option value="in">Entrada (+)</option>
                           <option value="out">Retiro (-)</option>

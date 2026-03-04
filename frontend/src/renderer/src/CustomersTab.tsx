@@ -113,8 +113,9 @@ export default function CustomersTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
     }
   }, [handleLoad])
 
@@ -345,6 +346,7 @@ export default function CustomersTab(): ReactElement {
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-600"
               placeholder="Buscar por nombre, teléfono o email..."
               value={query}
+              // eslint-disable-next-line no-control-regex
               onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
             />
           </div>

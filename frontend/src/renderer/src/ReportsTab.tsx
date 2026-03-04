@@ -63,6 +63,7 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
 
 function toCsvCell(value: string): string {
   // Sanitize first: strip control chars, then prefix formula-triggering chars
+  // eslint-disable-next-line no-control-regex
   const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
   const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
   return `"${safe.replace(/"/g, '""')}"`
@@ -137,7 +138,7 @@ export default function ReportsTab(): ReactElement {
       const normalized = rows.map(normalizeSale)
       setSales(normalized)
       // setMessage(`Reporte cargado con ${normalized.length} ventas.`)
-    } catch (error) {
+    } catch {
       if (requestIdRef.current !== reqId) return
       // setMessage((error as Error).message)
     } finally {
@@ -174,8 +175,9 @@ export default function ReportsTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
     }
   }, [handleLoad])
 
@@ -189,7 +191,7 @@ export default function ReportsTab(): ReactElement {
       const data = (raw.data ?? raw.summaries ?? []) as Record<string, unknown>[]
       setDailyData(Array.isArray(data) ? data : [])
       // setMessage(`Resumen diario: ${(Array.isArray(data) ? data : []).length} registros.`)
-    } catch (error) {
+    } catch {
       if (requestIdRef.current !== reqId) return
       // setMessage((error as Error).message)
     } finally {
@@ -207,7 +209,7 @@ export default function ReportsTab(): ReactElement {
       const data = (raw.data ?? raw.ranking ?? []) as Record<string, unknown>[]
       setRankingData(Array.isArray(data) ? data : [])
       // setMessage(`Ranking: ${(Array.isArray(data) ? data : []).length} productos.`)
-    } catch (error) {
+    } catch {
       if (requestIdRef.current !== reqId) return
       // setMessage((error as Error).message)
     } finally {
@@ -225,7 +227,7 @@ export default function ReportsTab(): ReactElement {
       const data = (raw.data ?? raw.heatmap ?? []) as Record<string, unknown>[]
       setHeatmapData(Array.isArray(data) ? data : [])
       // setMessage(`Heatmap: ${(Array.isArray(data) ? data : []).length} registros.`)
-    } catch (error) {
+    } catch {
       if (requestIdRef.current !== reqId) return
       // setMessage((error as Error).message)
     } finally {
@@ -550,7 +552,7 @@ export default function ReportsTab(): ReactElement {
                     {dailyData.length === 0 && (
                       <tr>
                         <td colSpan={4} className="py-12 text-center text-zinc-600">
-                          Presiona "Descargar del Servidor" para consultar históricos.
+                          Presiona &quot;Descargar del Servidor&quot; para consultar históricos.
                         </td>
                       </tr>
                     )}
@@ -605,7 +607,7 @@ export default function ReportsTab(): ReactElement {
                     {rankingData.length === 0 && (
                       <tr>
                         <td colSpan={4} className="py-12 text-center text-zinc-600">
-                          Presiona "Descargar Global" para obtener el histórico.
+                          Presiona &quot;Descargar Global&quot; para obtener el histórico.
                         </td>
                       </tr>
                     )}

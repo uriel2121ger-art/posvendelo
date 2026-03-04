@@ -108,8 +108,9 @@ export default function InventoryTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
     }
   }, [handleLoad])
 
@@ -244,6 +245,7 @@ export default function InventoryTab(): ReactElement {
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-zinc-600"
               placeholder="Buscar por SKU o Nombre para consultar..."
               value={query}
+              // eslint-disable-next-line no-control-regex
               onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -294,10 +296,10 @@ export default function InventoryTab(): ReactElement {
                     className="flex justify-between items-center rounded-lg bg-zinc-900 px-3 py-2 border border-amber-900/30"
                   >
                     <span className="text-zinc-300 truncate pr-2 font-medium">
-                      {String((a as any).sku ?? (a as any).product_name ?? `#${i}`)}
+                      {String(a.sku ?? a.product_name ?? `#${i}`)}
                     </span>
                     <span className="text-rose-400 font-mono font-bold bg-rose-950/50 px-2 py-0.5 rounded">
-                      {String((a as any).stock ?? (a as any).current_stock ?? '?')}
+                      {String(a.stock ?? a.current_stock ?? '?')}
                     </span>
                   </div>
                 ))}
@@ -350,30 +352,25 @@ export default function InventoryTab(): ReactElement {
                       {movements.map((m, i) => (
                         <tr key={i} className="hover:bg-zinc-800/30">
                           <td className="px-3 py-2 text-zinc-400 font-mono">
-                            {String((m as any).timestamp ?? (m as any).created_at ?? '-')
+                            {String(m.timestamp ?? m.created_at ?? '-')
                               .slice(0, 16)
                               .replace('T', ' ')}
                           </td>
                           <td className="px-3 py-2 text-zinc-200 truncate max-w-[150px]">
-                            {String(
-                              (m as any).product_name ??
-                                (m as any).sku ??
-                                (m as any).product_id ??
-                                '-'
-                            )}
+                            {String(m.product_name ?? m.sku ?? m.product_id ?? '-')}
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${String((m as any).movement_type ?? (m as any).type) === 'IN' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${String(m.movement_type ?? m.type) === 'IN' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}
                             >
-                              {String((m as any).movement_type ?? (m as any).type ?? '-')}
+                              {String(m.movement_type ?? m.type ?? '-')}
                             </span>
                           </td>
                           <td className="px-3 py-2 font-mono font-bold text-zinc-300">
-                            {String((m as any).quantity ?? '-')}
+                            {String(m.quantity ?? '-')}
                           </td>
                           <td className="px-3 py-2 text-zinc-500 truncate max-w-[200px]">
-                            {String((m as any).reason ?? '-')}
+                            {String(m.reason ?? '-')}
                           </td>
                         </tr>
                       ))}

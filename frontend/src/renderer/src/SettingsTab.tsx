@@ -215,7 +215,7 @@ export default function SettingsTab(): ReactElement {
       setHw(data)
       setSavedHw(data)
       saveToCache(data)
-    } catch (e) {
+    } catch {
       // Ignored initially
     }
   }, [hwConfig])
@@ -224,7 +224,7 @@ export default function SettingsTab(): ReactElement {
     loadHwData()
   }, [loadHwData])
 
-  function showMessage(msg: string, isError = false) {
+  function showMessage(msg: string, isError = false): void {
     setMessage(isError ? `Error: ${msg}` : msg)
   }
 
@@ -249,7 +249,9 @@ export default function SettingsTab(): ReactElement {
     setProfiles(next)
     try {
       localStorage.setItem(CONFIG_PROFILES_KEY, JSON.stringify(next))
-    } catch {}
+    } catch {
+      // quota exceeded or localStorage unavailable
+    }
   }
 
   function saveProfile(): void {
@@ -316,7 +318,10 @@ export default function SettingsTab(): ReactElement {
   }
 
   // -- HW METHODS --
-  const handleSaveHw = async (sec: typeof activeTab, body: Record<string, unknown>) => {
+  const handleSaveHw = async (
+    sec: typeof activeTab,
+    body: Record<string, unknown>
+  ): Promise<void> => {
     setBusy(true)
     try {
       await updateHardwareConfig(hwConfig, sec, body)

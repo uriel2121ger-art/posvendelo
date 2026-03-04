@@ -135,8 +135,9 @@ export default function EmployeesTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
     }
   }, [handleLoad])
 
@@ -262,6 +263,7 @@ export default function EmployeesTab(): ReactElement {
                 className="block w-full pl-10 pr-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl leading-5 text-zinc-300 placeholder-zinc-500 focus:outline-none focus:bg-zinc-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium sm:text-sm"
                 placeholder="Buscar por nombre, código o contacto..."
                 value={query}
+                // eslint-disable-next-line no-control-regex
                 onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
               />
             </div>

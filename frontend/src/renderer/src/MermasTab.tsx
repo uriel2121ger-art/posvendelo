@@ -59,8 +59,9 @@ export default function MermasTab(): ReactElement {
 
   useEffect(() => {
     fetchMermas()
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
     }
   }, [])
 

@@ -158,8 +158,9 @@ export default function ProductsTab(): ReactElement {
         /* sat units are optional */
       }
     })()
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
     }
   }, [handleLoad])
 
@@ -421,10 +422,10 @@ export default function ProductsTab(): ReactElement {
                   className="flex justify-between items-center rounded-lg bg-zinc-900 px-3 py-2 border border-amber-900/30"
                 >
                   <span className="text-zinc-300 truncate pr-2 font-medium">
-                    {String((p as any).sku ?? (p as any).name ?? `#${i}`)}
+                    {String(p.sku ?? p.name ?? `#${i}`)}
                   </span>
                   <span className="text-rose-400 font-mono font-bold bg-rose-950/50 px-2 py-0.5 rounded">
-                    {String((p as any).stock ?? '?')}
+                    {String(p.stock ?? '?')}
                   </span>
                 </div>
               ))}

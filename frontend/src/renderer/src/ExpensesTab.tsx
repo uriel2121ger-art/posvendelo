@@ -44,11 +44,13 @@ export default function ExpensesTab(): ReactElement {
 
   useEffect(() => {
     fetchExpenses()
+    const reqRef = requestIdRef
+    const timerRef = successTimerRef
     return () => {
-      requestIdRef.current++
-      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+      reqRef.current++
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [])
+  }, [fetchExpenses])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()

@@ -131,8 +131,9 @@ export default function DashboardStatsTab(): ReactElement {
   useEffect(() => {
     void fetchStats()
     const interval = setInterval(() => void fetchStats(), 30_000)
+    const reqRef = requestIdRef
     return () => {
-      requestIdRef.current++
+      reqRef.current++
       clearInterval(interval)
     }
   }, [fetchStats])

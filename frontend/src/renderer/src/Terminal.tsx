@@ -1376,13 +1376,19 @@ export default function Terminal(): ReactElement {
                             className="flex items-center justify-between p-3 border-b border-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
                           >
                             <div>
-                              <div className="text-sm font-semibold text-zinc-200 group-hover:text-blue-400 transition-colors">{p.name}</div>
+                              <div className="text-sm font-semibold text-zinc-200 group-hover:text-blue-400 transition-colors">
+                                {p.name}
+                              </div>
                               <div className="text-xs text-zinc-500 font-mono mt-0.5">{p.sku}</div>
                             </div>
                             <div className="text-right flex flex-col items-end">
-                              <div className="text-emerald-400 font-bold">${p.price.toFixed(2)}</div>
+                              <div className="text-emerald-400 font-bold">
+                                ${p.price.toFixed(2)}
+                              </div>
                               {p.stock !== undefined && (
-                                <div className={`text-[10px] uppercase font-bold mt-1 px-1.5 py-0.5 rounded ${p.stock <= p.minStock ? 'bg-rose-500/20 text-rose-500' : 'bg-zinc-800 text-zinc-500'}`}>
+                                <div
+                                  className={`text-[10px] uppercase font-bold mt-1 px-1.5 py-0.5 rounded ${p.stock <= p.minStock ? 'bg-rose-500/20 text-rose-500' : 'bg-zinc-800 text-zinc-500'}`}
+                                >
                                   Stock: {p.stock}
                                 </div>
                               )}
@@ -1748,7 +1754,7 @@ export default function Terminal(): ReactElement {
                 type="button"
                 onClick={() => setIsCheckoutModalOpen(false)}
                 className="flex-1 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded-xl py-3.5 font-bold transition-colors"
-               >
+              >
                 Cancelar
               </button>
               <button

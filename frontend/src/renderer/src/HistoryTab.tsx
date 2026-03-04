@@ -54,6 +54,7 @@ function normalizeSale(raw: Record<string, unknown>): SaleRow {
 
 function toCsvCell(value: string): string {
   // Strip non-printable control chars, then prefix formula-triggering chars with tab
+  // eslint-disable-next-line no-control-regex
   const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
   const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
   return `"${safe.replace(/"/g, '""')}"`
@@ -222,9 +223,11 @@ export default function HistoryTab(): ReactElement {
 
   useEffect(() => {
     void handleLoad()
+    const reqRef = requestIdRef
+    const detailRef = detailRequestId
     return () => {
-      requestIdRef.current++
-      detailRequestId.current++
+      reqRef.current++
+      detailRef.current++
     }
   }, [handleLoad])
 
@@ -295,7 +298,9 @@ export default function HistoryTab(): ReactElement {
           <select
             className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             value={paymentFilter}
-            onChange={(e) => setPaymentFilter(e.target.value as any)}
+            onChange={(e) =>
+              setPaymentFilter(e.target.value as 'all' | 'cash' | 'card' | 'transfer')
+            }
           >
             <option value="all">Todos los métodos</option>
             <option value="cash">Efectivo</option>
@@ -521,17 +526,15 @@ export default function HistoryTab(): ReactElement {
                             {events.map((ev, i) => (
                               <tr key={i} className="text-zinc-300 hover:bg-zinc-800/30">
                                 <td className="px-4 py-2.5 font-mono text-zinc-500">
-                                  {String((ev as any).sequence ?? i + 1)}
+                                  {String(ev.sequence ?? i + 1)}
                                 </td>
                                 <td className="px-4 py-2.5">
                                   <span className="bg-zinc-800 px-2 py-0.5 rounded uppercase tracking-wider text-[10px] font-bold text-zinc-300">
-                                    {String((ev as any).event_type ?? (ev as any).type ?? '-')}
+                                    {String(ev.event_type ?? ev.type ?? '-')}
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-mono text-zinc-500">
-                                  {String(
-                                    (ev as any).timestamp ?? (ev as any).created_at ?? '-'
-                                  ).slice(11, 19)}
+                                  {String(ev.timestamp ?? ev.created_at ?? '-').slice(11, 19)}
                                 </td>
                               </tr>
                             ))}
