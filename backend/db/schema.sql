@@ -245,7 +245,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at) WHERE statu
 CREATE TABLE IF NOT EXISTS sale_items (
     id BIGSERIAL PRIMARY KEY,
     sale_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
+    product_id INTEGER,
     name TEXT,
     qty NUMERIC(12,4) NOT NULL DEFAULT 1,
     price NUMERIC(12,2) NOT NULL,
@@ -1192,11 +1192,20 @@ CREATE TABLE IF NOT EXISTS sat_clave_prod_serv (
 CREATE INDEX IF NOT EXISTS idx_sat_cps_clave ON sat_clave_prod_serv(clave text_pattern_ops);
 CREATE INDEX IF NOT EXISTS idx_sat_cps_desc ON sat_clave_prod_serv USING gin(descripcion gin_trgm_ops);
 
+-- Seed: minimum SAT codes required for tests and default product values
+INSERT INTO sat_clave_prod_serv (clave, descripcion, categoria)
+VALUES ('01010101', 'No existe en el catalogo', 'General')
+ON CONFLICT DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS sat_clave_unidad (
     clave TEXT PRIMARY KEY,
     nombre TEXT NOT NULL,
     descripcion TEXT
 );
+
+INSERT INTO sat_clave_unidad (clave, nombre, descripcion)
+VALUES ('H87', 'Pieza', 'Unidad de conteo por pieza')
+ON CONFLICT DO NOTHING;
 
 -- =============================================================================
 -- 82. EVENT SOURCING - SALE EVENTS
