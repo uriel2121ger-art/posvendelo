@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import ExpensesTab from '../ExpensesTab'
+import ExpensesTab from '../tabs/ExpensesTab'
 import { clearAuth, setAuthToken } from './test-utils'
 
 const mockGetExpensesSummary = vi.fn()

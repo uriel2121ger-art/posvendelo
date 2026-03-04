@@ -7,7 +7,7 @@ import {
   getDailySummaryReport,
   getProductRanking,
   getHourlyHeatmap
-} from './posApi'
+} from '../posApi'
 import {
   BarChart3,
   TrendingUp,

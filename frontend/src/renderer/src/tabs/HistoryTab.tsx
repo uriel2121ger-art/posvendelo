@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   Search,
   X,
@@ -23,8 +23,8 @@ import {
   cancelSale,
   getSaleEvents,
   getUserRole
-} from './posApi'
-import { useFocusTrap } from './hooks/useFocusTrap'
+} from '../posApi'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type SaleRow = {
   id: string

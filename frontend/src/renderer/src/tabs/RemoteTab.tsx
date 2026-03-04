@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getLiveSales,
@@ -10,7 +10,7 @@ import {
   remoteChangePrice,
   sendNotification,
   getPendingNotifications
-} from './posApi'
+} from '../posApi'
 import { Radio, Activity, RefreshCw, DoorOpen, Tag, Send, BellRing, Target } from 'lucide-react'
 
 function toNumber(value: unknown): number {

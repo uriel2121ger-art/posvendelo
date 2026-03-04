@@ -10,7 +10,7 @@ import {
   getDashboardAI,
   getDashboardExecutive,
   getUserRole
-} from './posApi'
+} from '../posApi'
 
 interface QuickStats {
   ventas_hoy: number

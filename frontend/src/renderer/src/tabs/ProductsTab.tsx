@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import { Search, Plus, X, AlertCircle, RefreshCw, PackageOpen, Edit2 } from 'lucide-react'
 import {
   loadRuntimeConfig,
@@ -13,8 +13,8 @@ import {
   getSatUnits,
   createProduct,
   updateProduct
-} from './posApi'
-import { useFocusTrap } from './hooks/useFocusTrap'
+} from '../posApi'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Product = {
   id?: number | string

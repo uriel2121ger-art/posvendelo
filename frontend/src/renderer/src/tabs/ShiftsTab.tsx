@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   Play,
   Square,
@@ -25,7 +25,7 @@ import {
   createCashMovement,
   getUserRole,
   printShiftReport
-} from './posApi'
+} from '../posApi'
 import {
   type ShiftRecord,
   CURRENT_SHIFT_KEY,
@@ -34,7 +34,7 @@ import {
   saveCurrentShift,
   readShiftHistory,
   saveShiftHistory
-} from './shiftTypes'
+} from '../types/shiftTypes'
 
 type ShiftReconciliation = {
   shiftId: string

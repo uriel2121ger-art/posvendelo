@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 
-import { useConfirm, usePrompt } from './components/ConfirmDialog'
+import { useConfirm, usePrompt } from '../components/ConfirmDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Plus,
@@ -24,9 +24,9 @@ import {
   printReceipt,
   openDrawerForSale,
   getTurnSummary
-} from './posApi'
+} from '../posApi'
 
-import { useFocusTrap } from './hooks/useFocusTrap'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Product = {
   id?: number | string
@@ -84,7 +84,7 @@ type ActiveTicketSnapshot = {
 
 const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
-import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from './shiftTypes'
+import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from '../types/shiftTypes'
 const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
 
 function toNumber(value: unknown): number {

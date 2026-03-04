@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   getSyncStatus,
   getSystemInfo,
@@ -15,7 +15,7 @@ import {
   discoverPrinters,
   testPrint,
   testDrawer
-} from './posApi'
+} from '../posApi'
 
 import {
   Server,

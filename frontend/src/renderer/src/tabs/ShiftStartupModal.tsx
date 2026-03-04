@@ -7,15 +7,15 @@ import {
   closeTurn,
   getTurnSummary,
   getCurrentTurn
-} from './posApi'
+} from '../posApi'
 import {
   type ShiftRecord,
   readCurrentShift,
   saveCurrentShift,
   readShiftHistory,
   saveShiftHistory
-} from './shiftTypes'
-import { useFocusTrap } from './hooks/useFocusTrap'
+} from '../types/shiftTypes'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Phase =
   | 'checking'

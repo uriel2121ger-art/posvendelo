@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   Search,
   Plus,
@@ -21,8 +21,8 @@ import {
   createCustomer,
   getCustomerCredit,
   getCustomerSales
-} from './posApi'
-import { useFocusTrap } from './hooks/useFocusTrap'
+} from '../posApi'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Customer = {
   id?: number | string

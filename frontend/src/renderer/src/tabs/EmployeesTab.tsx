@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getUserRole,
@@ -9,7 +9,7 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee
-} from './posApi'
+} from '../posApi'
 import {
   Users,
   Search,
@@ -23,7 +23,7 @@ import {
   Percent,
   RefreshCw
 } from 'lucide-react'
-import { useFocusTrap } from './hooks/useFocusTrap'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Employee = {
   id: number

@@ -2,8 +2,8 @@ import type { ReactElement } from 'react'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { RefreshCw, Plus, Receipt } from 'lucide-react'
 
-import { loadRuntimeConfig, getExpensesSummary, registerExpense } from './posApi'
-import { readCurrentShift } from './shiftTypes'
+import { loadRuntimeConfig, getExpensesSummary, registerExpense } from '../posApi'
+import { readCurrentShift } from '../types/shiftTypes'
 
 export default function ExpensesTab(): ReactElement {
   const [monthTotal, setMonthTotal] = useState(0)

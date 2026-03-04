@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import { Search, Package, X, ArrowRightLeft, AlertCircle, RefreshCw, BarChart2 } from 'lucide-react'
 import {
   loadRuntimeConfig,
@@ -9,8 +9,8 @@ import {
   adjustStock,
   getStockAlerts,
   getInventoryMovements
-} from './posApi'
-import { useFocusTrap } from './hooks/useFocusTrap'
+} from '../posApi'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type InventoryRow = {
   id: number

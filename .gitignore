@@ -72,3 +72,7 @@ CLIENTE/
 SERVIDOR/
 titan-server/
 titan-client/
+
+# Frontend generated
+frontend/lint_output.txt
+frontend/audit-report*.json

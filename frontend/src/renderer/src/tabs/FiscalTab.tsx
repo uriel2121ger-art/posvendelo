@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useRef, useState } from 'react'
-import { useConfirm } from './components/ConfirmDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getUserRole,
@@ -36,7 +36,7 @@ import {
   triggerPanic,
   triggerFakeScreen,
   runShaper
-} from './posApi'
+} from '../posApi'
 
 type SubTab =
   | 'facturacion'

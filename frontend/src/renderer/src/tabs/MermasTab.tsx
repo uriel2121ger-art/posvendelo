@@ -2,8 +2,8 @@ import type { ReactElement } from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Check, X, AlertTriangle } from 'lucide-react'
 
-import { useConfirm } from './components/ConfirmDialog'
-import { loadRuntimeConfig, getMermasPending, approveMerma } from './posApi'
+import { useConfirm } from '../components/ConfirmDialog'
+import { loadRuntimeConfig, getMermasPending, approveMerma } from '../posApi'
 
 interface MermaRecord {
   id: number
