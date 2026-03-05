@@ -63,3 +63,8 @@ cd frontend && npm run test
 # E2E navegador (Playwright)
 cd frontend && npm run test:e2e
 ```
+
+## Flujo de pruebas autónomo por pestaña
+- **Rama:** `testing/autonomous-tab-validation` (no tocar `master`).
+- **Flujo:** Ver `docs/FLUJO_PRUEBAS_AUTONOMO.md` (ciclo: probar tab → edge cases + monkey → documentar en `docs/LOG_PRUEBAS_TABS.md` → corregir bugs → añadir tests → releer doc → repetir).
+- **Log vivo:** `docs/LOG_PRUEBAS_TABS.md` — actualizar en cada iteración con hallazgos, correcciones y tests nuevos.

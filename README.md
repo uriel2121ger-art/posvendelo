@@ -59,7 +59,7 @@ backend/          # FastAPI + asyncpg
   main.py         # Entry point (app factory + routers + lifespan)
   db/             # asyncpg pool + DB wrapper
   modules/        # 14 modulos de negocio (110 endpoints)
-  tests/          # 164 tests de integracion (pytest + asyncio)
+  tests/          # 181 tests de integración (pytest + asyncio)
 frontend/         # Electron + React + TypeScript
 docs/             # Documentacion del proyecto
 _archive/         # Codigo legacy (rollback)
@@ -69,5 +69,16 @@ _archive/         # Codigo legacy (rollback)
 
 - **Backend:** Python 3.12, FastAPI, asyncpg, PostgreSQL 15
 - **Frontend:** React 19, TypeScript, Zustand, TailwindCSS, Electron
-- **Fiscal:** CFDI 4.0 (lxml + signxml), IVA 16%
+- **Fiscal:** CFDI 4.0 (lxml + defusedxml + signxml), IVA 16%
 - **Deploy:** Docker Compose (postgres + api)
+
+## Documentación importante
+
+| Doc | Contenido |
+|-----|-----------|
+| [docs/PARSEAR_XML_FISCAL.md](docs/PARSEAR_XML_FISCAL.md) | Parsear XML (CFDI 4.0): dependencia **defusedxml**, instalación, pruebas |
+| [docs/BUG_PATTERN_ASYNCPG_FECHAS.md](docs/BUG_PATTERN_ASYNCPG_FECHAS.md) | Patrones de bug asyncpg con fechas (DATE/TIMESTAMP) |
+| [docs/DESPUES_DE_DEPLOY.md](docs/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de caché tras deploy |
+| [docs/FLUJO_PRUEBAS_AUTONOMO.md](docs/FLUJO_PRUEBAS_AUTONOMO.md) | Flujo autónomo por pestaña (rama `testing/autonomous-tab-validation`): edge cases, monkey, doc, correcciones |
+| [docs/LOG_PRUEBAS_TABS.md](docs/LOG_PRUEBAS_TABS.md) | Log vivo de pruebas por tab (hallazgos, correcciones, tests nuevos) |
+| [backend/README.md](backend/README.md) | API, tests, dependencias (incl. defusedxml para Parsear XML) |
