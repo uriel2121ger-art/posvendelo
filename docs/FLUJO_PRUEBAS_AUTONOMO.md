@@ -3,24 +3,30 @@
 **Rama de trabajo:** `testing/autonomous-tab-validation`  
 **Objetivo:** No tocar `master` hasta que se valide y decida merge. Todo el trabajo (pruebas, documentación, correcciones, nuevos tests) se hace en esta rama.
 
+**Loop:** Revisar una tab → terminarla (Estable) → pasar a la siguiente → repetir. Al acabar la última (Fiscal), volver a la primera (Terminal) o cerrar la ronda.
+
+```
+  Terminal → Productos → Clientes → Turnos → … → Fiscal → (vuelta a Terminal)
+       ↑_________________________________________________________|
+```
+
 ---
 
-## 1. Ciclo de trabajo (repetir de forma autónoma)
+## 1. Loop de trabajo (una pestaña a la vez, en orden)
 
-Cada iteración sigue este flujo:
+El flujo es un **bucle continuo**: se revisa una pestaña, se termina (se deja Estable), se pasa a la siguiente, y así sucesivamente. Cuando se acaban todas, se puede volver a la primera y repetir el ciclo.
 
-1. **Elegir una pestaña** según el orden en la sección 2.
-2. **Probar la pestaña al completo:**
-   - Casos felices (flujos principales).
-   - Edge cases (valores límite, vacíos, largos, caracteres especiales, permisos).
-   - Monkey / chaos (entradas aleatorias o inesperadas, errores de red simulados si aplica).
-3. **Escribir y actualizar documentación:**
-   - En `docs/LOG_PRUEBAS_TABS.md`: anotar qué se probó, hallazgos, bugs, issues.
-   - Actualizar el mismo documento con correcciones aplicadas y nuevos tests añadidos.
-4. **Corregir bugs e issues** encontrados (en esta rama).
-5. **Añadir o ampliar pruebas** (unitarias, integración o E2E) según los edge cases y monkeys.
-6. **Releer** `docs/LOG_PRUEBAS_TABS.md` y `docs/FLUJO_PRUEBAS_AUTONOMO.md` para la siguiente iteración.
-7. **Repetir** con la misma pestaña hasta dejarla estable o pasar a la siguiente según la prioridad.
+**En cada vuelta del loop:**
+
+1. **Tomar la siguiente pestaña** en el orden de la sección 2 (si la anterior quedó Estable, pasar a la siguiente; si es la primera vez o se reinició el ciclo, empezar por la 1).
+2. **Trabajar solo en esa pestaña** hasta dejarla Estable:
+   - Probar flujos principales (casos felices).
+   - Edge cases (límites, vacíos, textos largos, caracteres raros, permisos).
+   - Monkey / chaos (entradas inesperadas, errores de red si aplica).
+   - Documentar en `docs/LOG_PRUEBAS_TABS.md`: hallazgos, bugs, correcciones, tests nuevos.
+   - Corregir bugs y añadir o ampliar pruebas (unitarias, integración, E2E).
+3. **Marcar la pestaña como Estable** en el LOG y **pasar a la siguiente** pestaña del orden.
+4. **Repetir** desde el paso 1 con la nueva pestaña. Al terminar la pestaña 13 (Fiscal), volver a la 1 (Terminal) para el siguiente ciclo, o dar por cerrada la ronda según convenga.
 
 ---
 

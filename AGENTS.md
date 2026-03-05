@@ -64,7 +64,8 @@ cd frontend && npm run test
 cd frontend && npm run test:e2e
 ```
 
-## Flujo de pruebas autónomo por pestaña
+## Flujo de pruebas autónomo por pestaña (loop)
 - **Rama:** `testing/autonomous-tab-validation` (no tocar `master`).
-- **Flujo:** Ver `docs/FLUJO_PRUEBAS_AUTONOMO.md` (ciclo: probar tab → edge cases + monkey → documentar en `docs/LOG_PRUEBAS_TABS.md` → corregir bugs → añadir tests → releer doc → repetir).
+- **Loop:** Una tab a la vez en orden (Terminal → Productos → … → Fiscal). Terminar la tab (Estable) → pasar a la siguiente → repetir. Al acabar Fiscal, volver a Terminal o cerrar ronda.
+- **Doc:** `docs/FLUJO_PRUEBAS_AUTONOMO.md` — edge cases, monkey, documentar en `docs/LOG_PRUEBAS_TABS.md`, corregir, añadir tests.
 - **Log vivo:** `docs/LOG_PRUEBAS_TABS.md` — actualizar en cada iteración con hallazgos, correcciones y tests nuevos.
