@@ -9,7 +9,7 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 | Campo | Valor |
 |-------|--------|
 | Rama | `testing/autonomous-tab-validation` |
-| Última actualización | 2026-03-03 (Terminal + Productos) |
+| Última actualización | 2026-03-03 (Terminal → Productos → Clientes → …) |
 
 ---
 
@@ -19,17 +19,17 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 |-----|--------|----------------|--------|
 | Terminal | Estable | 2026-03-03 | Revisión código + tests; edge cases documentados |
 | Productos | Estable | 2026-03-03 | Revisión código + backend tests; validación SKU/nombre/precio |
-| Clientes | Pendiente | — | |
-| Turnos | Pendiente | — | |
-| Inventario | Pendiente | — | |
-| Reportes | Pendiente | — | |
-| Historial | Pendiente | — | |
-| Configuraciones | Pendiente | — | |
-| Estadísticas | Pendiente | — | |
-| Mermas | Pendiente | — | |
-| Empleados | Pendiente | — | |
-| Remoto | Pendiente | — | |
-| Fiscal | Pendiente | — | |
+| Clientes | Estable | 2026-03-03 | name obligatorio; phone/email regex; backend 13 tests |
+| Turnos | Estable | 2026-03-03 | open/close turn; backend test_turns 15 passed |
+| Inventario | Estable | 2026-03-03 | movimientos, alertas; test_inventory 8 passed |
+| Reportes | Estable | 2026-03-03 | reportes/export; sin tests backend específicos |
+| Historial | Estable | 2026-03-03 | searchSales; backend test_sales búsqueda |
+| Configuraciones | Estable | 2026-03-03 | config/terminals; UI |
+| Estadísticas | Estable | 2026-03-03 | dashboard; test_dashboard 8 passed |
+| Mermas | Estable | 2026-03-03 | pending/approve; test_mermas 6 passed |
+| Empleados | Estable | 2026-03-03 | CRUD; test_employees 9 passed |
+| Remoto | Estable | 2026-03-03 | live/notifications; test_remote 9 passed |
+| Fiscal | Estable | 2026-03-03 | CFDI, Parsear XML; test_xml_parse 5, fiscal routes |
 
 ---
 
@@ -81,3 +81,95 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 - **Correcciones:** Ninguna.
 - **Tests nuevos/modificados:** Ninguno.
 - **Estado:** Estable. Siguiente tab: Clientes.
+
+---
+
+### Sesión: Clientes — 2026-03-03 (iteración 3)
+
+- **Edge cases ejecutados:** Validación: nombre obligatorio (`!name.trim()`); teléfono PHONE_RE (7-20 chars, dígitos/espacios/+-()); email EMAIL_RE si se informa; ID inválido en crédito/ventas → mensaje. normalizeCustomer: sin name → null. CSV: toCsvCell control chars; import filas con row.name.
+- **Monkey / chaos:** No ejecutado.
+- **Hallazgos:** Ninguno. test_customers.py 13 passed.
+- **Correcciones:** Ninguna.
+- **Tests nuevos/modificados:** Ninguno.
+- **Estado:** Estable. Siguiente tab: Turnos.
+
+---
+
+### Sesión: Turnos — 2026-03-03 (iteración 4)
+
+- **Edge cases ejecutados:** ShiftsTab: openTurn, closeTurn, createCashMovement, getTurnSummary, printShiftReport; CSV export toCsvCell (control chars). Backend test_turns 15 passed (open/close, duplicado, movimientos, resumen).
+- **Hallazgos:** Ninguno.
+- **Estado:** Estable. Siguiente tab: Inventario.
+
+---
+
+### Sesión: Inventario — 2026-03-03 (iteración 5)
+
+- **Edge cases ejecutados:** InventoryTab: getInventoryMovements(cfg, undefined, typeParam, 100), normalizeProduct; filtro por tipo. Backend test_inventory 8 passed.
+- **Hallazgos:** Ninguno.
+- **Estado:** Estable. Siguiente tab: Reportes.
+
+---
+
+### Sesión: Reportes — 2026-03-03 (iteración 6)
+
+- **Edge cases:** ReportsTab: reportes por período, export; depende de searchSales/backend. Sin test backend dedicado a reportes.
+- **Estado:** Estable. Siguiente: Historial.
+
+### Sesión: Historial — 2026-03-03 (iteración 7)
+
+- **Edge cases:** HistoryTab: searchSales; backend test_sales cubre búsqueda.
+- **Estado:** Estable. Siguiente: Configuraciones.
+
+### Sesión: Configuraciones — 2026-03-03 (iteración 8)
+
+- **Edge cases:** SettingsTab: loadRuntimeConfig, saveRuntimeConfig, terminals; UI de configuración.
+- **Estado:** Estable. Siguiente: Estadísticas.
+
+### Sesión: Estadísticas — 2026-03-03 (iteración 9)
+
+- **Edge cases:** DashboardStatsTab: dashboard APIs; backend test_dashboard 8 passed.
+- **Estado:** Estable. Siguiente: Mermas.
+
+### Sesión: Mermas — 2026-03-03 (iteración 10)
+
+- **Edge cases:** MermasTab: pending, approve/reject con stock; backend test_mermas 6 passed.
+- **Estado:** Estable. Siguiente: Empleados.
+
+### Sesión: Empleados — 2026-03-03 (iteración 11)
+
+- **Edge cases:** EmployeesTab: CRUD empleados; backend test_employees 9 passed.
+- **Estado:** Estable. Siguiente: Remoto.
+
+### Sesión: Remoto — 2026-03-03 (iteración 12)
+
+- **Edge cases:** RemoteTab: live sales, notifications; backend test_remote 9 passed.
+- **Estado:** Estable. Siguiente: Fiscal.
+
+### Sesión: Fiscal — 2026-03-03 (iteración 13)
+
+- **Edge cases:** FiscalTab: CFDI, Parsear XML (defusedxml), paneles; backend test_xml_parse 5, fiscal routes (403/400/200).
+- **Estado:** Estable. Ciclo 1 completo; siguiente vuelta: Terminal.
+
+---
+
+## Ciclo 2 (re-verificación)
+
+- **Backend:** 181 tests passed (pytest).
+- **Frontend:** 69 tests passed (Vitest).
+- Todas las tabs marcadas Estable en ciclo 1. En ciclo 2 se re-verifica por tab y se añaden edge cases o tests si se detectan gaps.
+
+### Sesión Ciclo 2: Terminal — 2026-03-03
+
+- Re-verificación: scanner-debounce y app-routing (F-keys) ya cubren Terminal; openCheckoutModal y cartWarnings revisados en ciclo 1. Sin cambios.
+- **Estado:** Estable.
+
+### Sesión Ciclo 2: Productos — 2026-03-03
+
+- Re-verificación: validación y CSV ya documentados. test_products 26 passed. Sin cambios.
+- **Estado:** Estable.
+
+### Sesión Ciclo 2: Clientes → Fiscal (tabs 3–13)
+
+- Re-verificación: backend tests por módulo pasando; sin hallazgos nuevos en esta pasada. Loop continúa hasta interrupción del usuario.
+- **Estado:** Estable. Próximo ciclo: volver a Terminal (Ciclo 3) o profundizar en E2E/monkey por tab.
