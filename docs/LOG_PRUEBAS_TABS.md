@@ -173,3 +173,7 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 
 - Re-verificación: backend tests por módulo pasando; sin hallazgos nuevos en esta pasada. Loop continúa hasta interrupción del usuario.
 - **Estado:** Estable. Próximo ciclo: volver a Terminal (Ciclo 3) o profundizar en E2E/monkey por tab.
+
+### Ciclo 3 (siguiente pasada)
+
+- **Pendiente:** E2E (`npm run test:e2e`) y monkey/chaos por tab requieren backend + frontend levantados; ejecución manual o en CI. Loop sigue activo: a la siguiente ejecución autónoma se retoma desde Terminal (Ciclo 3) o se profundiza en tests E2E.
