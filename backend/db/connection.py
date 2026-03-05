@@ -18,6 +18,7 @@ import os
 import re
 import logging
 from contextlib import asynccontextmanager
+from datetime import date, datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import asyncpg
@@ -104,12 +105,22 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
     converted = converted.replace("\x00CAST\x00", "::")
 
     try:
-        args = [params[name] for name in param_order]
+        raw_args = [params[name] for name in param_order]
     except KeyError as e:
         raise KeyError(
             f"SQL param {e} not found in params dict. "
             f"Available: {list(params.keys())}, Required: {param_order}"
         ) from e
+    # asyncpg espera date para columnas DATE; si llega str 'YYYY-MM-DD' falla con toordinal
+    args = []
+    for v in raw_args:
+        if isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}(T|$)", v.strip()):
+            try:
+                args.append(datetime.strptime(v.strip()[:10], "%Y-%m-%d").date())
+            except ValueError:
+                args.append(v)
+        else:
+            args.append(v)
     return converted, args
 
 

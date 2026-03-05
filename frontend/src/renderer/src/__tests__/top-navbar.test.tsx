@@ -104,7 +104,8 @@ describe('TopNavbar', () => {
   })
 
   it('logout con tickets pendientes muestra advertencia en el dialogo', async () => {
-    localStorage.setItem('titan.pendingTickets', JSON.stringify([{ id: 1 }]))
+    // Clave por usuario: el usuario en beforeEach es 'cajero1' (setAuthToken(..., 'cajero1'))
+    localStorage.setItem('titan.pendingTickets.cajero1', JSON.stringify([{ id: 1 }]))
 
     renderTopNavbar()
     const user = userEvent.setup()

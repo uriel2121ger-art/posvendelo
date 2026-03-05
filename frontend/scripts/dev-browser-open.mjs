@@ -16,10 +16,14 @@ function openBrowser() {
       : platform() === 'darwin'
         ? ['open', URL]
         : ['xdg-open', URL]
-  const proc = spawn(Array.isArray(cmd) ? cmd[0] : 'cmd', Array.isArray(cmd) ? cmd.slice(1) : ['/c', cmd], {
-    stdio: 'ignore',
-    shell: platform() === 'win32'
-  })
+  const proc = spawn(
+    Array.isArray(cmd) ? cmd[0] : 'cmd',
+    Array.isArray(cmd) ? cmd.slice(1) : ['/c', cmd],
+    {
+      stdio: 'ignore',
+      shell: platform() === 'win32'
+    }
+  )
   proc.on('error', () => {})
 }
 

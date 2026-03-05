@@ -2,7 +2,18 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from '../components/ConfirmDialog'
-import { Search, Plus, X, AlertCircle, RefreshCw, PackageOpen, Edit2, Download, Upload } from 'lucide-react'
+import {
+  Search,
+  Plus,
+  X,
+  AlertCircle,
+  RefreshCw,
+  PackageOpen,
+  Edit2,
+  Download,
+  Upload,
+  ChevronDown
+} from 'lucide-react'
 import {
   loadRuntimeConfig,
   pullTable,
@@ -59,6 +70,7 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
 // ─── Exportar / Importar CSV ─────────────────────────────────────────────────
 
 function toCsvCell(value: string): string {
+  // eslint-disable-next-line no-control-regex -- strip control chars for CSV safety
   const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
   const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
   return `"${safe.replace(/"/g, '""')}"`
@@ -117,7 +129,7 @@ const IMPORT_FIELDS: { key: keyof Product | 'barcode'; label: string; required: 
 
 /** Sugiere mapeo: nombre de columna del archivo → key de IMPORT_FIELDS. */
 function suggestMapping(fileHeaders: string[]): Record<string, string> {
-  const normal = (s: string) =>
+  const normal = (s: string): string =>
     s
       .toLowerCase()
       .normalize('NFD')
@@ -191,10 +203,16 @@ export default function ProductsTab(): ReactElement {
 
   // Importar CSV: archivo parseado, mapeo columna → campo, y estado del modal
   const [importOpen, setImportOpen] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [importMenuOpen, setImportMenuOpen] = useState(false)
   const [importHeaders, setImportHeaders] = useState<string[]>([])
   const [importRows, setImportRows] = useState<string[][]>([])
   const [importMapping, setImportMapping] = useState<Record<string, string>>({}) // columna archivo → key
-  const [importProgress, setImportProgress] = useState<{ done: number; total: number; error?: string } | null>(null)
+  const [importProgress, setImportProgress] = useState<{
+    done: number
+    total: number
+    error?: string
+  } | null>(null)
   const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const filtered = useMemo(() => {
@@ -414,19 +432,20 @@ export default function ProductsTab(): ReactElement {
     setMessage(`Producto seleccionado: ${product.sku}`)
   }
 
-  function exportProductsCsv(): void {
-    const headers = [
-      'Código (SKU)',
-      'Nombre',
-      'Precio',
-      'Stock',
-      'Categoría',
-      'Código de barras',
-      'Clave SAT producto',
-      'Clave SAT unidad',
-      'Descripción SAT'
-    ]
-    const rows = products.map((p) => [
+  const EXPORT_HEADERS = [
+    'Código (SKU)',
+    'Nombre',
+    'Precio',
+    'Stock',
+    'Categoría',
+    'Código de barras',
+    'Clave SAT producto',
+    'Clave SAT unidad',
+    'Descripción SAT'
+  ]
+
+  function getExportRows(): string[][] {
+    return products.map((p) => [
       p.sku,
       p.name,
       String(p.price),
@@ -437,8 +456,22 @@ export default function ProductsTab(): ReactElement {
       p.satClaveUnidad ?? '',
       p.satDescripcion ?? ''
     ])
-    downloadCsv(`productos_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
+  }
+
+  function exportProductsCsv(): void {
+    const rows = getExportRows()
+    downloadCsv(`productos_${new Date().toISOString().slice(0, 10)}.csv`, EXPORT_HEADERS, rows)
     setMessage(`Exportados ${products.length} productos a CSV.`)
+  }
+
+  function exportProductsExcel(): void {
+    const rows = getExportRows()
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows])
+    XLSX.utils.book_append_sheet(wb, ws, 'Productos')
+    const date = new Date().toISOString().slice(0, 10)
+    XLSX.writeFile(wb, `productos_${date}.xlsm`, { bookType: 'xlsm' })
+    setMessage(`Exportados ${products.length} productos a Excel (.xlsm).`)
   }
 
   function openImportDialog(): void {
@@ -467,7 +500,10 @@ export default function ProductsTab(): ReactElement {
             return
           }
           const ws = wb.Sheets[firstSheetName]
-          const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as (string | number)[][]
+          const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as (
+            | string
+            | number
+          )[][]
           if (!raw.length) {
             setMessage('La primera hoja está vacía.')
             return
@@ -494,7 +530,11 @@ export default function ProductsTab(): ReactElement {
       reader.onload = () => {
         const text = (reader.result as string) ?? ''
         const bom = /^\uFEFF/
-        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter((l) => l.trim())
+        const lines = text
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
+          .split('\n')
+          .filter((l) => l.trim())
         if (lines.length < 2) {
           setMessage('El archivo debe tener al menos una fila de encabezados y una de datos.')
           return
@@ -588,9 +628,16 @@ export default function ProductsTab(): ReactElement {
       const data = (raw.data ?? raw.products ?? []) as Record<string, unknown>[]
       setLowStock(Array.isArray(data) ? data : [])
       setShowLowStock(true)
-      setMessage(`Productos con stock bajo: ${Array.isArray(data) ? data.length : 0}`)
-    } catch (err) {
-      setMessage((err as Error).message)
+      const n = Array.isArray(data) ? data.length : 0
+      if (n === 0) {
+        setMessage('No hay productos con stock bajo. Todo en orden.')
+      } else {
+        setMessage(`${n} producto${n === 1 ? '' : 's'} con pocas existencias. Conviene reponer.`)
+      }
+    } catch {
+      setMessage(
+        'No se pudo cargar la lista. Revisa la conexión con el servidor e inténtalo de nuevo.'
+      )
     }
   }
 
@@ -613,35 +660,72 @@ export default function ProductsTab(): ReactElement {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Header Area */}
-        <div className="px-8 py-6 border-b border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <PackageOpen className="w-7 h-7 text-blue-500" />
-              Catálogo de Productos
+        {/* Header Area — una sola fila: título + botones compactos */}
+        <div className="px-6 py-4 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between gap-4 shrink-0 flex-nowrap">
+          <div className="min-w-0 shrink">
+            <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
+              <PackageOpen className="w-6 h-6 text-blue-500 shrink-0" />
+              <span className="truncate">Catálogo de Productos</span>
             </h1>
-            <p className="text-zinc-500 text-sm mt-1">
-              {products.length} productos registrados en total
-            </p>
+            <p className="text-zinc-500 text-xs mt-0.5 truncate">{products.length} productos</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0 flex-nowrap">
             <button
               onClick={() => void handleLoad()}
               disabled={busy}
-              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
+              className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800"
             >
-              <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${busy ? 'animate-spin' : ''}`} />
               <span>Sincronizar</span>
             </button>
-            <button
-              onClick={exportProductsCsv}
-              disabled={busy || products.length === 0}
-              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
-              title="Descargar catálogo en CSV (Excel)"
-            >
-              <Download className="w-4 h-4" />
-              <span>Exportar CSV</span>
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((o) => !o)}
+                disabled={busy || products.length === 0}
+                className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800"
+                title="Exportar catálogo (CSV o Excel)"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Exportar</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 shrink-0 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {exportMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    aria-hidden
+                    onClick={() => setExportMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 min-w-[140px] py-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportProductsCsv()
+                        setExportMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportProductsExcel()
+                        setExportMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Excel (.xlsm)
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <input
               ref={importFileInputRef}
               type="file"
@@ -649,25 +733,53 @@ export default function ProductsTab(): ReactElement {
               className="hidden"
               onChange={handleImportFile}
             />
-            <button
-              onClick={openImportDialog}
-              disabled={busy}
-              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
-              title="Cargar productos desde CSV o Excel (.xlsx, .xls)"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Importar CSV / Excel</span>
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setImportMenuOpen((o) => !o)}
+                disabled={busy}
+                className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800"
+                title="Importar productos desde archivo"
+              >
+                <Upload className="w-3.5 h-3.5 shrink-0" />
+                <span>Importar</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 shrink-0 transition-transform ${importMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {importMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    aria-hidden
+                    onClick={() => setImportMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 min-w-[160px] py-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openImportDialog()
+                        setImportMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      CSV o Excel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => {
                 resetForm()
                 setIsDrawerOpen(true)
               }}
               disabled={busy}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_4px_20px_-5px_rgba(37,99,235,0.4)] transition-all hover:-translate-y-0.5"
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold shrink-0"
             >
-              <Plus className="w-5 h-5" />
-              <span>Nuevo Producto</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Nuevo</span>
             </button>
           </div>
         </div>
@@ -710,26 +822,52 @@ export default function ProductsTab(): ReactElement {
           </div>
         </div>
 
-        {showLowStock && lowStock.length > 0 && (
-          <div className="mx-8 mt-2 max-h-40 overflow-auto rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 shrink-0">
-            <p className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" /> Alertas de Inventario
+        {showLowStock && (
+          <div className="mx-8 mt-2 max-h-56 overflow-auto rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 shrink-0">
+            <p className="text-sm font-semibold text-amber-400 mb-1 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {lowStock.length === 0 ? 'Sin alertas' : 'Productos con pocas existencias'}
             </p>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-              {lowStock.map((p, i) => (
-                <div
-                  key={i}
-                  className="flex justify-between items-center rounded-lg bg-zinc-900 px-3 py-2 border border-amber-900/30"
-                >
-                  <span className="text-zinc-300 truncate pr-2 font-medium">
-                    {String(p.sku ?? p.name ?? `#${i}`)}
-                  </span>
-                  <span className="text-rose-400 font-mono font-bold bg-rose-950/50 px-2 py-0.5 rounded">
-                    {String(p.stock ?? '?')}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {lowStock.length === 0 ? (
+              <p className="text-zinc-400 text-sm">
+                Ningún producto está por debajo del mínimo. No hace falta reponer por ahora.
+              </p>
+            ) : (
+              <>
+                <p className="text-zinc-500 text-xs mb-2">
+                  Haz clic en un producto para editarlo o reponer. La lista tiene scroll y muestra
+                  hasta 50; si hay más, usa la tabla de abajo y el filtro de categoría.
+                </p>
+                {lowStock.length >= 50 && (
+                  <p className="text-amber-500/90 text-xs mb-2">
+                    Hay al menos 50 con stock bajo. Se muestran los más urgentes primero.
+                  </p>
+                )}
+              </>
+            )}
+            {lowStock.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+                {lowStock.map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      const sku = String(p.sku ?? '')
+                      const prod = products.find((x) => x.sku === sku)
+                      if (prod) selectProduct(prod)
+                    }}
+                    className="flex justify-between items-center rounded-lg bg-zinc-900 px-3 py-2.5 border border-amber-900/30 hover:bg-zinc-800 hover:border-amber-500/40 text-left transition-colors"
+                  >
+                    <span className="text-zinc-200 truncate pr-2 font-medium">
+                      {String(p.name || p.sku || `Producto ${i + 1}`)}
+                    </span>
+                    <span className="text-amber-400 font-bold shrink-0 ml-2">
+                      Quedan {String(p.stock ?? '0')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -793,7 +931,11 @@ export default function ProductsTab(): ReactElement {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-2 -mr-2 text-zinc-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-blue-500/10">
+                        <button
+                          type="button"
+                          aria-label={`Editar ${p.sku}`}
+                          className="p-2 -mr-2 text-zinc-500 hover:text-blue-400 opacity-60 group-hover:opacity-100 transition-all rounded-lg hover:bg-blue-500/10 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
                           <Edit2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -1057,7 +1199,8 @@ export default function ProductsTab(): ReactElement {
               {importHeaders.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-zinc-400 mb-4">
-                    Selecciona un archivo CSV o Excel (.xlsx, .xls). La primera fila debe ser los encabezados de columna.
+                    Selecciona un archivo CSV o Excel (.xlsx, .xls). La primera fila debe ser los
+                    encabezados de columna.
                   </p>
                   <button
                     type="button"
@@ -1071,7 +1214,9 @@ export default function ProductsTab(): ReactElement {
                 <>
                   <div>
                     <p className="text-xs text-zinc-500 mb-3">
-                      Asigna cada <strong className="text-zinc-400">columna de tu archivo</strong> al <strong className="text-zinc-400">campo del sistema</strong>. Los obligatorios son Código (SKU), Nombre y Precio.
+                      Asigna cada <strong className="text-zinc-400">columna de tu archivo</strong>{' '}
+                      al <strong className="text-zinc-400">campo del sistema</strong>. Los
+                      obligatorios son Código (SKU), Nombre y Precio.
                     </p>
                     <div className="space-y-2">
                       {IMPORT_FIELDS.map((f) => (
@@ -1082,12 +1227,18 @@ export default function ProductsTab(): ReactElement {
                           </label>
                           <select
                             className="flex-1 min-w-[140px] bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-blue-500"
-                            value={Object.keys(importMapping).find((col) => importMapping[col] === f.key) ?? ''}
+                            value={
+                              Object.keys(importMapping).find(
+                                (col) => importMapping[col] === f.key
+                              ) ?? ''
+                            }
                             onChange={(e) => {
                               const col = e.target.value
                               setImportMapping((prev) => {
                                 const next = { ...prev }
-                                Object.keys(next).forEach((k) => { if (next[k] === f.key) delete next[k] })
+                                Object.keys(next).forEach((k) => {
+                                  if (next[k] === f.key) delete next[k]
+                                })
                                 if (col) next[col] = f.key
                                 return next
                               })
@@ -1110,8 +1261,12 @@ export default function ProductsTab(): ReactElement {
                       <table className="w-full text-left text-sm">
                         <thead>
                           <tr className="bg-zinc-800/80 text-zinc-400">
-                            {IMPORT_FIELDS.filter((f) => importHeaders.some((col) => importMapping[col] === f.key)).map((f) => (
-                              <th key={f.key} className="px-3 py-2 font-medium">{f.label}</th>
+                            {IMPORT_FIELDS.filter((f) =>
+                              importHeaders.some((col) => importMapping[col] === f.key)
+                            ).map((f) => (
+                              <th key={f.key} className="px-3 py-2 font-medium">
+                                {f.label}
+                              </th>
                             ))}
                           </tr>
                         </thead>
@@ -1120,8 +1275,12 @@ export default function ProductsTab(): ReactElement {
                             const mapped = getMappedRow(row)
                             return (
                               <tr key={i} className="border-t border-zinc-800">
-                                {IMPORT_FIELDS.filter((f) => importHeaders.some((col) => importMapping[col] === f.key)).map((f) => (
-                                  <td key={f.key} className="px-3 py-2 text-zinc-300">{mapped[f.key] ?? '—'}</td>
+                                {IMPORT_FIELDS.filter((f) =>
+                                  importHeaders.some((col) => importMapping[col] === f.key)
+                                ).map((f) => (
+                                  <td key={f.key} className="px-3 py-2 text-zinc-300">
+                                    {mapped[f.key] ?? '—'}
+                                  </td>
                                 ))}
                               </tr>
                             )
@@ -1130,7 +1289,9 @@ export default function ProductsTab(): ReactElement {
                       </table>
                     </div>
                     <p className="text-xs text-zinc-500 mt-2">
-                      Total en archivo: <strong className="text-zinc-300">{importRows.length}</strong> filas. Se importarán las que tengan Código (SKU), Nombre y Precio asignados.
+                      Total en archivo:{' '}
+                      <strong className="text-zinc-300">{importRows.length}</strong> filas. Se
+                      importarán las que tengan Código (SKU), Nombre y Precio asignados.
                     </p>
                   </div>
                 </>
@@ -1141,7 +1302,9 @@ export default function ProductsTab(): ReactElement {
                 {importProgress ? (
                   <span className="text-sm text-zinc-400">
                     Importando… {importProgress.done} / {importProgress.total}
-                    {importProgress.error && <span className="text-amber-400 ml-2">({importProgress.error})</span>}
+                    {importProgress.error && (
+                      <span className="text-amber-400 ml-2">({importProgress.error})</span>
+                    )}
                   </span>
                 ) : (
                   <>

@@ -89,7 +89,8 @@ async def sync_pull_customers(
     rows = await db.fetch(
         """SELECT id, name, email, phone, rfc, address,
                   credit_balance, credit_limit, credit_authorized,
-                  is_active, created_at, updated_at
+                  is_active, created_at, updated_at,
+                  postal_code, razon_social, regimen_fiscal
            FROM customers
            WHERE is_active = 1 AND id > :after_id
            ORDER BY id
@@ -364,26 +365,33 @@ async def sync_push(
                     )
                     if existing:
                         await db.execute(
-                            """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc, synced = 0, updated_at = NOW()
-                               WHERE id = :id""",
+                            """UPDATE customers SET name = :name, phone = :phone, email = :email, rfc = :rfc,
+                               postal_code = :postal_code, razon_social = :razon_social, regimen_fiscal = :regimen_fiscal,
+                               synced = 0, updated_at = NOW() WHERE id = :id""",
                             {
                                 "id": cid_int,
                                 "name": name,
-                                "phone": row.get("phone", ""),
-                                "email": row.get("email", ""),
-                                "rfc": row.get("rfc", ""),
+                                "phone": row.get("phone") or "",
+                                "email": row.get("email") or "",
+                                "rfc": row.get("rfc") or "",
+                                "postal_code": row.get("codigo_postal") or row.get("postal_code") or "",
+                                "razon_social": row.get("razon_social") or "",
+                                "regimen_fiscal": row.get("regimen_fiscal") or "",
                             },
                         )
                         upserted += 1
                         continue
                 await db.execute(
-                    """INSERT INTO customers (name, phone, email, rfc, is_active, synced, created_at, updated_at)
-                       VALUES (:name, :phone, :email, :rfc, 1, 0, NOW(), NOW())""",
+                    """INSERT INTO customers (name, phone, email, rfc, postal_code, razon_social, regimen_fiscal, is_active, synced, created_at, updated_at)
+                       VALUES (:name, :phone, :email, :rfc, :postal_code, :razon_social, :regimen_fiscal, 1, 0, NOW(), NOW())""",
                     {
                         "name": name,
-                        "phone": row.get("phone", ""),
-                        "email": row.get("email", ""),
-                        "rfc": row.get("rfc", ""),
+                        "phone": row.get("phone") or "",
+                        "email": row.get("email") or "",
+                        "rfc": row.get("rfc") or "",
+                        "postal_code": row.get("codigo_postal") or row.get("postal_code") or "",
+                        "razon_social": row.get("razon_social") or "",
+                        "regimen_fiscal": row.get("regimen_fiscal") or "",
                     },
                 )
                 upserted += 1

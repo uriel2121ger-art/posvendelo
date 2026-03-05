@@ -12,7 +12,10 @@ import {
   Mail,
   Phone,
   CreditCard,
-  ShoppingBag
+  ShoppingBag,
+  Download,
+  Upload,
+  ChevronDown
 } from 'lucide-react'
 import {
   loadRuntimeConfig,
@@ -23,12 +26,18 @@ import {
   getCustomerSales
 } from '../posApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import * as XLSX from 'xlsx'
 
 type Customer = {
   id?: number | string
   name: string
   phone?: string
   email?: string
+  /** Facturación (opcionales) */
+  rfc?: string
+  codigo_postal?: string
+  razon_social?: string
+  regimen_fiscal?: string
 }
 
 const PHONE_RE = /^[\d\s()+-]{7,20}$/
@@ -41,8 +50,97 @@ function normalizeCustomer(raw: Record<string, unknown>): Customer | null {
     id: (raw.id as number | string | undefined) ?? `${name}-${Date.now()}`,
     name,
     phone: String(raw.phone ?? raw.telefono ?? ''),
-    email: String(raw.email ?? '')
+    email: String(raw.email ?? ''),
+    rfc: raw.rfc != null ? String(raw.rfc) : undefined,
+    codigo_postal: raw.codigo_postal != null ? String(raw.codigo_postal) : (raw.postal_code != null ? String(raw.postal_code) : undefined),
+    razon_social: raw.razon_social != null ? String(raw.razon_social) : undefined,
+    regimen_fiscal: raw.regimen_fiscal != null ? String(raw.regimen_fiscal) : undefined
   }
+}
+
+// ─── Exportar / Importar CSV y Excel ───────────────────────────────────────
+
+function toCsvCell(value: string): string {
+  // eslint-disable-next-line no-control-regex -- strip control chars for CSV safety
+  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
+  return `"${safe.replace(/"/g, '""')}"`
+}
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
+  const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
+  const blob = new Blob([`\uFEFF${csv}\n`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  setTimeout(() => URL.revokeObjectURL(url), 100)
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+        continue
+      }
+      inQuotes = !inQuotes
+      continue
+    }
+    if (!inQuotes && c === ',') {
+      result.push(current.trim())
+      current = ''
+      continue
+    }
+    current += c
+  }
+  result.push(current.trim())
+  return result
+}
+
+const CUSTOMER_IMPORT_FIELDS: {
+  key: 'name' | 'phone' | 'email'
+  label: string
+  required: boolean
+}[] = [
+  { key: 'name', label: 'Nombre', required: true },
+  { key: 'phone', label: 'Teléfono', required: false },
+  { key: 'email', label: 'Correo electrónico', required: false }
+]
+
+function suggestCustomerMapping(fileHeaders: string[]): Record<string, string> {
+  const normal = (s: string): string =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-z0-9]/g, '')
+  const mapping: Record<string, string> = {}
+  const used = new Set<string>()
+  for (const header of fileHeaders) {
+    const n = normal(header)
+    for (const f of CUSTOMER_IMPORT_FIELDS) {
+      if (used.has(f.key)) continue
+      const keys: string[] =
+        f.key === 'name'
+          ? ['nombre', 'name', 'cliente']
+          : f.key === 'phone'
+            ? ['telefono', 'phone', 'tel', 'cel']
+            : ['email', 'correo', 'mail']
+      if (keys.some((k) => n.includes(k) || n === k)) {
+        mapping[header] = f.key
+        used.add(f.key)
+        break
+      }
+    }
+  }
+  return mapping
 }
 
 export default function CustomersTab(): ReactElement {
@@ -54,6 +152,10 @@ export default function CustomersTab(): ReactElement {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [rfc, setRfc] = useState('')
+  const [codigoPostal, setCodigoPostal] = useState('')
+  const [razonSocial, setRazonSocial] = useState('')
+  const [regimenFiscal, setRegimenFiscal] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(
     'Clientes (F2): carga, alta, edicion y baja logica funcional.'
@@ -66,6 +168,19 @@ export default function CustomersTab(): ReactElement {
   const [customerSales, setCustomerSales] = useState<Record<string, unknown>[]>([])
   const [showCredit, setShowCredit] = useState(false)
   const [showSales, setShowSales] = useState(false)
+
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [importMenuOpen, setImportMenuOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importHeaders, setImportHeaders] = useState<string[]>([])
+  const [importRows, setImportRows] = useState<string[][]>([])
+  const [importMapping, setImportMapping] = useState<Record<string, string>>({})
+  const [importProgress, setImportProgress] = useState<{
+    done: number
+    total: number
+    error?: string
+  } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   const PAGE_SIZE = 50
   const [page, setPage] = useState(0)
@@ -154,6 +269,10 @@ export default function CustomersTab(): ReactElement {
           name: trimmedName,
           phone: phone.trim(),
           email: email.trim(),
+          rfc: rfc.trim() || undefined,
+          codigo_postal: codigoPostal.trim() || undefined,
+          razon_social: razonSocial.trim() || undefined,
+          regimen_fiscal: regimenFiscal.trim() || undefined,
           deleted: false
         }
         await syncTable('customers', [customer], cfg)
@@ -166,14 +285,22 @@ export default function CustomersTab(): ReactElement {
         const result = await createCustomer(cfg, {
           name: trimmedName,
           phone: phone.trim(),
-          email: email.trim()
+          email: email.trim(),
+          rfc: rfc.trim() || undefined,
+          codigo_postal: codigoPostal.trim() || undefined,
+          razon_social: razonSocial.trim() || undefined,
+          regimen_fiscal: regimenFiscal.trim() || undefined
         })
         const data = (result.data ?? result) as Record<string, unknown>
         const newCustomer: Customer = {
           id: Number(data.id),
           name: trimmedName,
           phone: phone.trim(),
-          email: email.trim()
+          email: email.trim(),
+          rfc: rfc.trim() || undefined,
+          codigo_postal: codigoPostal.trim() || undefined,
+          razon_social: razonSocial.trim() || undefined,
+          regimen_fiscal: regimenFiscal.trim() || undefined
         }
         setCustomers((prev) => [newCustomer, ...prev])
         setIsDrawerOpen(false)
@@ -183,6 +310,10 @@ export default function CustomersTab(): ReactElement {
       setName('')
       setPhone('')
       setEmail('')
+      setRfc('')
+      setCodigoPostal('')
+      setRazonSocial('')
+      setRegimenFiscal('')
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
@@ -230,6 +361,10 @@ export default function CustomersTab(): ReactElement {
       setName('')
       setPhone('')
       setEmail('')
+      setRfc('')
+      setCodigoPostal('')
+      setRazonSocial('')
+      setRegimenFiscal('')
       setIsDrawerOpen(false)
       setMessage(`Cliente eliminado: ${target.name}`)
     } catch (error) {
@@ -283,6 +418,10 @@ export default function CustomersTab(): ReactElement {
     setName(customer.name)
     setPhone(customer.phone ?? '')
     setEmail(customer.email ?? '')
+    setRfc(customer.rfc ?? '')
+    setCodigoPostal(customer.codigo_postal ?? '')
+    setRazonSocial(customer.razon_social ?? '')
+    setRegimenFiscal(customer.regimen_fiscal ?? '')
     setShowCredit(false)
     setShowSales(false)
     setCreditData(null)
@@ -296,44 +435,281 @@ export default function CustomersTab(): ReactElement {
     setName('')
     setPhone('')
     setEmail('')
+    setRfc('')
+    setCodigoPostal('')
+    setRazonSocial('')
+    setRegimenFiscal('')
     setShowCredit(false)
     setShowSales(false)
     setCreditData(null)
     setCustomerSales([])
   }
 
+  const EXPORT_HEADERS = ['Nombre', 'Teléfono', 'Correo']
+  function getExportRows(): string[][] {
+    return customers.map((c) => [c.name, c.phone ?? '', c.email ?? ''])
+  }
+  function exportCustomersCsv(): void {
+    downloadCsv(
+      `clientes_${new Date().toISOString().slice(0, 10)}.csv`,
+      EXPORT_HEADERS,
+      getExportRows()
+    )
+    setMessage(`Exportados ${customers.length} clientes a CSV.`)
+  }
+  function exportCustomersExcel(): void {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...getExportRows()])
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
+    XLSX.writeFile(wb, `clientes_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    setMessage(`Exportados ${customers.length} clientes a Excel.`)
+  }
+
+  function openImportDialog(): void {
+    setImportOpen(true)
+    setImportHeaders([])
+    setImportRows([])
+    setImportMapping({})
+    setImportProgress(null)
+    importFileInputRef.current?.click()
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>): void {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const isXlsx = /\.xlsx$/i.test(file.name) || /\.xls$/i.test(file.name)
+    if (isXlsx) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const ab = reader.result as ArrayBuffer
+          const wb = XLSX.read(ab, { type: 'array' })
+          const firstSheetName = wb.SheetNames[0]
+          if (!firstSheetName) {
+            setMessage('El archivo Excel no tiene hojas.')
+            return
+          }
+          const ws = wb.Sheets[firstSheetName]
+          const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as (
+            | string
+            | number
+          )[][]
+          if (!raw.length) {
+            setMessage('La primera hoja está vacía.')
+            return
+          }
+          const toString = (v: string | number): string => (v == null ? '' : String(v)).trim()
+          const headerRow = raw[0].map(toString)
+          const headers = headerRow.map((h, i) => h || `Columna ${i + 1}`)
+          const rows = raw.slice(1).map((row) => {
+            const arr: string[] = []
+            for (let i = 0; i < headers.length; i++) arr.push(toString(row[i]))
+            return arr
+          })
+          setImportHeaders(headers)
+          setImportRows(rows)
+          setImportMapping(suggestCustomerMapping(headers))
+          setImportProgress(null)
+        } catch (err) {
+          setMessage((err as Error).message)
+        }
+      }
+      reader.readAsArrayBuffer(file)
+    } else {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const text = (reader.result as string) ?? ''
+        const lines = text
+          .replace(/\r\n/g, '\n')
+          .replace(/\r/g, '\n')
+          .split('\n')
+          .filter((l) => l.trim())
+        if (lines.length < 2) {
+          setMessage('El archivo debe tener encabezados y al menos una fila de datos.')
+          return
+        }
+        const rawHeaders = parseCsvLine(lines[0].replace(/^\uFEFF/, ''))
+        const headers = rawHeaders.map((h, i) => h.trim() || `Columna ${i + 1}`)
+        const rows = lines.slice(1).map((line) => parseCsvLine(line))
+        setImportHeaders(headers)
+        setImportRows(rows)
+        setImportMapping(suggestCustomerMapping(headers))
+        setImportProgress(null)
+      }
+      reader.readAsText(file, 'UTF-8')
+    }
+  }
+
+  function getMappedRow(row: string[]): Record<string, string> {
+    const out: Record<string, string> = {}
+    importHeaders.forEach((col, i) => {
+      const field = importMapping[col]
+      if (field && row[i] !== undefined) out[field] = String(row[i]).trim()
+    })
+    return out
+  }
+
+  async function runImport(): Promise<void> {
+    if (importRows.length === 0) {
+      setMessage('No hay filas para importar.')
+      return
+    }
+    const cfg = loadRuntimeConfig()
+    const mapped = importRows.map((r) => getMappedRow(r))
+    const valid = mapped.filter((row) => row.name)
+    if (valid.length === 0) {
+      setMessage('Ninguna fila tiene nombre. Asigna la columna "Nombre" en el mapeo.')
+      return
+    }
+    setImportProgress({ done: 0, total: valid.length })
+    let done = 0
+    let lastError: string | undefined
+    for (const row of valid) {
+      try {
+        await createCustomer(cfg, {
+          name: row.name,
+          phone: row.phone || undefined,
+          email: row.email || undefined
+        })
+        const newCust = normalizeCustomer({ name: row.name, phone: row.phone, email: row.email })
+        if (newCust) setCustomers((prev) => [...prev, newCust])
+      } catch (err) {
+        lastError = (err as Error).message
+      }
+      done++
+      setImportProgress((p) => (p ? { ...p, done, error: lastError } : null))
+    }
+    setMessage(
+      lastError
+        ? `Importados ${done - 1}/${valid.length}. Último error: ${lastError}`
+        : `Importados ${valid.length} clientes correctamente.`
+    )
+    setImportOpen(false)
+    setImportProgress(null)
+  }
+
   return (
     <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Header Area */}
-        <div className="px-8 py-6 border-b border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <Users className="w-7 h-7 text-emerald-500" />
-              Directorio de Clientes
+        {/* Header Area — una fila: título + botones compactos (como Productos) */}
+        <div className="px-6 py-4 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between gap-4 shrink-0 flex-nowrap">
+          <div className="min-w-0 shrink">
+            <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
+              <Users className="w-6 h-6 text-emerald-500 shrink-0" />
+              <span className="truncate">Directorio de Clientes</span>
             </h1>
-            <p className="text-zinc-500 text-sm mt-1">{customers.length} clientes registrados</p>
+            <p className="text-zinc-500 text-xs mt-0.5 truncate">{customers.length} clientes</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0 flex-nowrap">
             <button
               onClick={() => void handleLoad()}
               disabled={busy}
-              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800"
+              className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800"
             >
-              <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${busy ? 'animate-spin' : ''}`} />
               <span>Sincronizar</span>
             </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((o) => !o)}
+                disabled={busy || customers.length === 0}
+                className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800"
+                title="Exportar listado (CSV o Excel)"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>Exportar</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 shrink-0 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {exportMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    aria-hidden
+                    onClick={() => setExportMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 min-w-[120px] py-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportCustomersCsv()
+                        setExportMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" /> CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportCustomersExcel()
+                        setExportMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Excel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setImportMenuOpen((o) => !o)}
+                disabled={busy}
+                className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800"
+                title="Importar clientes desde archivo"
+              >
+                <Upload className="w-3.5 h-3.5 shrink-0" />
+                <span>Importar</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 shrink-0 transition-transform ${importMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {importMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    aria-hidden
+                    onClick={() => setImportMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-20 min-w-[140px] py-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openImportDialog()
+                        setImportMenuOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> CSV o Excel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => {
                 resetForm()
                 setIsDrawerOpen(true)
               }}
               disabled={busy}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_4px_20px_-5px_rgba(16,185,129,0.4)] transition-all hover:-translate-y-0.5"
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold shrink-0"
             >
-              <Plus className="w-5 h-5" />
-              <span>Nuevo Cliente</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Nuevo</span>
             </button>
           </div>
         </div>
@@ -381,11 +757,21 @@ export default function CustomersTab(): ReactElement {
                   paginated.map((c) => (
                     <tr
                       key={String(c.id)}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         selectCustomer(c)
                         setIsDrawerOpen(true)
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          selectCustomer(c)
+                          setIsDrawerOpen(true)
+                        }
+                      }}
                       className="group hover:bg-zinc-800/40 cursor-pointer transition-colors"
+                      aria-label={`Cliente ${c.name}`}
                     >
                       <td className="px-6 py-4 font-medium text-zinc-200">
                         <div className="flex items-center gap-3">
@@ -524,6 +910,60 @@ export default function CustomersTab(): ReactElement {
                 </div>
               </div>
 
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-3">
+                  Datos de facturación (opcionales)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                      RFC
+                    </label>
+                    <input
+                      value={rfc}
+                      onChange={(e) => setRfc(e.target.value.toUpperCase())}
+                      placeholder="Ej: XAXX010101000"
+                      maxLength={14}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                      Código postal
+                    </label>
+                    <input
+                      value={codigoPostal}
+                      onChange={(e) => setCodigoPostal(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="Ej: 97000"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                      Razón social
+                    </label>
+                    <input
+                      value={razonSocial}
+                      onChange={(e) => setRazonSocial(e.target.value)}
+                      placeholder="Nombre o razón social para factura"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm font-medium text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                      Régimen fiscal
+                    </label>
+                    <input
+                      value={regimenFiscal}
+                      onChange={(e) => setRegimenFiscal(e.target.value)}
+                      placeholder="Ej: 601, 603, 612"
+                      maxLength={10}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {selectedId && (
                 <>
                   <div className="h-px bg-zinc-900 w-full" />
@@ -645,6 +1085,170 @@ export default function CustomersTab(): ReactElement {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Importar clientes (CSV o Excel) */}
+      {importOpen && (
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => !importProgress && setImportOpen(false)}
+        >
+          <div
+            className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5 text-emerald-500" />
+                Importar clientes (CSV o Excel)
+              </h2>
+              <button
+                type="button"
+                onClick={() => !importProgress && setImportOpen(false)}
+                className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {importHeaders.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-zinc-400 mb-4">
+                    Selecciona un archivo CSV o Excel (.xlsx, .xls). La primera fila debe ser los
+                    encabezados.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => importFileInputRef.current?.click()}
+                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm font-medium"
+                  >
+                    Elegir archivo
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-zinc-500">
+                    Asigna cada columna de tu archivo al campo del sistema. Solo el{' '}
+                    <strong className="text-zinc-400">Nombre</strong> es obligatorio.
+                  </p>
+                  <div className="space-y-2">
+                    {CUSTOMER_IMPORT_FIELDS.map((f) => (
+                      <div key={f.key} className="flex items-center gap-3 flex-wrap">
+                        <label className="w-40 text-sm font-medium text-zinc-300 shrink-0">
+                          {f.label}
+                          {f.required && <span className="text-rose-400 ml-0.5">*</span>}
+                        </label>
+                        <select
+                          className="flex-1 min-w-[140px] bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500"
+                          value={
+                            Object.keys(importMapping).find(
+                              (col) => importMapping[col] === f.key
+                            ) ?? ''
+                          }
+                          onChange={(e) => {
+                            const col = e.target.value
+                            setImportMapping((prev) => {
+                              const next = { ...prev }
+                              Object.keys(next).forEach((k) => {
+                                if (next[k] === f.key) delete next[k]
+                              })
+                              if (col) next[col] = f.key
+                              return next
+                            })
+                          }}
+                        >
+                          <option value="">— No usar —</option>
+                          {importHeaders.map((col) => (
+                            <option key={col} value={col}>
+                              {col}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-2">Vista previa (primeras 5 filas)</p>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-700 max-h-32 overflow-y-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="bg-zinc-800/80 text-zinc-400">
+                            {CUSTOMER_IMPORT_FIELDS.filter((f) =>
+                              importHeaders.some((col) => importMapping[col] === f.key)
+                            ).map((f) => (
+                              <th key={f.key} className="px-3 py-2 font-medium">
+                                {f.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importRows.slice(0, 5).map((row, i) => {
+                            const mapped = getMappedRow(row)
+                            return (
+                              <tr key={i} className="border-t border-zinc-800">
+                                {CUSTOMER_IMPORT_FIELDS.filter((f) =>
+                                  importHeaders.some((col) => importMapping[col] === f.key)
+                                ).map((f) => (
+                                  <td key={f.key} className="px-3 py-2 text-zinc-300">
+                                    {mapped[f.key] ?? '—'}
+                                  </td>
+                                ))}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-2">
+                      Total: <strong className="text-zinc-300">{importRows.length}</strong> filas.
+                      Se importan las que tengan nombre.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            {importHeaders.length > 0 && (
+              <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-between gap-4 shrink-0 bg-zinc-950/50">
+                {importProgress ? (
+                  <span className="text-sm text-zinc-400">
+                    Importando… {importProgress.done} / {importProgress.total}
+                    {importProgress.error && (
+                      <span className="text-amber-400 ml-2">({importProgress.error})</span>
+                    )}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => importFileInputRef.current?.click()}
+                      className="text-sm text-zinc-500 hover:text-zinc-300"
+                    >
+                      Cambiar archivo
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setImportOpen(false)}
+                        className="px-4 py-2 rounded-xl border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runImport()}
+                        disabled={busy || !Object.values(importMapping).includes('name')}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:opacity-50"
+                      >
+                        Importar clientes
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

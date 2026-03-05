@@ -6,7 +6,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { clearAuth, setAuthToken } from './test-utils'
 
 // Mock todos los tabs pesados para que no hagan fetch real
-vi.mock('../tabs/Terminal', () => ({ default: () => <div data-testid="terminal-tab">Terminal</div> }))
+vi.mock('../tabs/Terminal', () => ({
+  default: () => <div data-testid="terminal-tab">Terminal</div>
+}))
 vi.mock('../tabs/CustomersTab', () => ({
   default: () => <div data-testid="customers-tab">Clientes</div>
 }))
@@ -17,8 +19,12 @@ vi.mock('../tabs/InventoryTab', () => ({
   default: () => <div data-testid="inventory-tab">Inventario</div>
 }))
 vi.mock('../tabs/ShiftsTab', () => ({ default: () => <div data-testid="shifts-tab">Turnos</div> }))
-vi.mock('../tabs/ReportsTab', () => ({ default: () => <div data-testid="reports-tab">Reportes</div> }))
-vi.mock('../tabs/HistoryTab', () => ({ default: () => <div data-testid="history-tab">Historial</div> }))
+vi.mock('../tabs/ReportsTab', () => ({
+  default: () => <div data-testid="reports-tab">Reportes</div>
+}))
+vi.mock('../tabs/HistoryTab', () => ({
+  default: () => <div data-testid="history-tab">Historial</div>
+}))
 vi.mock('../tabs/SettingsTab', () => ({
   default: () => <div data-testid="settings-tab">Configuraciones</div>
 }))
@@ -26,7 +32,9 @@ vi.mock('../tabs/DashboardStatsTab', () => ({
   default: () => <div data-testid="stats-tab">Estadisticas</div>
 }))
 vi.mock('../tabs/MermasTab', () => ({ default: () => <div data-testid="mermas-tab">Mermas</div> }))
-vi.mock('../tabs/ExpensesTab', () => ({ default: () => <div data-testid="expenses-tab">Gastos</div> }))
+vi.mock('../tabs/ExpensesTab', () => ({
+  default: () => <div data-testid="expenses-tab">Gastos</div>
+}))
 vi.mock('../tabs/EmployeesTab', () => ({
   default: () => <div data-testid="employees-tab">Empleados</div>
 }))

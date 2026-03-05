@@ -22,7 +22,6 @@ import {
   closeTurn,
   getTurnSummary,
   createCashMovement,
-  getUserRole,
   printShiftReport
 } from '../posApi'
 import {
@@ -100,8 +99,6 @@ export default function ShiftsTab(): ReactElement {
   const [cashMovType, setCashMovType] = useState<'in' | 'out' | 'expense'>('in')
   const [cashMovAmount, setCashMovAmount] = useState('')
   const [cashMovReason, setCashMovReason] = useState('')
-  const role = getUserRole()
-  const canManage = role === 'manager' || role === 'owner' || role === 'admin'
   const [expectedCash, setExpectedCash] = useState<number | null>(null)
 
   useEffect((): (() => void) => {
@@ -569,9 +566,7 @@ export default function ShiftsTab(): ReactElement {
               <Clock className="w-7 h-7 text-amber-500" />
               Gestión de Turnos
             </h1>
-            <p className="text-zinc-500 mt-1">
-              Apertura, cuadre de caja y reconciliación.
-            </p>
+            <p className="text-zinc-500 mt-1">Apertura, cuadre de caja y reconciliación.</p>
           </div>
           <div className="flex items-center gap-3">
             {selectedShift && (
@@ -630,23 +625,31 @@ export default function ShiftsTab(): ReactElement {
                   {/* KPIs — números grandes para leer en caja */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Duración</p>
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">
+                        Duración
+                      </p>
                       <p className="text-2xl font-bold text-white tabular-nums">{shiftDuration}</p>
                     </div>
                     <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Ventas</p>
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">
+                        Ventas
+                      </p>
                       <p className="text-2xl font-bold text-white tabular-nums">
                         {currentShift.salesCount ?? 0}
                       </p>
                     </div>
                     <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Efectivo acum.</p>
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">
+                        Efectivo acum.
+                      </p>
                       <p className="text-2xl font-bold text-emerald-400 tabular-nums">
                         ${(currentShift.cashSales ?? 0).toFixed(2)}
                       </p>
                     </div>
                     <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800">
-                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">Total turno</p>
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-1">
+                        Total turno
+                      </p>
                       <p className="text-2xl font-bold text-blue-400 tabular-nums">
                         ${(currentShift.totalSales ?? 0).toFixed(2)}
                       </p>
@@ -665,7 +668,9 @@ export default function ShiftsTab(): ReactElement {
                           Efectivo en caja (conteo)
                         </label>
                         <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">
+                            $
+                          </span>
                           <input
                             type="number"
                             min={0}
@@ -676,7 +681,8 @@ export default function ShiftsTab(): ReactElement {
                         </div>
                         {expectedCash !== null && (
                           <p className="text-xs text-emerald-400/80">
-                            Esperado por sistema: <span className="font-bold">${expectedCash.toFixed(2)}</span>
+                            Esperado por sistema:{' '}
+                            <span className="font-bold">${expectedCash.toFixed(2)}</span>
                           </p>
                         )}
                         <div className="flex gap-2">
@@ -758,7 +764,9 @@ export default function ShiftsTab(): ReactElement {
                       Fondo inicial de caja
                     </label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">
+                        $
+                      </span>
                       <input
                         type="number"
                         min={0}
@@ -789,11 +797,14 @@ export default function ShiftsTab(): ReactElement {
                   <CheckCircle className="w-4 h-4" /> Verificar con el servidor
                 </h3>
                 <p className="text-xs text-zinc-500 mt-1">
-                  Compara los totales de este equipo con lo que tiene guardado el sistema. Así puedes confirmar que todo cuadra.
+                  Compara los totales de este equipo con lo que tiene guardado el sistema. Así
+                  puedes confirmar que todo cuadra.
                 </p>
               </div>
               <div className="mb-5">
-                <label className="block text-xs text-zinc-500 mb-2">Selecciona el turno a verificar</label>
+                <label className="block text-xs text-zinc-500 mb-2">
+                  Selecciona el turno a verificar
+                </label>
                 <select
                   className="w-full sm:w-auto min-w-[200px] bg-zinc-950 border border-zinc-800 rounded-xl py-2.5 px-4 text-sm text-zinc-200 focus:outline-none focus:border-blue-500"
                   value={selectedShiftId ?? ''}
@@ -846,7 +857,8 @@ export default function ShiftsTab(): ReactElement {
                     <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
                       <p className="text-xs text-zinc-500 mb-1">Ventas registradas en el sistema</p>
                       <p className="text-xl font-bold text-white tabular-nums">
-                        {selectedShiftReconciliation.salesCount} <span className="text-sm font-normal text-zinc-500">tickets</span>
+                        {selectedShiftReconciliation.salesCount}{' '}
+                        <span className="text-sm font-normal text-zinc-500">tickets</span>
                       </p>
                     </div>
                     <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
@@ -856,7 +868,9 @@ export default function ShiftsTab(): ReactElement {
                       >
                         ${selectedShiftReconciliation.diffCash.toFixed(2)}
                         {Math.abs(selectedShiftReconciliation.diffCash) <= 0.1 && (
-                          <span className="block text-sm font-normal text-emerald-400/80">Cuadra</span>
+                          <span className="block text-sm font-normal text-emerald-400/80">
+                            Cuadra
+                          </span>
                         )}
                       </p>
                     </div>
@@ -867,7 +881,9 @@ export default function ShiftsTab(): ReactElement {
                       >
                         ${selectedShiftReconciliation.diffTotal.toFixed(2)}
                         {Math.abs(selectedShiftReconciliation.diffTotal) <= 0.1 && (
-                          <span className="block text-sm font-normal text-emerald-400/80">Cuadra</span>
+                          <span className="block text-sm font-normal text-emerald-400/80">
+                            Cuadra
+                          </span>
                         )}
                       </p>
                     </div>
@@ -951,19 +967,47 @@ export default function ShiftsTab(): ReactElement {
                       </div>
                     )}
                   </div>
-                  {Array.isArray(backendSummary.sales_by_method) && (backendSummary.sales_by_method as { payment_method?: string; count?: number; total?: number }[]).length > 0 && (
-                    <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
-                      <p className="text-xs text-zinc-500 mb-2">Ventas por forma de pago</p>
-                      <ul className="space-y-1.5 text-sm">
-                        {(backendSummary.sales_by_method as { payment_method?: string; count?: number; total?: number }[]).map((m: { payment_method?: string; count?: number; total?: number }, i: number) => (
-                          <li key={i} className="flex justify-between text-zinc-300">
-                            <span className="capitalize">{m.payment_method === 'cash' ? 'Efectivo' : m.payment_method === 'card' ? 'Tarjeta' : m.payment_method === 'mixed' ? 'Mixto' : m.payment_method ?? '—'}</span>
-                            <span className="font-medium tabular-nums">{m.count ?? 0} tickets · ${Number(m.total ?? 0).toFixed(2)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {Array.isArray(backendSummary.sales_by_method) &&
+                    (
+                      backendSummary.sales_by_method as {
+                        payment_method?: string
+                        count?: number
+                        total?: number
+                      }[]
+                    ).length > 0 && (
+                      <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3">
+                        <p className="text-xs text-zinc-500 mb-2">Ventas por forma de pago</p>
+                        <ul className="space-y-1.5 text-sm">
+                          {(
+                            backendSummary.sales_by_method as {
+                              payment_method?: string
+                              count?: number
+                              total?: number
+                            }[]
+                          ).map(
+                            (
+                              m: { payment_method?: string; count?: number; total?: number },
+                              i: number
+                            ) => (
+                              <li key={i} className="flex justify-between text-zinc-300">
+                                <span className="capitalize">
+                                  {m.payment_method === 'cash'
+                                    ? 'Efectivo'
+                                    : m.payment_method === 'card'
+                                      ? 'Tarjeta'
+                                      : m.payment_method === 'mixed'
+                                        ? 'Mixto'
+                                        : (m.payment_method ?? '—')}
+                                </span>
+                                <span className="font-medium tabular-nums">
+                                  {m.count ?? 0} tickets · ${Number(m.total ?? 0).toFixed(2)}
+                                </span>
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   <details className="group">
                     <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400 py-1">
                       Ver datos crudos (para soporte)

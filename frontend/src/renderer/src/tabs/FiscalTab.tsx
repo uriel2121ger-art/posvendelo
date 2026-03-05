@@ -74,15 +74,15 @@ function toNumber(value: unknown): number {
 }
 
 const inputCls =
-  'w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600 placeholder:font-normal'
+  'w-full rounded-lg border border-zinc-800 bg-zinc-900/80 py-2 px-3 text-sm font-medium text-zinc-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-zinc-600'
 const btnPrimary =
-  'flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:bg-blue-500 transition-all disabled:opacity-50'
+  'flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-sm text-white hover:bg-blue-500 transition disabled:opacity-50'
 const btnSecondary =
-  'flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 shadow-sm hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50'
+  'flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2 font-bold text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50'
 const btnDanger =
-  'flex items-center justify-center gap-2 rounded-xl bg-rose-500/20 border border-rose-500/30 px-5 py-2.5 font-bold text-rose-400 shadow-[0_0_15px_rgba(243,66,102,0.1)] hover:bg-rose-500/40 transition-all disabled:opacity-50'
-const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5'
-const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1'
+  'flex items-center justify-center gap-2 rounded-lg bg-rose-500/20 border border-rose-500/40 px-4 py-2 font-bold text-sm text-rose-400 hover:bg-rose-500/30 transition disabled:opacity-50'
+const cardCls = 'rounded-xl border border-zinc-800 bg-zinc-900/50 p-4'
+const labelCls = 'text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2'
 
 export default function FiscalTab(): ReactElement {
   const confirm = useConfirm()
@@ -1305,39 +1305,27 @@ export default function FiscalTab(): ReactElement {
   }
 
   function renderDashboard(): ReactElement {
-    return (
-      <FiscalDashboardPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
-    )
+    return <FiscalDashboardPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
   }
 
   function renderCostos(): ReactElement {
-    return (
-      <FiscalCostosPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
-    )
+    return <FiscalCostosPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
   }
 
   function renderExtracciones(): ReactElement {
-    return (
-      <FiscalExtraccionesPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
-    )
+    return <FiscalExtraccionesPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
   }
 
   function renderDocumentos(): ReactElement {
-    return (
-      <FiscalDocumentosPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
-    )
+    return <FiscalDocumentosPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
   }
 
   function renderAnalytics(): ReactElement {
-    return (
-      <FiscalAnalyticsPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
-    )
+    return <FiscalAnalyticsPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
   }
 
   function renderOperaciones(): ReactElement {
-    return (
-      <FiscalOperacionesPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
-    )
+    return <FiscalOperacionesPanel cfg={cfg} busy={busy} wrap={wrap} canAdmin={canAdmin} />
   }
 
   const tabRenderers: Record<SubTab, () => ReactElement> = {
@@ -1359,15 +1347,16 @@ export default function FiscalTab(): ReactElement {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
-      {/* Sub-tab bar */}
-      <div className="flex items-center gap-1 border-b border-zinc-800 bg-zinc-900 p-2 overflow-x-auto shrink-0">
+      {/* Sub-tab bar — mismo estilo que TopNavbar */}
+      <div className="flex items-center gap-1 border-b border-zinc-900 bg-zinc-950 px-3 py-2 overflow-x-auto shrink-0 hide-scrollbar">
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={`px-4 py-2 rounded font-medium text-sm transition-colors ${
+            type="button"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
               tab === t.key
-                ? 'bg-zinc-800 shadow-sm border border-zinc-700 font-bold text-blue-400'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                ? 'bg-blue-600/10 text-blue-400 shadow-[inset_0_-2px_0_0_rgb(59,130,246)]'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'
             }`}
             onClick={() => {
               setTab(t.key)
@@ -1379,30 +1368,34 @@ export default function FiscalTab(): ReactElement {
         ))}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {tabRenderers[tab]()}
+      {/* Content — ancho contenido como Terminal/Clientes */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto w-full p-4 lg:p-6 space-y-6">
+          {tabRenderers[tab]()}
 
-        {/* Result viewer */}
-        {result && (
-          <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className={labelCls}>Resultado</p>
-              <button
-                className="text-xs text-zinc-500 hover:text-zinc-300"
-                onClick={() => setResult(null)}
-              >
-                Cerrar
-              </button>
+          {/* Result viewer */}
+          {result && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className={labelCls}>Resultado</p>
+                <button
+                  type="button"
+                  className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition"
+                  onClick={() => setResult(null)}
+                >
+                  Cerrar
+                </button>
+              </div>
+              <pre className="max-h-72 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-[11px] font-mono text-zinc-300 leading-relaxed">
+                {JSON.stringify(result, null, 2)}
+              </pre>
             </div>
-            <pre className="max-h-80 overflow-auto rounded border border-zinc-800 bg-zinc-950 p-3 text-xs font-mono text-zinc-300">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
+      {/* Barra de mensaje — mismo criterio que pie de Terminal */}
+      <div className="shrink-0 border-t border-zinc-900 bg-zinc-950/80 px-4 py-2.5 text-[11px] text-zinc-400">
         {message}
       </div>
     </div>

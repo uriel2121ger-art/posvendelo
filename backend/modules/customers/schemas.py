@@ -27,6 +27,10 @@ class CustomerCreate(BaseModel):
     address: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = Field(None, max_length=2000)
     credit_limit: Optional[Decimal] = Field(Decimal("0"), ge=0)
+    # Facturación (opcionales; no todos los clientes se facturan)
+    codigo_postal: Optional[str] = Field(None, max_length=20)
+    razon_social: Optional[str] = Field(None, max_length=300)
+    regimen_fiscal: Optional[str] = Field(None, max_length=10)
 
     @field_validator("name")
     @classmethod
@@ -78,6 +82,9 @@ class CustomerUpdate(BaseModel):
     notes: Optional[str] = Field(None, max_length=2000)
     credit_limit: Optional[Decimal] = Field(None, ge=0)
     is_active: Optional[int] = Field(None, ge=0, le=1)
+    codigo_postal: Optional[str] = Field(None, max_length=20)
+    razon_social: Optional[str] = Field(None, max_length=300)
+    regimen_fiscal: Optional[str] = Field(None, max_length=10)
 
     @field_validator("email")
     @classmethod
@@ -121,3 +128,6 @@ class CustomerResponse(BaseModel):
     credit_limit: Decimal = Decimal("0")
     credit_balance: Decimal = Decimal("0")
     is_active: int = 1
+    codigo_postal: Optional[str] = None
+    razon_social: Optional[str] = None
+    regimen_fiscal: Optional[str] = None

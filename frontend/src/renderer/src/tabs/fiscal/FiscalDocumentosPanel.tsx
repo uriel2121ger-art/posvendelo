@@ -3,6 +3,9 @@ import { useState } from 'react'
 import type { RuntimeConfig } from '../../posApi'
 import {
   getLegalMonthlySummary,
+  generateDestructionActa,
+  generateReturnDocument,
+  generateLegalSelfConsumptionVoucher,
   registerSelfConsumption,
   registerSample,
   registerEmployeeConsumption,
@@ -24,24 +27,20 @@ export interface FiscalPanelProps {
 }
 
 const inputCls =
-  'w-full rounded-xl border-2 border-zinc-800 bg-zinc-900/50 py-2.5 px-4 font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600'
+  'w-full rounded-lg border border-zinc-800 bg-zinc-900/80 py-2 px-3 text-sm font-medium text-zinc-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-zinc-600'
 const btnPrimary =
-  'flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white hover:bg-blue-500 transition-all disabled:opacity-50'
+  'flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-sm text-white hover:bg-blue-500 transition disabled:opacity-50'
 const btnSecondary =
-  'flex items-center justify-center gap-2 rounded-xl bg-zinc-800 border border-zinc-700 px-5 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-all disabled:opacity-50'
-const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5'
-const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1'
+  'flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2 font-bold text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50'
+const cardCls = 'rounded-xl border border-zinc-800 bg-zinc-900/50 p-4'
+const labelCls = 'text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2'
 
 function toNumber(value: string): number {
   const n = Number(value)
   return Number.isFinite(n) ? n : 0
 }
 
-export default function FiscalDocumentosPanel({
-  cfg,
-  busy,
-  wrap
-}: FiscalPanelProps): ReactElement {
+export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelProps): ReactElement {
   const [legalYear, setLegalYear] = useState('')
   const [legalMonth, setLegalMonth] = useState('')
   const [scProductId, setScProductId] = useState('')
@@ -59,6 +58,29 @@ export default function FiscalDocumentosPanel({
   const [actaNumber, setActaNumber] = useState('')
   const [authorizedBy, setAuthorizedBy] = useState('')
   const [shrinkYear, setShrinkYear] = useState('')
+  // Acta destrucción
+  const [adProductName, setAdProductName] = useState('')
+  const [adSku, setAdSku] = useState('')
+  const [adSatKey, setAdSatKey] = useState('')
+  const [adQty, setAdQty] = useState('')
+  const [adUnit, setAdUnit] = useState('PZA')
+  const [adUnitCost, setAdUnitCost] = useState('')
+  const [adCategory, setAdCategory] = useState('deterioro')
+  const [adReason, setAdReason] = useState('Deterioro natural')
+  const [adWitness, setAdWitness] = useState('')
+  const [adSupervisor, setAdSupervisor] = useState('')
+  const [adAuthorizedBy, setAdAuthorizedBy] = useState('')
+  // Documento devolución
+  const [rdFolio, setRdFolio] = useState('')
+  const [rdProductName, setRdProductName] = useState('')
+  const [rdSku, setRdSku] = useState('')
+  const [rdQty, setRdQty] = useState('')
+  const [rdUnitPrice, setRdUnitPrice] = useState('')
+  const [rdSerie, setRdSerie] = useState('A')
+  const [rdReturnReason, setRdReturnReason] = useState('')
+  // Voucher autoconsumo legal
+  const [voucherItemsJson, setVoucherItemsJson] = useState('')
+  const [voucherPeriod, setVoucherPeriod] = useState('')
 
   return (
     <div className="space-y-6">
@@ -97,18 +119,118 @@ export default function FiscalDocumentosPanel({
         </div>
       </div>
       <div className={cardCls}>
-        <h3 className={labelCls}>Documentos legales (acta destrucción, devolución, voucher)</h3>
-        <p className="text-xs text-zinc-500 mb-2">
-          Usar API con body JSON según esquema del backend (destruction-acta, return-document,
-          legal/selfconsumption-voucher).
-        </p>
-        <button
-          className={btnSecondary}
-          disabled={busy}
-          onClick={() => void wrap(() => getLegalMonthlySummary(cfg()))}
-        >
-          Cargar resumen
-        </button>
+        <h3 className={labelCls}>Acta de destrucción</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+          <input className={inputCls} placeholder="Producto *" value={adProductName} onChange={(e) => setAdProductName(e.target.value)} />
+          <input className={inputCls} placeholder="SKU" value={adSku} onChange={(e) => setAdSku(e.target.value)} />
+          <input className={inputCls} placeholder="Clave SAT" value={adSatKey} onChange={(e) => setAdSatKey(e.target.value)} />
+          <input className={inputCls} type="number" placeholder="Cantidad *" value={adQty} onChange={(e) => setAdQty(e.target.value)} />
+          <input className={inputCls + ' max-w-[80px]'} placeholder="Unidad" value={adUnit} onChange={(e) => setAdUnit(e.target.value)} />
+          <input className={inputCls} type="number" placeholder="Costo unitario *" value={adUnitCost} onChange={(e) => setAdUnitCost(e.target.value)} />
+          <input className={inputCls} placeholder="Categoría" value={adCategory} onChange={(e) => setAdCategory(e.target.value)} />
+          <input className={inputCls} placeholder="Razón" value={adReason} onChange={(e) => setAdReason(e.target.value)} />
+          <input className={inputCls} placeholder="Testigo" value={adWitness} onChange={(e) => setAdWitness(e.target.value)} />
+          <input className={inputCls} placeholder="Supervisor" value={adSupervisor} onChange={(e) => setAdSupervisor(e.target.value)} />
+          <input className={inputCls} placeholder="Autorizado por" value={adAuthorizedBy} onChange={(e) => setAdAuthorizedBy(e.target.value)} />
+          <button
+            className={btnPrimary}
+            disabled={busy || !adProductName.trim() || !adQty.trim() || !adUnitCost.trim()}
+            onClick={() =>
+              void wrap(() => {
+                const qty = toNumber(adQty)
+                const cost = toNumber(adUnitCost)
+                return generateDestructionActa(cfg(), {
+                  product_name: adProductName.trim(),
+                  sku: adSku.trim() || undefined,
+                  sat_key: adSatKey.trim() || undefined,
+                  quantity: qty,
+                  unit: adUnit.trim() || 'PZA',
+                  unit_cost: cost,
+                  total_value: qty * cost,
+                  category: adCategory.trim() || 'deterioro',
+                  reason: adReason.trim() || 'Deterioro natural',
+                  witness_name: adWitness.trim() || undefined,
+                  supervisor_name: adSupervisor.trim() || undefined,
+                  authorized_by: adAuthorizedBy.trim() || undefined
+                })
+              })
+            }
+          >
+            Generar acta
+          </button>
+        </div>
+      </div>
+      <div className={cardCls}>
+        <h3 className={labelCls}>Documento de devolución</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+          <input className={inputCls} placeholder="Folio original" value={rdFolio} onChange={(e) => setRdFolio(e.target.value)} />
+          <input className={inputCls} placeholder="Producto *" value={rdProductName} onChange={(e) => setRdProductName(e.target.value)} />
+          <input className={inputCls} placeholder="SKU" value={rdSku} onChange={(e) => setRdSku(e.target.value)} />
+          <input className={inputCls} type="number" placeholder="Cantidad *" value={rdQty} onChange={(e) => setRdQty(e.target.value)} />
+          <input className={inputCls} type="number" placeholder="Precio unitario *" value={rdUnitPrice} onChange={(e) => setRdUnitPrice(e.target.value)} />
+          <select className={inputCls + ' max-w-[80px]'} value={rdSerie} onChange={(e) => setRdSerie(e.target.value)}>
+            <option value="A">A</option>
+            <option value="B">B</option>
+          </select>
+          <input className={inputCls} placeholder="Razón devolución" value={rdReturnReason} onChange={(e) => setRdReturnReason(e.target.value)} />
+          <button
+            className={btnPrimary}
+            disabled={busy || !rdProductName.trim() || !rdQty.trim() || !rdUnitPrice.trim()}
+            onClick={() =>
+              void wrap(() => {
+                const qty = toNumber(rdQty)
+                const price = toNumber(rdUnitPrice)
+                const subtotal = qty * price
+                const tax = subtotal * 0.16
+                return generateReturnDocument(cfg(), {
+                  original_folio: rdFolio.trim() || undefined,
+                  product_name: rdProductName.trim(),
+                  sku: rdSku.trim() || undefined,
+                  quantity: qty,
+                  unit_price: price,
+                  subtotal,
+                  tax,
+                  total: subtotal + tax,
+                  serie: rdSerie,
+                  return_reason: rdReturnReason.trim() || undefined
+                })
+              })
+            }
+          >
+            Generar documento
+          </button>
+        </div>
+      </div>
+      <div className={cardCls}>
+        <h3 className={labelCls}>Voucher autoconsumo (legal)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <input
+            className={inputCls}
+            placeholder='Items JSON [{"product":"X","quantity":1,"value":10}]'
+            value={voucherItemsJson}
+            onChange={(e) => setVoucherItemsJson(e.target.value)}
+          />
+          <input className={inputCls} placeholder="Periodo (ej: 2026-03)" value={voucherPeriod} onChange={(e) => setVoucherPeriod(e.target.value)} />
+          <button
+            className={btnPrimary}
+            disabled={busy || !voucherItemsJson.trim()}
+            onClick={() => {
+              let items: Record<string, unknown>[] = []
+              try {
+                const parsed = JSON.parse(voucherItemsJson)
+                if (Array.isArray(parsed)) items = parsed
+              } catch { /* empty */ }
+              void wrap(() =>
+                generateLegalSelfConsumptionVoucher(cfg(), {
+                  items,
+                  period: voucherPeriod.trim() || undefined
+                })
+              )
+            }}
+          >
+            Generar voucher legal
+          </button>
+        </div>
       </div>
       <div className={cardCls}>
         <h3 className={labelCls}>Autoconsumo</h3>
@@ -367,10 +489,7 @@ export default function FiscalDocumentosPanel({
             disabled={busy}
             onClick={() =>
               void wrap(() =>
-                getShrinkageSummary(
-                  cfg(),
-                  shrinkYear ? parseInt(shrinkYear, 10) : undefined
-                )
+                getShrinkageSummary(cfg(), shrinkYear ? parseInt(shrinkYear, 10) : undefined)
               )
             }
           >

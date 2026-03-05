@@ -114,10 +114,12 @@ async def create_customer(
         """
         INSERT INTO customers (
             name, phone, email, rfc, address, notes, credit_limit,
-            credit_balance, is_active, created_at, updated_at, synced
+            credit_balance, is_active, created_at, updated_at, synced,
+            postal_code, razon_social, regimen_fiscal
         ) VALUES (
             :name, :phone, :email, :rfc, :address, :notes, :credit_limit,
-            0, 1, NOW(), NOW(), 0
+            0, 1, NOW(), NOW(), 0,
+            :postal_code, :razon_social, :regimen_fiscal
         )
         RETURNING id
         """,
@@ -129,6 +131,9 @@ async def create_customer(
             "address": body.address,
             "notes": body.notes,
             "credit_limit": body.credit_limit if body.credit_limit is not None else 0.0,
+            "postal_code": body.codigo_postal,
+            "razon_social": body.razon_social,
+            "regimen_fiscal": body.regimen_fiscal,
         },
     )
 
@@ -148,6 +153,7 @@ async def update_customer(
     _ALLOWED_COLUMNS = {
         "name", "phone", "email", "rfc", "address", "credit_limit",
         "is_active", "notes",
+        "codigo_postal", "razon_social", "regimen_fiscal",
     }
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in _ALLOWED_COLUMNS}
     if not fields:
@@ -159,6 +165,11 @@ async def update_customer(
     if _MANAGER_FIELDS & fields.keys() and role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
 
+    # API usa codigo_postal; la columna en DB es postal_code
+    _COLUMN_MAP = {"codigo_postal": "postal_code"}
+    db_fields = {_COLUMN_MAP.get(k, k): v for k, v in fields.items()}
+    params = {**db_fields, "id": customer_id}
+
     conn = db.connection
     async with conn.transaction():
         existing = await db.fetchrow(
@@ -168,10 +179,9 @@ async def update_customer(
         if not existing:
             raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-        set_parts = [f"{k} = :{k}" for k in fields]
+        set_parts = [f"{col} = :{col}" for col in db_fields]
         set_parts.append("updated_at = NOW()")
         set_parts.append("synced = 0")
-        params = {**fields, "id": customer_id}
 
         await db.execute(
             f"UPDATE customers SET {', '.join(set_parts)} WHERE id = :id",

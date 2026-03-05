@@ -13,7 +13,7 @@ Removed dead PERIODICIDADES dict and stub schedule_automatic_generation.
 """
 
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 import logging
 from modules.fiscal.constants import IVA_RATE
@@ -36,6 +36,14 @@ class GlobalInvoicingService:
     def __init__(self, db):
         self.db = db
 
+    def _parse_date(self, value: str) -> date:
+        """Parse 'YYYY-MM-DD' to date for asyncpg (evita 'str' has no attribute 'toordinal')."""
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        return datetime.strptime(str(value).strip()[:10], '%Y-%m-%d').date()
+
     async def get_pending_sales_summary(
         self, start_date: Optional[str] = None, end_date: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -43,6 +51,7 @@ class GlobalInvoicingService:
             start_date = datetime.now().replace(day=1).strftime('%Y-%m-%d')
         if not end_date:
             end_date = datetime.now().strftime('%Y-%m-%d')
+        d1, d2 = self._parse_date(start_date), self._parse_date(end_date)
 
         row = await self.db.fetchrow(
             """SELECT COUNT(*) as count,
@@ -51,10 +60,10 @@ class GlobalInvoicingService:
                       COALESCE(SUM(total), 0) as total
                FROM sales s
                WHERE s.serie = 'B'
-                 AND CAST(s.timestamp AS DATE) BETWEEN :d1::date AND :d2::date
+                 AND CAST(s.timestamp AS DATE) BETWEEN :d1 AND :d2
                  AND s.status != 'cancelled'
                  AND NOT EXISTS (SELECT 1 FROM cfdis c WHERE c.sale_id = s.id)""",
-            {"d1": start_date, "d2": end_date},
+            {"d1": d1, "d2": d2},
         )
         if row:
             return {
@@ -288,14 +297,15 @@ class GlobalInvoicingService:
         return start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')
 
     async def _get_uninvoiced_serie_b_sales(self, start_date: str, end_date: str) -> List[Dict]:
+        d1, d2 = self._parse_date(start_date), self._parse_date(end_date)
         rows = await self.db.fetch(
             """SELECT s.* FROM sales s
                WHERE s.serie = 'B'
-                 AND CAST(s.timestamp AS DATE) BETWEEN :d1::date AND :d2::date
+                 AND CAST(s.timestamp AS DATE) BETWEEN :d1 AND :d2
                  AND s.status != 'cancelled'
                  AND NOT EXISTS (SELECT 1 FROM cfdis c WHERE c.sale_id = s.id)
                ORDER BY s.timestamp""",
-            {"d1": start_date, "d2": end_date},
+            {"d1": d1, "d2": d2},
         )
         return rows if rows else []
 

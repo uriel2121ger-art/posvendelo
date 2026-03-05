@@ -92,7 +92,9 @@ const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 function getEffectiveBaseUrl(saved: string): string {
   if (typeof window === 'undefined') return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
   const origin = window.location.origin
-  const isViteDev = window.location.port === '5173' && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
+  const isViteDev =
+    window.location.port === '5173' &&
+    (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
   const pointsToLocal8000 =
     saved === 'http://localhost:8000' || saved === 'http://127.0.0.1:8000' || saved === ''
   if (isViteDev && pointsToLocal8000) return ''
@@ -868,9 +870,19 @@ export async function createCashMovement(
 
 // ── Clientes CRUD ─────────────────────────────────
 
+export type CreateCustomerBody = {
+  name: string
+  phone?: string
+  email?: string
+  rfc?: string
+  codigo_postal?: string
+  razon_social?: string
+  regimen_fiscal?: string
+}
+
 export async function createCustomer(
   cfg: RuntimeConfig,
-  body: { name: string; phone?: string; email?: string }
+  body: CreateCustomerBody
 ): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/customers/`, {
     method: 'POST',
@@ -1434,10 +1446,9 @@ export async function getShadowDualStock(
   cfg: RuntimeConfig,
   productId: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/shadow/dual-stock/${productId}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shadow/dual-stock/${productId}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error stock dual'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1500,10 +1511,9 @@ export async function getCostDualView(
   cfg: RuntimeConfig,
   productId: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/cost/dual-view/${productId}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/cost/dual-view/${productId}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error vista dual costos'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1512,10 +1522,9 @@ export async function getCostFiscal(
   cfg: RuntimeConfig,
   productId: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/cost/fiscal/${productId}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/cost/fiscal/${productId}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error costo fiscal'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1524,10 +1533,9 @@ export async function getCostReal(
   cfg: RuntimeConfig,
   productId: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/cost/real/${productId}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/cost/real/${productId}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error costo real'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1536,10 +1544,9 @@ export async function getCostProfit(
   cfg: RuntimeConfig,
   saleId: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/cost/profit/${saleId}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/cost/profit/${saleId}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error utilidad'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1558,10 +1565,9 @@ export async function getFiscalDashboardData(
   year?: number
 ): Promise<Record<string, unknown>> {
   const qs = year != null ? `?year=${year}` : ''
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/fiscal-dashboard/data${qs}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/fiscal-dashboard/data${qs}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error dashboard fiscal'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1743,10 +1749,9 @@ export async function getDiscrepancyTrend(
   year?: number
 ): Promise<Record<string, unknown>> {
   const qs = year != null ? `?year=${year}` : ''
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/discrepancy/trend${qs}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/discrepancy/trend${qs}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error tendencia'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1754,10 +1759,9 @@ export async function getDiscrepancyTrend(
 export async function getDiscrepancySuggestExtraction(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/discrepancy/suggest-extraction`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/discrepancy/suggest-extraction`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error sugerencia extracción'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1785,10 +1789,9 @@ export async function getResicoHealth(
   year?: number
 ): Promise<Record<string, unknown>> {
   const qs = year != null ? `?year=${year}` : ''
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/resico/health${qs}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/resico/health${qs}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error salud RESICO'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1806,10 +1809,9 @@ export async function getResicoMonthlyBreakdown(
   year?: number
 ): Promise<Record<string, unknown>> {
   const qs = year != null ? `?year=${year}` : ''
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/resico/monthly-breakdown${qs}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/resico/monthly-breakdown${qs}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error desglose RESICO'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1948,14 +1950,11 @@ export async function generateShrinkageJustification(
   cfg: RuntimeConfig,
   body: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/climate/shrinkage-justification`,
-    {
-      method: 'POST',
-      headers: headers(cfg),
-      body: JSON.stringify(body)
-    }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/climate/shrinkage-justification`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error justificación merma'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1964,13 +1963,10 @@ export async function attachClimateToMerma(
   cfg: RuntimeConfig,
   mermaId: number
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/climate/attach-merma/${mermaId}`,
-    {
-      method: 'POST',
-      headers: headers(cfg)
-    }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/climate/attach-merma/${mermaId}`, {
+    method: 'POST',
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error adjuntar clima'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -1983,10 +1979,9 @@ export async function satCatalogSearch(
 ): Promise<Record<string, unknown>> {
   const params = new URLSearchParams({ q })
   if (limit != null) params.set('limit', String(limit))
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/sat-catalog/search?${params}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/sat-catalog/search?${params}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error búsqueda SAT'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -2080,10 +2075,9 @@ export async function generateSelfConsumptionVoucher(
 export async function getPendingVoucherMonths(
   cfg: RuntimeConfig
 ): Promise<Record<string, unknown>> {
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/self-consumption/pending-months`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/self-consumption/pending-months`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error meses pendientes'))
   return (await res.json()) as Record<string, unknown>
 }
@@ -2140,10 +2134,9 @@ export async function getShrinkageSummary(
   year?: number
 ): Promise<Record<string, unknown>> {
   const qs = year != null ? `?year=${year}` : ''
-  const res = await apiFetchLong(
-    `${cfg.baseUrl}/api/v1/fiscal/shrinkage/summary${qs}`,
-    { headers: headers(cfg) }
-  )
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/shrinkage/summary${qs}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error resumen pérdidas'))
   return (await res.json()) as Record<string, unknown>
 }

@@ -116,7 +116,9 @@ export default function ShiftStartupModal({
               saveCurrentShift(updated)
               setExistingShift(updated)
             })
-            .catch(() => { /* resumen opcional */ })
+            .catch(() => {
+              /* resumen opcional */
+            })
           return
         } else {
           setPhase('no_shift')
@@ -591,7 +593,11 @@ export default function ShiftStartupModal({
           {printMessage && (
             <p
               className={`text-sm mb-3 ${
-                printStatus === 'error' ? 'text-rose-400' : printStatus === 'ok' ? 'text-emerald-400' : 'text-zinc-400'
+                printStatus === 'error'
+                  ? 'text-rose-400'
+                  : printStatus === 'ok'
+                    ? 'text-emerald-400'
+                    : 'text-zinc-400'
               }`}
             >
               {printMessage}

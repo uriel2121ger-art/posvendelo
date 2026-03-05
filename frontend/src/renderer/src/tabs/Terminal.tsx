@@ -12,7 +12,8 @@ import {
   Banknote,
   CreditCard,
   Landmark,
-  Tag
+  Tag,
+  Ticket
 } from 'lucide-react'
 import {
   type RuntimeConfig,
@@ -86,8 +87,30 @@ type ActiveTicketSnapshot = {
 
 const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
-import { type ShiftRecord as ShiftState, CURRENT_SHIFT_KEY, readCurrentShift } from '../types/shiftTypes'
+import {
+  type ShiftRecord as ShiftState,
+  CURRENT_SHIFT_KEY,
+  readCurrentShift
+} from '../types/shiftTypes'
 const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
+
+/** Sufijo por usuario para que los borradores persistan entre sesiones y no se mezclen entre usuarios. */
+function getDraftsSuffix(): string {
+  try {
+    const u = localStorage.getItem('titan.user')
+    return u ? `.${u}` : ''
+  } catch {
+    return ''
+  }
+}
+
+function getPendingStorageKey(): string {
+  return PENDING_TICKETS_STORAGE_KEY + getDraftsSuffix()
+}
+
+function getActiveStorageKey(): string {
+  return ACTIVE_TICKETS_STORAGE_KEY + getDraftsSuffix()
+}
 
 function toNumber(value: unknown): number {
   const parsed = Number(value)
@@ -107,13 +130,58 @@ type SavedActiveState = {
 
 function readSavedActiveState(): SavedActiveState | null {
   try {
-    const raw = localStorage.getItem(ACTIVE_TICKETS_STORAGE_KEY)
+    const key = getActiveStorageKey()
+    let raw = localStorage.getItem(key)
+    // Migración: si hay usuario y su clave está vacía, intentar clave global (datos anteriores al cambio)
+    if (!raw && getDraftsSuffix()) {
+      raw = localStorage.getItem(ACTIVE_TICKETS_STORAGE_KEY)
+      if (raw) {
+        try {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem(ACTIVE_TICKETS_STORAGE_KEY)
+        } catch {
+          /* quota o sin acceso */
+        }
+      }
+    }
     if (!raw) return null
     const parsed = JSON.parse(raw) as SavedActiveState
     if (!parsed || !Array.isArray(parsed.activeTickets) || !parsed.activeTicketId) return null
     return parsed
   } catch {
     return null
+  }
+}
+
+function readSavedPendingTickets(): PendingTicket[] {
+  try {
+    const key = getPendingStorageKey()
+    let raw = localStorage.getItem(key)
+    // Migración: si hay usuario y su clave está vacía, intentar clave global (datos anteriores al cambio)
+    if (!raw && getDraftsSuffix()) {
+      raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
+      if (raw) {
+        try {
+          localStorage.setItem(key, raw)
+          localStorage.removeItem(PENDING_TICKETS_STORAGE_KEY)
+        } catch {
+          /* quota o sin acceso */
+        }
+      }
+    }
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    const valid = parsed.filter(
+      (t): t is PendingTicket =>
+        t != null &&
+        typeof (t as PendingTicket).id === 'string' &&
+        typeof (t as PendingTicket).label === 'string' &&
+        Array.isArray((t as PendingTicket).cart)
+    )
+    return valid
+  } catch {
+    return []
   }
 }
 
@@ -214,7 +282,7 @@ export default function Terminal(): ReactElement {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(_snap?.paymentMethod ?? 'cash')
   const [amountReceived, setAmountReceived] = useState(_snap?.amountReceived ?? '')
   const [globalDiscountPct, setGlobalDiscountPct] = useState(_snap?.globalDiscountPct ?? 0)
-  const [pendingTickets, setPendingTickets] = useState<PendingTicket[]>([])
+  const [pendingTickets, setPendingTickets] = useState<PendingTicket[]>(() => readSavedPendingTickets())
   const [activeTickets, setActiveTickets] = useState<ActiveTicketMeta[]>(
     _savedActive?.activeTickets ?? [{ id: 'active-1', label: 'Activa 1' }]
   )
@@ -242,7 +310,7 @@ export default function Terminal(): ReactElement {
   const [busy, setBusy] = useState(false)
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
   const [wholesaleMode, setWholesaleMode] = useState(false)
-  const [message, setMessage] = useState('Cargando productos...')
+  const [, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
   const [isDiscountModalOpen] = useState(false)
@@ -364,41 +432,18 @@ export default function Terminal(): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wholesaleMode])
 
-  useEffect((): void => {
-    let raw: string | null = null
-    try {
-      raw = localStorage.getItem(PENDING_TICKETS_STORAGE_KEY)
-    } catch {
-      /* storage inaccessible */
-    }
-    if (!raw) {
-      return
-    }
-    try {
-      const parsed = JSON.parse(raw) as PendingTicket[]
-      if (!Array.isArray(parsed)) {
-        return
-      }
-      // Validate each ticket has required fields before loading
-      const valid = parsed.filter(
-        (t) => t && typeof t.id === 'string' && typeof t.label === 'string' && Array.isArray(t.cart)
-      )
-      setPendingTickets(valid)
-    } catch {
-      // ignore invalid stored payload
-    }
-  }, [])
+  // Los pendientes se cargan en el estado inicial vía readSavedPendingTickets() (clave por usuario).
+  // No usar aquí la clave global para no sobrescribir los datos del usuario actual.
 
   const isFirstPendingPersist = useRef(true)
   useEffect((): void => {
-    // Skip the mount-time execution to avoid overwriting localStorage with []
-    // before the load effect's state update has re-rendered
+    // Evitar escribir en el primer render; el estado ya viene de readSavedPendingTickets()
     if (isFirstPendingPersist.current) {
       isFirstPendingPersist.current = false
       return
     }
     try {
-      localStorage.setItem(PENDING_TICKETS_STORAGE_KEY, JSON.stringify(pendingTickets))
+      localStorage.setItem(getPendingStorageKey(), JSON.stringify(pendingTickets))
     } catch {
       setMessage('Error: no se pudieron guardar tickets pendientes. Almacenamiento lleno.')
     }
@@ -489,6 +534,33 @@ export default function Terminal(): ReactElement {
 
     return { subtotalBeforeDiscount, globalDiscountAmount, subtotal, tax, total }
   }, [cart, globalDiscountPct])
+
+  // Avisos entre sesiones: productos ya no en catálogo o stock insuficiente (precios ya se actualizan al cargar pendiente)
+  const cartWarnings = useMemo((): {
+    missingSkus: string[]
+    lowStockItems: Array<{ sku: string; name: string; qty: number; currentStock: number }>
+  } => {
+    const missingSkus: string[] = []
+    const lowStockItems: Array<{ sku: string; name: string; qty: number; currentStock: number }> = []
+    for (const item of cart) {
+      if (item.isCommon) continue
+      const prod = products.find((p) => p.sku === item.sku)
+      if (!prod) {
+        missingSkus.push(item.sku)
+        continue
+      }
+      if (typeof prod.stock === 'number' && prod.stock < item.qty) {
+        lowStockItems.push({
+          sku: item.sku,
+          name: item.name,
+          qty: item.qty,
+          currentStock: prod.stock
+        })
+      }
+    }
+    return { missingSkus, lowStockItems }
+  }, [cart, products])
+
   const amountReceivedNum = toNumber(amountReceived)
   const changeDue = Math.max(0, amountReceivedNum - totals.total)
   const pendingAmount = Math.max(0, totals.total - amountReceivedNum)
@@ -517,7 +589,7 @@ export default function Terminal(): ReactElement {
           ticketSnapshots: updated,
           ticketCounter: ticketCounterRef.current
         }
-        localStorage.setItem(ACTIVE_TICKETS_STORAGE_KEY, JSON.stringify(state))
+        localStorage.setItem(getActiveStorageKey(), JSON.stringify(state))
       } catch {
         // storage full or inaccessible — silently ignore
       }
@@ -854,6 +926,16 @@ export default function Terminal(): ReactElement {
       setMessage('No hay productos en el ticket.')
       return
     }
+    if (cartWarnings.missingSkus.length > 0) {
+      setMessage(
+        'Hay productos marcados como "Ya no en catálogo". Quítalos del ticket (botón ×) antes de cobrar.'
+      )
+      return
+    }
+    if (cartWarnings.lowStockItems.length > 0) {
+      const msg = `Hay ${cartWarnings.lowStockItems.length} producto(s) con stock insuficiente. El servidor puede rechazar la venta. ¿Cobrar de todas formas?`
+      if (!(await confirm(msg, { variant: 'warning', title: 'Stock insuficiente' }))) return
+    }
     const shift = readCurrentShift()
     if (!shift) {
       setCurrentShift(null)
@@ -970,13 +1052,15 @@ export default function Terminal(): ReactElement {
   }, [
     amountReceivedNum,
     cart,
+    cartWarnings,
     config,
     customerId,
     customerName,
     globalDiscountPct,
     paymentMethod,
     totals,
-    wholesaleMode
+    wholesaleMode,
+    confirm
   ])
 
   function saveCurrentAsPending(): void {
@@ -1023,8 +1107,21 @@ export default function Terminal(): ReactElement {
     // Restore wholesale mode from the saved ticket
     const ticketWholesale = found.wholesaleMode ?? false
     setWholesaleMode(ticketWholesale)
-    // Look up current prices from products array; respect wholesale flag
-    const restoredCart = found.cart.map((item) => {
+    // Quitar líneas cuyo producto ya no existe (POS: el ticket debe ser cobrable)
+    const validItems = found.cart.filter(
+      (item) => item.isCommon || products.some((p) => p.sku === item.sku)
+    )
+    const removedCount = found.cart.length - validItems.length
+
+    if (found.cart.length > 0 && validItems.length === 0) {
+      setMessage(
+        `"${found.label}" no se puede cargar: todos los productos ya no están en el catálogo. Elimina ese pendiente del listado si ya no aplica.`
+      )
+      return
+    }
+
+    // Precios actuales del catálogo
+    const restoredCart = validItems.map((item) => {
       const currentProduct = products.find((p) => p.sku === item.sku)
       const currentPrice = currentProduct
         ? ticketWholesale && currentProduct.priceWholesale
@@ -1050,10 +1147,38 @@ export default function Terminal(): ReactElement {
     setPendingTickets((prev) => prev.filter((item) => item.id !== ticketId))
     setSelectedCartSku(restoredCart[0]?.sku ?? null)
     setAmountReceived('')
-    setMessage(`Pendiente cargado: ${found.label}`)
+
+    const lowStockCount = restoredCart.filter((i) => {
+      if (i.isCommon) return false
+      const p = products.find((pr) => pr.sku === i.sku)
+      return p != null && typeof p.stock === 'number' && p.stock < i.qty
+    }).length
+    if (removedCount > 0 || lowStockCount > 0) {
+      const parts: string[] = []
+      if (removedCount > 0) parts.push(`se quitaron ${removedCount} producto(s) que ya no están en catálogo`)
+      if (lowStockCount > 0) parts.push(`${lowStockCount} con stock insuficiente (revisa o ajusta cantidad)`)
+      setMessage(`${found.label} cargado. ${parts.join('; ')}.`)
+    } else {
+      setMessage(`Pendiente cargado: ${found.label}`)
+    }
   }
 
   const firstMatch = filtered[0]
+
+  const openCheckoutModal = useCallback(async (): Promise<void> => {
+    if (cart.length === 0) return
+    if (cartWarnings.missingSkus.length > 0) {
+      setMessage(
+        'Hay productos marcados como "Ya no en catálogo". Quítalos del ticket (botón ×) antes de cobrar.'
+      )
+      return
+    }
+    if (cartWarnings.lowStockItems.length > 0) {
+      const msg = `Hay ${cartWarnings.lowStockItems.length} producto(s) con stock insuficiente. El servidor puede rechazar la venta. ¿Cobrar de todas formas?`
+      if (!(await confirm(msg, { variant: 'warning', title: 'Stock insuficiente' }))) return
+    }
+    setIsCheckoutModalOpen(true)
+  }, [cart.length, cartWarnings.missingSkus.length, cartWarnings.lowStockItems.length, confirm])
 
   useEffect((): (() => void) => {
     const onKeyDown = async (event: KeyboardEvent): Promise<void> => {
@@ -1095,7 +1220,7 @@ export default function Terminal(): ReactElement {
             setMessage('Agrega productos al carrito antes de cobrar.')
             return
           }
-          setIsCheckoutModalOpen(true)
+          void openCheckoutModal()
         }
         return
       }
@@ -1203,6 +1328,10 @@ export default function Terminal(): ReactElement {
     handleCharge,
     increaseSelectedQty,
     isCheckoutModalOpen,
+    isCommonModalOpen,
+    isDiscountModalOpen,
+    isNoteModalOpen,
+    openCheckoutModal,
     prompt,
     selectedCartSku,
     updateItemDiscount
@@ -1231,7 +1360,9 @@ export default function Terminal(): ReactElement {
                       type="button"
                       onClick={() => switchActiveTicket(t.id)}
                       className={`px-2.5 py-2 text-xs font-bold transition text-left whitespace-nowrap ${
-                        t.id === activeTicketId ? 'text-blue-400' : 'text-zinc-400 hover:text-zinc-300'
+                        t.id === activeTicketId
+                          ? 'text-blue-400'
+                          : 'text-zinc-400 hover:text-zinc-300'
                       }`}
                     >
                       {t.label}
@@ -1424,7 +1555,7 @@ export default function Terminal(): ReactElement {
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent('titan-open-price-check'))}
-                className="hidden sm:flex items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2.5 rounded-xl transition-colors shrink-0 whitespace-nowrap text-sm"
+                className="hidden sm:flex items-center justify-center gap-1.5 min-h-[40px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-5 py-2.5 rounded-xl transition-colors shrink-0 whitespace-nowrap text-sm"
                 title="Consulta de precios y unidades (F9)"
               >
                 <Tag className="w-4 h-4 shrink-0" />
@@ -1433,9 +1564,10 @@ export default function Terminal(): ReactElement {
               <button
                 onClick={saveCurrentAsPending}
                 disabled={cart.length === 0}
-                className="hidden sm:flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-6 py-4 rounded-2xl transition-colors shrink-0 disabled:opacity-30 disabled:hover:bg-zinc-800 whitespace-nowrap"
+                className="hidden sm:flex items-center justify-center gap-1.5 min-h-[40px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-5 py-2.5 rounded-xl transition-colors shrink-0 disabled:opacity-30 disabled:hover:bg-zinc-800 whitespace-nowrap text-sm"
                 title="Guardar ticket como pendiente"
               >
+                <Ticket className="w-4 h-4 shrink-0" />
                 Ticket pendiente
               </button>
             </div>
@@ -1443,6 +1575,15 @@ export default function Terminal(): ReactElement {
 
           {/* Cart Items List — ocupa todo el espacio central */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 space-y-3 relative hide-scrollbar z-10">
+            {(cartWarnings.missingSkus.length > 0 || cartWarnings.lowStockItems.length > 0) && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 mb-2">
+                <strong>Entre sesiones hubo cambios:</strong>{' '}
+                {cartWarnings.missingSkus.length > 0 && 'algunos productos ya no están en catálogo.'}
+                {cartWarnings.missingSkus.length > 0 && cartWarnings.lowStockItems.length > 0 && ' '}
+                {cartWarnings.lowStockItems.length > 0 && 'Hay productos con stock insuficiente.'}{' '}
+                Revisa las líneas marcadas antes de cobrar.
+              </div>
+            )}
             {cart.length === 0 ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 pointer-events-none">
                 <ShoppingCartIcon className="w-16 h-16 mb-4 opacity-20" />
@@ -1453,69 +1594,79 @@ export default function Terminal(): ReactElement {
                 <div
                   key={item.sku}
                   onClick={() => setSelectedCartSku(item.sku)}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer ${selectedCartSku === item.sku ? 'bg-blue-600/10 border-blue-500/50' : 'bg-zinc-900/50 border-zinc-800/50 hover:border-zinc-700'}`}
+                  className={`py-1 px-2 rounded-md border transition-all cursor-pointer ${selectedCartSku === item.sku ? 'bg-blue-600/10 border-blue-500/50' : 'bg-zinc-900/50 border-zinc-800/50 hover:border-zinc-700'}`}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="font-semibold text-sm text-zinc-200 leading-tight pr-2">
+                  <div className="flex items-center justify-between gap-2 min-h-0">
+                    <div className="font-semibold text-xs text-zinc-200 leading-none truncate min-w-0">
                       {item.name}
                     </div>
-                    <div className="font-bold text-emerald-400 shrink-0">
-                      ${item.subtotal.toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-zinc-500 font-mono" title={item.sku}>
-                        {item.sku.length > 8 ? item.sku.substring(0, 8) + '...' : item.sku}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-zinc-500 font-mono" title={item.sku}>
+                        {item.sku.length > 13 ? item.sku.substring(0, 13) + '…' : item.sku}
                       </span>
-                      <span className="text-zinc-400">${item.price.toFixed(2)} c/u</span>
-                    </div>
-                    <div
-                      className="flex items-center gap-1 bg-zinc-950 rounded-lg p-0.5 border border-zinc-800"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedCartSku(item.sku)
-                          decreaseSelectedQty()
-                        }}
-                        className="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-white"
+                      <span className="text-[10px] text-zinc-400">${item.price.toFixed(2)} c/u</span>
+                      <div
+                        className="flex items-center gap-0.5 bg-zinc-950 rounded border border-zinc-800"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        -
-                      </button>
-                      <span className="w-8 text-center font-bold text-zinc-200">{item.qty}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedCartSku(item.sku)
-                          increaseSelectedQty()
-                        }}
-                        className="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-white"
-                      >
-                        +
-                      </button>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          setSelectedCartSku(item.sku)
-                          if (
-                            await confirm(`¿Quitar "${item.name}"?`, {
-                              variant: 'warning',
-                              title: 'Quitar'
-                            })
-                          )
-                            removeItem(item.sku)
-                        }}
-                        className="w-6 h-6 flex items-center justify-center rounded bg-rose-950/20 text-rose-500/60 hover:text-rose-400 ml-1"
-                      >
-                        &times;
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedCartSku(item.sku)
+                            decreaseSelectedQty()
+                          }}
+                          className="w-5 h-5 flex items-center justify-center rounded-sm bg-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-[10px] font-bold text-zinc-200">{item.qty}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedCartSku(item.sku)
+                            increaseSelectedQty()
+                          }}
+                          className="w-5 h-5 flex items-center justify-center rounded-sm bg-zinc-800 text-zinc-400 hover:text-white text-[10px] font-bold"
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            setSelectedCartSku(item.sku)
+                            if (
+                              await confirm(`¿Quitar "${item.name}"?`, {
+                                variant: 'warning',
+                                title: 'Quitar'
+                              })
+                            )
+                              removeItem(item.sku)
+                          }}
+                          className="w-5 h-5 flex items-center justify-center rounded-sm bg-rose-950/20 text-rose-500/60 hover:text-rose-400 text-xs ml-0.5"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <span className="font-bold text-emerald-400 text-xs">${item.subtotal.toFixed(2)}</span>
                     </div>
                   </div>
-                  {item.discountPct > 0 && (
-                    <div className="mt-1 text-[10px] font-bold text-rose-400 uppercase tracking-widest">
-                      Desc. {item.discountPct}%
+                  {(item.discountPct > 0 ||
+                    cartWarnings.missingSkus.includes(item.sku) ||
+                    cartWarnings.lowStockItems.some((l) => l.sku === item.sku)) && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 leading-none">
+                      {item.discountPct > 0 && (
+                        <span className="text-[9px] font-bold text-rose-400 uppercase">Desc. {item.discountPct}%</span>
+                      )}
+                      {cartWarnings.missingSkus.includes(item.sku) && (
+                        <span className="text-[9px] font-bold uppercase px-1 py-0 rounded bg-amber-500/20 text-amber-400">
+                          Ya no en catálogo
+                        </span>
+                      )}
+                      {cartWarnings.lowStockItems.find((l) => l.sku === item.sku) && (
+                        <span className="text-[9px] font-bold uppercase px-1 py-0 rounded bg-rose-500/20 text-rose-400">
+                          Stock: {cartWarnings.lowStockItems.find((l) => l.sku === item.sku)?.currentStock ?? 0} (solicitado: {item.qty})
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1524,9 +1675,9 @@ export default function Terminal(): ReactElement {
           </div>
 
           {/* Totals & Payment Area — ancho, bajo */}
-          <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 p-3 lg:p-4 pb-4 space-y-2 max-w-4xl mx-auto w-full">
+          <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 px-3 py-2 lg:px-4 lg:py-2.5 space-y-1.5 max-w-4xl mx-auto w-full">
             {globalDiscountPct > 0 && (
-              <div className="flex justify-between items-center text-xs">
+              <div className="flex justify-between items-center text-[11px] leading-tight">
                 <span className="text-zinc-500 font-bold uppercase tracking-wider">
                   Descuento ({globalDiscountPct}%)
                 </span>
@@ -1535,25 +1686,27 @@ export default function Terminal(): ReactElement {
                 </span>
               </div>
             )}
-            <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+            <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
               <div className="min-w-0 flex flex-col relative" ref={customerPickerRef}>
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-xs text-zinc-300 font-bold uppercase tracking-wider mb-1 cursor-pointer hover:text-blue-400 transition text-left min-w-0 w-full"
+                  className="flex items-center gap-1 text-[11px] text-zinc-300 font-bold uppercase tracking-wider mb-0.5 cursor-pointer hover:text-blue-400 transition text-left min-w-0 w-full leading-tight"
                   onClick={() => setCustomerPickerOpen((v) => !v)}
                 >
                   <Users className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{customerName === 'Publico General' ? 'Cliente' : customerName}</span>
+                  <span className="truncate">
+                    {customerName === 'Publico General' ? 'Cliente' : customerName}
+                  </span>
                 </button>
-                {/* Customer picker dropdown */}
+                {/* Customer picker dropdown — compacto, máx. 3 opciones visibles para incentivar búsqueda */}
                 {customerPickerOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 w-72 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                    <div className="p-2 border-b border-zinc-800 flex items-center gap-2">
-                      <SearchIcon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  <div className="absolute bottom-full left-0 mb-1 w-56 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl z-50 overflow-hidden">
+                    <div className="px-2 py-1.5 border-b border-zinc-800 flex items-center gap-1.5">
+                      <SearchIcon className="w-3 h-3 text-zinc-500 shrink-0" />
                       <input
                         ref={customerSearchRef}
                         type="text"
-                        className="flex-1 bg-transparent text-xs text-zinc-200 placeholder:text-zinc-600 outline-none"
+                        className="flex-1 min-w-0 bg-transparent text-[11px] text-zinc-200 placeholder:text-zinc-600 outline-none"
                         placeholder="Buscar cliente..."
                         value={customerSearch}
                         onChange={(e) => setCustomerSearch(e.target.value)}
@@ -1562,29 +1715,29 @@ export default function Terminal(): ReactElement {
                       <button
                         type="button"
                         onClick={() => setCustomerPickerOpen(false)}
-                        className="text-zinc-500 hover:text-zinc-300"
+                        className="text-zinc-500 hover:text-zinc-300 p-0.5"
                       >
-                        <XIcon className="w-3.5 h-3.5" />
+                        <XIcon className="w-3 h-3" />
                       </button>
                     </div>
-                    <div className="max-h-48 overflow-y-auto">
-                      {/* Publico General — always first */}
+                    <div className="max-h-[7.5rem] overflow-y-auto">
+                      {/* Publico General — siempre primero */}
                       <button
                         type="button"
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-zinc-800 transition flex items-center justify-between ${customerId === null ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
+                        className={`w-full text-left px-2 py-1.5 text-[11px] hover:bg-zinc-800 transition flex items-center justify-between gap-2 ${customerId === null ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
                         onClick={() => {
                           setCustomerName('Publico General')
                           setCustomerId(null)
                           setCustomerPickerOpen(false)
                         }}
                       >
-                        <span className="font-semibold">Publico General</span>
+                        <span className="font-semibold truncate">Publico General</span>
                         {customerId === null && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                          <CheckCircle2 className="w-3 h-3 text-blue-400 shrink-0" />
                         )}
                       </button>
-                      {customerResults
-                        .filter((c) => {
+                      {(() => {
+                        const filtered = customerResults.filter((c) => {
                           if (!customerSearch.trim()) return true
                           const q = customerSearch.toLowerCase()
                           return (
@@ -1592,57 +1745,66 @@ export default function Terminal(): ReactElement {
                             (c.phone?.toLowerCase().includes(q) ?? false)
                           )
                         })
-                        .slice(0, 50)
-                        .map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            className={`w-full text-left px-3 py-2 text-xs hover:bg-zinc-800 transition flex items-center justify-between ${customerId === c.id ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
-                            onClick={() => {
-                              setCustomerName(c.name)
-                              setCustomerId(c.id)
-                              setCustomerPickerOpen(false)
-                            }}
-                          >
-                            <div>
-                              <span className="font-semibold">{c.name}</span>
-                              {c.phone && <span className="ml-2 text-zinc-500">{c.phone}</span>}
-                            </div>
-                            {customerId === c.id && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        const toShow = filtered.slice(0, 2)
+                        return (
+                          <>
+                            {toShow.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                className={`w-full text-left px-2 py-1.5 text-[11px] hover:bg-zinc-800 transition flex items-center justify-between gap-2 ${customerId === c.id ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
+                                onClick={() => {
+                                  setCustomerName(c.name)
+                                  setCustomerId(c.id)
+                                  setCustomerPickerOpen(false)
+                                }}
+                              >
+                                <div className="min-w-0 truncate">
+                                  <span className="font-semibold">{c.name}</span>
+                                  {c.phone && <span className="ml-1.5 text-zinc-500 text-[10px]">{c.phone}</span>}
+                                </div>
+                                {customerId === c.id && (
+                                  <CheckCircle2 className="w-3 h-3 text-blue-400 shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                            {filtered.length > 2 && (
+                              <div className="px-2 py-1 text-[10px] text-zinc-500 text-center border-t border-zinc-800">
+                                +{filtered.length - 2} más — busca para filtrar
+                              </div>
                             )}
-                          </button>
-                        ))}
+                          </>
+                        )
+                      })()}
                       {customerResults.length === 0 && (
-                        <div className="px-3 py-3 text-xs text-zinc-500 text-center">
+                        <div className="px-2 py-2 text-[11px] text-zinc-500 text-center">
                           Cargando clientes...
                         </div>
                       )}
                     </div>
                   </div>
                 )}
-                <span className="text-xs text-zinc-400 font-medium">
+                <span className="text-[11px] text-zinc-400 font-medium leading-tight">
                   {cart.reduce((a, i) => a + i.qty, 0)} articulos
                 </span>
               </div>
-              <div className="text-3xl lg:text-4xl font-black text-white tabular-nums tracking-tight text-right">
+              <div className="text-2xl lg:text-3xl font-black text-white tabular-nums tracking-tight text-right leading-tight">
                 ${totals.total.toFixed(2)}
               </div>
             </div>
 
-            <div className="text-[11px] text-zinc-400 uppercase tracking-wider text-center">
+            <div className="text-[10px] text-zinc-400 uppercase tracking-wider text-center leading-tight">
               F9 Precios · F10 Buscar · F11 Mayoreo · F12 Cobrar
             </div>
 
             <button
-              onClick={() => setIsCheckoutModalOpen(true)}
+              onClick={() => void openCheckoutModal()}
               disabled={busy || cart.length === 0}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-2 font-bold text-sm tracking-wide transition-colors disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-1.5 font-bold text-sm tracking-wide transition-colors disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
             >
               {busy ? 'Procesando...' : 'COBRAR'}
             </button>
           </div>
-
         </div>
       </div>
 

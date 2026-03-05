@@ -29,8 +29,9 @@ export function setAuthToken(token?: string, role = 'admin', user = 'admin'): vo
   localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')
 }
 
-/** Limpia todo localStorage de titan. */
+/** Limpia todo localStorage de titan (incluye borradores por usuario para evitar fugas entre tests). */
 export function clearAuth(): void {
+  const user = localStorage.getItem('titan.user')
   const keys = [
     'titan.token',
     'titan.role',
@@ -43,6 +44,10 @@ export function clearAuth(): void {
     'titan.hwConfig'
   ]
   keys.forEach((k) => localStorage.removeItem(k))
+  if (user) {
+    localStorage.removeItem(`titan.pendingTickets.${user}`)
+    localStorage.removeItem(`titan.activeTickets.${user}`)
+  }
 }
 
 /* ── Custom render con MemoryRouter ─────────────────── */

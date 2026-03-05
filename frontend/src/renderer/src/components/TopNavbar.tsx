@@ -64,7 +64,9 @@ export default function TopNavbar(): ReactElement {
   const handleLogout = async (): Promise<void> => {
     const hasPending = (() => {
       try {
-        const raw = localStorage.getItem('titan.pendingTickets')
+        const user = localStorage.getItem('titan.user')
+        const key = user ? `titan.pendingTickets.${user}` : 'titan.pendingTickets'
+        const raw = localStorage.getItem(key)
         if (!raw) return false
         const arr = JSON.parse(raw)
         return Array.isArray(arr) && arr.length > 0
@@ -83,13 +85,13 @@ export default function TopNavbar(): ReactElement {
     if (!(await confirm(msg, { variant: 'warning', title: 'Cerrar Sesión' }))) return
 
     try {
+      // No borrar titan.pendingTickets ni titan.activeTickets (ni sus variantes por usuario):
+      // así los borradores y tickets pendientes persisten al cerrar sesión y al expirar el token.
       ;[
         'titan.token',
         'titan.user',
         'titan.role',
         'titan.currentShift',
-        'titan.pendingTickets',
-        'titan.activeTickets',
         'titan.shiftHistory'
       ].forEach((k) => localStorage.removeItem(k))
     } catch {

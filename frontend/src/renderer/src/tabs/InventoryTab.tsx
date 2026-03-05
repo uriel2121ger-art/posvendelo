@@ -2,7 +2,16 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useConfirm } from '../components/ConfirmDialog'
-import { Search, Package, X, ArrowRightLeft, AlertCircle, RefreshCw, BarChart2, Check } from 'lucide-react'
+import {
+  Search,
+  Package,
+  X,
+  ArrowRightLeft,
+  AlertCircle,
+  RefreshCw,
+  BarChart2,
+  Check
+} from 'lucide-react'
 import {
   loadRuntimeConfig,
   pullTable,
