@@ -173,12 +173,13 @@ function handleExpiredSession(): never {
 
 function parseErrorDetail(text: string, fallback: string): string {
   try {
-    const body = JSON.parse(text)
+    const body = JSON.parse(text) as Record<string, unknown>
     if (typeof body.detail === 'string') return body.detail
     if (Array.isArray(body.detail)) {
       const msgs = body.detail
         .map((e: Record<string, unknown>) => {
-          const msg = typeof e.msg === 'string' ? e.msg : ''
+          const msg =
+            typeof e.msg === 'string' ? e.msg : typeof e.message === 'string' ? e.message : ''
           const loc = Array.isArray(e.loc) ? String(e.loc[e.loc.length - 1]) : ''
           return loc && msg ? `${loc}: ${msg}` : msg
         })
@@ -193,6 +194,21 @@ function parseErrorDetail(text: string, fallback: string): string {
   return text || fallback
 }
 
+/** Lanza si el cuerpo tiene success: false (respuesta 200 con error en body). */
+function assertSuccess(body: Record<string, unknown>, fallbackMessage: string): void {
+  if (body.success === false) {
+    const msg =
+      typeof body.error === 'string'
+        ? body.error
+        : typeof body.detail === 'string'
+          ? body.detail
+          : typeof body.message === 'string'
+            ? body.message
+            : fallbackMessage
+    throw new Error(msg)
+  }
+}
+
 async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -202,12 +218,12 @@ async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): 
     return res
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error('Tiempo de espera agotado. Verifica la conexion al servidor.')
+      throw new Error('Tiempo de espera agotado. Verifica la conexión al servidor.')
     }
     const msg = err instanceof Error ? err.message : String(err)
     if (/failed to fetch|network error|load failed/i.test(msg) || err instanceof TypeError) {
       throw new Error(
-        'No se pudo conectar al servidor. Comprueba que el backend este en marcha (docker compose up -d o uvicorn en puerto 8000). Si ya esta en marcha, en Configuracion pon la URL del API en http://127.0.0.1:8000.'
+        'No se pudo conectar al servidor. Comprueba que el backend esté en marcha (docker compose up -d o uvicorn en puerto 8000). Si ya está en marcha, en Configuración pon la URL del API en http://127.0.0.1:8000.'
       )
     }
     throw err
@@ -498,6 +514,9 @@ export type CreateSalePayload = {
   serie?: string
   cash_received?: number
   notes?: string
+  requiere_factura?: boolean
+  card_reference?: string | null
+  transfer_reference?: string | null
   mixed_cash?: number
   mixed_card?: number
   mixed_transfer?: number
@@ -518,7 +537,9 @@ export async function createSale(
     const detail = await res.text()
     throw new Error(parseErrorDetail(detail, 'Error creando venta'))
   }
-  return (await res.json()) as Record<string, unknown>
+  const body = (await res.json()) as Record<string, unknown>
+  assertSuccess(body, 'Error creando venta')
+  return body
 }
 
 // ── Dashboard ──────────────────────────────────────
@@ -669,7 +690,7 @@ export async function remoteOpenDrawer(cfg: RuntimeConfig): Promise<Record<strin
     method: 'POST',
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajon'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajón'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -695,7 +716,7 @@ export async function sendNotification(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error enviando notificacion'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error enviando notificación'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -833,8 +854,10 @@ export async function getInventoryMovements(
 }
 
 export async function getStockAlerts(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/inventory/alerts`, {
-    headers: headers(cfg)
+  const url = `${cfg.baseUrl}/api/v1/inventory/alerts?_=${Date.now()}`
+  const res = await apiFetch(url, {
+    headers: headers(cfg),
+    cache: 'no-store'
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando alertas'))
   return (await res.json()) as Record<string, unknown>
@@ -1033,6 +1056,20 @@ export async function generateCFDI(
     body: JSON.stringify(body)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error generando CFDI'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getSalesPendingInvoice(
+  cfg: RuntimeConfig,
+  branchId: number = 1,
+  limit: number = 100
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(
+    `${cfg.baseUrl}/api/v1/fiscal/sales-pending-invoice?branch_id=${branchId}&limit=${limit}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error listando ventas pendientes de factura'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1250,7 +1287,7 @@ export async function getExtractionAvailable(cfg: RuntimeConfig): Promise<Record
     headers: headers(cfg)
   })
   if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error cargando extraccion disponible'))
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando extracción disponible'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1263,7 +1300,7 @@ export async function createExtractionPlan(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando plan extraccion'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando plan extracción'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1272,7 +1309,7 @@ export async function getOptimalExtraction(cfg: RuntimeConfig): Promise<Record<s
     headers: headers(cfg)
   })
   if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error cargando extraccion optima'))
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando extracción óptima'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1354,7 +1391,7 @@ export async function surgicalDelete(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en eliminacion'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en eliminación'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -2268,7 +2305,7 @@ export async function testDrawer(cfg: RuntimeConfig): Promise<Record<string, unk
     method: 'POST',
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error probando cajon'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error probando cajón'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -2303,6 +2340,6 @@ export async function openDrawerForSale(cfg: RuntimeConfig): Promise<Record<stri
     method: 'POST',
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajon'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajón'))
   return (await res.json()) as Record<string, unknown>
 }

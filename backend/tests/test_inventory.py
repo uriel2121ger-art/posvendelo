@@ -106,3 +106,35 @@ class TestAdjust:
             },
         )
         assert r.status_code == 403
+
+    async def test_adjust_persists_stock_and_movement(
+        self, client, admin_token, db_conn, seed_product
+    ):
+        """Ajuste actualiza products.stock y inserta fila en inventory_movements."""
+        r = await client.post(
+            "/api/v1/inventory/adjust",
+            headers=auth_header(admin_token),
+            json={
+                "product_id": PRODUCT_ID,
+                "quantity": 7,
+                "reason": "Ajuste manual (conteo físico o corrección)",
+            },
+        )
+        assert r.status_code == 200
+        assert float(r.json()["data"]["new_stock"]) == 107.0  # 100 + 7
+        row = await db_conn.fetchrow(
+            "SELECT stock FROM products WHERE id = $1", PRODUCT_ID
+        )
+        assert row is not None
+        assert float(row["stock"]) == 107.0
+        mov = await db_conn.fetchrow(
+            """SELECT product_id, movement_type, type, quantity, reason
+               FROM inventory_movements WHERE product_id = $1
+               ORDER BY id DESC LIMIT 1""",
+            PRODUCT_ID,
+        )
+        assert mov is not None
+        assert mov["movement_type"] == "IN"
+        assert mov["type"] == "adjust"
+        assert float(mov["quantity"]) == 7
+        assert "Ajuste manual" in (mov["reason"] or "")

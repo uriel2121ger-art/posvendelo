@@ -60,19 +60,21 @@ async def list_movements(
 
 @router.get("/alerts")
 async def stock_alerts(auth: dict = Depends(verify_token), db=Depends(get_db)):
-    """Get products below minimum stock (low stock alerts). Requires manager+ role."""
+    """Get products below minimum stock or out of stock. Requires manager+ role.
+    Includes: (1) all products with stock 0 or NULL, (2) active products with stock <= min_stock.
+    """
     if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver alertas de stock")
+    # Productos agotados (stock 0 o NULL) siempre se incluyen; stock bajo solo si activos
     rows = await db.fetch("""
-        SELECT id, sku, name, stock, min_stock, category,
-               CASE WHEN stock <= 0 THEN 'out_of_stock'
-                    WHEN stock <= COALESCE(min_stock, 0) THEN 'low_stock'
+        SELECT id, sku, name, stock, min_stock, category, is_active,
+               CASE WHEN COALESCE(stock, 0) <= 0 THEN 'out_of_stock'
+                    WHEN COALESCE(min_stock, 0) > 0 AND COALESCE(stock, 0) <= min_stock THEN 'low_stock'
                END AS alert_type
         FROM products
-        WHERE is_active = 1
-          AND COALESCE(min_stock, 0) > 0
-          AND stock <= min_stock
-        ORDER BY stock ASC
+        WHERE COALESCE(stock, 0) <= 0
+           OR (is_active = 1 AND COALESCE(min_stock, 0) > 0 AND COALESCE(stock, 0) <= min_stock)
+        ORDER BY COALESCE(stock, 0) ASC
         LIMIT 200
     """)
     return {"success": True, "data": rows}
