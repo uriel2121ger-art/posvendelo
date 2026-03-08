@@ -14,6 +14,7 @@ paths = [
   '''\.github/workflows/''',
   '''\.env\.example''',
   '''docs/.*\.md''',
+  '''control-plane/README\.md''',
   '''backend/\.env\.example''',
   '''conftest\.py''',
 ]
