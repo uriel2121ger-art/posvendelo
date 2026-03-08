@@ -145,7 +145,7 @@ export default function ShiftStartupModal({
         const data = result.data as Record<string, unknown>
         const backendId = Number(data?.id ?? data?.turn_id ?? 0)
         if (!backendId) {
-          setError('Turno abierto pero sin ID de backend. Revisa la conexion.')
+          setError('Turno abierto pero sin ID de backend. Revisa la conexión.')
           setBusy(false)
           return
         }
@@ -218,7 +218,7 @@ export default function ShiftStartupModal({
       e.preventDefault()
       const cash = parseFloat(initialCash)
       if (!Number.isFinite(cash) || cash < 0) {
-        setError('Ingresa un monto valido')
+        setError('Ingresa un monto válido.')
         return
       }
       void doOpenTurn(cash)
@@ -263,7 +263,7 @@ export default function ShiftStartupModal({
       }
       const cash = parseFloat(closingCash)
       if (!Number.isFinite(cash) || cash < 0) {
-        setError('Ingresa un monto valido')
+        setError('Ingresa un monto válido.')
         return
       }
       setBusy(true)
@@ -352,7 +352,7 @@ export default function ShiftStartupModal({
       e.preventDefault()
       const cash = parseFloat(initialCash)
       if (!Number.isFinite(cash) || cash < 0) {
-        setError('Ingresa un monto valido')
+        setError('Ingresa un monto válido.')
         return
       }
       void doOpenTurn(cash)
@@ -394,8 +394,8 @@ export default function ShiftStartupModal({
           onClick={(e) => e.stopPropagation()}
           className={card}
         >
-          <h2 className="text-lg font-bold text-blue-400 mb-4">Abrir Nuevo Turno</h2>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 mb-4">
+          <h2 className="text-lg font-bold text-blue-400 mb-4">Abrir nuevo turno</h2>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 mb-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Operador</p>
             <p className="text-sm font-semibold text-zinc-200 mt-0.5">{operator}</p>
           </div>
@@ -437,8 +437,9 @@ export default function ShiftStartupModal({
           onClick={(e) => e.stopPropagation()}
           className={`${card} text-center`}
         >
-          <h2 className="text-lg font-bold text-amber-400 mb-4">Turno Abierto</h2>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 mb-4 space-y-1 text-left">
+          <h2 className="text-lg font-bold text-amber-400 mb-1">Turno abierto</h2>
+          <p className="text-sm text-zinc-500 mb-4">Ya hay un turno activo. Elige una acción.</p>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 mb-4 space-y-1 text-left">
             <div className="flex justify-between text-sm">
               <span className="text-zinc-500">Turno por:</span>
               <span className="font-semibold text-zinc-200">{existingShift.openedBy}</span>
@@ -452,19 +453,28 @@ export default function ShiftStartupModal({
             <div className="flex justify-between text-sm">
               <span className="text-zinc-500">Ventas:</span>
               <span className="font-semibold text-zinc-200">
-                {existingShift.salesCount ?? 0} — ${(existingShift.totalSales ?? 0).toFixed(2)}
+                {existingShift.salesCount ?? 0} ventas · $
+                {(existingShift.totalSales ?? 0).toFixed(2)} total
               </span>
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <button onClick={handleContinue} className={btnPrimary}>
+            <button
+              onClick={handleContinue}
+              className={btnPrimary}
+              title="Seguir vendiendo con este turno"
+            >
               Continuar turno
             </button>
-            <button onClick={handleCloseAndOpen} className={btnSecondary}>
-              Cerrar turno y abrir nuevo
+            <button
+              onClick={handleCloseAndOpen}
+              className={btnSecondary}
+              title="Realiza el corte de caja, cierra este turno y abre uno nuevo"
+            >
+              Cerrar turno y abrir uno nuevo
             </button>
-            <button onClick={onExit} className={btnDanger}>
-              Cerrar programa
+            <button onClick={onExit} className={btnDanger} title="Salir de la aplicación">
+              Salir del programa
             </button>
           </div>
         </div>
@@ -482,9 +492,9 @@ export default function ShiftStartupModal({
           onClick={(e) => e.stopPropagation()}
           className={card}
         >
-          <h2 className="text-lg font-bold text-rose-400 mb-4">Cerrar Turno</h2>
+          <h2 className="text-lg font-bold text-rose-400 mb-4">Cerrar turno</h2>
           <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-            Efectivo en caja ($)
+            Efectivo contado ($)
           </label>
           <input
             ref={inputRef}
@@ -495,24 +505,25 @@ export default function ShiftStartupModal({
             value={closingCash}
             onChange={(e) => setClosingCash(e.target.value)}
             placeholder="0.00"
+            title="Monto de efectivo que hay en caja al cerrar"
           />
-          <p className="text-xs text-zinc-500 mb-3 -mt-1">
-            Pre-llenado con el efectivo esperado. Ajusta solo si el conteo fisico difiere.
-          </p>
+          <p className="text-xs text-zinc-500 mb-3 -mt-1">Ajusta solo si tu conteo es distinto.</p>
           {error && <p className="text-rose-400 text-sm mb-3">{error}</p>}
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setPhase('existing_shift')}
-              className={btnSecondary}
+              className={`${btnSecondary} flex-1 min-w-0`}
               disabled={busy}
+              title="Cancelar y volver al menú del turno"
             >
               Volver
             </button>
             <button
               type="submit"
               disabled={busy}
-              className="flex flex-1 flex-col justify-start items-start rounded-xl bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors disabled:opacity-40"
+              className={`flex flex-1 min-w-0 items-center justify-center rounded-xl bg-rose-600 py-2.5 font-bold text-white hover:bg-rose-500 transition-colors disabled:opacity-40`}
+              title="Cerrar este turno y hacer corte de caja"
             >
               {busy ? 'Cerrando...' : 'Cerrar turno'}
             </button>
@@ -537,8 +548,8 @@ export default function ShiftStartupModal({
           onClick={(e) => e.stopPropagation()}
           className={card}
         >
-          <h2 className="text-lg font-bold text-emerald-400 mb-4">Corte de Turno</h2>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 mb-4 space-y-2">
+          <h2 className="text-lg font-bold text-emerald-400 mb-4">Corte de turno</h2>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 mb-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-zinc-500">Esperado:</span>
               <span className="font-semibold text-zinc-200">${cut.expected.toFixed(2)}</span>
@@ -556,7 +567,7 @@ export default function ShiftStartupModal({
             {summary && (
               <div className="border-t border-zinc-800 pt-2 mt-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold mb-1">
-                  Resumen backend
+                  Resumen del servidor
                 </p>
                 <div className="text-xs text-zinc-400 space-y-0.5">
                   {summary.total_sales != null && (
@@ -567,7 +578,7 @@ export default function ShiftStartupModal({
                   )}
                   {summary.sales_count != null && (
                     <div className="flex justify-between">
-                      <span>Num. ventas:</span>
+                      <span>Núm. ventas:</span>
                       <span>{String(summary.sales_count)}</span>
                     </div>
                   )}
@@ -634,8 +645,8 @@ export default function ShiftStartupModal({
           onClick={(e) => e.stopPropagation()}
           className={card}
         >
-          <h2 className="text-lg font-bold text-blue-400 mb-4">Abrir Nuevo Turno</h2>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 mb-4">
+          <h2 className="text-lg font-bold text-blue-400 mb-4">Abrir nuevo turno</h2>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 mb-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Operador</p>
             <p className="text-sm font-semibold text-zinc-200 mt-0.5">{operator}</p>
           </div>

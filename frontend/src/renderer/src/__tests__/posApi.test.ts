@@ -2,10 +2,13 @@
  * posApi.ts — Tests de auto-discovery, runtime config, apiFetch, y pullTable.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { clearAuth, setAuthToken } from './test-utils'
+import { clearAuth } from './test-utils'
 
 // Importar después de setup de localStorage
 import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig, getUserRole } from '../posApi'
+
+const DEFAULT_HOST = window.location.hostname || '127.0.0.1'
+const DEFAULT_BASE_URL = `http://${DEFAULT_HOST}:8000`
 
 describe('loadRuntimeConfig', () => {
   beforeEach(() => clearAuth())
@@ -13,7 +16,7 @@ describe('loadRuntimeConfig', () => {
 
   it('devuelve defaults cuando localStorage vacío', () => {
     const cfg = loadRuntimeConfig()
-    expect(cfg.baseUrl).toBe('http://127.0.0.1:8000')
+    expect(cfg.baseUrl).toBe(DEFAULT_BASE_URL)
     expect(cfg.token).toBe('')
     expect(cfg.terminalId).toBe(1)
   })
@@ -100,6 +103,7 @@ describe('autoDiscoverBackend', () => {
 
   it('descubre por puertos si URL guardada no responde', async () => {
     localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:9999')
+    localStorage.setItem('titan.discoverPorts', JSON.stringify([8000, 8080, 8090]))
 
     let callIdx = 0
     global.fetch = vi.fn().mockImplementation(() => {
@@ -119,8 +123,8 @@ describe('autoDiscoverBackend', () => {
     })
 
     const result = await autoDiscoverBackend()
-    expect(result).toBe('http://127.0.0.1:8080')
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://127.0.0.1:8080')
+    expect(result).toBe(`http://${DEFAULT_HOST}:8090`)
+    expect(localStorage.getItem('titan.baseUrl')).toBe(`http://${DEFAULT_HOST}:8090`)
   })
 
   it('devuelve null si ningún puerto responde', async () => {
@@ -148,7 +152,7 @@ describe('autoDiscoverBackend', () => {
     })
 
     const result = await autoDiscoverBackend()
-    expect(result).toBe('http://127.0.0.1:8000')
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://127.0.0.1:8000')
+    expect(result).toBe(DEFAULT_BASE_URL)
+    expect(localStorage.getItem('titan.baseUrl')).toBe(DEFAULT_BASE_URL)
   })
 })

@@ -71,4 +71,4 @@ async def verify_manager_pin(pin: str, conn) -> dict:
             logger.warning("Error al verificar pin_hash para user_id=%s", row.get("id"))
             continue
 
-    raise HTTPException(status_code=403, detail="PIN de gerente invalido")
+    raise HTTPException(status_code=403, detail="PIN de gerente inválido")

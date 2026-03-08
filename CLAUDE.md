@@ -7,7 +7,7 @@ POS retail México. Multi-sucursal, CFDI 4.0, inventario, turnos, crédito, sync
 - **Frontend**: Electron, React 19, Vite, TypeScript strict, TailwindCSS
 - **Auth**: JWT (PyJWT), bcrypt | Roles: admin/manager/cashier/owner
 - **Deploy**: Docker Compose → GHCR → Watchtower auto-pull → entrypoint.sh (migrate→uvicorn)
-- **Tests**: pytest+httpx 164 tests (DB real con rollback) | Vitest 83 tests frontend
+- **Tests**: pytest+httpx 181 tests (DB real con rollback) | Vitest 83 tests frontend
 
 ## Estructura
 ```

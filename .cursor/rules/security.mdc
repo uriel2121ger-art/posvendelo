@@ -1,0 +1,18 @@
+---
+description: Reglas de seguridad para archivos de auth y datos sensibles
+globs: ["**/auth/**", "**/security/**", "**/*token*", "**/*secret*", "**/fiscal/**"]
+alwaysApply: false
+---
+
+## Seguridad obligatoria
+- JWT con expiración definida (access corto, refresh si aplica)
+- Nunca loggear tokens, passwords ni RFC completo
+- Passwords: bcrypt, costo mínimo 12
+- PINs: almacenar como sha256 hex en `users.pin_hash`; nunca comparar en texto plano
+- Rate limiting en endpoints de auth y login
+- Validar RFC contra patrón SAT antes de usar en fiscal
+- Precios: siempre leer de DB en ventas; nunca confiar en payload del cliente
+
+## TITAN POS específico
+- Cancelación de venta: siempre exigir `manager_pin` en el payload
+- NullByteSanitizer middleware debe estar activo en main.py

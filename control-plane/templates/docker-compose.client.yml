@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: titan_pos
+      POSTGRES_USER: titan_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${LOCAL_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    image: ${BACKEND_IMAGE}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://titan_user:${POSTGRES_PASSWORD}@postgres:5432/titan_pos
+      ADMIN_API_USER: ${ADMIN_API_USER}
+      ADMIN_API_PASSWORD: ${ADMIN_API_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL}
+      TITAN_LICENSE_KEY: ${TITAN_LICENSE_KEY}
+      TITAN_BRANCH_ID: ${TITAN_BRANCH_ID}
+      TITAN_VERSION: ${TITAN_VERSION}
+      TITAN_BACKUP_DIR: /backups
+      CF_TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN}
+      TITAN_AGENT_CONFIG_PATH: /runtime/titan-agent.json
+      TITAN_LICENSE_ENFORCEMENT: ${TITAN_LICENSE_ENFORCEMENT:-true}
+    ports:
+      - "0.0.0.0:${LOCAL_API_PORT:-8000}:8000"
+    volumes:
+      - ./:/runtime:ro
+      - ./backups:/backups:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db-backup:
+    image: postgres:15-alpine
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        FNAME="/backups/titan_$$(date +%Y%m%d_%H%M).dump";
+        pg_dump -h postgres -U titan_user -Fc titan_pos > "$$FNAME";
+        ls -t /backups/*.dump | tail -n +9 | xargs rm -f 2>/dev/null || true;
+        sleep 21600;
+      done'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN}
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:

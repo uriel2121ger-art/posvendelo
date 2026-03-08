@@ -1,7 +1,8 @@
 /**
  * App.tsx — Tests de routing, RequireAuth, y ErrorBoundary.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { clearAuth, setAuthToken } from './test-utils'
 
@@ -29,7 +30,7 @@ vi.mock('../tabs/SettingsTab', () => ({
   default: () => <div data-testid="settings-tab">Configuraciones</div>
 }))
 vi.mock('../tabs/DashboardStatsTab', () => ({
-  default: () => <div data-testid="stats-tab">Estadisticas</div>
+  default: () => <div data-testid="stats-tab">Estadísticas</div>
 }))
 vi.mock('../tabs/MermasTab', () => ({ default: () => <div data-testid="mermas-tab">Mermas</div> }))
 vi.mock('../tabs/ExpensesTab', () => ({
@@ -42,15 +43,15 @@ vi.mock('../tabs/RemoteTab', () => ({ default: () => <div data-testid="remote-ta
 vi.mock('../tabs/FiscalTab', () => ({ default: () => <div data-testid="fiscal-tab">Fiscal</div> }))
 
 // Mock ShiftStartupModal — auto-resolve para no bloquear tests
+function ShiftStartupModalMock({ onComplete }: { onComplete: () => void }): null {
+  useEffect(() => {
+    onComplete()
+  }, [onComplete])
+  return null
+}
+
 vi.mock('../tabs/ShiftStartupModal', () => ({
-  default: ({ onComplete }: { onComplete: () => void }) => {
-    // Use useEffect to avoid React setState-during-render warning
-    const { useEffect } = require('react')
-    useEffect(() => {
-      onComplete()
-    }, [onComplete])
-    return null
-  }
+  default: ShiftStartupModalMock
 }))
 
 // Mock autoDiscoverBackend para Login
@@ -198,13 +199,23 @@ describe('App Routing', () => {
     })
   })
 
-  it('redirige /gastos a /turnos (Gastos está dentro de Turnos)', async () => {
+  it('muestra Gastos en /gastos con token', async () => {
     setAuthToken()
     window.location.hash = '#/gastos'
     render(<App />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('shifts-tab')).toBeInTheDocument()
+      expect(screen.getByTestId('expenses-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('muestra Hardware en /hardware con token', async () => {
+    setAuthToken()
+    window.location.hash = '#/hardware'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-tab')).toBeInTheDocument()
     })
   })
 
@@ -279,7 +290,7 @@ describe('F-key Navigation', () => {
     ['F6', '#/reportes', 'reports-tab']
   ]
 
-  for (const [key, expectedHash, testId] of fKeyNavMap) {
+  for (const [key, expectedHash] of fKeyNavMap) {
     it(`${key} navega a ${expectedHash}`, async () => {
       window.location.hash = '#/terminal'
       render(<App />)
@@ -288,7 +299,7 @@ describe('F-key Navigation', () => {
         expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
       })
 
-      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+      fireEvent.keyDown(window, { key, bubbles: true })
 
       await waitFor(() => {
         expect(window.location.hash).toBe(expectedHash)
@@ -298,9 +309,9 @@ describe('F-key Navigation', () => {
 
   // F7-F9: operational keys (open modals, do NOT navigate)
   const fKeyModalMap: Array<[string, string]> = [
-    ['F7', 'Entrada de Efectivo'],
-    ['F8', 'Retiro de Efectivo'],
-    ['F9', 'Verificador de Precios']
+    ['F7', 'Entrada de efectivo'],
+    ['F8', 'Retiro de efectivo'],
+    ['F9', 'Verificador de precios']
   ]
 
   for (const [key, modalTitle] of fKeyModalMap) {
@@ -312,7 +323,7 @@ describe('F-key Navigation', () => {
         expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
       })
 
-      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+      fireEvent.keyDown(window, { key, bubbles: true })
 
       // Route must NOT change
       expect(window.location.hash).toBe('#/terminal')
@@ -334,7 +345,7 @@ describe('F-key Navigation', () => {
         expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
       })
 
-      window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+      fireEvent.keyDown(window, { key, bubbles: true })
 
       // Route must NOT change
       expect(window.location.hash).toBe('#/terminal')
@@ -354,7 +365,7 @@ describe('F-key Navigation', () => {
     document.body.appendChild(input)
     input.focus()
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F3', bubbles: true }))
+    fireEvent.keyDown(window, { key: 'F3', bubbles: true })
 
     // F-keys ahora navegan incluso con input focused (no producen texto)
     await waitFor(() => {

@@ -54,6 +54,9 @@ die() {
 # --- Inicio ---------------------------------------------------------------
 banner
 
+AGENT_DIR="${HOME}/.titanpos"
+AGENT_JSON_PATH="${AGENT_DIR}/titan-agent.json"
+
 # ═══════════════════════════════════════════════════════════════════════════
 # FASE 1: Verificar Docker
 # ═══════════════════════════════════════════════════════════════════════════
@@ -93,6 +96,50 @@ else
         die "Docker es necesario para TITAN POS"
     fi
 fi
+
+mkdir -p "$AGENT_DIR"
+cat > "$AGENT_JSON_PATH" <<AGENTCFG
+{
+  "controlPlaneUrl": "",
+  "branchId": null,
+  "installToken": "",
+  "releaseManifestUrl": "",
+  "licenseResolveUrl": "",
+  "localApiUrl": "http://127.0.0.1:8000",
+  "backendHealthUrl": "http://127.0.0.1:8000/health",
+  "appArtifact": "electron-linux",
+  "backendArtifact": "backend",
+  "releaseChannel": "stable",
+  "pollIntervals": {
+    "healthSeconds": 15,
+    "manifestSeconds": 300,
+    "licenseSeconds": 300
+  },
+  "license": null,
+  "bootstrap": {
+    "installDir": "$SCRIPT_DIR",
+    "bootstrapPublicKey": "",
+    "licenseResolveUrl": ""
+  }
+}
+AGENTCFG
+ok "Agente local base generado en $AGENT_JSON_PATH"
+
+cat > "${SCRIPT_DIR}/INSTALL_SUMMARY.txt" <<EOF
+TITAN POS - RESUMEN DE INSTALACION
+
+Directorio: ${SCRIPT_DIR}
+Health local: http://127.0.0.1:8000/health
+API local: http://127.0.0.1:8000
+Agente local: ${AGENT_JSON_PATH}
+
+Archivos clave:
+- .env
+- docker-compose.yml
+- CREDENCIALES.txt
+- INSTALL_SUMMARY.txt
+EOF
+ok "Resumen de instalacion generado en ${SCRIPT_DIR}/INSTALL_SUMMARY.txt"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FASE 2: Generar configuración
@@ -220,6 +267,7 @@ run_psql() {
 # Buscar schema SQL (puede estar en varias ubicaciones)
 SCHEMA_FILE=""
 for candidate in \
+    "backend/db/schema.sql" \
     "_archive/backend_original/src/infra/schema_postgresql.sql" \
     "backend/schema_postgresql.sql" \
     "schema_postgresql.sql"; do
@@ -236,7 +284,7 @@ if [ -n "$SCHEMA_FILE" ]; then
         die "No se pudo aplicar el schema base — revisa 'docker compose logs postgres'"
     fi
 else
-    warn "No se encontro schema_postgresql.sql — asegurate de que las tablas existan"
+    warn "No se encontro ningun schema SQL conocido — asegurate de que las tablas existan"
 fi
 
 # Migraciones incrementales (orden numerico, idempotentes)

@@ -1,16 +1,128 @@
 import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, User, LogIn } from 'lucide-react'
+import { Lock, User, LogIn, RefreshCw, Server, Wifi } from 'lucide-react'
 import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
+import { TITAN_APP_LABEL, TITAN_RELEASE_LABEL } from './runtimeEnv'
+
+type AgentStatusView = {
+  configLoaded: boolean
+  backendHealthy: boolean
+  controlPlaneUrl: string | null
+  localApiUrl: string
+  branchId: number | null
+  lastBackendError: string | null
+  currentAppVersion: string | null
+  appVersion: string | null
+  backendVersion: string | null
+  appUpdateAvailable: boolean
+  backendUpdateAvailable: boolean
+  availableBackendVersion: string | null
+  licenseType: string | null
+  licenseStatus: string
+  licenseMessage: string | null
+  licenseDaysRemaining: number | null
+  licenseValidSignature: boolean
+  desktopUpdateStatus: 'idle' | 'available' | 'downloading' | 'staged' | 'applying' | 'error'
+  desktopUpdateMessage: string | null
+  desktopUpdateVersion: string | null
+  desktopUpdateError: string | null
+  desktopUpdateReady: boolean
+  desktopRollbackAvailable: boolean
+  desktopRollbackVersion: string | null
+  desktopRollbackMessage: string | null
+}
 
 export default function Login(): ReactElement {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [discovering, setDiscovering] = useState(true)
+  const [refreshingAgent, setRefreshingAgent] = useState(false)
+  const [updatingApp, setUpdatingApp] = useState(false)
   const [error, setError] = useState('')
+  const [agentStatus, setAgentStatus] = useState<AgentStatusView | null>(null)
   const navigate = useNavigate()
+  const footerLabel = TITAN_RELEASE_LABEL
+    ? `V ${TITAN_RELEASE_LABEL} • ${TITAN_APP_LABEL}`
+    : TITAN_APP_LABEL
+
+  const refreshAgentStatus = async (): Promise<void> => {
+    const api = (window as Window & { api?: { agent?: { refresh?: () => Promise<unknown> } } }).api
+    if (typeof api?.agent?.refresh !== 'function') return
+
+    setRefreshingAgent(true)
+    try {
+      const raw = (await api.agent.refresh()) as {
+        configLoaded?: boolean
+        backendHealthy?: boolean
+        controlPlaneUrl?: string | null
+        localApiUrl?: string
+        branchId?: number | null
+        lastBackendError?: string | null
+        currentAppVersion?: string | null
+        backendVersion?: string | null
+        appUpdateAvailable?: boolean
+        backendUpdateAvailable?: boolean
+        availableBackendVersion?: string | null
+        license?: {
+          licenseType?: string | null
+          effectiveStatus?: string
+          message?: string | null
+          daysRemaining?: number | null
+          validSignature?: boolean
+        }
+        desktopUpdate?: {
+          status?: AgentStatusView['desktopUpdateStatus']
+          message?: string | null
+          availableVersion?: string | null
+          lastError?: string | null
+          rollbackAvailable?: boolean
+          rollbackVersion?: string | null
+          rollbackMessage?: string | null
+        }
+        manifest?: {
+          artifacts?: {
+            app?: { version?: string | null } | null
+            backend?: { version?: string | null } | null
+          }
+        } | null
+      }
+      setAgentStatus({
+        configLoaded: Boolean(raw.configLoaded),
+        backendHealthy: Boolean(raw.backendHealthy),
+        controlPlaneUrl: raw.controlPlaneUrl ?? null,
+        localApiUrl: raw.localApiUrl || 'http://127.0.0.1:8000',
+        branchId: raw.branchId ?? null,
+        lastBackendError: raw.lastBackendError ?? null,
+        currentAppVersion: raw.currentAppVersion ?? null,
+        appVersion: raw.manifest?.artifacts?.app?.version ?? null,
+        backendVersion: raw.backendVersion ?? null,
+        appUpdateAvailable: Boolean(raw.appUpdateAvailable),
+        backendUpdateAvailable: Boolean(raw.backendUpdateAvailable),
+        availableBackendVersion:
+          raw.availableBackendVersion ?? raw.manifest?.artifacts?.backend?.version ?? null,
+        licenseType: raw.license?.licenseType ?? null,
+        licenseStatus: raw.license?.effectiveStatus ?? 'missing',
+        licenseMessage: raw.license?.message ?? null,
+        licenseDaysRemaining:
+          typeof raw.license?.daysRemaining === 'number' ? raw.license.daysRemaining : null,
+        licenseValidSignature: raw.license?.validSignature !== false,
+        desktopUpdateStatus: raw.desktopUpdate?.status ?? 'idle',
+        desktopUpdateMessage: raw.desktopUpdate?.message ?? null,
+        desktopUpdateVersion: raw.desktopUpdate?.availableVersion ?? raw.manifest?.artifacts?.app?.version ?? null,
+        desktopUpdateError: raw.desktopUpdate?.lastError ?? null,
+        desktopUpdateReady: raw.desktopUpdate?.status === 'staged',
+        desktopRollbackAvailable: raw.desktopUpdate?.rollbackAvailable === true,
+        desktopRollbackVersion: raw.desktopUpdate?.rollbackVersion ?? null,
+        desktopRollbackMessage: raw.desktopUpdate?.rollbackMessage ?? null
+      })
+    } catch {
+      setAgentStatus(null)
+    } finally {
+      setRefreshingAgent(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -26,6 +138,74 @@ export default function Login(): ReactElement {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    void refreshAgentStatus()
+  }, [])
+
+  const handlePrepareAppUpdate = async (): Promise<void> => {
+    const api = (
+      window as Window & {
+        api?: { agent?: { prepareAppUpdate?: () => Promise<unknown> } }
+      }
+    ).api
+    if (typeof api?.agent?.prepareAppUpdate !== 'function') return
+    setUpdatingApp(true)
+    try {
+      await api.agent.prepareAppUpdate()
+      await refreshAgentStatus()
+    } finally {
+      setUpdatingApp(false)
+    }
+  }
+
+  const handleApplyAppUpdate = async (): Promise<void> => {
+    const api = (
+      window as Window & {
+        api?: { agent?: { applyAppUpdate?: () => Promise<unknown> } }
+      }
+    ).api
+    if (typeof api?.agent?.applyAppUpdate !== 'function') return
+    setUpdatingApp(true)
+    try {
+      await api.agent.applyAppUpdate()
+      await refreshAgentStatus()
+    } finally {
+      setUpdatingApp(false)
+    }
+  }
+
+  const handleDiscardAppUpdate = async (): Promise<void> => {
+    const api = (
+      window as Window & {
+        api?: { agent?: { discardAppUpdate?: () => Promise<unknown> } }
+      }
+    ).api
+    if (typeof api?.agent?.discardAppUpdate !== 'function') return
+    setUpdatingApp(true)
+    try {
+      await api.agent.discardAppUpdate()
+      await refreshAgentStatus()
+    } finally {
+      setUpdatingApp(false)
+    }
+  }
+
+  const handleRollbackAppUpdate = async (): Promise<void> => {
+    const api = (
+      window as Window & {
+        api?: { agent?: { rollbackAppUpdate?: () => Promise<unknown> } }
+      }
+    ).api
+    if (typeof api?.agent?.rollbackAppUpdate !== 'function') return
+    setUpdatingApp(true)
+    try {
+      await api.agent.rollbackAppUpdate()
+      await refreshAgentStatus()
+    } finally {
+      setUpdatingApp(false)
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
@@ -85,7 +265,7 @@ export default function Login(): ReactElement {
         const role = String(body.role ?? body.data?.role ?? 'cashier')
         localStorage.setItem('titan.role', role)
       } catch {
-        /* QuotaExceeded */
+        /* storage full — non-critical, config already saved */
       }
       navigate('/terminal')
     } catch (err) {
@@ -114,8 +294,192 @@ export default function Login(): ReactElement {
 
             <h2 className="text-2xl font-bold text-zinc-100 mb-8 flex items-center justify-center gap-3">
               <User className="w-6 h-6 text-blue-500" />
-              Acceso a Caja
+              Acceso a caja
             </h2>
+
+            {agentStatus && (
+              <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-zinc-300">
+                    <Server className="h-4 w-4 text-blue-400" />
+                    <span className="font-semibold">Nodo local</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void refreshAgentStatus()}
+                    disabled={refreshingAgent}
+                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-bold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshingAgent ? 'animate-spin' : ''}`} />
+                    Actualizar
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 text-xs text-zinc-400">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2">
+                      <Wifi
+                        className={`h-3.5 w-3.5 ${agentStatus.backendHealthy ? 'text-emerald-400' : 'text-rose-400'}`}
+                      />
+                      Backend local
+                    </span>
+                    <span className={agentStatus.backendHealthy ? 'text-emerald-400' : 'text-rose-400'}>
+                      {agentStatus.backendHealthy ? 'Saludable' : 'No disponible'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>API local</span>
+                    <span className="truncate font-mono text-zinc-300">{agentStatus.localApiUrl}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Branch vinculada</span>
+                    <span className="font-mono text-zinc-300">
+                      {agentStatus.branchId ? `#${agentStatus.branchId}` : 'Sin asignar'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Version app local/remota</span>
+                    <span className="font-mono text-zinc-300">
+                      {(agentStatus.currentAppVersion ?? '-') + ' / ' + (agentStatus.appVersion ?? '-')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Version backend local/remota</span>
+                    <span className="font-mono text-zinc-300">
+                      {(agentStatus.backendVersion ?? '-') +
+                        ' / ' +
+                        (agentStatus.availableBackendVersion ?? '-')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Control-plane</span>
+                    <span className="truncate font-mono text-zinc-300">
+                      {agentStatus.controlPlaneUrl ?? 'No configurado'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Licencia</span>
+                    <span
+                      className={
+                        agentStatus.licenseStatus === 'active'
+                          ? 'text-emerald-400'
+                          : agentStatus.licenseStatus === 'support_expired'
+                            ? 'text-amber-300'
+                            : 'text-amber-400'
+                      }
+                    >
+                      {agentStatus.licenseType ?? 'sin licencia'} / {agentStatus.licenseStatus}
+                    </span>
+                  </div>
+                  {agentStatus.licenseDaysRemaining !== null && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Días restantes</span>
+                      <span className="font-mono text-zinc-300">{agentStatus.licenseDaysRemaining}</span>
+                    </div>
+                  )}
+                  {!agentStatus.licenseValidSignature && (
+                    <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
+                      La firma local de la licencia no pudo validarse.
+                    </p>
+                  )}
+                  {agentStatus.licenseMessage && (
+                    <p className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
+                      {agentStatus.licenseMessage}
+                    </p>
+                  )}
+                  {(agentStatus.appUpdateAvailable || agentStatus.backendUpdateAvailable) && (
+                    <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-blue-300">
+                      Update disponible:
+                      {agentStatus.appUpdateAvailable ? ' app desktop' : ''}
+                      {agentStatus.appUpdateAvailable && agentStatus.backendUpdateAvailable
+                        ? ' y'
+                        : ''}
+                      {agentStatus.backendUpdateAvailable ? ' backend local' : ''}.
+                    </p>
+                  )}
+                  {(agentStatus.appUpdateAvailable || agentStatus.desktopUpdateReady) && (
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-blue-200">
+                      <p>
+                        Update app: {agentStatus.desktopUpdateVersion ?? '-'} /{' '}
+                        {agentStatus.desktopUpdateStatus}
+                      </p>
+                      {agentStatus.desktopUpdateMessage && (
+                        <p className="mt-1 text-xs text-blue-100/90">{agentStatus.desktopUpdateMessage}</p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {agentStatus.desktopUpdateStatus !== 'staged' && (
+                          <button
+                            type="button"
+                            onClick={() => void handlePrepareAppUpdate()}
+                            disabled={updatingApp}
+                            className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-100 disabled:opacity-50"
+                          >
+                            {updatingApp ? 'Preparando...' : 'Descargar update'}
+                          </button>
+                        )}
+                        {agentStatus.desktopUpdateReady && (
+                          <button
+                            type="button"
+                            onClick={() => void handleApplyAppUpdate()}
+                            disabled={updatingApp}
+                            className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-100 disabled:opacity-50"
+                          >
+                            {updatingApp ? 'Abriendo...' : 'Aplicar update'}
+                          </button>
+                        )}
+                        {agentStatus.desktopUpdateReady && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDiscardAppUpdate()}
+                            disabled={updatingApp}
+                            className="rounded-lg border border-zinc-600 bg-zinc-900 px-2.5 py-1 text-[11px] font-bold text-zinc-200 disabled:opacity-50"
+                          >
+                            Descartar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {agentStatus.desktopRollbackAvailable && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100">
+                      <p>
+                        Rollback disponible a {agentStatus.desktopRollbackVersion ?? 'versión previa'}.
+                      </p>
+                      {agentStatus.desktopRollbackMessage && (
+                        <p className="mt-1 text-xs text-amber-50/90">
+                          {agentStatus.desktopRollbackMessage}
+                        </p>
+                      )}
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleRollbackAppUpdate()}
+                          disabled={updatingApp}
+                          className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-50 disabled:opacity-50"
+                        >
+                          {updatingApp ? 'Revirtiendo...' : 'Rollback app'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {agentStatus.desktopUpdateError && (
+                    <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
+                      Error update app: {agentStatus.desktopUpdateError}
+                    </p>
+                  )}
+                  {!agentStatus.configLoaded && (
+                    <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-300">
+                      El agente local no tiene bootstrap cargado. Revisa `titan-agent.json` o el instalador.
+                    </p>
+                  )}
+                  {agentStatus.lastBackendError && !agentStatus.backendHealthy && (
+                    <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
+                      Último error: {agentStatus.lastBackendError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleLogin} className="w-full space-y-5 relative">
               {/* Username Input */}
@@ -188,7 +552,7 @@ export default function Login(): ReactElement {
               {discovering ? (
                 <span className="text-blue-400 animate-pulse">Buscando servidor...</span>
               ) : (
-                <>V 0.1.0 • TITAN POS DEMO</>
+                <>{footerLabel}</>
               )}
             </p>
           </div>

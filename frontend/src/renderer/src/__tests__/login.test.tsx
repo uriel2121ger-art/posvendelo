@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import Login from '../Login'
-import { clearAuth, mockFetchJson, mockFetchError } from './test-utils'
+import { clearAuth, mockFetchError } from './test-utils'
 
 // Mock navigate
 const mockNavigate = vi.fn()
@@ -15,7 +15,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-function renderLogin() {
+function renderLogin(): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={['/login']}>
       <Login />
@@ -28,13 +28,38 @@ describe('Login', () => {
     clearAuth()
     mockNavigate.mockReset()
     vi.restoreAllMocks()
+    ;(
+      window as Window & {
+        api?: { agent?: { refresh?: () => Promise<unknown> } }
+      }
+    ).api = {
+      agent: {
+        refresh: vi.fn().mockResolvedValue({
+          configLoaded: true,
+          backendHealthy: true,
+          localApiUrl: 'http://127.0.0.1:8000',
+          controlPlaneUrl: 'http://127.0.0.1:9090',
+          branchId: 1,
+          currentAppVersion: '1.0.0',
+          availableBackendVersion: '2.0.0',
+          license: {
+            licenseType: 'trial',
+            effectiveStatus: 'active',
+            message: '15 día(s) restantes',
+            daysRemaining: 15,
+            validSignature: true
+          }
+        })
+      }
+    }
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    delete (window as Window & { api?: unknown }).api
   })
 
-  it('muestra título "Acceso a Caja"', async () => {
+  it('muestra título "Acceso a caja"', async () => {
     // Mock auto-discovery devuelve backend disponible
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -44,10 +69,14 @@ describe('Login', () => {
     } as unknown as Response)
 
     renderLogin()
-    expect(screen.getByText('Acceso a Caja')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Buscando servidor...')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('Acceso a caja')).toBeInTheDocument()
   })
 
   it('muestra "Buscando servidor..." durante auto-discovery', () => {
+    delete (window as Window & { api?: unknown }).api
     // Fetch que nunca resuelve — simula discovery en progreso
     global.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     renderLogin()
@@ -231,6 +260,23 @@ describe('Login', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/No se puede conectar al servidor/)).toBeInTheDocument()
+    })
+  })
+
+  it('muestra estado de licencia del nodo en login', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({}),
+      body: { cancel: () => Promise.resolve() }
+    } as unknown as Response)
+
+    renderLogin()
+
+    await waitFor(() => {
+      expect(screen.getByText('Nodo local')).toBeInTheDocument()
+      expect(screen.getByText(/trial \/ active/i)).toBeInTheDocument()
+      expect(screen.getByText('15 día(s) restantes')).toBeInTheDocument()
     })
   })
 })

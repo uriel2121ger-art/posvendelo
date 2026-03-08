@@ -153,6 +153,30 @@ class TestCreateProduct:
         )
         assert r.status_code == 422
 
+    async def test_create_product_category_persists_in_db(self, client, admin_token, seed_branch):
+        """Create product with category, then GET to verify it is stored and returned."""
+        r = await client.post(
+            "/api/v1/products/",
+            headers=auth_header(admin_token),
+            json={
+                "sku": "CAT-PERSIST-001",
+                "name": "Producto con categoría",
+                "price": 10.0,
+                "category": "Abarrotes",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        pid = data["data"]["id"]
+        assert pid > 0
+        r2 = await client.get(
+            f"/api/v1/products/{pid}",
+            headers=auth_header(admin_token),
+        )
+        assert r2.status_code == 200
+        assert r2.json()["data"]["category"] == "Abarrotes"
+
 
 class TestUpdateProduct:
     async def test_update_product_admin(self, client, admin_token, seed_product):
@@ -189,6 +213,23 @@ class TestUpdateProduct:
             json={"price": 999.99},
         )
         assert r.status_code == 403
+
+    async def test_update_product_category_persists_in_db(
+        self, client, admin_token, seed_product
+    ):
+        """Update product category via PUT, then GET to verify it is stored."""
+        r = await client.put(
+            f"/api/v1/products/{PRODUCT_ID}",
+            headers=auth_header(admin_token),
+            json={"category": "Limpieza"},
+        )
+        assert r.status_code == 200
+        r2 = await client.get(
+            f"/api/v1/products/{PRODUCT_ID}",
+            headers=auth_header(admin_token),
+        )
+        assert r2.status_code == 200
+        assert r2.json()["data"]["category"] == "Limpieza"
 
 
 class TestDeleteProduct:

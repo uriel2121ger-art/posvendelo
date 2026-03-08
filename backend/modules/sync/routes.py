@@ -128,7 +128,7 @@ async def sync_pull_sales(
         try:
             since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
-            raise HTTPException(status_code=400, detail="Formato de fecha invalido para 'since'")
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido para 'since'")
         sql += " AND timestamp >= :since"
         params["since"] = since_dt.replace(tzinfo=None)
 

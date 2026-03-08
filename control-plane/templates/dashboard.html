@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TITAN Control Plane</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #09090b;
+        --panel: #18181b;
+        --border: #27272a;
+        --text: #fafafa;
+        --muted: #a1a1aa;
+        --ok: #22c55e;
+        --off: #ef4444;
+      }
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 16px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--panel);
+        border: 1px solid var(--border);
+      }
+      th, td {
+        padding: 12px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        font-size: 14px;
+      }
+      th {
+        color: var(--muted);
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+      .status {
+        font-weight: 700;
+      }
+      .online {
+        color: var(--ok);
+      }
+      .offline {
+        color: var(--off);
+      }
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>TITAN Control Plane</h1>
+      <p class="muted">Estado actual de sucursales registradas.</p>
+      <p class="muted">Alertas activas: {{ alerts|length }}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Tenant</th>
+            <th>Sucursal</th>
+            <th>Canal</th>
+            <th>OS</th>
+            <th>Version</th>
+            <th>Ventas hoy</th>
+            <th>Disco</th>
+            <th>Backup</th>
+            <th>Tunnel</th>
+            <th>Instalacion</th>
+            <th>Ultimo heartbeat</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for branch in branches %}
+          <tr>
+            <td>{{ branch.tenant_name }}</td>
+            <td>{{ branch.branch_name }}</td>
+            <td>{{ branch.release_channel or "stable" }}</td>
+            <td>{{ branch.os_platform or "-" }}</td>
+            <td>{{ branch.pos_version or "-" }}</td>
+            <td>{{ branch.sales_today or 0 }}</td>
+            <td>{{ branch.disk_used_pct or "-" }}</td>
+            <td>{{ branch.last_backup or "-" }}</td>
+            <td>{{ branch.tunnel_status or "-" }}</td>
+            <td>{{ branch.install_status or "-" }}</td>
+            <td>{{ branch.last_seen or "-" }}</td>
+            <td class="status {{ 'online' if branch.is_online else 'offline' }}">
+              {{ 'online' if branch.is_online else 'offline' }}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="12" class="muted">No hay sucursales registradas.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,144 @@
+name: TITAN POS Release Artifacts
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release config
+        env:
+          CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
+        run: npm run check:release-config
+
+      - name: Build Linux artifact
+        env:
+          CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
+        run: npm run build:linux
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-pos-linux
+          path: frontend/dist/**
+
+  build-windows:
+    runs-on: windows-latest
+    env:
+      CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release config
+        shell: bash
+        env:
+          CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
+        run: npm run check:release-config
+
+      - name: Build Windows artifact
+        shell: bash
+        env:
+          CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
+        run: npm run build:win
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-pos-windows
+          path: frontend/dist/**
+
+  publish-metadata:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: titan-pos-linux
+          path: release-artifacts/linux
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: titan-pos-windows
+          path: release-artifacts/windows
+
+      - name: Generate checksums
+        run: |
+          cd release-artifacts
+          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.snap" -o -name "*setup.exe" -o -name "*.exe" \) -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS.txt
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/linux/**/*.AppImage
+            release-artifacts/linux/**/*.deb
+            release-artifacts/linux/**/*.snap
+            release-artifacts/windows/**/*setup.exe
+            release-artifacts/windows/**/*.exe
+            release-artifacts/SHA256SUMS.txt
+          generate_release_notes: true
+
+      - name: Publish release metadata to control plane
+        if: ${{ secrets.CP_RELEASES_PUBLISH_URL != '' && secrets.CP_RELEASES_TOKEN != '' }}
+        env:
+          CP_RELEASES_PUBLISH_URL: ${{ secrets.CP_RELEASES_PUBLISH_URL }}
+          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
+          CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          RELEASE_BASE_URL="${CP_RELEASES_URL:-https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}}"
+          NOTES="Publicado desde GitHub Actions para tag v${VERSION}"
+          declare -A ASSET_URLS=(
+            ["electron-linux"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}.AppImage"
+            ["electron-windows"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}-setup.exe"
+            ["backend"]="ghcr.io/uriel2121ger-art/titan-pos:${VERSION}"
+          )
+
+          for ARTIFACT in electron-linux electron-windows backend; do
+            TARGET_REF="${ASSET_URLS[$ARTIFACT]}"
+            curl -fsSL -X POST "${CP_RELEASES_PUBLISH_URL}" \
+              -H "Content-Type: application/json" \
+              -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
+              -d "{\"version\":\"${VERSION}\",\"platform\":\"desktop\",\"artifact\":\"${ARTIFACT}\",\"channel\":\"stable\",\"target_ref\":\"${TARGET_REF}\",\"notes\":\"${NOTES}\",\"source\":\"github-actions\"}"
+          done

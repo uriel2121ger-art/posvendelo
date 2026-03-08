@@ -11,7 +11,7 @@ Sistema de Punto de Venta para retail. Backend FastAPI con asyncpg (SQL directo)
 | Driver DB | asyncpg (raw SQL, sin ORM) |
 | Validación | Pydantic v2 |
 | Auth | JWT (PyJWT) + bcrypt |
-| Tests | pytest + pytest-asyncio + httpx (164 tests) |
+| Tests | pytest + pytest-asyncio + httpx (181 tests) |
 | Rate limit | slowapi (requerido) |
 
 ## Inicio rápido
@@ -34,11 +34,13 @@ Servicios:
 ```bash
 cd backend
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt   # Incluye defusedxml para Parsear XML (Fiscal)
 
 # Asegurar que PostgreSQL esté corriendo (Docker o local)
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+**Importante:** La funcionalidad **Parsear XML** (Fiscal → Facturación) requiere **defusedxml**. Viene en `requirements.txt`; si instalas solo algunas dependencias, incluye `defusedxml>=0.7.1`. Ver `docs/PARSEAR_XML_FISCAL.md`.
 
 ## Estructura
 
@@ -64,7 +66,7 @@ backend/
 │   ├── fiscal/              # CFDI 4.0, Facturapi, emisores, facturas (40)
 │   └── shared/              # auth.py (verify_token), rate_limit.py
 ├── migrations/              # 18 archivos SQL (001→025)
-├── tests/                   # 164 tests de integración
+├── tests/                   # 181 tests de integración
 │   ├── conftest.py          # Fixtures: DB, auth, seeds
 │   ├── test_sales.py        # 25 tests (saga, cancel, search)
 │   ├── test_products.py     # 25 tests (CRUD, stock, scan)
@@ -138,7 +140,7 @@ Roles: `admin` > `manager` > `cashier` > `owner`
 ```bash
 cd backend && source .venv/bin/activate
 
-# Correr todos (164 tests)
+# Correr todos (181 tests)
 DATABASE_URL="postgresql+asyncpg://titan_user:PASSWORD@localhost:5433/titan_pos" \
 JWT_SECRET="tu-secret" \
 python3 -m pytest tests/ -v
@@ -169,7 +171,9 @@ python3 -m pytest tests/ -v --tb=long -s
 | test_sync.py | 10 | Pull cursor, push upsert |
 | test_remote.py | 9 | Live sales, notifications, change price |
 | test_sat.py | 4 | Búsqueda catálogos SAT |
-| **Total** | **164** | |
+| test_security.py | 7 | PIN, null bytes, sanitización |
+| test_xml_parse.py | 5 | Parsear XML CFDI 4.0 (ingestor + API: 403, 400, 200; requiere defusedxml) |
+| **Total** | **181** | |
 
 ### Aislamiento
 

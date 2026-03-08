@@ -32,7 +32,7 @@ bcrypt>=4.0.0
 PyJWT>=2.8.0
 
 # ─────────────────────────────────────────────────────────────────────────────────
-# FISCAL Y XML - CFDI 4.0
+# FISCAL Y XML - CFDI 4.0 (defusedxml obligatorio para Parsear XML en panel Fiscal)
 # ─────────────────────────────────────────────────────────────────────────────────
 lxml>=4.9.0
 defusedxml>=0.7.1

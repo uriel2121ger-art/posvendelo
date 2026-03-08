@@ -1,0 +1,23 @@
+---
+description: Workflow de git para TITAN POS
+alwaysApply: false
+---
+
+## Antes de commit
+1. Ejecutar tests backend: `cd backend && set -a && source .env && set +a && pytest tests/ -x`
+2. Opcional frontend: `cd frontend && npm run test`
+3. Verificar que no hay credenciales en el diff
+4. Formato de mensaje: `tipo(scope): descripción en español`
+   - Tipos: feat, fix, refactor, test, docs, chore
+   - Ejemplo: `fix(sync): corregir sequence desincronizado post-sync`
+
+## Branches
+- `main` → producción (protegido)
+- `develop` → integración
+- `feature/nombre` → features nuevas
+- `fix/nombre` → bugfixes
+
+## Nunca hacer
+- Force push a main o develop
+- Commit con credenciales, tokens o .env
+- Merge sin tests pasando

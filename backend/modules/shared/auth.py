@@ -140,7 +140,7 @@ def get_user_id(auth: Dict) -> int:
     try:
         return int(auth["sub"])
     except (KeyError, ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Token invalido: sub no numerico")
+        raise HTTPException(status_code=401, detail="Token inválido: sub no numérico")
 
 
 def verify_token(
@@ -159,11 +159,11 @@ def verify_token(
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token invalido")
+        raise HTTPException(status_code=401, detail="Token inválido")
 
     # Validate required claims exist
     if not payload.get("sub") or not payload.get("role"):
-        raise HTTPException(status_code=401, detail="Token invalido: faltan claims requeridos")
+        raise HTTPException(status_code=401, detail="Token inválido: faltan claims requeridos")
 
     # Check JTI revocation (logout/deactivation)
     jti = payload.get("jti")

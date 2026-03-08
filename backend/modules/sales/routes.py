@@ -343,18 +343,27 @@ async def create_sale(
     body: SaleCreate,
     auth: dict = Depends(verify_token),
 ):
-    """Create a complete sale transaction (atomic: folio + items + stock + credit)."""
+    """Create a complete sale transaction (atomic: folio + items + stock + credit).
+
+    Serie A/B: tarjeta, transfer, mixed → siempre A. Efectivo + requiere_factura → A; efectivo sin factura → B.
+    """
     user_id = get_user_id(auth)
 
-    # ── Validate serie ──
+    # ── Validate payment method (before serie: bancarizados obligan Serie A) ──
+    pm = body.payment_method.strip().lower()
+    if pm not in VALID_PAYMENT_METHODS:
+        raise HTTPException(status_code=400, detail=f"Método de pago inválido: '{pm}'")
+
+    # ── Serie: A = factura individual o pago bancarizado; B = efectivo sin factura (público general)
+    # Backend es fuente de verdad: no confiar en serie del cliente para estas reglas.
     _VALID_SERIES = {"A", "B"}
     if body.serie not in _VALID_SERIES:
         raise HTTPException(status_code=400, detail=f"Serie invalida: '{body.serie}'")
-
-    # ── Validate payment method ──
-    pm = body.payment_method.strip().lower()
-    if pm not in VALID_PAYMENT_METHODS:
-        raise HTTPException(status_code=400, detail=f"Metodo de pago invalido: '{pm}'")
+    requiere_factura = getattr(body, "requiere_factura", False)
+    if pm in ("card", "transfer", "mixed"):
+        body = body.model_copy(update={"serie": "A"})  # Bancarizados/mixto → siempre A
+    elif pm == "cash":
+        body = body.model_copy(update={"serie": "A" if requiere_factura else "B"})  # Efectivo: A si pidió factura, si no B
 
     if pm == "credit" and not body.customer_id:
         raise HTTPException(status_code=400, detail="Venta a credito requiere customer_id")
@@ -369,9 +378,9 @@ async def create_sale(
         if item.qty.is_nan() or item.qty.is_infinite():
             raise HTTPException(status_code=400, detail=f"Cantidad invalida en item {idx+1}")
         if item.price.is_nan() or item.price.is_infinite():
-            raise HTTPException(status_code=400, detail=f"Precio invalido en item {idx+1}")
+            raise HTTPException(status_code=400, detail=f"Precio inválido en item {idx+1}")
         if item.discount.is_nan() or item.discount.is_infinite():
-            raise HTTPException(status_code=400, detail=f"Descuento invalido en item {idx+1}")
+            raise HTTPException(status_code=400, detail=f"Descuento inválido en item {idx+1}")
 
     # ── Start atomic transaction ──
     sale_uuid = str(uuid_mod.uuid4())
@@ -493,7 +502,8 @@ async def create_sale(
                     customer_id, user_id, turn_id, branch_id,
                     cash_received, mixed_cash, mixed_card, mixed_transfer,
                     mixed_wallet, mixed_gift_card,
-                    serie, folio_visible, status, synced
+                    serie, folio_visible, status, synced, requiere_factura,
+                    auth_code, transfer_reference
                 )
                 SELECT :uuid, NOW(),
                        :subtotal, :tax, :total, :discount, :pm,
@@ -502,7 +512,8 @@ async def create_sale(
                        :mw, :mgc,
                        :serie,
                        :serie || :tid_str || '-' || LPAD((SELECT ultimo_numero FROM new_folio)::text, 6, '0'),
-                       'completed', 0
+                       'completed', 0, :requiere_factura,
+                       :auth_code, :transfer_ref
                 RETURNING id, folio_visible
                 """,
                 {
@@ -525,11 +536,14 @@ async def create_sale(
                     "mw": dec(body.mixed_wallet or 0),
                     "mgc": dec(body.mixed_gift_card or 0),
                     "tid_str": str(terminal_id),
+                    "requiere_factura": body.requiere_factura,
+                    "auth_code": ((body.card_reference or "").strip() or None) if pm == "card" else None,
+                    "transfer_ref": ((body.transfer_reference or "").strip() or None) if pm == "transfer" else None,
                 },
             )
 
             if not sale_row:
-                raise HTTPException(status_code=500, detail="Error creando venta — INSERT no retorno ID")
+                raise HTTPException(status_code=500, detail="Error creando venta — INSERT no retornó ID")
 
             sale_id = sale_row["id"]
             folio_visible = sale_row["folio_visible"]

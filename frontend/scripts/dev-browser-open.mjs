@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
 /**
  * Inicia Vite en modo navegador y abre el navegador a los 3 segundos.
  * Uso: node scripts/dev-browser-open.mjs
@@ -6,8 +7,9 @@
  */
 import { spawn } from 'node:child_process'
 import { platform } from 'node:os'
+import { runtimeConfig } from './runtime-config.mjs'
 
-const URL = 'http://127.0.0.1:5173'
+const URL = runtimeConfig.browserOrigin
 
 function openBrowser() {
   const cmd =

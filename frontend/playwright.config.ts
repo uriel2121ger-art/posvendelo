@@ -9,6 +9,19 @@
  */
 import { defineConfig, devices } from '@playwright/test'
 
+function readEnv(name: string, fallback: string): string {
+  const value = process.env[name]?.trim()
+  return value || fallback
+}
+
+const frontendBaseUrl = readEnv(
+  'E2E_BASE_URL',
+  readEnv('TITAN_BROWSER_URL', 'http://127.0.0.1:5173')
+)
+const e2eServerMode = readEnv('E2E_SERVER_MODE', 'dev')
+const e2eServerCommand =
+  e2eServerMode === 'preview' ? 'node ./scripts/start-e2e-preview.mjs' : 'npm run dev:browser'
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -17,7 +30,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: frontendBaseUrl,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
@@ -27,10 +40,10 @@ export default defineConfig({
   ...(process.env.E2E_START_SERVER === '1'
     ? {
         webServer: {
-          command: 'npm run dev:browser',
-          url: 'http://localhost:5173',
+          command: e2eServerCommand,
+          url: frontendBaseUrl,
           reuseExistingServer: true,
-          timeout: 60_000
+          timeout: 120_000
         }
       }
     : {})

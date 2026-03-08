@@ -13,6 +13,7 @@ import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-
 import { loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
 import CustomersTab from './tabs/CustomersTab'
 import DashboardStatsTab from './tabs/DashboardStatsTab'
+import ExpensesTab from './tabs/ExpensesTab'
 import HistoryTab from './tabs/HistoryTab'
 import InventoryTab from './tabs/InventoryTab'
 import Login from './Login'
@@ -28,6 +29,7 @@ import Terminal from './tabs/Terminal'
 import ShiftStartupModal from './tabs/ShiftStartupModal'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import Layout from './components/Layout'
+import CompanionLayout from './components/CompanionLayout'
 import { useFocusTrap } from './hooks/useFocusTrap'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -93,7 +95,7 @@ class TabErrorBoundary extends Component<
             <h1 className="text-2xl font-bold text-rose-400 mb-4">Error en {this.props.tabName}</h1>
             <p className="text-zinc-400 mb-4">{this.state.error.message}</p>
             <p className="text-zinc-500 text-sm mb-6">
-              Las demas pestanas siguen funcionando. Puedes navegar con las teclas F1-F11.
+              Las demás pestañas siguen funcionando. Puedes navegar con las teclas F1-F11.
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -159,6 +161,7 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
 type CashMovModalState = 'hidden' | 'in' | 'out'
 
 import { readCurrentShift as readShiftSnap } from './types/shiftTypes'
+import { toNumber } from './utils/numbers'
 
 type PriceCheckProduct = {
   sku: string
@@ -166,11 +169,6 @@ type PriceCheckProduct = {
   price: number
   priceWholesale?: number
   stock?: number
-}
-
-function toNumber(v: unknown): number {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : 0
 }
 
 function normalizePriceCheckProduct(raw: Record<string, unknown>): PriceCheckProduct | null {
@@ -222,12 +220,12 @@ function CashMovementModal({
       e.preventDefault()
       const num = parseFloat(amount)
       if (!Number.isFinite(num) || num <= 0) {
-        setError('Ingresa un monto valido')
+        setError('Ingresa un monto válido.')
         return
       }
       const shift = readShiftSnap()
       if (!shift?.backendTurnId) {
-        setError('No hay turno abierto. Abre uno en la pestana Turnos.')
+        setError('No hay turno abierto. Abre uno en la pestaña Turnos.')
         return
       }
       setBusy(true)
@@ -263,7 +261,7 @@ function CashMovementModal({
     [amount, reason, mode, onClose]
   )
 
-  const title = mode === 'in' ? 'Entrada de Efectivo' : 'Retiro de Efectivo'
+  const title = mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo'
   const fKey = mode === 'in' ? 'F7' : 'F8'
   const accent = mode === 'in' ? 'emerald' : 'rose'
 
@@ -276,9 +274,9 @@ function CashMovementModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div className="w-full max-w-sm rounded-2xl border border-emerald-700 bg-zinc-900 p-8 shadow-2xl text-center">
           <div className="text-5xl mb-4">&#9989;</div>
-          <h2 className="text-lg font-bold text-emerald-400 mb-2">Operacion exitosa</h2>
+          <h2 className="text-lg font-bold text-emerald-400 mb-2">Operación exitosa</h2>
           <p className="text-zinc-300 font-semibold mb-1">{successMsg}</p>
-          <p className="text-zinc-500 text-sm">Cajon de dinero abierto</p>
+          <p className="text-zinc-500 text-sm">Cajón de dinero abierto</p>
         </div>
       </div>
     )
@@ -410,7 +408,7 @@ function PriceCheckerModal({ onClose }: { onClose: () => void }): ReactElement {
         className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
       >
         <h2 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
-          Verificador de Precios
+          Verificador de precios
           <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">
             F9
           </kbd>
@@ -587,10 +585,11 @@ function RoutedApp(): ReactElement {
       return false
     }
   })()
+  const isCompanionRoute = window.location.hash.startsWith('#/companion')
 
   return (
     <>
-      {hasToken && !shiftResolved && (
+      {hasToken && !shiftResolved && !isCompanionRoute && (
         <ShiftStartupModal
           onComplete={() => setShiftResolved(true)}
           onExit={() => {
@@ -622,6 +621,32 @@ function RoutedApp(): ReactElement {
             </RequireAuth>
           }
         >
+          <Route
+            path="/companion"
+            element={
+              <CompanionLayout>
+                <Outlet />
+              </CompanionLayout>
+            }
+          >
+            <Route path="" element={<Navigate to="/companion/remoto" replace />} />
+            <Route
+              path="remoto"
+              element={
+                <TabErrorBoundary tabName="Companion Remoto">
+                  <RemoteTab />
+                </TabErrorBoundary>
+              }
+            />
+            <Route
+              path="estadisticas"
+              element={
+                <TabErrorBoundary tabName="Companion Estadísticas">
+                  <DashboardStatsTab />
+                </TabErrorBoundary>
+              }
+            />
+          </Route>
           <Route path="/" element={<Navigate to="/terminal" replace />} />
           <Route
             path="/terminal"
@@ -690,7 +715,7 @@ function RoutedApp(): ReactElement {
           <Route
             path="/estadisticas"
             element={
-              <TabErrorBoundary tabName="Estadisticas">
+              <TabErrorBoundary tabName="Estadísticas">
                 <DashboardStatsTab />
               </TabErrorBoundary>
             }
@@ -703,7 +728,14 @@ function RoutedApp(): ReactElement {
               </TabErrorBoundary>
             }
           />
-          <Route path="/gastos" element={<Navigate to="/turnos" replace />} />
+          <Route
+            path="/gastos"
+            element={
+              <TabErrorBoundary tabName="Gastos">
+                <ExpensesTab />
+              </TabErrorBoundary>
+            }
+          />
           <Route
             path="/empleados"
             element={
@@ -725,6 +757,14 @@ function RoutedApp(): ReactElement {
             element={
               <TabErrorBoundary tabName="Fiscal">
                 <FiscalTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/hardware"
+            element={
+              <TabErrorBoundary tabName="Hardware">
+                <SettingsTab mode="hardware" initialTab="printer" />
               </TabErrorBoundary>
             }
           />

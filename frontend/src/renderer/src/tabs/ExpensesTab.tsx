@@ -36,7 +36,7 @@ export default function ExpensesTab(): ReactElement {
       setYearTotal(safeNum(data.year))
     } catch (err) {
       if (requestIdRef.current !== reqId) return
-      setError(err instanceof Error ? err.message : 'Error cargando gastos')
+      setError(err instanceof Error ? err.message : 'Error al cargar gastos.')
     } finally {
       if (requestIdRef.current === reqId) setLoading(false)
     }
@@ -58,12 +58,12 @@ export default function ExpensesTab(): ReactElement {
     const numAmount = Math.round(parseFloat(amount) * 100) / 100
     if (!readCurrentShift()?.backendTurnId) {
       setError(
-        'No hay turno abierto. Abre uno en la pestana Turnos (F5) antes de registrar gastos.'
+        'No hay turno abierto. Abre uno en la pestaña Turnos (F5) antes de registrar gastos.'
       )
       return
     }
     if (!Number.isFinite(numAmount) || numAmount < 0.01) {
-      setError('Ingresa un monto válido (minimo $0.01)')
+      setError('Ingresa un monto válido (mínimo $0.01)')
       return
     }
     if (!description.trim()) {
@@ -91,35 +91,38 @@ export default function ExpensesTab(): ReactElement {
       if (successTimerRef.current) clearTimeout(successTimerRef.current)
       successTimerRef.current = setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error registrando gasto')
+      setError(err instanceof Error ? err.message : 'Error al registrar el gasto.')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-slate-200">
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-bold">Gastos</h1>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-5xl mx-auto w-full p-4 lg:p-6 space-y-6">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-900 bg-zinc-950 px-4 pt-3 pb-3 lg:px-6 lg:pt-4 lg:pb-4">
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <Receipt className="w-6 h-6 text-emerald-500 shrink-0" />
+              <span>Gastos</span>
+            </h1>
             <button
               onClick={() => {
                 setLoading(true)
                 void fetchExpenses()
               }}
               disabled={loading}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm font-medium transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold transition-colors border border-zinc-800 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Recargar
             </button>
           </div>
 
           {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            <div className="flex items-center gap-4 p-5 rounded-xl bg-zinc-900/60 border border-zinc-800">
-              <div className="p-3 rounded-lg bg-blue-400/10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center gap-4 p-4 lg:p-6 rounded-2xl border border-zinc-800 bg-zinc-900/40">
+              <div className="p-3 rounded-xl bg-blue-400/10">
                 <Receipt className="w-6 h-6 text-blue-400" />
               </div>
               <div>
@@ -129,8 +132,8 @@ export default function ExpensesTab(): ReactElement {
                 <div className="text-xs text-zinc-500 font-medium">Total este mes</div>
               </div>
             </div>
-            <div className="flex items-center gap-4 p-5 rounded-xl bg-zinc-900/60 border border-zinc-800">
-              <div className="p-3 rounded-lg bg-purple-400/10">
+            <div className="flex items-center gap-4 p-4 lg:p-6 rounded-2xl border border-zinc-800 bg-zinc-900/40">
+              <div className="p-3 rounded-xl bg-purple-400/10">
                 <Receipt className="w-6 h-6 text-purple-400" />
               </div>
               <div>
@@ -145,10 +148,10 @@ export default function ExpensesTab(): ReactElement {
           {/* Register form */}
           <form
             onSubmit={handleSubmit}
-            className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800 mb-8"
+            className="p-4 lg:p-6 rounded-2xl border border-zinc-800 bg-zinc-900/40"
           >
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-emerald-400" /> Registrar Gasto
+              <Plus className="w-5 h-5 text-emerald-400" /> Registrar gasto
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
@@ -169,7 +172,7 @@ export default function ExpensesTab(): ReactElement {
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
-                  Descripcion
+                  Descripción
                 </label>
                 <input
                   type="text"
@@ -183,7 +186,7 @@ export default function ExpensesTab(): ReactElement {
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
-                  Razon (opcional)
+                  Razón (opcional)
                 </label>
                 <input
                   type="text"
@@ -210,13 +213,13 @@ export default function ExpensesTab(): ReactElement {
           </form>
 
           {error && (
-            <div className="mb-6 p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
               {error}
             </div>
           )}
 
           {success && (
-            <div className="mb-6 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
               {success}
             </div>
           )}

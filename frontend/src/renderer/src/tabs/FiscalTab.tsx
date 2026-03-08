@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useConfirm } from '../components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getUserRole,
   generateCFDI,
+  getSalesPendingInvoice,
   generateGlobalCFDI,
   processReturn,
   getReturnsSummary,
@@ -51,6 +52,8 @@ import FiscalExtraccionesPanel from './fiscal/FiscalExtraccionesPanel'
 import FiscalDocumentosPanel from './fiscal/FiscalDocumentosPanel'
 import FiscalAnalyticsPanel from './fiscal/FiscalAnalyticsPanel'
 import FiscalOperacionesPanel from './fiscal/FiscalOperacionesPanel'
+import { toNumber } from '../utils/numbers'
+import { inputCls, btnPrimary, btnSecondary, btnDanger } from '../utils/styles'
 
 type SubTab =
   | 'facturacion'
@@ -68,28 +71,15 @@ type SubTab =
   | 'operaciones'
   | 'seguridad'
 
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-const inputCls =
-  'w-full rounded-lg border border-zinc-800 bg-zinc-900/80 py-2 px-3 text-sm font-medium text-zinc-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-zinc-600'
-const btnPrimary =
-  'flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-sm text-white hover:bg-blue-500 transition disabled:opacity-50'
-const btnSecondary =
-  'flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2 font-bold text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50'
-const btnDanger =
-  'flex items-center justify-center gap-2 rounded-lg bg-rose-500/20 border border-rose-500/40 px-4 py-2 font-bold text-sm text-rose-400 hover:bg-rose-500/30 transition disabled:opacity-50'
-const cardCls = 'rounded-xl border border-zinc-800 bg-zinc-900/50 p-4'
-const labelCls = 'text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2'
+const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6'
+const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2'
 
 export default function FiscalTab(): ReactElement {
   const confirm = useConfirm()
   const [tab, setTab] = useState<SubTab>('facturacion')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(
-    'Panel fiscal: facturacion, auditoria y operaciones avanzadas.'
+    'Panel fiscal: facturación, auditoría y operaciones avanzadas.'
   )
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const role = getUserRole()
@@ -104,6 +94,9 @@ export default function FiscalTab(): ReactElement {
   const [cfdiUso, setCfdiUso] = useState('G03')
   const [cfdiFormaPago, setCfdiFormaPago] = useState('01')
   const [cfdiZip, setCfdiZip] = useState('')
+  const [salesPendingInvoice, setSalesPendingInvoice] = useState<
+    Array<{ id: number; folio_visible?: string; total?: number; timestamp?: string }>
+  >([])
   const [globalPeriod, setGlobalPeriod] = useState('daily')
   const [globalDate, setGlobalDate] = useState(new Date().toISOString().slice(0, 10))
   const [retSaleId, setRetSaleId] = useState('')
@@ -173,7 +166,7 @@ export default function FiscalTab(): ReactElement {
     try {
       const data = await fn()
       setResult(data)
-      setMessage('Operacion completada.')
+      setMessage('Operación completada.')
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
@@ -183,19 +176,42 @@ export default function FiscalTab(): ReactElement {
 
   const cfg = (): ReturnType<typeof loadRuntimeConfig> => loadRuntimeConfig()
 
+  useEffect(() => {
+    if (tab !== 'facturacion') return
+    let cancelled = false
+    getSalesPendingInvoice(cfg())
+      .then((res) => {
+        if (cancelled) return
+        const data = (res?.data ?? res) as Array<{
+          id: number
+          folio_visible?: string
+          total?: number
+          timestamp?: string
+        }>
+        setSalesPendingInvoice(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSalesPendingInvoice([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [tab])
+
   const tabs: { key: SubTab; label: string }[] = [
-    { key: 'facturacion', label: 'Facturacion' },
-    { key: 'dashboard', label: 'Dashboard' },
+    { key: 'facturacion', label: 'Facturación' },
+    { key: 'dashboard', label: 'Panel' },
     { key: 'inventario', label: 'Inv. Fiscal' },
     { key: 'costos', label: 'Costos' },
-    { key: 'logistica', label: 'Logistica' },
-    { key: 'federation', label: 'Federation' },
+    { key: 'logistica', label: 'Logística' },
+    { key: 'federation', label: 'Federación' },
     { key: 'extracciones', label: 'Extracciones' },
     { key: 'documentos', label: 'Documentos' },
-    { key: 'auditoria', label: 'Auditoria' },
-    { key: 'analytics', label: 'Analytics' },
-    { key: 'wallet', label: 'Wallet' },
-    { key: 'crypto', label: 'Crypto' },
+    { key: 'auditoria', label: 'Auditoría' },
+    { key: 'analytics', label: 'Analítica' },
+    { key: 'wallet', label: 'Billetera' },
+    { key: 'crypto', label: 'Cripto' },
     { key: 'operaciones', label: 'Operaciones' },
     { key: 'seguridad', label: 'Seguridad' }
   ]
@@ -203,33 +219,58 @@ export default function FiscalTab(): ReactElement {
   function renderFacturacion(): ReactElement {
     return (
       <div className="space-y-6">
+        {salesPendingInvoice.length > 0 && (
+          <div className={cardCls}>
+            <h3 className={labelCls}>Ventas que solicitaron factura (pendientes)</h3>
+            <ul className="space-y-2 max-h-40 overflow-y-auto">
+              {salesPendingInvoice.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800 last:border-0"
+                >
+                  <span className="text-sm text-zinc-300">
+                    #{s.id} {s.folio_visible ? ` · ${s.folio_visible}` : ''} · $
+                    {Number(s.total ?? 0).toFixed(2)}
+                  </span>
+                  <button
+                    type="button"
+                    className={btnSecondary + ' text-xs py-1.5 px-2'}
+                    onClick={() => setCfdiSaleId(String(s.id))}
+                  >
+                    Usar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {/* CFDI Individual */}
         <div className={cardCls}>
           <h3 className="text-sm font-semibold mb-3 text-zinc-400">CFDI Individual</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               className={inputCls}
-              placeholder="Sale ID"
+              placeholder="ID de venta"
               value={cfdiSaleId}
               onChange={(e) => setCfdiSaleId(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="RFC Cliente"
+              placeholder="RFC cliente"
               maxLength={13}
               value={cfdiRfc}
               onChange={(e) => setCfdiRfc(e.target.value.toUpperCase())}
             />
             <input
               className={inputCls}
-              placeholder="Nombre Cliente"
+              placeholder="Nombre cliente"
               maxLength={300}
               value={cfdiName}
               onChange={(e) => setCfdiName(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="Regimen Fiscal"
+              placeholder="Régimen fiscal"
               value={cfdiRegimen}
               onChange={(e) => setCfdiRegimen(e.target.value)}
             />
@@ -241,13 +282,13 @@ export default function FiscalTab(): ReactElement {
             />
             <input
               className={inputCls}
-              placeholder="Forma Pago (01)"
+              placeholder="Forma de pago (01)"
               value={cfdiFormaPago}
               onChange={(e) => setCfdiFormaPago(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="Codigo Postal"
+              placeholder="Código postal"
               maxLength={5}
               value={cfdiZip}
               onChange={(e) => setCfdiZip(e.target.value)}
@@ -271,8 +312,8 @@ export default function FiscalTab(): ReactElement {
                   setResult(data)
                   setMessage(
                     data.success
-                      ? `CFDI Timbrado Exitosamente. UUID: ${(data.data as Record<string, unknown>)?.uuid ?? 'Generado'}`
-                      : 'CFDI Generado pero sin confirmacion UUID.'
+                      ? `CFDI timbrado exitosamente. UUID: ${(data.data as Record<string, unknown>)?.uuid ?? 'Generado'}`
+                      : 'CFDI generado pero sin confirmación de UUID.'
                   )
                 } catch (error) {
                   setMessage(`Error CFDI: ${(error as Error).message}`)
@@ -319,28 +360,28 @@ export default function FiscalTab(): ReactElement {
                   setResult(data)
                   setMessage(
                     data.success
-                      ? `CFDI Global Timbrado. UUID: ${(data.data as Record<string, unknown>)?.uuid ?? 'Generado'}`
-                      : 'CFDI Global Generado sin confirmacion UUID.'
+                      ? `CFDI global timbrado. UUID: ${(data.data as Record<string, unknown>)?.uuid ?? 'Generado'}`
+                      : 'CFDI global generado sin confirmación de UUID.'
                   )
                 } catch (error) {
-                  setMessage(`Error CFDI Global: ${(error as Error).message}`)
+                  setMessage(`Error CFDI global: ${(error as Error).message}`)
                 } finally {
                   setBusy(false)
                 }
               }}
             >
-              Generar Global
+              Generar global
             </button>
           </div>
         </div>
 
         {/* Devoluciones */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Devolucion</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Devolución</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               className={inputCls}
-              placeholder="Sale ID"
+              placeholder="ID de venta"
               value={retSaleId}
               onChange={(e) => setRetSaleId(e.target.value)}
             />
@@ -352,7 +393,7 @@ export default function FiscalTab(): ReactElement {
             />
             <input
               className={inputCls}
-              placeholder="Razon"
+              placeholder="Razón"
               value={retReason}
               onChange={(e) => setRetReason(e.target.value)}
             />
@@ -385,14 +426,14 @@ export default function FiscalTab(): ReactElement {
                 )
               }}
             >
-              Procesar Devolucion
+              Procesar devolución
             </button>
             <button
               className={btnSecondary}
               disabled={busy}
               onClick={() => void wrap(() => getReturnsSummary(cfg()))}
             >
-              Resumen Devoluciones
+              Resumen devoluciones
             </button>
           </div>
         </div>
@@ -449,7 +490,7 @@ export default function FiscalTab(): ReactElement {
           </button>
           <input
             className={inputCls + ' max-w-[100px]'}
-            placeholder="Product ID"
+            placeholder="ID de producto"
             type="number"
             value={dualProductId}
             onChange={(e) => setDualProductId(e.target.value)}
@@ -463,11 +504,11 @@ export default function FiscalTab(): ReactElement {
           </button>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Shadow add</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Inventario sombra (entrada)</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               className={inputCls}
-              placeholder="Product ID"
+              placeholder="ID de producto"
               type="number"
               value={shadowAddProductId}
               onChange={(e) => setShadowAddProductId(e.target.value)}
@@ -498,16 +539,16 @@ export default function FiscalTab(): ReactElement {
                 )
               }
             >
-              Agregar shadow
+              Agregar sombra
             </button>
           </div>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Shadow sell</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Inventario sombra (venta)</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               className={inputCls}
-              placeholder="Product ID"
+              placeholder="ID de producto"
               type="number"
               value={shadowSellProductId}
               onChange={(e) => setShadowSellProductId(e.target.value)}
@@ -540,7 +581,7 @@ export default function FiscalTab(): ReactElement {
                 )
               }
             >
-              Venta shadow
+              Venta sombra
             </button>
           </div>
         </div>
@@ -549,13 +590,13 @@ export default function FiscalTab(): ReactElement {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
-              placeholder="Product ID"
+              placeholder="ID de producto"
               value={reconProductId}
               onChange={(e) => setReconProductId(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="Stock Fiscal"
+              placeholder="Stock fiscal"
               type="number"
               value={reconFiscalStock}
               onChange={(e) => setReconFiscalStock(e.target.value)}
@@ -584,7 +625,7 @@ export default function FiscalTab(): ReactElement {
     return (
       <div className="space-y-6">
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Crear Transferencia</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Crear transferencia</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
@@ -606,7 +647,7 @@ export default function FiscalTab(): ReactElement {
             />
             <input
               className={inputCls}
-              placeholder="User ID"
+              placeholder="ID de usuario"
               value={ghostUserId}
               onChange={(e) => setGhostUserId(e.target.value)}
             />
@@ -642,17 +683,17 @@ export default function FiscalTab(): ReactElement {
           </div>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Recibir Transferencia</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Recibir transferencia</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
-              placeholder="Codigo Transferencia"
+              placeholder="Código transferencia"
               value={recvCode}
               onChange={(e) => setRecvCode(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="User ID"
+              placeholder="ID de usuario"
               value={recvUserId}
               onChange={(e) => setRecvUserId(e.target.value)}
             />
@@ -673,7 +714,7 @@ export default function FiscalTab(): ReactElement {
           </div>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Transferencias Pendientes</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Transferencias pendientes</h3>
           <div className="flex gap-2">
             <input
               className={inputCls}
@@ -723,7 +764,7 @@ export default function FiscalTab(): ReactElement {
             disabled={busy}
             onClick={() => void wrap(() => getFederationOperational(cfg()))}
           >
-            Dashboard Operacional
+            Panel operacional
           </button>
           <button
             className={btnSecondary}
@@ -738,18 +779,18 @@ export default function FiscalTab(): ReactElement {
               disabled={busy}
               onClick={() => void wrap(() => getFederationWealth(cfg()))}
             >
-              Wealth
+              Patrimonio
             </button>
           )}
         </div>
         {canAdmin && (
           <div className={cardCls}>
-            <h3 className="text-sm font-semibold mb-3 text-zinc-400">Lockdown / Release</h3>
+            <h3 className="text-sm font-semibold mb-3 text-zinc-400">Bloqueo / Liberación</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
               <input
                 className={inputCls}
                 type="number"
-                placeholder="Branch ID (lockdown)"
+                placeholder="ID de sucursal (bloqueo)"
                 value={lockdownBranchId}
                 onChange={(e) => setLockdownBranchId(e.target.value)}
               />
@@ -762,12 +803,12 @@ export default function FiscalTab(): ReactElement {
                   )
                 }
               >
-                Lockdown
+                Bloquear
               </button>
               <input
                 className={inputCls}
                 type="number"
-                placeholder="Branch ID (release)"
+                placeholder="ID de sucursal (liberar)"
                 value={releaseBranchId}
                 onChange={(e) => setReleaseBranchId(e.target.value)}
               />
@@ -789,14 +830,14 @@ export default function FiscalTab(): ReactElement {
                   )
                 }
               >
-                Release
+                Liberar
               </button>
             </div>
           </div>
         )}
         {!canAdmin && (
           <p className="text-xs text-zinc-500">
-            Acciones de lockdown/release solo para admin/owner.
+            Acciones de bloqueo/liberación solo para administrador/propietario.
           </p>
         )}
       </div>
@@ -812,7 +853,7 @@ export default function FiscalTab(): ReactElement {
             disabled={busy || !canAdmin}
             onClick={() => void wrap(() => runAudit(cfg()))}
           >
-            Ejecutar Auditoria
+            Ejecutar Auditoría
           </button>
           <button
             className={btnSecondary}
@@ -823,11 +864,11 @@ export default function FiscalTab(): ReactElement {
           </button>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Analisis Proveedor</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Análisis proveedor</h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
             <input
               className={inputCls}
-              placeholder="Product ID"
+              placeholder="ID de producto"
               value={supProductId}
               onChange={(e) => setSupProductId(e.target.value)}
             />
@@ -879,7 +920,7 @@ export default function FiscalTab(): ReactElement {
       <div className="space-y-6">
         {/* Wallet */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Ghost Wallet</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Billetera fantasma</h3>
           <div className="flex gap-2 mb-3">
             <input
               className={inputCls}
@@ -894,26 +935,26 @@ export default function FiscalTab(): ReactElement {
                 void wrap(() => createGhostWallet(cfg(), walletSeed.trim() || undefined))
               }
             >
-              Crear Wallet
+              Crear billetera
             </button>
             <button
               className={btnSecondary}
               disabled={busy}
               onClick={() => void wrap(() => getWalletStats(cfg()))}
             >
-              Stats
+              Estadísticas
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
             <input
               className={inputCls}
-              placeholder="Hash ID"
+              placeholder="ID de hash"
               value={wpHashId}
               onChange={(e) => setWpHashId(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="Sale Amount"
+              placeholder="Monto de venta"
               type="number"
               value={wpSaleAmount}
               onChange={(e) => setWpSaleAmount(e.target.value)}
@@ -930,13 +971,13 @@ export default function FiscalTab(): ReactElement {
                 )
               }
             >
-              Agregar Puntos
+              Agregar puntos
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
-              placeholder="Hash ID"
+              placeholder="ID de hash"
               value={wrHashId}
               onChange={(e) => setWrHashId(e.target.value)}
             />
@@ -966,7 +1007,7 @@ export default function FiscalTab(): ReactElement {
 
         {/* Extraccion */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Extraccion</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Extracción</h3>
           <div className="flex gap-2 mb-3 flex-wrap">
             <button
               className={btnSecondary}
@@ -980,7 +1021,7 @@ export default function FiscalTab(): ReactElement {
               disabled={busy}
               onClick={() => void wrap(() => getOptimalExtraction(cfg()))}
             >
-              Optimo
+              Óptimo
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1015,18 +1056,18 @@ export default function FiscalTab(): ReactElement {
             disabled={busy}
             onClick={() => void wrap(() => getCryptoAvailable(cfg()))}
           >
-            Fondos Disponibles
+            Fondos disponibles
           </button>
           <button
             className={btnSecondary}
             disabled={busy}
             onClick={() => void wrap(() => getCryptoWealth(cfg()))}
           >
-            Wealth Total
+            Patrimonio total
           </button>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Conversion</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Conversión</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               className={inputCls}
@@ -1046,13 +1087,13 @@ export default function FiscalTab(): ReactElement {
             </select>
             <input
               className={inputCls}
-              placeholder="Wallet Address"
+              placeholder="Dirección de billetera"
               value={cryptoWallet}
               onChange={(e) => setCryptoWallet(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="Descripcion cobertura"
+              placeholder="Descripción cobertura"
               value={cryptoCover}
               onChange={(e) => setCryptoCover(e.target.value)}
             />
@@ -1062,9 +1103,9 @@ export default function FiscalTab(): ReactElement {
             disabled={busy || !cryptoAmount.trim()}
             onClick={async () => {
               if (
-                !(await confirm('¿Confirmar conversion crypto? Esta operacion es irreversible.', {
+                !(await confirm('¿Confirmar conversión cripto? Esta operación es irreversible.', {
                   variant: 'danger',
-                  title: 'Conversion crypto'
+                  title: 'Conversión cripto'
                 }))
               )
                 return
@@ -1090,13 +1131,14 @@ export default function FiscalTab(): ReactElement {
       <div className="space-y-6">
         {!canAdmin && (
           <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
-            Acceso restringido. Solo admin/owner puede ejecutar operaciones de seguridad.
+            Acceso restringido. Solo administrador/propietario puede ejecutar operaciones de
+            seguridad.
           </div>
         )}
 
         {/* Stealth PIN */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Stealth PIN</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">PIN sigiloso</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
             <input
               className={inputCls}
@@ -1123,14 +1165,14 @@ export default function FiscalTab(): ReactElement {
             />
             <input
               className={inputCls}
-              placeholder="PIN Duress"
+              placeholder="PIN coacción"
               type="password"
               value={confDuress}
               onChange={(e) => setConfDuress(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="PIN Wipe"
+              placeholder="PIN borrado"
               type="password"
               value={confWipe}
               onChange={(e) => setConfWipe(e.target.value)}
@@ -1162,17 +1204,17 @@ export default function FiscalTab(): ReactElement {
 
         {/* Surgical Delete */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-rose-400">Eliminacion Quirurgica</h3>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Eliminación quirúrgica</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
-              placeholder="Sale IDs (comma separated)"
+              placeholder="IDs de ventas (separados por coma)"
               value={sdSaleIds}
               onChange={(e) => setSdSaleIds(e.target.value)}
             />
             <input
               className={inputCls}
-              placeholder="Frase de confirmacion"
+              placeholder="Frase de confirmación"
               value={sdConfirm}
               onChange={(e) => setSdConfirm(e.target.value)}
             />
@@ -1182,15 +1224,15 @@ export default function FiscalTab(): ReactElement {
               onClick={async () => {
                 if (
                   !(await confirm(
-                    'ADVERTENCIA: Esta accion elimina ventas permanentemente. ¿Continuar?',
-                    { variant: 'danger', title: 'Eliminacion quirurgica' }
+                    'ADVERTENCIA: Esta acción elimina ventas permanentemente. ¿Continuar?',
+                    { variant: 'danger', title: 'Eliminación quirúrgica' }
                   ))
                 )
                   return
                 if (
-                  !(await confirm('SEGUNDA CONFIRMACION: ¿Estas absolutamente seguro?', {
+                  !(await confirm('SEGUNDA CONFIRMACIÓN: ¿Estás absolutamente seguro?', {
                     variant: 'danger',
-                    title: 'Confirmar eliminacion'
+                    title: 'Confirmar eliminación'
                   }))
                 )
                   return
@@ -1210,7 +1252,7 @@ export default function FiscalTab(): ReactElement {
 
         {/* Evasion */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-rose-400">Evasion</h3>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Evasión</h3>
           <div className="flex gap-2 flex-wrap">
             <button
               className={btnDanger}
@@ -1224,7 +1266,7 @@ export default function FiscalTab(): ReactElement {
                 )
                   return
                 if (
-                  !(await confirm('CONFIRMAR PANIC: Esta accion es irreversible.', {
+                  !(await confirm('CONFIRMAR PANIC: Esta acción es irreversible.', {
                     variant: 'danger',
                     title: 'Confirmar PANIC'
                   }))
@@ -1241,7 +1283,7 @@ export default function FiscalTab(): ReactElement {
               onChange={(e) => setFakeType(e.target.value)}
             >
               <option value="maintenance">Mantenimiento</option>
-              <option value="update">Actualizacion</option>
+              <option value="update">Actualización</option>
               <option value="error">Error</option>
             </select>
             <button
@@ -1258,12 +1300,12 @@ export default function FiscalTab(): ReactElement {
                 void wrap(() => triggerFakeScreen(cfg(), { screen_type: fakeType }))
               }}
             >
-              Fake Screen
+              Pantalla falsa
             </button>
           </div>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-rose-400">Dead drive</h3>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Unidad muerta</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
@@ -1282,9 +1324,9 @@ export default function FiscalTab(): ReactElement {
               disabled={busy || !deadDriveDevice.trim() || !deadDriveConfirm.trim() || !canAdmin}
               onClick={async () => {
                 if (
-                  !(await confirm('¿Ejecutar dead-drive? Esta acción es irreversible.', {
+                  !(await confirm('¿Ejecutar unidad muerta? Esta acción es irreversible.', {
                     variant: 'danger',
-                    title: 'Dead drive'
+                    title: 'Unidad muerta'
                   }))
                 )
                   return
@@ -1296,7 +1338,7 @@ export default function FiscalTab(): ReactElement {
                 )
               }}
             >
-              Dead drive
+              Unidad muerta
             </button>
           </div>
         </div>
@@ -1346,9 +1388,9 @@ export default function FiscalTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-zinc-950 font-sans text-slate-200 select-none">
-      {/* Sub-tab bar — mismo estilo que TopNavbar */}
-      <div className="flex items-center gap-1 border-b border-zinc-900 bg-zinc-950 px-3 py-2 overflow-x-auto shrink-0 hide-scrollbar">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      {/* Sub-tab bar — mismo estilo que Ventas/TopNavbar */}
+      <div className="shrink-0 flex items-center gap-1 border-b border-zinc-900 bg-zinc-950 px-4 py-2 overflow-x-auto hide-scrollbar">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -1369,14 +1411,14 @@ export default function FiscalTab(): ReactElement {
       </div>
 
       {/* Content — ancho contenido como Terminal/Clientes */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-4xl mx-auto w-full p-4 lg:p-6 space-y-6">
           {tabRenderers[tab]()}
 
           {/* Result viewer */}
           {result && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-              <div className="flex items-center justify-between mb-2">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-3">
                 <p className={labelCls}>Resultado</p>
                 <button
                   type="button"
@@ -1386,7 +1428,7 @@ export default function FiscalTab(): ReactElement {
                   Cerrar
                 </button>
               </div>
-              <pre className="max-h-72 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-[11px] font-mono text-zinc-300 leading-relaxed">
+              <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-[11px] font-mono text-zinc-300 leading-relaxed">
                 {JSON.stringify(result, null, 2)}
               </pre>
             </div>
@@ -1395,7 +1437,7 @@ export default function FiscalTab(): ReactElement {
       </div>
 
       {/* Barra de mensaje — mismo criterio que pie de Terminal */}
-      <div className="shrink-0 border-t border-zinc-900 bg-zinc-950/80 px-4 py-2.5 text-[11px] text-zinc-400">
+      <div className="shrink-0 border-t border-zinc-900 bg-zinc-950/80 px-4 py-3 text-[11px] text-zinc-400">
         {message}
       </div>
     </div>

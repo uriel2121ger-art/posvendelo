@@ -2,6 +2,13 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { LocalNodeAgent } from './localAgent'
+
+const defaultConnectSrc =
+  process.env.ELECTRON_ALLOWED_CONNECT_SRC?.trim() ||
+  'http://localhost:* http://127.0.0.1:* http://192.168.*:*'
+
+const localAgent = new LocalNodeAgent()
 
 function isSafeExternalUrl(rawUrl: string): boolean {
   try {
@@ -54,7 +61,7 @@ function createWindow(): void {
               "style-src 'self' 'unsafe-inline'; " +
               "img-src 'self' data: blob:; " +
               "font-src 'self' data:; " +
-              "connect-src 'self' http://localhost:* http://127.0.0.1:* http://192.168.*:*; " +
+              `connect-src 'self' ${defaultConnectSrc}; ` +
               "object-src 'none'; " +
               "base-uri 'self'"
           ]
@@ -77,7 +84,7 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.titanpos.pos')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -94,6 +101,15 @@ app.whenReady().then(() => {
     if (win) win.close()
   })
 
+  ipcMain.handle('agent:get-status', async () => localAgent.getStatus())
+  ipcMain.handle('agent:refresh', async () => localAgent.refreshNow())
+  ipcMain.handle('agent:prepare-app-update', async () => localAgent.prepareAppUpdate())
+  ipcMain.handle('agent:apply-app-update', async () => localAgent.applyStagedAppUpdate())
+  ipcMain.handle('agent:discard-app-update', async () => localAgent.discardAppUpdate())
+  ipcMain.handle('agent:rollback-app-update', async () => localAgent.rollbackLastAppUpdate())
+
+  localAgent.start()
+
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
@@ -106,6 +122,7 @@ app.whenReady().then(() => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    localAgent.stop()
     app.quit()
   }
 })

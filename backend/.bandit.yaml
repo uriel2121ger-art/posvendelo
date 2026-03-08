@@ -1,0 +1,19 @@
+# Bandit — Python SAST
+# Ejecutar: bandit -r modules/ db/ main.py -c .bandit.yaml
+# Ver: https://bandit.readthedocs.io/en/latest/config.html
+
+exclude_dirs:
+  - "tests"
+  - "migrations"
+  - "__pycache__"
+  - ".venv"
+  - "venv"
+
+# Falsos positivos conocidos
+skips:
+  - B104   # hardcoded_bind_all_interfaces — 0.0.0.0 en uvicorn es intencional (LAN)
+  - B105   # hardcoded_password_string — usamos os.getenv()
+  - B106   # hardcoded_password_funcarg
+  - B108   # hardcoded_tmp_directory — /tmp en csd_vault y system_maintenance es intencional (paths permitidos)
+  - B310   # urllib urlopen — risk_mitigation.py usa URL externa controlada por config
+  - B608   # hardcoded_sql_expressions — usamos parámetros nombrados (:name); Bandit no los detecta

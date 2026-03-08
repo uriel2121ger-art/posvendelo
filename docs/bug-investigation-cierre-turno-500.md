@@ -170,6 +170,7 @@ En comentarios del repo ya se documenta: para columnas TIMESTAMP sin TZ “pass 
 - Comentarios en repo: `modules/dashboard/routes.py` (cash_movements vs sales timestamp), `modules/expenses/routes.py` (naive para TIMESTAMP).
 - Migraciones: `032_fix_timestamp_text_columns.sql`, `035_timestamp_text_to_timestamp.sql`.
 - asyncpg: codec en `protocol/codecs/datetime.pyx` (encode para parámetros de tipo timestamp).
+- **Parámetro DATE (toordinal / str en contexto DATE):** ver `docs/BUG_PATTERN_ASYNCPG_FECHAS.md`.
 
 ---
 

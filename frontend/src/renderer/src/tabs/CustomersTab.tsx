@@ -26,6 +26,9 @@ import {
   getCustomerSales
 } from '../posApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useFormDirty } from '../hooks/useFormDirty'
+import { downloadCsv, parseCsvLine } from '../utils/csv'
+// SheetJS CE 0.20.3 desde CDN (package.json); el paquete "xlsx" de npm está desactualizado y vulnerable
 import * as XLSX from 'xlsx'
 
 type Customer = {
@@ -52,57 +55,18 @@ function normalizeCustomer(raw: Record<string, unknown>): Customer | null {
     phone: String(raw.phone ?? raw.telefono ?? ''),
     email: String(raw.email ?? ''),
     rfc: raw.rfc != null ? String(raw.rfc) : undefined,
-    codigo_postal: raw.codigo_postal != null ? String(raw.codigo_postal) : (raw.postal_code != null ? String(raw.postal_code) : undefined),
+    codigo_postal:
+      raw.codigo_postal != null
+        ? String(raw.codigo_postal)
+        : raw.postal_code != null
+          ? String(raw.postal_code)
+          : undefined,
     razon_social: raw.razon_social != null ? String(raw.razon_social) : undefined,
     regimen_fiscal: raw.regimen_fiscal != null ? String(raw.regimen_fiscal) : undefined
   }
 }
 
 // ─── Exportar / Importar CSV y Excel ───────────────────────────────────────
-
-function toCsvCell(value: string): string {
-  // eslint-disable-next-line no-control-regex -- strip control chars for CSV safety
-  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
-  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
-  return `"${safe.replace(/"/g, '""')}"`
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
-  const blob = new Blob([`\uFEFF${csv}\n`], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 100)
-}
-
-function parseCsvLine(line: string): string[] {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i++
-        continue
-      }
-      inQuotes = !inQuotes
-      continue
-    }
-    if (!inQuotes && c === ',') {
-      result.push(current.trim())
-      current = ''
-      continue
-    }
-    current += c
-  }
-  result.push(current.trim())
-  return result
-}
 
 const CUSTOMER_IMPORT_FIELDS: {
   key: 'name' | 'phone' | 'email'
@@ -158,10 +122,11 @@ export default function CustomersTab(): ReactElement {
   const [regimenFiscal, setRegimenFiscal] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(
-    'Clientes (F2): carga, alta, edicion y baja logica funcional.'
+    'Clientes (F2): carga, alta, edición y baja lógica funcional.'
   )
   const requestIdRef = useRef(0)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const { formDirtyRef, guardedClose, resetDirty } = useFormDirty()
   const [creditData, setCreditData] = useState<Record<string, unknown> | null>(null)
 
   useFocusTrap(drawerRef, isDrawerOpen)
@@ -239,15 +204,17 @@ export default function CustomersTab(): ReactElement {
     requestIdRef.current++ // invalidate any in-flight load
     const trimmedName = name.trim()
     if (!trimmedName) {
-      setMessage('Nombre de cliente es obligatorio.')
+      setMessage('El nombre del cliente es obligatorio.')
       return
     }
     if (phone.trim() && !PHONE_RE.test(phone.trim())) {
-      setMessage('Telefono invalido. Usa solo digitos, espacios, +, - o parentesis (7-20 chars).')
+      setMessage(
+        'Teléfono inválido. Usa sólo dígitos, espacios, +, - o paréntesis (7-20 caracteres).'
+      )
       return
     }
     if (email.trim() && !EMAIL_RE.test(email.trim())) {
-      setMessage('Email invalido. Ejemplo: usuario@dominio.com')
+      setMessage('Correo electrónico inválido. Ejemplo: usuario@dominio.com')
       return
     }
     const isUpdate = Boolean(selectedId)
@@ -279,6 +246,7 @@ export default function CustomersTab(): ReactElement {
         setCustomers((prev) =>
           prev.map((item) => (String(item.id) === selectedId ? { ...item, ...customer } : item))
         )
+        resetDirty()
         setMessage(`Cliente actualizado: ${trimmedName}`)
       } else {
         // Create via POST (returns real DB id)
@@ -303,6 +271,7 @@ export default function CustomersTab(): ReactElement {
           regimen_fiscal: regimenFiscal.trim() || undefined
         }
         setCustomers((prev) => [newCustomer, ...prev])
+        resetDirty()
         setIsDrawerOpen(false)
         setMessage(`Cliente guardado: ${trimmedName}`)
       }
@@ -357,6 +326,7 @@ export default function CustomersTab(): ReactElement {
         cfg
       )
       setCustomers((prev) => prev.filter((item) => String(item.id) !== selectedId))
+      resetDirty()
       setSelectedId(null)
       setName('')
       setPhone('')
@@ -377,7 +347,7 @@ export default function CustomersTab(): ReactElement {
   async function loadCredit(customerId: string): Promise<void> {
     const numId = Number(customerId)
     if (!Number.isFinite(numId) || numId <= 0) {
-      setMessage('ID de cliente invalido para consultar credito.')
+      setMessage('ID de cliente inválido para consultar crédito.')
       return
     }
     try {
@@ -386,7 +356,7 @@ export default function CustomersTab(): ReactElement {
       const data = (raw.data ?? raw) as Record<string, unknown>
       setCreditData(data)
       setShowCredit(true)
-      setMessage(`Credito cargado para cliente ${customerId}.`)
+      setMessage(`Crédito cargado para cliente ${customerId}.`)
     } catch (err) {
       setMessage((err as Error).message)
       setCreditData(null)
@@ -396,7 +366,7 @@ export default function CustomersTab(): ReactElement {
   async function loadCustomerSalesData(customerId: string): Promise<void> {
     const numId = Number(customerId)
     if (!Number.isFinite(numId) || numId <= 0) {
-      setMessage('ID de cliente invalido para consultar ventas.')
+      setMessage('ID de cliente inválido para consultar ventas.')
       return
     }
     try {
@@ -413,6 +383,7 @@ export default function CustomersTab(): ReactElement {
   }
 
   function selectCustomer(customer: Customer): void {
+    resetDirty()
     setSelectedId(String(customer.id))
     setIsDrawerOpen(true)
     setName(customer.name)
@@ -430,6 +401,7 @@ export default function CustomersTab(): ReactElement {
   }
 
   function resetForm(): void {
+    resetDirty()
     setSelectedId(null)
     setIsDrawerOpen(true)
     setName('')
@@ -590,17 +562,15 @@ export default function CustomersTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Header Area — una fila: título + botones compactos (como Productos) */}
-        <div className="px-6 py-4 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between gap-4 shrink-0 flex-nowrap">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Header — mismo patrón que Ventas/Turnos */}
+        <div className="shrink-0 flex items-center justify-between gap-4 border-b border-zinc-900 bg-zinc-950 px-4 pt-3 pb-3 lg:px-6 lg:pt-4 lg:pb-4">
           <div className="min-w-0 shrink">
             <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
               <Users className="w-6 h-6 text-emerald-500 shrink-0" />
-              <span className="truncate">Directorio de Clientes</span>
+              <span className="truncate">Directorio de clientes</span>
             </h1>
-            <p className="text-zinc-500 text-xs mt-0.5 truncate">{customers.length} clientes</p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-nowrap">
             <button
@@ -714,13 +684,13 @@ export default function CustomersTab(): ReactElement {
           </div>
         </div>
 
-        {/* Toolbar (Search) */}
-        <div className="px-8 py-4 bg-zinc-950/50 flex flex-wrap items-center gap-4 shrink-0">
-          <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+        {/* Toolbar (Search) — mismo patrón que Productos */}
+        <div className="shrink-0 px-4 lg:px-6 py-3 bg-zinc-950/50 flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[280px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-600"
-              placeholder="Buscar por nombre, teléfono o email..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-10 pr-3 text-sm font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-zinc-600"
+              placeholder="Buscar por nombre, teléfono o correo..."
               value={query}
               // eslint-disable-next-line no-control-regex
               onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
@@ -729,27 +699,27 @@ export default function CustomersTab(): ReactElement {
         </div>
 
         {/* Master List (Data Grid) */}
-        <div className="flex-1 overflow-y-auto px-8 py-4">
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 py-3">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold">
-                  <th className="px-6 py-4">Nombre del Cliente</th>
-                  <th className="px-6 py-4 w-48">Contacto</th>
-                  <th className="px-6 py-4 w-64">Email</th>
-                  <th className="px-6 py-4 w-16"></th>
+              <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                <tr>
+                  <th className="px-4 py-2">Nombre del cliente</th>
+                  <th className="px-4 py-2 w-48">Contacto</th>
+                  <th className="px-4 py-2 w-64">Correo</th>
+                  <th className="px-4 py-2 w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-16 text-center text-zinc-500">
+                    <td colSpan={4} className="px-4 py-12 text-center text-zinc-500">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
                       <p className="text-lg font-medium text-zinc-400">Directorio vacío</p>
                       <p className="text-sm mt-1">
                         {query.trim()
                           ? 'Intenta con otra búsqueda.'
-                          : 'Haz clic en "Nuevo Cliente".'}
+                          : 'Haz clic en "Nuevo" para agregar.'}
                       </p>
                     </td>
                   </tr>
@@ -773,17 +743,17 @@ export default function CustomersTab(): ReactElement {
                       className="group hover:bg-zinc-800/40 cursor-pointer transition-colors"
                       aria-label={`Cliente ${c.name}`}
                     >
-                      <td className="px-6 py-4 font-medium text-zinc-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 text-zinc-500 flex items-center justify-center shrink-0">
-                            <UserCircle className="w-5 h-5" />
+                      <td className="px-4 py-2 text-sm font-medium text-zinc-200">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-zinc-800 text-zinc-500 flex items-center justify-center shrink-0">
+                            <UserCircle className="w-3.5 h-3.5" />
                           </div>
-                          <div className="truncate group-hover:text-emerald-400 transition-colors">
+                          <span className="truncate group-hover:text-emerald-400 transition-colors">
                             {c.name}
-                          </div>
+                          </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-zinc-400 font-mono truncate">
+                      <td className="px-4 py-2 text-sm text-zinc-400 font-mono truncate">
                         {c.phone ? (
                           <div className="flex items-center gap-2">
                             <Phone className="w-3.5 h-3.5 opacity-50" /> {c.phone}
@@ -792,7 +762,7 @@ export default function CustomersTab(): ReactElement {
                           <span className="opacity-30">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-zinc-400 truncate max-w-[200px]">
+                      <td className="px-4 py-2 text-sm text-zinc-400 truncate max-w-[200px]">
                         {c.email ? (
                           <div className="flex items-center gap-2">
                             <Mail className="w-3.5 h-3.5 opacity-50" /> {c.email}
@@ -801,7 +771,7 @@ export default function CustomersTab(): ReactElement {
                           <span className="opacity-30">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-2 text-right">
                         <button className="p-2 -mr-2 text-zinc-600 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-emerald-500/10">
                           <UserCircle className="w-4 h-4" />
                         </button>
@@ -815,7 +785,7 @@ export default function CustomersTab(): ReactElement {
         </div>
 
         {/* Footer info */}
-        <div className="bg-zinc-950 border-t border-zinc-900 px-8 py-3 flex items-center justify-between shrink-0 text-sm">
+        <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 px-4 lg:px-6 py-3 flex items-center justify-between text-sm">
           <span className="text-zinc-500">{message}</span>
           <div className="flex items-center gap-4">
             <span className="text-zinc-600">{filtered.length} resultados en total</span>
@@ -848,21 +818,24 @@ export default function CustomersTab(): ReactElement {
       {isDrawerOpen && (
         <div
           className="absolute inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity flex justify-end"
-          onClick={() => setIsDrawerOpen(false)}
+          onClick={() => guardedClose(() => setIsDrawerOpen(false))}
         >
           {/* Drawer Panel */}
           <div
             ref={drawerRef}
             className="w-[480px] bg-zinc-950 border-l border-zinc-800 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0 cursor-default"
             onClick={(e) => e.stopPropagation()}
+            onInput={() => {
+              formDirtyRef.current = true
+            }}
           >
-            <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/30">
+            <div className="px-4 lg:px-6 py-3 border-b border-zinc-900 flex items-center justify-between bg-zinc-950">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <UserCircle className="w-6 h-6 text-emerald-500" />
-                {selectedId ? 'Perfil del Cliente' : 'Nuevo Cliente'}
+                {selectedId ? 'Perfil del cliente' : 'Nuevo cliente'}
               </h2>
               <button
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={() => guardedClose(() => setIsDrawerOpen(false))}
                 className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -910,7 +883,7 @@ export default function CustomersTab(): ReactElement {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-3">
                   Datos de facturación (opcionales)
                 </p>
@@ -933,7 +906,9 @@ export default function CustomersTab(): ReactElement {
                     </label>
                     <input
                       value={codigoPostal}
-                      onChange={(e) => setCodigoPostal(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onChange={(e) =>
+                        setCodigoPostal(e.target.value.replace(/\D/g, '').slice(0, 10))
+                      }
                       placeholder="Ej: 97000"
                       className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
                     />
@@ -992,8 +967,8 @@ export default function CustomersTab(): ReactElement {
                   {/* Credit Panel */}
                   {showCredit && creditData && (
                     <div className="bg-indigo-950/20 border border-indigo-900/30 rounded-xl p-5 animate-fade-in-up">
-                      <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <CreditCard className="w-4 h-4" /> Estado de Cuenta
+                      <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4" /> Estado de cuenta
                       </h3>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1006,7 +981,7 @@ export default function CustomersTab(): ReactElement {
                         </div>
                         <div>
                           <div className="text-[10px] uppercase text-indigo-300/60 font-bold mb-1">
-                            Balance Deuda
+                            Saldo deudor
                           </div>
                           <div className="text-lg font-mono text-rose-400">
                             ${Number(creditData.balance ?? creditData.used ?? 0).toFixed(2)}
@@ -1028,8 +1003,8 @@ export default function CustomersTab(): ReactElement {
                   {showSales && customerSales.length > 0 && (
                     <div className="bg-blue-950/20 border border-blue-900/30 rounded-xl overflow-hidden animate-fade-in-up">
                       <div className="px-4 py-3 bg-blue-900/20 border-b border-blue-900/30">
-                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2">
-                          <ShoppingBag className="w-4 h-4" /> Últimas Compras
+                        <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                          <ShoppingBag className="w-4 h-4" /> Últimas compras
                         </h3>
                       </div>
                       <div className="max-h-48 overflow-y-auto p-2">
@@ -1058,7 +1033,7 @@ export default function CustomersTab(): ReactElement {
                     </div>
                   )}
                   {showSales && customerSales.length === 0 && (
-                    <div className="text-center p-4 py-8 text-zinc-600 bg-zinc-900/30 rounded-xl border border-zinc-800/50">
+                    <div className="text-center p-4 py-8 text-zinc-600 rounded-2xl border border-zinc-800 bg-zinc-900/40">
                       <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-20" />
                       <div className="text-sm font-medium">No hay compras registradas</div>
                     </div>
@@ -1067,13 +1042,13 @@ export default function CustomersTab(): ReactElement {
               )}
             </div>
 
-            <div className="p-6 border-t border-zinc-800 bg-zinc-900/50 flex flex-col gap-3 shrink-0">
+            <div className="p-4 lg:p-6 border-t border-zinc-900 bg-zinc-950 flex flex-col gap-3 shrink-0">
               <button
                 onClick={() => void handleCreate()}
                 disabled={busy || !name.trim()}
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 text-sm"
+                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold tracking-wider shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 text-sm"
               >
-                {busy ? 'PROCESANDO...' : selectedId ? 'ACTUALIZAR PERFIL' : 'GUARDAR CLIENTE'}
+                {busy ? 'Procesando...' : selectedId ? 'Actualizar perfil' : 'Guardar cliente'}
               </button>
               {selectedId && (
                 <button
@@ -1081,7 +1056,7 @@ export default function CustomersTab(): ReactElement {
                   disabled={busy}
                   className="w-full py-3 bg-transparent border border-rose-500/30 text-rose-500 rounded-xl font-bold tracking-wider hover:bg-rose-500/10 transition-colors disabled:opacity-50 text-xs"
                 >
-                  ELIMINAR CLIENTE
+                  Eliminar cliente
                 </button>
               )}
             </div>
@@ -1099,7 +1074,7 @@ export default function CustomersTab(): ReactElement {
             className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Upload className="w-5 h-5 text-emerald-500" />
                 Importar clientes (CSV o Excel)
@@ -1171,28 +1146,28 @@ export default function CustomersTab(): ReactElement {
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 mb-2">Vista previa (primeras 5 filas)</p>
-                    <div className="overflow-x-auto rounded-xl border border-zinc-700 max-h-32 overflow-y-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead>
-                          <tr className="bg-zinc-800/80 text-zinc-400">
+                    <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/40 max-h-32 overflow-y-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                          <tr>
                             {CUSTOMER_IMPORT_FIELDS.filter((f) =>
                               importHeaders.some((col) => importMapping[col] === f.key)
                             ).map((f) => (
-                              <th key={f.key} className="px-3 py-2 font-medium">
+                              <th key={f.key} className="px-4 py-2 font-medium">
                                 {f.label}
                               </th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-zinc-800/50">
                           {importRows.slice(0, 5).map((row, i) => {
                             const mapped = getMappedRow(row)
                             return (
-                              <tr key={i} className="border-t border-zinc-800">
+                              <tr key={i} className="hover:bg-zinc-800/40 transition-colors">
                                 {CUSTOMER_IMPORT_FIELDS.filter((f) =>
                                   importHeaders.some((col) => importMapping[col] === f.key)
                                 ).map((f) => (
-                                  <td key={f.key} className="px-3 py-2 text-zinc-300">
+                                  <td key={f.key} className="px-4 py-2 text-zinc-300">
                                     {mapped[f.key] ?? '—'}
                                   </td>
                                 ))}
@@ -1211,7 +1186,7 @@ export default function CustomersTab(): ReactElement {
               )}
             </div>
             {importHeaders.length > 0 && (
-              <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-between gap-4 shrink-0 bg-zinc-950/50">
+              <div className="px-4 py-3 border-t border-zinc-800 flex items-center justify-between gap-4 shrink-0 bg-zinc-950/50">
                 {importProgress ? (
                   <span className="text-sm text-zinc-400">
                     Importando… {importProgress.done} / {importProgress.total}

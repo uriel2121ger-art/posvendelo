@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Utilidades compartidas para tests de TITAN POS.
  * Custom render con Router + helpers de localStorage.

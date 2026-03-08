@@ -1,0 +1,121 @@
+# TITAN POS — Security scan (SAST, deps, secretos)
+# Herramientas: Bandit, pip-audit, Semgrep, Gitleaks, npm audit
+
+name: Security
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  # ─── Backend: Bandit (Python SAST) ───────────────────────
+  bandit:
+    name: Bandit (Python SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        working-directory: backend
+        run: bandit -r modules/ db/ main.py -c .bandit.yaml -ll 2>&1 | tee bandit-report.txt
+        continue-on-error: false
+
+  # ─── Backend: pip-audit (dependencias Python) ─────────────
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit
+        continue-on-error: false
+
+  # ─── Semgrep (SAST multi-lenguaje, reglas OSS) ───────────
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep (config auto — Python + JS/TS)
+        run: |
+          semgrep scan \
+            --config auto \
+            --config p/python \
+            --config p/typescript \
+            --config p/react \
+            --error \
+            --verbose \
+            backend/ frontend/src/ 2>&1 | tee semgrep-report.txt || true
+        continue-on-error: true
+        # continue-on-error: true para no bloquear PR si hay hallazgos; revisar semgrep-report.txt
+
+  # ─── Gitleaks (detección de secretos) ────────────────────
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_COMMENTS: "false"
+        continue-on-error: false
+
+  # ─── Frontend: npm audit (dependencias Node) ──────────────
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run npm audit (production)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: false

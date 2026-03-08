@@ -2,7 +2,7 @@
 TITAN POS - Auth Module Routes
 
 Login + verify endpoints using asyncpg direct.
-Bcrypt-only password verification. Rate-limited login: 5/min prod, 25/min DEBUG.
+Bcrypt-only password verification. Rate-limited login with env override.
 """
 
 import logging
@@ -19,9 +19,9 @@ from modules.auth.schemas import LoginRequest, TokenResponse
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Login rate limit: 5/min in prod, 25/min in DEBUG (E2E tests)
+# Login rate limit: configurable to avoid blocking legitimate cashier/QA relogins.
 _debug = os.getenv("DEBUG", "false").lower() == "true"
-_login_rate = "25/minute" if _debug else "5/minute"
+_login_rate = os.getenv("LOGIN_RATE_LIMIT", "120/minute" if _debug else "30/minute").strip()
 
 
 async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
