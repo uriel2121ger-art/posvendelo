@@ -888,7 +888,7 @@ async def perform_sale_cancellation(
                        user_id, action, entity_type, entity_id, record_id, branch_id, success, details, timestamp
                    )
                    VALUES (
-                       :user_id, 'SALE_CANCEL', 'sale', :entity_id, :record_id, :branch_id, 1, :details, NOW()
+                       :user_id, 'SALE_CANCEL', 'sale', :entity_id, :record_id, :branch_id, TRUE, :details, NOW()
                    )""",
                 {
                     "user_id": user_id,

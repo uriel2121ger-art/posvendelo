@@ -2,6 +2,7 @@
   "name": "titan-pos",
   "version": "1.0.0",
   "description": "TITAN POS desktop app for retail operations in Mexico",
+  "homepage": "https://github.com/uriel2121ger-art/titan-pos",
   "main": "./out/main/index.js",
   "author": "TITAN POS",
   "scripts": {
