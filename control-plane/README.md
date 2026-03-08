@@ -39,12 +39,12 @@ curl http://localhost:9090/health
 1. Crear tenant:
 
 ```bash
-ADMIN_HEADER="${CP_ADMIN_HEADER_NAME}"
 curl -X POST http://localhost:9090/api/v1/tenants/ \
-  -H "${ADMIN_HEADER}: ${CP_ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"name":"Cliente Demo","slug":"cliente-demo"}'
 ```
+
+Este endpoint requiere el header administrativo configurado para el entorno.
 
 1. Tomar `install_token` de la sucursal bootstrap.
 1. Obtener config:
@@ -109,12 +109,12 @@ Rutas disponibles:
 Emitir o renovar una licencia:
 
 ```bash
-ADMIN_HEADER="${CP_ADMIN_HEADER_NAME}"
 curl -X POST http://localhost:9090/api/v1/licenses/issue \
-  -H "${ADMIN_HEADER}: ${CP_ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"tenant_id":1,"license_type":"monthly","valid_until":"2026-04-01T00:00:00","grace_days":5}'
 ```
+
+Este endpoint requiere el header administrativo configurado para el entorno.
 
 Exportar `titan-license.json` para un cliente offline:
 
@@ -144,20 +144,20 @@ curl -X POST http://localhost:9090/api/v1/heartbeat/ \
 1. Publicar metadata de release desde CI o manual:
 
 ```bash
-RELEASE_HEADER="${CP_RELEASE_HEADER_NAME}"
 curl -X POST http://localhost:9090/api/v1/releases/publish \
-  -H "${RELEASE_HEADER}: ${CP_RELEASES_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"platform":"desktop","artifact":"electron-linux","version":"2.0.0","channel":"stable","target_ref":"https://github.com/ORG/REPO/releases/download/v2.0.0/titan-pos-2.0.0.AppImage","source":"manual"}'
 ```
 
+Este endpoint requiere el header de publicación de releases configurado para el entorno.
+
 1. Resolver manifest de releases para una sucursal:
 
 ```bash
-INSTALL_HEADER="${CP_INSTALL_HEADER_NAME}"
-curl "http://localhost:9090/api/v1/releases/manifest" \
-  -H "${INSTALL_HEADER}: TOKEN"
+curl "http://localhost:9090/api/v1/releases/manifest"
 ```
+
+La resolución real del manifest requiere el header de instalación del nodo.
 
 Para rollout y rollback operativo, consulta `../docs/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
 
