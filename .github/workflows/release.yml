@@ -137,12 +137,15 @@ jobs:
           generate_release_notes: true
 
       - name: Publish release metadata to control plane
-        if: ${{ secrets.CP_RELEASES_PUBLISH_URL != '' && secrets.CP_RELEASES_TOKEN != '' }}
         env:
           CP_RELEASES_PUBLISH_URL: ${{ secrets.CP_RELEASES_PUBLISH_URL }}
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
         run: |
+          if [[ -z "${CP_RELEASES_PUBLISH_URL}" || -z "${CP_RELEASES_TOKEN}" ]]; then
+            echo "CP release publish secrets not configured; skipping control-plane metadata publish."
+            exit 0
+          fi
           VERSION="${GITHUB_REF#refs/tags/v}"
           RELEASE_BASE_URL="${CP_RELEASES_URL:-https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}}"
           NOTES="Publicado desde GitHub Actions para tag v${VERSION}"
