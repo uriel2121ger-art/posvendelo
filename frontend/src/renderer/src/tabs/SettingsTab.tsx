@@ -5,6 +5,9 @@ import { useConfirm } from '../components/ConfirmDialog'
 import {
   getSyncStatus,
   getSystemInfo,
+  getBackupStatus,
+  listBackups,
+  buildRestorePlan,
   getLicenseStatus,
   loadRuntimeConfig,
   saveRuntimeConfig,
@@ -176,6 +179,10 @@ export default function SettingsTab({
   const [lastStatus, setLastStatus] = useState<Record<string, unknown> | null>(null)
   const [systemInfo, setSystemInfo] = useState<Record<string, unknown> | null>(null)
   const [licenseState, setLicenseState] = useState<Record<string, unknown> | null>(null)
+  const [backupStatus, setBackupStatus] = useState<Record<string, unknown> | null>(null)
+  const [backups, setBackups] = useState<Record<string, unknown>[]>([])
+  const [selectedBackup, setSelectedBackup] = useState('')
+  const [restorePlan, setRestorePlan] = useState<Record<string, unknown> | null>(null)
 
   // -- Profiles State --
   const [profileName, setProfileName] = useState('')
@@ -345,6 +352,47 @@ export default function SettingsTab({
     }
   }
 
+  async function loadRecoveryData(): Promise<void> {
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const [statusBody, backupsBody] = await Promise.all([getBackupStatus(cfg), listBackups(cfg)])
+      const nextStatus = (statusBody.data ?? statusBody) as Record<string, unknown>
+      const nextBackups = (backupsBody.data ?? []) as Record<string, unknown>[]
+      setBackupStatus(nextStatus)
+      setBackups(Array.isArray(nextBackups) ? nextBackups : [])
+      if (Array.isArray(nextBackups) && nextBackups.length > 0) {
+        setSelectedBackup((current) => current || String(nextBackups[0].name ?? ''))
+      }
+      showMessage('Estado de respaldos actualizado.')
+    } catch (error) {
+      showMessage((error as Error).message, true)
+      setBackupStatus(null)
+      setBackups([])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function prepareRestorePlan(): Promise<void> {
+    if (!selectedBackup) {
+      showMessage('Selecciona un respaldo antes de preparar la recuperación.', true)
+      return
+    }
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      const body = await buildRestorePlan(cfg, selectedBackup)
+      setRestorePlan((body.data ?? body) as Record<string, unknown>)
+      showMessage('Plan de recuperación preparado. Revísalo antes de ejecutar restore manual.')
+    } catch (error) {
+      showMessage((error as Error).message, true)
+      setRestorePlan(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // -- HW METHODS --
   const handleSaveHw = async (
     sec: 'printer' | 'business' | 'scanner' | 'drawer',
@@ -408,7 +456,7 @@ export default function SettingsTab({
   ]
   const visibleTabs =
     mode === 'hardware' ? tabs.filter((tab) => tab.id !== 'server' && tab.id !== 'business') : tabs
-  const title = mode === 'hardware' ? 'Hardware' : 'Configuraciones generales'
+  const title = mode === 'hardware' ? 'Dispositivos' : 'Configuraciones generales'
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
@@ -658,12 +706,149 @@ export default function SettingsTab({
                           </div>
                         </div>
 
-                        {(systemInfo || lastStatus) && (
+                        {(systemInfo || lastStatus || backupStatus || backups.length > 0 || restorePlan) && (
                           <div>
                             <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2 mb-3">
                               <ShieldCheck className="w-4 h-4" /> Diagnósticos
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-6">
+                              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                                      Respaldo y recuperación
+                                    </h4>
+                                    <p className="mt-1 text-sm text-zinc-400">
+                                      Consulta respaldos del nodo y prepara una guía de recuperación
+                                      validada.
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => void loadRecoveryData()}
+                                      disabled={busy}
+                                      className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300 disabled:opacity-50"
+                                    >
+                                      <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
+                                      Revisar respaldos
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void prepareRestorePlan()}
+                                      disabled={busy || !selectedBackup}
+                                      className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                    >
+                                      <Database className="h-4 w-4" />
+                                      Preparar recuperación
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {backupStatus && (
+                                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
+                                      <div className="text-[11px] uppercase tracking-wider text-zinc-500">
+                                        Directorio
+                                      </div>
+                                      <div className="mt-1 break-all font-mono text-xs text-zinc-300">
+                                        {String(backupStatus.backup_dir ?? '-')}
+                                      </div>
+                                    </div>
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
+                                      <div className="text-[11px] uppercase tracking-wider text-zinc-500">
+                                        Total respaldos
+                                      </div>
+                                      <div className="mt-1 text-lg font-black text-white">
+                                        {String(backupStatus.backup_count ?? 0)}
+                                      </div>
+                                    </div>
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
+                                      <div className="text-[11px] uppercase tracking-wider text-zinc-500">
+                                        Último respaldo
+                                      </div>
+                                      <div className="mt-1 font-mono text-xs text-zinc-300">
+                                        {String(backupStatus.latest_backup ?? 'sin respaldo')}
+                                      </div>
+                                    </div>
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
+                                      <div className="text-[11px] uppercase tracking-wider text-zinc-500">
+                                        Restore soportado
+                                      </div>
+                                      <div className="mt-1 text-sm font-bold text-zinc-100">
+                                        {backupStatus.restore_supported ? 'Sí' : 'No'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {backups.length > 0 && (
+                                  <div className="mt-4 space-y-3">
+                                    <label className="block">
+                                      <span className="mb-1 block text-xs text-zinc-400">
+                                        Respaldo a preparar
+                                      </span>
+                                      <select
+                                        className="w-full rounded-xl border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-sm text-zinc-200 focus:border-blue-500 focus:outline-none"
+                                        value={selectedBackup}
+                                        onChange={(e) => setSelectedBackup(e.target.value)}
+                                      >
+                                        <option value="">Selecciona un respaldo</option>
+                                        {backups.map((backup, index) => (
+                                          <option key={String(backup.name ?? index)} value={String(backup.name ?? '')}>
+                                            {String(backup.name ?? '-') }
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
+                                      <div className="max-h-48 overflow-auto divide-y divide-zinc-800">
+                                        {backups.map((backup, index) => (
+                                          <div key={String(backup.name ?? index)} className="px-4 py-3 text-sm">
+                                            <div className="font-mono text-zinc-200">
+                                              {String(backup.name ?? '-')}
+                                            </div>
+                                            <div className="mt-1 text-xs text-zinc-500">
+                                              {String(backup.modified_at ?? '-')} • {String(backup.size_bytes ?? 0)} bytes
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {restorePlan && (
+                                  <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                                      <h5 className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">
+                                        Pasos sugeridos
+                                      </h5>
+                                      <ol className="space-y-2 text-sm text-zinc-300">
+                                        {Array.isArray(restorePlan.steps) &&
+                                          restorePlan.steps.map((step, index) => (
+                                            <li key={`${index}-${String(step)}`} className="flex gap-2">
+                                              <span className="font-mono text-zinc-500">{index + 1}.</span>
+                                              <span>{String(step)}</span>
+                                            </li>
+                                          ))}
+                                      </ol>
+                                    </div>
+                                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                                      <h5 className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">
+                                        Comandos de referencia
+                                      </h5>
+                                      <pre className="overflow-x-auto text-xs font-mono text-blue-300">
+                                        {Array.isArray(restorePlan.commands)
+                                          ? restorePlan.commands.map((command) => String(command)).join('\n')
+                                          : ''}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {systemInfo && (
                                 <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
                                   <pre className="p-4 text-[10px] font-mono text-emerald-400 overflow-x-auto max-h-40 overflow-y-auto">
@@ -678,6 +863,7 @@ export default function SettingsTab({
                                   </pre>
                                 </div>
                               )}
+                              </div>
                             </div>
                           </div>
                         )}

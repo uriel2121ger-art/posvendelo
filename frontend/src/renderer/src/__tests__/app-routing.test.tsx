@@ -41,6 +41,12 @@ vi.mock('../tabs/EmployeesTab', () => ({
 }))
 vi.mock('../tabs/RemoteTab', () => ({ default: () => <div data-testid="remote-tab">Remoto</div> }))
 vi.mock('../tabs/FiscalTab', () => ({ default: () => <div data-testid="fiscal-tab">Fiscal</div> }))
+vi.mock('../tabs/OwnerPortfolioTab', () => ({
+  default: () => <div data-testid="owner-portfolio-tab">Portfolio</div>
+}))
+vi.mock('../tabs/CompanionDevicesTab', () => ({
+  default: () => <div data-testid="companion-devices-tab">Dispositivos</div>
+}))
 
 // Mock ShiftStartupModal — auto-resolve para no bloquear tests
 function ShiftStartupModalMock({ onComplete }: { onComplete: () => void }): null {
@@ -61,6 +67,10 @@ vi.mock('../posApi', () => ({
     .fn()
     .mockReturnValue({ baseUrl: 'http://127.0.0.1:8090', token: 'test', terminalId: 1 }),
   saveRuntimeConfig: vi.fn(),
+  getLicenseStatus: vi.fn().mockResolvedValue({
+    success: true,
+    data: { effective_status: 'active', days_remaining: 30 }
+  }),
   createCashMovement: vi.fn().mockResolvedValue({}),
   openDrawerForSale: vi.fn().mockResolvedValue({}),
   getCurrentTurn: vi.fn().mockResolvedValue(null),

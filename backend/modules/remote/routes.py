@@ -18,8 +18,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
 from modules.shared.constants import PRIVILEGED_ROLES, money
-from modules.remote.schemas import NotificationCreate, PriceChangeRemote
+from modules.remote.schemas import NotificationCreate, PriceChangeRemote, RemoteSaleCancelRequest
 from modules.hardware.printer import open_drawer as hw_open_drawer
+from modules.sales.routes import perform_sale_cancellation
+from modules.sales.schemas import SaleCancelRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -286,6 +288,44 @@ async def remote_change_price(
             "new_price": body.new_price,
         },
     }
+
+
+@router.post("/cancel-sale")
+async def remote_cancel_sale(
+    body: RemoteSaleCancelRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Cancel sale remotely with manager authorization. RBAC: admin/manager/owner."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para cancelar ventas")
+
+    result = await perform_sale_cancellation(
+        body.sale_id,
+        SaleCancelRequest(manager_pin=body.manager_pin, reason=body.reason),
+        auth,
+    )
+
+    try:
+        await db.execute(
+            """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
+               VALUES ('REMOTE_SALE_CANCEL', 'sale', :sale_id, :uid, :details, NOW())""",
+            {
+                "sale_id": body.sale_id,
+                "uid": get_user_id(auth),
+                "details": json.dumps(
+                    {
+                        "reason": body.reason or "Panel remoto",
+                        "source": "remote.cancel-sale",
+                    },
+                    ensure_ascii=True,
+                ),
+            },
+        )
+    except Exception as audit_err:
+        logger.error("Audit log failed for REMOTE_SALE_CANCEL: %s", audit_err)
+
+    return result
 
 
 @router.get("/system-status")

@@ -35,6 +35,11 @@ jobs:
           CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
         run: npm run build:linux
 
+      - name: Verify Linux dist outputs
+        env:
+          DIST_EXPECT_PLATFORM: linux
+        run: npm run dist:verify
+
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
@@ -75,6 +80,12 @@ jobs:
           CP_RELEASES_URL: ${{ secrets.CP_RELEASES_URL }}
         run: npm run build:win
 
+      - name: Verify Windows dist outputs
+        shell: bash
+        env:
+          DIST_EXPECT_PLATFORM: windows
+        run: npm run dist:verify
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -107,6 +118,11 @@ jobs:
             | sort -z \
             | xargs -0 sha256sum > SHA256SUMS.txt
 
+      - name: Generate distribution manifest
+        run: |
+          cd frontend
+          DIST_DIR="../release-artifacts" npm run dist:verify
+
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
@@ -117,6 +133,7 @@ jobs:
             release-artifacts/windows/**/*setup.exe
             release-artifacts/windows/**/*.exe
             release-artifacts/SHA256SUMS.txt
+            release-artifacts/dist-manifest.json
           generate_release_notes: true
 
       - name: Publish release metadata to control plane
@@ -132,7 +149,7 @@ jobs:
           declare -A ASSET_URLS=(
             ["electron-linux"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}.AppImage"
             ["electron-windows"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}-setup.exe"
-            ["backend"]="ghcr.io/uriel2121ger-art/titan-pos:${VERSION}"
+            ["backend"]="ghcr.io/${GITHUB_REPOSITORY_OWNER}/titan-pos:${VERSION}"
           )
 
           for ARTIFACT in electron-linux electron-windows backend; do

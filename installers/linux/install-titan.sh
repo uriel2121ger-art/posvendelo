@@ -174,7 +174,9 @@ print(f"TITAN_LICENSE_KEY={data.get('tenant_slug', '')}")
 print(f"TITAN_BRANCH_ID={data['branch_id']}")
 print(f"TITAN_VERSION={os.environ.get('POS_VERSION', '2.0.0')}")
 print(f"CF_TUNNEL_TOKEN={data.get('cf_tunnel_token') or ''}")
-print(f"BACKEND_IMAGE={data.get('backend_image', 'ghcr.io/uriel2121ger-art/titan-pos:latest')}")
+print(
+    f"BACKEND_IMAGE={data.get('backend_image') or os.environ.get('TITAN_DEFAULT_BACKEND_IMAGE', 'ghcr.io/titan-pos/titan-pos:latest')}"
+)
 print(f"LOCAL_API_PORT={os.environ['LOCAL_API_PORT']}")
 print(f"LOCAL_POSTGRES_PORT={os.environ['LOCAL_POSTGRES_PORT']}")
 print("TITAN_LICENSE_ENFORCEMENT=true")
@@ -211,7 +213,11 @@ payload = {
         "installReportUrl": data.get("install_report_url", ""),
         "bootstrapPublicKey": data.get("bootstrap_public_key", ""),
         "licenseResolveUrl": data.get("license_resolve_url", ""),
-        "companionUrl": data.get("companion_url", "")
+        "ownerSessionUrl": data.get("owner_session_url", ""),
+        "ownerApiBaseUrl": data.get("owner_api_base_url", ""),
+        "companionUrl": data.get("companion_url", ""),
+        "companionEntryUrl": data.get("companion_entry_url", ""),
+        "quickLinks": data.get("quick_links", {})
     }
 }
 with open(os.environ["AGENT_JSON_PATH"], "w", encoding="utf-8") as fh:
@@ -225,6 +231,12 @@ cat > INSTALL_SUMMARY.txt <<EOF
 TITAN POS - RESUMEN DE INSTALACION
 
 Directorio: ${INSTALL_DIR}
+Branch ID: $(python3 - "$BOOTSTRAP_JSON" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))["data"]
+print(data.get("branch_id", ""))
+PY
+)
 Health local: http://127.0.0.1:${LOCAL_API_PORT}/health
 API local: http://127.0.0.1:${LOCAL_API_PORT}
 Postgres local: 127.0.0.1:${LOCAL_POSTGRES_PORT}
@@ -239,6 +251,18 @@ Companion: $(python3 - "$BOOTSTRAP_JSON" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1], "r", encoding="utf-8"))["data"]
 print(data.get("companion_url", ""))
+PY
+)
+Companion Portfolio: $(python3 - "$BOOTSTRAP_JSON" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))["data"]
+print(data.get("companion_entry_url", ""))
+PY
+)
+Owner API: $(python3 - "$BOOTSTRAP_JSON" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], "r", encoding="utf-8"))["data"]
+print(data.get("owner_api_base_url", ""))
 PY
 )
 

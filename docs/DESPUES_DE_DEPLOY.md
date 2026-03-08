@@ -6,7 +6,8 @@ En la raíz del proyecto:
 
 ```bash
 # Rebuild local + recreate del backend real
-docker build -t ghcr.io/uriel2121ger-art/titan-pos:latest backend
+export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/titan-pos/titan-pos:latest}"
+docker build -t "$BACKEND_IMAGE" backend
 docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api
 
 # Si solo quieres reiniciar el contenedor ya desplegado:
@@ -31,6 +32,30 @@ PY'
 ```
 
 En producción debe imprimir `30/minute` salvo que se haya definido otro valor en `LOGIN_RATE_LIMIT`.
+
+## Verificación mínima del flujo plug-and-play
+
+Validar que el `control-plane` sigue publicando el contrato esperado:
+
+```bash
+curl "http://localhost:9090/api/v1/branches/bootstrap-config?install_token=TOKEN"
+```
+
+Confirmar que la respuesta incluye:
+
+- `release_manifest_url`
+- `license_resolve_url`
+- `owner_session_url`
+- `owner_api_base_url`
+- `companion_entry_url`
+- `quick_links`
+
+En un nodo ya instalado, validar además:
+
+- `INSTALL_SUMMARY.txt` presente y legible
+- `titan-agent.json` presente
+- pantalla de login mostrando nodo local saludable
+- companion/acceso del dueño visible sin configuración manual adicional
 
 ## Higiene operativa
 

@@ -18,7 +18,7 @@ import secrets
 import logging
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -116,7 +116,7 @@ security = HTTPBearer(auto_error=False)
 # Token functions
 # ---------------------------------------------------------------------------
 
-def create_token(user_id: str, role: str) -> str:
+def create_token(user_id: str, role: str, extra_claims: Optional[Dict[str, Any]] = None) -> str:
     """Create a JWT with short TTL and security claims."""
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
@@ -129,6 +129,10 @@ def create_token(user_id: str, role: str) -> str:
         "nbf": now,
         "jti": jti,
     }
+    if extra_claims:
+        for key, value in extra_claims.items():
+            if value is not None:
+                payload[key] = value
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 

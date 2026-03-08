@@ -1,21 +1,23 @@
 """
 Climate Shield - Escudo Térmico para Justificación de Mermas
-Datos climáticos reales de Mérida anexados a registros de merma
+Datos climáticos configurables anexados a registros de merma
 """
 
 from typing import Any, Dict
 from datetime import datetime
 import json
 import logging
+import os
 import urllib.request
 
 logger = logging.getLogger(__name__)
 
 
 class ClimateShield:
-    LATITUDE = 20.9674
-    LONGITUDE = -89.5926
-    CITY = "Mérida, Yucatán"
+    LATITUDE = float(os.getenv("CLIMATE_LATITUDE", "0") or "0")
+    LONGITUDE = float(os.getenv("CLIMATE_LONGITUDE", "0") or "0")
+    CITY = os.getenv("CLIMATE_CITY", "Sucursal configurada")
+    TIMEZONE = os.getenv("CLIMATE_TIMEZONE", "auto")
     TEMP_HIGH = 35
     TEMP_CRITICAL = 40
     HUMIDITY_HIGH = 75
@@ -41,8 +43,10 @@ class ClimateShield:
             if (datetime.now() - cached['timestamp']).seconds < self._cache_expiry:
                 return cached['data']
         try:
+            if not self.LATITUDE and not self.LONGITUDE:
+                raise ValueError("Climate coordinates not configured")
             url = (f"https://api.open-meteo.com/v1/forecast?latitude={self.LATITUDE}&longitude={self.LONGITUDE}"
-                   f"&current=temperature_2m,relative_humidity_2m,uv_index&timezone=America/Merida")
+                   f"&current=temperature_2m,relative_humidity_2m,uv_index&timezone={self.TIMEZONE}")
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
@@ -52,7 +56,7 @@ class ClimateShield:
             self._cache[cache_key] = {'data': climate, 'timestamp': datetime.now()}
             return climate
         except Exception:
-            return {'temperature': 36, 'humidity': 75, 'uv_index': 9, 'city': self.CITY, 'timestamp': datetime.now().isoformat(), 'source': 'Valores típicos'}
+            return {'temperature': 36, 'humidity': 75, 'uv_index': 9, 'city': self.CITY, 'timestamp': datetime.now().isoformat(), 'source': 'Valores de contingencia'}
 
     async def evaluate_degradation_risk(self, climate: Dict, product_category: str = None) -> Dict[str, Any]:
         temp, humidity, uv = climate.get('temperature', 30), climate.get('humidity', 70), climate.get('uv_index', 6)

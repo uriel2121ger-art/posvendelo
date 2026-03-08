@@ -79,6 +79,76 @@ async def dashboard_summary(
     }
 
 
+@router.get("/tenant-summary")
+async def dashboard_tenant_summary(
+    _: dict = Depends(verify_admin),
+    db=Depends(get_db),
+):
+    rows = await db.fetch(BRANCHES_QUERY)
+    grouped: dict[str, dict] = {}
+    for row in rows:
+        tenant_name = row.get("tenant_name") or "Tenant sin nombre"
+        tenant = grouped.setdefault(
+            tenant_name,
+            {
+                "tenant_name": tenant_name,
+                "branches_total": 0,
+                "online": 0,
+                "offline": 0,
+                "sales_today": 0.0,
+                "install_errors": 0,
+                "tunnel_errors": 0,
+                "backup_missing": 0,
+            },
+        )
+        tenant["branches_total"] += 1
+        if row.get("is_online"):
+            tenant["online"] += 1
+        else:
+            tenant["offline"] += 1
+        tenant["sales_today"] += float(row.get("sales_today") or 0)
+        if row.get("install_status") == "error":
+            tenant["install_errors"] += 1
+        if row.get("tunnel_status") == "error":
+            tenant["tunnel_errors"] += 1
+        if not row.get("last_backup"):
+            tenant["backup_missing"] += 1
+    return {"success": True, "data": list(grouped.values())}
+
+
+@router.get("/branch-health")
+async def dashboard_branch_health(
+    _: dict = Depends(verify_admin),
+    db=Depends(get_db),
+):
+    rows = await db.fetch(BRANCHES_QUERY)
+    enriched = []
+    for row in rows:
+        health = "healthy"
+        reasons: list[str] = []
+        if not row.get("is_online"):
+            health = "critical"
+            reasons.append("offline")
+        if row.get("install_status") == "error":
+            health = "critical"
+            reasons.append("install_error")
+        if row.get("tunnel_status") == "error":
+            health = "critical"
+            reasons.append("tunnel_error")
+        disk_used_pct = float(row.get("disk_used_pct") or 0)
+        if disk_used_pct >= 90:
+            health = "critical"
+            reasons.append("disk_high")
+        elif disk_used_pct >= 80 and health != "critical":
+            health = "warning"
+            reasons.append("disk_warning")
+        if not row.get("last_backup") and health == "healthy":
+            health = "warning"
+            reasons.append("backup_missing")
+        enriched.append({**row, "health": health, "health_reasons": reasons})
+    return {"success": True, "data": enriched}
+
+
 @router.get("/alerts")
 async def dashboard_alerts(
     _: dict = Depends(verify_admin),

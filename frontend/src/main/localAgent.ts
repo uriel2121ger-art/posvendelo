@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { createHash, createVerify } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 type AgentConfig = {
   controlPlaneUrl?: string
@@ -27,6 +27,15 @@ type AgentConfig = {
   bootstrap?: {
     bootstrapPublicKey?: string
     licenseResolveUrl?: string
+    ownerSessionUrl?: string
+    ownerApiBaseUrl?: string
+    companionUrl?: string
+    companionEntryUrl?: string
+    quickLinks?: {
+      owner_portfolio?: string
+      owner_devices?: string
+      owner_remote?: string
+    }
   }
   pollIntervals?: {
     healthSeconds?: number
@@ -107,6 +116,17 @@ export type LocalAgentStatus = {
   controlPlaneUrl: string | null
   branchId: number | null
   installTokenPresent: boolean
+  ownerSessionReady: boolean
+  ownerAccessMode: 'owner-session' | 'install-token' | 'unavailable'
+  companionUrl: string | null
+  companionEntryUrl: string | null
+  ownerSessionUrl: string | null
+  ownerApiBaseUrl: string | null
+  quickLinks: {
+    ownerPortfolio: string | null
+    ownerDevices: string | null
+    ownerRemote: string | null
+  }
   localApiUrl: string
   backendHealthy: boolean
   backendVersion: string | null
@@ -124,6 +144,54 @@ export type LocalAgentStatus = {
   manifest: AgentReleaseManifest | null
   license: AgentLicenseState
   desktopUpdate: AgentDesktopUpdateState
+  backendUpdate: AgentBackendUpdateState
+}
+
+export type OwnerPortfolioStatus = {
+  controlPlaneUrl: string | null
+  tenantName: string | null
+  tenantSlug: string | null
+  branchesTotal: number
+  online: number
+  offline: number
+  salesTodayTotal: number
+  alertsTotal: number
+  branches: Array<Record<string, unknown>>
+  alerts: Array<Record<string, unknown>>
+  lastError: string | null
+}
+
+export type OwnerEventsStatus = {
+  controlPlaneUrl: string | null
+  events: Array<Record<string, unknown>>
+  lastError: string | null
+}
+
+export type OwnerBranchTimelineStatus = {
+  controlPlaneUrl: string | null
+  branch: Record<string, unknown> | null
+  timeline: Array<Record<string, unknown>>
+  lastError: string | null
+}
+
+export type OwnerCommercialStatus = {
+  controlPlaneUrl: string | null
+  license: Record<string, unknown> | null
+  health: Record<string, unknown> | null
+  events: Array<Record<string, unknown>>
+  lastError: string | null
+}
+
+export type OwnerHealthSummaryStatus = {
+  controlPlaneUrl: string | null
+  summary: Record<string, unknown> | null
+  lastError: string | null
+}
+
+export type OwnerAuditStatus = {
+  controlPlaneUrl: string | null
+  audit: Array<Record<string, unknown>>
+  lastError: string | null
 }
 
 type AgentDesktopUpdateState = {
@@ -151,6 +219,27 @@ type AgentDesktopRollbackState = {
   currentVersion: string | null
   backupPath: string
   targetPath: string
+  appliedAt: string
+}
+
+type AgentBackendUpdateState = {
+  status: 'idle' | 'available' | 'applying' | 'error'
+  currentVersion: string | null
+  availableVersion: string | null
+  artifact: string | null
+  targetRef: string | null
+  rollbackAvailable: boolean
+  rollbackVersion: string | null
+  rollbackMessage: string | null
+  message: string | null
+  lastError: string | null
+}
+
+type AgentBackendRollbackState = {
+  previousImage: string
+  previousVersion: string | null
+  currentImage: string
+  currentVersion: string | null
   appliedAt: string
 }
 
@@ -282,7 +371,15 @@ function normalizeUrl(value: string | undefined): string | null {
 
 function buildManifestUrl(config: AgentConfig): string | null {
   const explicit = normalizeUrl(config.releaseManifestUrl)
-  if (explicit) return explicit
+  if (explicit) {
+    try {
+      const sanitized = new URL(explicit)
+      sanitized.searchParams.delete('install_token')
+      return sanitized.toString()
+    } catch {
+      return explicit
+    }
+  }
 
   const cp = normalizeUrl(config.controlPlaneUrl)
   if (!cp) return null
@@ -293,6 +390,47 @@ function buildManifestUrl(config: AgentConfig): string | null {
     return `${cp}/api/v1/releases/manifest?branch_id=${config.branchId}`
   }
   return null
+}
+
+function buildControlPlaneHeaders(installToken: string | null): HeadersInit | undefined {
+  if (!installToken) return undefined
+  return {
+    'X-Install-Token': installToken
+  }
+}
+
+function buildOwnerSessionHeaders(ownerToken: string | null): HeadersInit | undefined {
+  if (!ownerToken) return undefined
+  return {
+    'X-Owner-Token': ownerToken
+  }
+}
+
+function decodeOwnerSessionExpiry(ownerToken: string | null): number | null {
+  if (!ownerToken) return null
+  const [payload] = ownerToken.split('.', 1)
+  if (!payload) return null
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padding = '='.repeat((4 - (normalized.length % 4)) % 4)
+    const decoded = JSON.parse(Buffer.from(`${normalized}${padding}`, 'base64').toString('utf8')) as {
+      exp?: number
+    }
+    return typeof decoded.exp === 'number' ? decoded.exp : null
+  } catch {
+    return null
+  }
+}
+
+function stripInstallTokenFromUrl(rawUrl: string | null): string | null {
+  if (!rawUrl) return null
+  try {
+    const parsed = new URL(rawUrl)
+    parsed.searchParams.delete('install_token')
+    return parsed.toString()
+  } catch {
+    return rawUrl
+  }
 }
 
 function parseChecksumManifest(content: string, filename: string): string | null {
@@ -322,6 +460,8 @@ function inferApplyStrategy(path: string | null): AgentDesktopUpdateState['apply
 export class LocalNodeAgent {
   private configPath: string | null = null
   private config: AgentConfig | null = null
+  private ownerSessionToken: string | null = null
+  private ownerSessionExpiresAt: number | null = null
   private healthTimer: NodeJS.Timeout | null = null
   private manifestTimer: NodeJS.Timeout | null = null
   private licenseTimer: NodeJS.Timeout | null = null
@@ -354,10 +494,23 @@ export class LocalNodeAgent {
     message: null,
     lastError: null
   }
+  private backendUpdateState: AgentBackendUpdateState = {
+    status: 'idle',
+    currentVersion: null,
+    availableVersion: null,
+    artifact: null,
+    targetRef: null,
+    rollbackAvailable: false,
+    rollbackVersion: null,
+    rollbackMessage: null,
+    message: null,
+    lastError: null
+  }
 
   start(): void {
     this.reloadConfig()
     this.loadDesktopUpdateState()
+    this.loadBackendUpdateState()
     void this.refreshNow()
 
     const healthSeconds = this.config?.pollIntervals?.healthSeconds ?? 15
@@ -396,6 +549,8 @@ export class LocalNodeAgent {
   }
 
   reloadConfig(): void {
+    const previousConfigPath = this.configPath
+    const previousInstallToken = this.config?.installToken?.trim() || null
     for (const candidate of this.configCandidates()) {
       if (!existsSync(candidate)) continue
       const next = parseJsonFile<AgentConfig>(candidate)
@@ -407,9 +562,16 @@ export class LocalNodeAgent {
           next.license = externalLicense
         }
       }
+      const nextInstallToken = next.installToken?.trim() || null
+      if (previousConfigPath !== candidate || previousInstallToken !== nextInstallToken) {
+        this.invalidateOwnerSession()
+      }
       this.config = next
       this.configPath = candidate
       return
+    }
+    if (this.config || this.configPath) {
+      this.invalidateOwnerSession()
     }
     this.config = null
     this.configPath = null
@@ -796,15 +958,212 @@ nohup "$TARGET" >/dev/null 2>&1 &
     return this.getStatus()
   }
 
+  async applyBackendUpdate(): Promise<LocalAgentStatus> {
+    this.reloadConfig()
+    await this.refreshManifest()
+    const release = this.manifest?.artifacts?.backend ?? null
+    if (!release?.target_ref || !release.version) {
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'error',
+        currentVersion: this.backendVersion,
+        availableVersion: release?.version ?? null,
+        artifact: release?.artifact ?? this.config?.backendArtifact ?? null,
+        targetRef: release?.target_ref ?? null,
+        message: 'No hay artefacto de backend publicado para este nodo.',
+        lastError: 'backend artifact missing'
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+    if (!isVersionGreater(release.version, this.backendVersion)) {
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'idle',
+        currentVersion: this.backendVersion,
+        availableVersion: release.version,
+        artifact: release.artifact ?? this.config?.backendArtifact ?? null,
+        targetRef: release.target_ref,
+        rollbackAvailable: this.backendUpdateState.rollbackAvailable || this.hasBackendRollbackMetadata(),
+        message: 'El servidor local ya está en la versión más reciente.',
+        lastError: null
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+
+    const installDir = this.installationDir()
+    const envPath = installDir ? join(installDir, '.env') : null
+    const composePath = installDir ? join(installDir, 'docker-compose.yml') : null
+    if (!installDir || !envPath || !composePath || !existsSync(envPath) || !existsSync(composePath)) {
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'error',
+        currentVersion: this.backendVersion,
+        availableVersion: release.version,
+        artifact: release.artifact ?? this.config?.backendArtifact ?? null,
+        targetRef: release.target_ref,
+        message: 'No se encontró la instalación local del backend para aplicar la actualización.',
+        lastError: 'install dir missing'
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+
+    const envVars = this.readEnvFile(envPath)
+    const previousImage = envVars.BACKEND_IMAGE || ''
+    const previousVersion = this.backendVersion
+    if (!previousImage) {
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'error',
+        currentVersion: this.backendVersion,
+        availableVersion: release.version,
+        artifact: release.artifact ?? this.config?.backendArtifact ?? null,
+        targetRef: release.target_ref,
+        message: 'No se pudo determinar BACKEND_IMAGE actual del nodo.',
+        lastError: 'BACKEND_IMAGE missing'
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+
+    this.backendUpdateState = {
+      ...this.backendUpdateState,
+      status: 'applying',
+      currentVersion: this.backendVersion,
+      availableVersion: release.version,
+      artifact: release.artifact ?? this.config?.backendArtifact ?? null,
+      targetRef: release.target_ref,
+      rollbackAvailable: this.backendUpdateState.rollbackAvailable || this.hasBackendRollbackMetadata(),
+      message: 'Aplicando actualización del servidor local...',
+      lastError: null
+    }
+    this.saveBackendUpdateState()
+
+    try {
+      this.writeEnvFile(envPath, { ...envVars, BACKEND_IMAGE: release.target_ref })
+      await this.runDockerCompose(installDir, envPath, ['pull', 'api'])
+      await this.runDockerCompose(installDir, envPath, ['up', '-d', 'api'])
+      writeFileSync(
+        this.backendRollbackStatePath(),
+        JSON.stringify(
+          {
+            previousImage,
+            previousVersion,
+            currentImage: release.target_ref,
+            currentVersion: release.version,
+            appliedAt: new Date().toISOString()
+          } satisfies AgentBackendRollbackState,
+          null,
+          2
+        ),
+        'utf8'
+      )
+      await this.refreshBackendHealth()
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'idle',
+        currentVersion: this.backendVersion,
+        availableVersion: release.version,
+        rollbackAvailable: true,
+        rollbackVersion: previousVersion,
+        rollbackMessage: `Imagen previa lista para reversión: ${previousImage}`,
+        message: 'Servidor local actualizado correctamente.',
+        lastError: null
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    } catch (error) {
+      this.writeEnvFile(envPath, { ...envVars, BACKEND_IMAGE: previousImage })
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'error',
+        message: 'No se pudo actualizar el servidor local.',
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+  }
+
+  async rollbackLastBackendUpdate(): Promise<LocalAgentStatus> {
+    const rollback = parseJsonFile<AgentBackendRollbackState>(this.backendRollbackStatePath())
+    const installDir = this.installationDir()
+    const envPath = installDir ? join(installDir, '.env') : null
+    const composePath = installDir ? join(installDir, 'docker-compose.yml') : null
+    if (!rollback?.previousImage || !installDir || !envPath || !composePath || !existsSync(envPath) || !existsSync(composePath)) {
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'error',
+        rollbackAvailable: false,
+        rollbackMessage: null,
+        message: 'No hay reversión del backend disponible en este nodo.',
+        lastError: 'backend rollback unavailable'
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+
+    const envVars = this.readEnvFile(envPath)
+    this.backendUpdateState = {
+      ...this.backendUpdateState,
+      status: 'applying',
+      rollbackAvailable: true,
+      rollbackVersion: rollback.previousVersion,
+      rollbackMessage: `Revirtiendo a ${rollback.previousVersion ?? rollback.previousImage}`,
+      message: 'Revirtiendo servidor local...',
+      lastError: null
+    }
+    this.saveBackendUpdateState()
+
+    try {
+      this.writeEnvFile(envPath, { ...envVars, BACKEND_IMAGE: rollback.previousImage })
+      await this.runDockerCompose(installDir, envPath, ['pull', 'api'])
+      await this.runDockerCompose(installDir, envPath, ['up', '-d', 'api'])
+      rmSync(this.backendRollbackStatePath(), { force: true })
+      await this.refreshBackendHealth()
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'idle',
+        currentVersion: this.backendVersion,
+        rollbackAvailable: false,
+        rollbackVersion: null,
+        rollbackMessage: null,
+        message: 'Servidor local revertido correctamente.',
+        lastError: null
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    } catch (error) {
+      this.backendUpdateState = {
+        ...this.backendUpdateState,
+        status: 'error',
+        rollbackAvailable: true,
+        rollbackVersion: rollback.previousVersion,
+        rollbackMessage: `Imagen previa registrada: ${rollback.previousImage}`,
+        message: 'No se pudo revertir el servidor local.',
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+      this.saveBackendUpdateState()
+      return this.getStatus()
+    }
+  }
+
   getStatus(): LocalAgentStatus {
     const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
     const localApiUrl = normalizeUrl(this.config?.localApiUrl) ?? 'http://127.0.0.1:8000'
+    const companionUrl = normalizeUrl(this.config?.bootstrap?.companionUrl)
+    const companionEntryUrl = normalizeUrl(this.config?.bootstrap?.companionEntryUrl)
+    const ownerSessionUrl = normalizeUrl(this.config?.bootstrap?.ownerSessionUrl)
+    const ownerApiBaseUrl = normalizeUrl(this.config?.bootstrap?.ownerApiBaseUrl)
     const currentAppVersion = app.getVersion()
     const availableAppVersion = this.manifest?.artifacts?.app?.version ?? null
     const availableBackendVersion = this.manifest?.artifacts?.backend?.version ?? null
     const license = deriveLicenseState(this.config)
     const appUpdateAvailable = isVersionGreater(availableAppVersion, currentAppVersion)
     const desktopUpdate = this.deriveDesktopUpdateState(currentAppVersion, availableAppVersion, appUpdateAvailable)
+    const backendUpdate = this.deriveBackendUpdateState(this.backendVersion, availableBackendVersion)
     return {
       startedAt: this.startedAt,
       configPath: this.configPath,
@@ -812,6 +1171,21 @@ nohup "$TARGET" >/dev/null 2>&1 &
       controlPlaneUrl,
       branchId: this.config?.branchId ?? null,
       installTokenPresent: Boolean(this.config?.installToken),
+      ownerSessionReady: Boolean(this.ownerSessionToken),
+      ownerAccessMode: this.ownerSessionToken
+        ? 'owner-session'
+        : this.config?.installToken
+          ? 'install-token'
+          : 'unavailable',
+      companionUrl,
+      companionEntryUrl,
+      ownerSessionUrl,
+      ownerApiBaseUrl,
+      quickLinks: {
+        ownerPortfolio: normalizeUrl(this.config?.bootstrap?.quickLinks?.owner_portfolio),
+        ownerDevices: normalizeUrl(this.config?.bootstrap?.quickLinks?.owner_devices),
+        ownerRemote: normalizeUrl(this.config?.bootstrap?.quickLinks?.owner_remote)
+      },
       localApiUrl,
       backendHealthy: this.backendHealthy,
       backendVersion: this.backendVersion,
@@ -828,7 +1202,8 @@ nohup "$TARGET" >/dev/null 2>&1 &
       lastLicenseError: this.lastLicenseError,
       manifest: this.manifest,
       license,
-      desktopUpdate
+      desktopUpdate,
+      backendUpdate
     }
   }
 
@@ -836,6 +1211,295 @@ nohup "$TARGET" >/dev/null 2>&1 &
     this.reloadConfig()
     await Promise.all([this.refreshBackendHealth(), this.refreshManifest(), this.refreshLicense()])
     return this.getStatus()
+  }
+
+  private invalidateOwnerSession(): void {
+    this.ownerSessionToken = null
+    this.ownerSessionExpiresAt = null
+  }
+
+  private async ensureOwnerSession(): Promise<{ controlPlaneUrl: string; ownerToken: string }> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    const installToken = this.config?.installToken?.trim() || null
+    if (!controlPlaneUrl || !installToken) {
+      throw new Error('El nodo no tiene control-plane o install token configurado.')
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    if (
+      this.ownerSessionToken &&
+      this.ownerSessionExpiresAt &&
+      this.ownerSessionExpiresAt > nowSeconds + 30
+    ) {
+      return { controlPlaneUrl, ownerToken: this.ownerSessionToken }
+    }
+
+    const response = await fetch(`${controlPlaneUrl}/api/v1/owner/session`, {
+      method: 'POST',
+      headers: buildControlPlaneHeaders(installToken),
+      signal: AbortSignal.timeout(7000)
+    })
+    if (!response.ok) {
+      throw new Error(`Owner session HTTP ${response.status}`)
+    }
+    const body = (await response.json()) as { data?: { session_token?: string } }
+    const ownerToken = body.data?.session_token?.trim() || ''
+    if (!ownerToken) {
+      throw new Error('Owner session sin token')
+    }
+    this.ownerSessionToken = ownerToken
+    this.ownerSessionExpiresAt = decodeOwnerSessionExpiry(ownerToken)
+    return { controlPlaneUrl, ownerToken }
+  }
+
+  private async ownerFetch(path: string, retry = true): Promise<Response> {
+    const { controlPlaneUrl, ownerToken } = await this.ensureOwnerSession()
+    const response = await fetch(`${controlPlaneUrl}${path}`, {
+      headers: buildOwnerSessionHeaders(ownerToken),
+      signal: AbortSignal.timeout(7000)
+    })
+    if ((response.status === 401 || response.status === 403) && retry) {
+      this.invalidateOwnerSession()
+      return this.ownerFetch(path, false)
+    }
+    return response
+  }
+
+  async getOwnerPortfolio(): Promise<OwnerPortfolioStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    if (!controlPlaneUrl || !this.config?.installToken?.trim()) {
+      return {
+        controlPlaneUrl,
+        tenantName: null,
+        tenantSlug: null,
+        branchesTotal: 0,
+        online: 0,
+        offline: 0,
+        salesTodayTotal: 0,
+        alertsTotal: 0,
+        branches: [],
+        alerts: [],
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+
+    try {
+      const [portfolioRes, alertsRes] = await Promise.all([
+        this.ownerFetch('/api/v1/owner/portfolio'),
+        this.ownerFetch('/api/v1/owner/alerts')
+      ])
+      if (!portfolioRes.ok) {
+        throw new Error(`Owner portfolio HTTP ${portfolioRes.status}`)
+      }
+      if (!alertsRes.ok) {
+        throw new Error(`Owner alerts HTTP ${alertsRes.status}`)
+      }
+      const portfolioBody = (await portfolioRes.json()) as {
+        success?: boolean
+        data?: Record<string, unknown>
+      }
+      const alertsBody = (await alertsRes.json()) as {
+        success?: boolean
+        data?: Array<Record<string, unknown>>
+      }
+      const data = portfolioBody.data ?? {}
+      return {
+        controlPlaneUrl,
+        tenantName: typeof data.tenant_name === 'string' ? data.tenant_name : null,
+        tenantSlug: typeof data.tenant_slug === 'string' ? data.tenant_slug : null,
+        branchesTotal: Number(data.branches_total ?? 0) || 0,
+        online: Number(data.online ?? 0) || 0,
+        offline: Number(data.offline ?? 0) || 0,
+        salesTodayTotal: Number(data.sales_today_total ?? 0) || 0,
+        alertsTotal: Number(data.alerts_total ?? 0) || 0,
+        branches: Array.isArray(data.branches) ? (data.branches as Array<Record<string, unknown>>) : [],
+        alerts: Array.isArray(alertsBody.data) ? alertsBody.data : [],
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        tenantName: null,
+        tenantSlug: null,
+        branchesTotal: 0,
+        online: 0,
+        offline: 0,
+        salesTodayTotal: 0,
+        alertsTotal: 0,
+        branches: [],
+        alerts: [],
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async getOwnerEvents(): Promise<OwnerEventsStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    if (!controlPlaneUrl || !this.config?.installToken?.trim()) {
+      return {
+        controlPlaneUrl,
+        events: [],
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+    try {
+      const response = await this.ownerFetch('/api/v1/owner/events')
+      if (!response.ok) {
+        throw new Error(`Owner events HTTP ${response.status}`)
+      }
+      const body = (await response.json()) as { data?: Array<Record<string, unknown>> }
+      return {
+        controlPlaneUrl,
+        events: Array.isArray(body.data) ? body.data : [],
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        events: [],
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async getOwnerBranchTimeline(branchId: number): Promise<OwnerBranchTimelineStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    if (!controlPlaneUrl || !this.config?.installToken?.trim()) {
+      return {
+        controlPlaneUrl,
+        branch: null,
+        timeline: [],
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+    try {
+      const response = await this.ownerFetch(`/api/v1/owner/branches/${branchId}/timeline`)
+      if (!response.ok) {
+        throw new Error(`Owner timeline HTTP ${response.status}`)
+      }
+      const body = (await response.json()) as {
+        data?: { branch?: Record<string, unknown>; timeline?: Array<Record<string, unknown>> }
+      }
+      return {
+        controlPlaneUrl,
+        branch: body.data?.branch ?? null,
+        timeline: Array.isArray(body.data?.timeline) ? body.data!.timeline : [],
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        branch: null,
+        timeline: [],
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async getOwnerCommercial(): Promise<OwnerCommercialStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    if (!controlPlaneUrl || !this.config?.installToken?.trim()) {
+      return {
+        controlPlaneUrl,
+        license: null,
+        health: null,
+        events: [],
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+    try {
+      const response = await this.ownerFetch('/api/v1/owner/commercial')
+      if (!response.ok) {
+        throw new Error(`Owner commercial HTTP ${response.status}`)
+      }
+      const body = (await response.json()) as {
+        data?: {
+          license?: Record<string, unknown>
+          health?: Record<string, unknown>
+          events?: Array<Record<string, unknown>>
+        }
+      }
+      return {
+        controlPlaneUrl,
+        license: body.data?.license ?? null,
+        health: body.data?.health ?? null,
+        events: Array.isArray(body.data?.events) ? body.data!.events : [],
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        license: null,
+        health: null,
+        events: [],
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async getOwnerHealthSummary(): Promise<OwnerHealthSummaryStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    if (!controlPlaneUrl || !this.config?.installToken?.trim()) {
+      return {
+        controlPlaneUrl,
+        summary: null,
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+    try {
+      const response = await this.ownerFetch('/api/v1/owner/health-summary')
+      if (!response.ok) {
+        throw new Error(`Owner health-summary HTTP ${response.status}`)
+      }
+      const body = (await response.json()) as { data?: Record<string, unknown> }
+      return {
+        controlPlaneUrl,
+        summary: body.data ?? null,
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        summary: null,
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async getOwnerAudit(): Promise<OwnerAuditStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    if (!controlPlaneUrl || !this.config?.installToken?.trim()) {
+      return {
+        controlPlaneUrl,
+        audit: [],
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+    try {
+      const response = await this.ownerFetch('/api/v1/owner/audit')
+      if (!response.ok) {
+        throw new Error(`Owner audit HTTP ${response.status}`)
+      }
+      const body = (await response.json()) as { data?: Array<Record<string, unknown>> }
+      return {
+        controlPlaneUrl,
+        audit: Array.isArray(body.data) ? body.data : [],
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        audit: [],
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
   }
 
   private configCandidates(): string[] {
@@ -875,7 +1539,10 @@ nohup "$TARGET" >/dev/null 2>&1 &
 
     this.lastManifestCheckAt = new Date().toISOString()
     try {
-      const response = await fetch(manifestUrl, { signal: AbortSignal.timeout(7000) })
+      const response = await fetch(manifestUrl, {
+        headers: buildControlPlaneHeaders(this.config?.installToken ?? null),
+        signal: AbortSignal.timeout(7000)
+      })
       if (!response.ok) {
         this.lastManifestError = `HTTP ${response.status}`
         return
@@ -891,13 +1558,13 @@ nohup "$TARGET" >/dev/null 2>&1 &
 
   private async refreshLicense(): Promise<void> {
     const installToken = this.config?.installToken
-    const explicitResolveUrl = normalizeUrl(this.config?.licenseResolveUrl || this.config?.bootstrap?.licenseResolveUrl)
+    const explicitResolveUrl = stripInstallTokenFromUrl(
+      normalizeUrl(this.config?.licenseResolveUrl || this.config?.bootstrap?.licenseResolveUrl)
+    )
     const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
     const resolveUrl =
       explicitResolveUrl ||
-      (controlPlaneUrl && installToken
-        ? `${controlPlaneUrl}/api/v1/licenses/resolve?install_token=${encodeURIComponent(installToken)}`
-        : null)
+      (controlPlaneUrl && installToken ? `${controlPlaneUrl}/api/v1/licenses/resolve` : null)
     if (!resolveUrl || !installToken || !this.configPath || !this.config) return
 
     this.lastLicenseCheckAt = new Date().toISOString()
@@ -908,14 +1575,14 @@ nohup "$TARGET" >/dev/null 2>&1 &
         process.env.HOSTNAME ||
         null
       const params = new URLSearchParams()
-      params.set('install_token', installToken)
       if (machineId) params.set('machine_id', machineId)
       params.set('os_platform', process.platform)
       params.set('app_version', app.getVersion())
-      const targetUrl = resolveUrl.includes('?')
-        ? `${resolveUrl}&${params.toString().split('&').slice(1).join('&')}`
-        : `${resolveUrl}?${params.toString()}`
-      const response = await fetch(targetUrl, { signal: AbortSignal.timeout(7000) })
+      const targetUrl = resolveUrl.includes('?') ? `${resolveUrl}&${params.toString()}` : `${resolveUrl}?${params.toString()}`
+      const response = await fetch(targetUrl, {
+        headers: buildControlPlaneHeaders(installToken),
+        signal: AbortSignal.timeout(7000)
+      })
       if (!response.ok) {
         this.lastLicenseError = `HTTP ${response.status}`
         return
@@ -959,6 +1626,25 @@ nohup "$TARGET" >/dev/null 2>&1 &
 
   private desktopRollbackStatePath(): string {
     return join(this.desktopUpdatesDir(), 'desktop-rollback.json')
+  }
+
+  private backendUpdateStatePath(): string {
+    return join(this.desktopUpdatesDir(), 'backend-update.json')
+  }
+
+  private backendRollbackStatePath(): string {
+    return join(this.desktopUpdatesDir(), 'backend-rollback.json')
+  }
+
+  private loadBackendUpdateState(): void {
+    const saved = parseJsonFile<AgentBackendUpdateState>(this.backendUpdateStatePath())
+    if (!saved) return
+    this.backendUpdateState = saved
+  }
+
+  private saveBackendUpdateState(): void {
+    mkdirSync(this.desktopUpdatesDir(), { recursive: true })
+    writeFileSync(this.backendUpdateStatePath(), JSON.stringify(this.backendUpdateState, null, 2), 'utf8')
   }
 
   private deriveDesktopUpdateState(
@@ -1011,6 +1697,104 @@ nohup "$TARGET" >/dev/null 2>&1 &
   private hasRollbackMetadata(): boolean {
     const rollback = parseJsonFile<AgentDesktopRollbackState>(this.desktopRollbackStatePath())
     return Boolean(rollback?.backupPath && existsSync(rollback.backupPath))
+  }
+
+  private hasBackendRollbackMetadata(): boolean {
+    const rollback = parseJsonFile<AgentBackendRollbackState>(this.backendRollbackStatePath())
+    return Boolean(rollback?.previousImage)
+  }
+
+  private deriveBackendUpdateState(
+    currentVersion: string | null,
+    availableVersion: string | null
+  ): AgentBackendUpdateState {
+    const current = this.backendUpdateState
+    const updateAvailable = isVersionGreater(availableVersion, currentVersion)
+    if (current.status === 'applying') {
+      return {
+        ...current,
+        currentVersion,
+        availableVersion,
+        rollbackAvailable: current.rollbackAvailable || this.hasBackendRollbackMetadata()
+      }
+    }
+    if (current.status === 'error') {
+      return {
+        ...current,
+        currentVersion,
+        availableVersion,
+        rollbackAvailable: current.rollbackAvailable || this.hasBackendRollbackMetadata()
+      }
+    }
+    if (updateAvailable) {
+      return {
+        ...current,
+        status: 'available',
+        currentVersion,
+        availableVersion,
+        artifact: this.manifest?.artifacts?.backend?.artifact ?? this.config?.backendArtifact ?? null,
+        targetRef: this.manifest?.artifacts?.backend?.target_ref ?? null,
+        rollbackAvailable: current.rollbackAvailable || this.hasBackendRollbackMetadata(),
+        message: 'Hay una actualización del servidor local disponible.',
+        lastError: current.lastError
+      }
+    }
+    return {
+      ...current,
+      status: 'idle',
+      currentVersion,
+      availableVersion,
+      artifact: this.manifest?.artifacts?.backend?.artifact ?? this.config?.backendArtifact ?? null,
+      targetRef: this.manifest?.artifacts?.backend?.target_ref ?? null,
+      rollbackAvailable: current.rollbackAvailable || this.hasBackendRollbackMetadata()
+    }
+  }
+
+  private installationDir(): string | null {
+    if (!this.configPath) return null
+    return dirname(this.configPath)
+  }
+
+  private readEnvFile(path: string): Record<string, string> {
+    const data = existsSync(path) ? readFileSync(path, 'utf8') : ''
+    const env: Record<string, string> = {}
+    for (const rawLine of data.split(/\r?\n/)) {
+      const line = rawLine.trim()
+      if (!line || line.startsWith('#')) continue
+      const eqIndex = line.indexOf('=')
+      if (eqIndex < 0) continue
+      env[line.slice(0, eqIndex).trim()] = line.slice(eqIndex + 1).trim()
+    }
+    return env
+  }
+
+  private writeEnvFile(path: string, envVars: Record<string, string>): void {
+    const serialized = Object.entries(envVars)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n')
+    writeFileSync(path, `${serialized}\n`, 'utf8')
+  }
+
+  private runDockerCompose(workingDirectory: string, envFilePath: string, args: string[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const child = spawn('docker', ['compose', '--env-file', envFilePath, ...args], {
+        cwd: workingDirectory,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      let stderr = ''
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString()
+      })
+      child.on('error', (error) => reject(error))
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve()
+          return
+        }
+        reject(new Error(stderr.trim() || `docker compose falló con código ${code ?? 'desconocido'}`))
+      })
+    })
   }
 
   private buildChecksumUrl(targetRef: string): string | null {

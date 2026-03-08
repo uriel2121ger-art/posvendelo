@@ -40,7 +40,7 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-docker"],
       "env": {
-        "DOCKER_HOST": "ssh://uriel@192.168.10.90"
+        "DOCKER_HOST": "ssh://usuario@docker-host.local"
       }
     }
   }

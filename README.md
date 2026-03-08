@@ -44,7 +44,8 @@ make health
 Para dejar el backend productivo actualizado:
 
 ```bash
-docker build -t ghcr.io/uriel2121ger-art/titan-pos:latest backend
+export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/titan-pos/titan-pos:latest}"
+docker build -t "$BACKEND_IMAGE" backend
 docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api
 curl http://127.0.0.1:8000/health
 ```
@@ -63,6 +64,30 @@ Si más adelante habilitas auto-updates del desktop, configura ese proveedor apa
 Antes de publicar a clientes, sigue `docs/RELEASE_CHECKLIST_WINDOWS_LINUX.md`.
 Para soporte comercial y activación offline, usa `docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md`.
 Para rollout de fixes, staging de updates y rollback, usa `docs/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
+
+### Flujo Plug-And-Play
+
+Objetivo operativo:
+
+- instalar en Windows o Linux sin editar archivos manualmente
+- dejar el nodo listo para abrir caja y operar
+- delegar el acceso remoto del dueño mediante el agente local
+- dejar un resumen usable por soporte en `INSTALL_SUMMARY.txt`
+
+Flujo esperado:
+
+1. El `control-plane` entrega `bootstrap-config` y `compose-template`.
+2. El instalador genera `.env`, `docker-compose.yml`, `titan-agent.json` e `INSTALL_SUMMARY.txt`.
+3. La app desktop detecta el nodo local, licencia, companion y acceso del dueño desde el agente.
+4. Soporte valida salud local, branch, manifest y companion sin reconstruir rutas a mano.
+
+Validación rápida antes de salida a cliente:
+
+```bash
+cd frontend && npm run verify:go-live
+cd backend && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m pytest tests/test_auth.py tests/test_remote.py tests/test_sales.py tests/test_turns.py tests/test_system.py -q
+cd control-plane && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m pytest tests/test_security.py tests/test_owner.py tests/test_licenses.py tests/test_tenants.py -q
+```
 
 ## Desarrollo Local
 
@@ -106,6 +131,7 @@ _archive/         # Codigo legacy (rollback)
 | [docs/PARSEAR_XML_FISCAL.md](docs/PARSEAR_XML_FISCAL.md) | Parsear XML (CFDI 4.0): dependencia **defusedxml**, instalación, pruebas |
 | [docs/BUG_PATTERN_ASYNCPG_FECHAS.md](docs/BUG_PATTERN_ASYNCPG_FECHAS.md) | Patrones de bug asyncpg con fechas (DATE/TIMESTAMP) |
 | [docs/DESPUES_DE_DEPLOY.md](docs/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de caché tras deploy |
+| [installers/README.md](installers/README.md) | Instalación Windows/Linux, contrato bootstrap y soporte plug-and-play |
 | [docs/FLUJO_PRUEBAS_AUTONOMO.md](docs/FLUJO_PRUEBAS_AUTONOMO.md) | Flujo autónomo por pestaña (rama `testing/autonomous-tab-validation`): edge cases, monkey, doc, correcciones |
 | [docs/LOG_PRUEBAS_TABS.md](docs/LOG_PRUEBAS_TABS.md) | Log vivo de pruebas por tab (hallazgos, correcciones, tests nuevos) |
 | [docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md](docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md) | Emisión, renovación, activación offline y reinstalación de licencias |

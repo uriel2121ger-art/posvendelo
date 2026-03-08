@@ -1,15 +1,37 @@
-import json, urllib.request, urllib.error, random
+import json
+import os
+import random
+import urllib.error
+import urllib.request
 
-req = urllib.request.Request("http://127.0.0.1:8000/api/v1/auth/login", method="POST", data=b'{"username":"admin","password":"admin"}', headers={'Content-Type': 'application/json'})
-token = json.loads(urllib.request.urlopen(req).read().decode())['access_token']
+BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:8000")
+API_USER = os.environ.get("API_USER", "admin")
+API_PASSWORD = os.environ.get("API_PASSWORD", "")
+
+if not API_PASSWORD:
+    raise SystemExit("Define API_PASSWORD antes de ejecutar este script.")
+
+login_payload = json.dumps({"username": API_USER, "password": API_PASSWORD}).encode()
+req = urllib.request.Request(
+    f"{BASE_URL}/api/v1/auth/login",
+    method="POST",
+    data=login_payload,
+    headers={"Content-Type": "application/json"},
+)
+token = json.loads(urllib.request.urlopen(req).read().decode())["access_token"]
 
 def post(path, data):
-    r = urllib.request.Request("http://127.0.0.1:8000" + path, method="POST", data=json.dumps(data).encode(), headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'})
+    r = urllib.request.Request(
+        BASE_URL + path,
+        method="POST",
+        data=json.dumps(data).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+    )
     try: return json.loads(urllib.request.urlopen(r).read().decode())
     except urllib.error.HTTPError as e: return json.loads(e.read().decode())
 
 def delete(path):
-    r = urllib.request.Request("http://127.0.0.1:8000" + path, method="DELETE", headers={'Authorization': f'Bearer {token}'})
+    r = urllib.request.Request(BASE_URL + path, method="DELETE", headers={"Authorization": f"Bearer {token}"})
     try: return json.loads(urllib.request.urlopen(r).read().decode())
     except urllib.error.HTTPError as e: return json.loads(e.read().decode())
 

@@ -68,3 +68,19 @@ class LicenseIssueRequest(BaseModel):
             return None
         stripped = value.strip()
         return stripped or None
+
+
+class LicenseRenewRequest(BaseModel):
+    license_id: int = Field(..., gt=0)
+    valid_until: str | None = Field(default=None, max_length=40)
+    support_until: str | None = Field(default=None, max_length=40)
+    additional_days: int = Field(default=0, ge=0, le=3650)
+    notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("valid_until", "support_until", "notes")
+    @classmethod
+    def strip_renew_values(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None

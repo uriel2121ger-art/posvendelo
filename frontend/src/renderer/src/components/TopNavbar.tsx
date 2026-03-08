@@ -46,7 +46,7 @@ const navGroups: NavItem[][] = [
     { path: '/empleados', label: 'Empleados', icon: UserCog },
     { path: '/remoto', label: 'Remoto', icon: Radio },
     { path: '/fiscal', label: 'Fiscal', icon: Landmark },
-    { path: '/hardware', label: 'Hardware', icon: MonitorDot },
+    { path: '/hardware', label: 'Dispositivos', icon: MonitorDot },
     { path: '/configuraciones', label: 'Ajustes', icon: Settings }
   ]
 ]

@@ -39,15 +39,15 @@ TITAN POS se expande de terminales Electron de escritorio hacia dispositivos mó
                     │         CLOUDFLARE EDGE               │
                     │         (router público)               │
                     │                                        │
-                    │  lupita-001.titanpos.com ─► Sucursal A │
-                    │  lupita-002.titanpos.com ─► Sucursal B │
-                    │  maya-001.titanpos.com   ─► Cliente 2  │
-                    │  admin.titanpos.com      ─► Control LB │
+                    │  sucursal-a.example.pos  ─► Sucursal A │
+                    │  sucursal-b.example.pos  ─► Sucursal B │
+                    │  cliente-002.example.pos ─► Cliente 2  │
+                    │  admin.example.pos       ─► Control LB │
                     └──────────┬─────────────────────────────┘
                                │
               ┌────────────────▼──────────────────────────┐
               │  CONTROL PLANE (Horizontal)                │
-              │  admin.titanpos.com                        │
+              │  admin.example.pos                         │
               │                                            │
               │  ┌─────────────────────────────────────┐   │
               │  │  Load Balancer (nginx / HAProxy)     │   │
@@ -312,8 +312,8 @@ POS Electron (Ajustes → "Vincular dispositivo")
     │
     │  {
     │    "v": 1,
-    │    "lan": "http://192.168.1.50:8090",
-    │    "wan": "https://lupita-001.titanpos.com",
+    │    "lan": "http://pos-sucursal.local:8090",
+    │    "wan": "https://sucursal-a.example.pos",
     │    "branch": 1,
     │    "pair": "a1b2c3d4e5f6",    ← token temporal (5 min, 1 uso)
     │    "exp": 1741305600
@@ -345,9 +345,9 @@ Listo — la app intenta LAN primero, fallback a WAN
 | Escenario | URL usada | Ruta |
 |-----------|-----------|------|
 | Cajero en tienda (WiFi) | `lan` → 192.168.x.x | LAN directa, sin internet |
-| Cajero en ruta (4G) | `wan` → .titanpos.com | Cloudflare → túnel → sucursal |
-| Bodeguero remoto | `wan` → .titanpos.com | Cloudflare → túnel → sucursal |
-| Dueño (App 2) | `wan` → admin.titanpos.com | Cloudflare → Control Plane |
+| Cajero en ruta (4G) | `wan` → dominio público configurado | Cloudflare → túnel → sucursal |
+| Bodeguero remoto | `wan` → dominio público configurado | Cloudflare → túnel → sucursal |
+| Dueño (App 2) | `wan` → panel administrativo configurado | Cloudflare → Control Plane |
 
 ---
 
@@ -356,19 +356,19 @@ Listo — la app intenta LAN primero, fallback a WAN
 Cero intervención manual por tenant. Todo via API de Cloudflare.
 
 ```
-Portal web: titanpos.com/registro
+Portal web: portal.example.pos/registro
     │
     ▼
 1. Dueño llena formulario:
-   - Nombre: "Novedades Lupita"
-   - Sucursales: 2 (Centro, Norte)
+   - Nombre: "Comercio Demo"
+   - Sucursales: 2 (Sucursal A, Sucursal B)
    - Plan: Pro
     │
     ▼
 2. Control Plane ejecuta automáticamente:
    - Crea tenant en DB central
-   - POST api.cloudflare.com/tunnels → tunnel "lupita-001"
-   - POST api.cloudflare.com/dns → lupita-001.titanpos.com
+   - POST api.cloudflare.com/tunnels → tunnel "tenant-demo-001"
+   - POST api.cloudflare.com/dns → tenant-demo-001.example.pos
    - Genera JWT_SECRET único para el tenant
    - Genera license.json firmado RSA
    - Genera docker-compose.yml con tokens inyectados
@@ -379,8 +379,8 @@ Portal web: titanpos.com/registro
    $ ./instalar-titan.sh
    → docker compose pull
    → docker compose up -d
-   → "TITAN POS listo en http://localhost:8090"
-   → "Acceso remoto: https://lupita-001.titanpos.com"
+   → "TITAN POS listo en la URL local configurada"
+   → "Acceso remoto: https://tenant-demo-001.example.pos"
     │
     ▼
 4. Abre POS → genera QR → escanea con celular → listo
@@ -392,13 +392,13 @@ Portal web: titanpos.com/registro
 # Crear túnel
 curl -X POST "https://api.cloudflare.com/client/v4/accounts/{id}/tunnels" \
   -H "Authorization: Bearer ${CF_API_TOKEN}" \
-  -d '{"name": "lupita-001", "tunnel_secret": "auto"}'
+  -d '{"name": "tenant-demo-001", "tunnel_secret": "auto"}'
 # → devuelve tunnel_token
 
 # Crear DNS
 curl -X POST "https://api.cloudflare.com/client/v4/zones/{id}/dns_records" \
   -H "Authorization: Bearer ${CF_API_TOKEN}" \
-  -d '{"type": "CNAME", "name": "lupita-001", "content": "{tunnel_id}.cfargotunnel.com"}'
+  -d '{"type": "CNAME", "name": "tenant-demo-001", "content": "{tunnel_id}.cfargotunnel.com"}'
 ```
 
 Ambas llamadas se encapsulan en un endpoint del Control Plane:

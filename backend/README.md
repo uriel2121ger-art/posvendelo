@@ -19,7 +19,7 @@ Sistema de Punto de Venta para retail. Backend FastAPI con asyncpg (SQL directo)
 ### Con Docker Compose (recomendado)
 
 ```bash
-cd "/home/uriel/Documentos/PUNTO DE VENTA"
+cd "<ruta-del-proyecto>"
 cp .env.example .env   # Editar credenciales
 docker compose up -d   # Levanta PostgreSQL + API
 ```

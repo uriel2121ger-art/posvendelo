@@ -13,6 +13,8 @@ import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-
 import { loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
 import CustomersTab from './tabs/CustomersTab'
 import DashboardStatsTab from './tabs/DashboardStatsTab'
+import CompanionDevicesTab from './tabs/CompanionDevicesTab'
+import OwnerPortfolioTab from './tabs/OwnerPortfolioTab'
 import ExpensesTab from './tabs/ExpensesTab'
 import HistoryTab from './tabs/HistoryTab'
 import InventoryTab from './tabs/InventoryTab'
@@ -629,12 +631,28 @@ function RoutedApp(): ReactElement {
               </CompanionLayout>
             }
           >
-            <Route path="" element={<Navigate to="/companion/remoto" replace />} />
+            <Route path="" element={<Navigate to="/companion/portfolio" replace />} />
+            <Route
+              path="portfolio"
+              element={
+                <TabErrorBoundary tabName="Companion Portfolio">
+                  <OwnerPortfolioTab />
+                </TabErrorBoundary>
+              }
+            />
             <Route
               path="remoto"
               element={
                 <TabErrorBoundary tabName="Companion Remoto">
                   <RemoteTab />
+                </TabErrorBoundary>
+              }
+            />
+            <Route
+              path="dispositivos"
+              element={
+                <TabErrorBoundary tabName="Companion Dispositivos">
+                  <CompanionDevicesTab />
                 </TabErrorBoundary>
               }
             />
@@ -763,7 +781,7 @@ function RoutedApp(): ReactElement {
           <Route
             path="/hardware"
             element={
-              <TabErrorBoundary tabName="Hardware">
+              <TabErrorBoundary tabName="Dispositivos">
                 <SettingsTab mode="hardware" initialTab="printer" />
               </TabErrorBoundary>
             }

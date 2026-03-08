@@ -220,6 +220,10 @@ TITAN_LICENSE_ENFORCEMENT=true
       bootstrapPublicKey = $bootstrapData.bootstrap_public_key
       licenseResolveUrl = $bootstrapData.license_resolve_url
       companionUrl = $bootstrapData.companion_url
+      companionEntryUrl = $bootstrapData.companion_entry_url
+      ownerSessionUrl = $bootstrapData.owner_session_url
+      ownerApiBaseUrl = $bootstrapData.owner_api_base_url
+      quickLinks = $bootstrapData.quick_links
     }
   } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $agentPath
 
@@ -234,6 +238,8 @@ Health local: http://127.0.0.1:$ApiPort/health
 Postgres local: 127.0.0.1:$DbPort
 Manifest: $($bootstrapData.release_manifest_url)
 Companion: $($bootstrapData.companion_url)
+Companion Portfolio: $($bootstrapData.companion_entry_url)
+Owner API: $($bootstrapData.owner_api_base_url)
 
 Archivos clave:
 - .env

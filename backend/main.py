@@ -332,6 +332,7 @@ from modules.sat.routes import router as sat_router
 from modules.fiscal.routes import router as fiscal_router
 from modules.hardware.routes import router as hardware_router
 from modules.shared.license_routes import router as license_router
+from modules.system.routes import router as system_router
 
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(customers_router, prefix="/api/v1/customers", tags=["customers"])
@@ -349,6 +350,7 @@ app.include_router(sat_router, prefix="/api/v1/sat", tags=["sat"])
 app.include_router(fiscal_router, prefix="/api/v1/fiscal", tags=["fiscal"])
 app.include_router(hardware_router, prefix="/api/v1/hardware", tags=["hardware"])
 app.include_router(license_router, prefix="/api/v1/license", tags=["license"])
+app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
 
 # ---------------------------------------------------------------------------
 # Health check

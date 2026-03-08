@@ -470,6 +470,40 @@ export async function getSystemInfo(cfg: RuntimeConfig): Promise<Record<string, 
   return (await res.json()) as Record<string, unknown>
 }
 
+export async function getBackupStatus(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/system/status`, { headers: headers(cfg) })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo obtener el estado de respaldos'))
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function listBackups(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/system/backups`, { headers: headers(cfg) })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo listar los respaldos'))
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function buildRestorePlan(
+  cfg: RuntimeConfig,
+  backupFile: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/system/restore-plan`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ backup_file: backupFile })
+  })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo preparar el plan de recuperación'))
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
 export async function getLicenseStatus(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/license/status`, { headers: headers(cfg) })
   if (!res.ok) {
@@ -493,6 +527,7 @@ export async function openTurn(
     body: JSON.stringify({
       initial_cash: body.initial_cash,
       branch_id: body.branch_id ?? 1,
+      terminal_id: cfg.terminalId,
       notes: body.notes || undefined
     })
   })
@@ -780,6 +815,37 @@ export async function getPendingNotifications(
   return (await res.json()) as Record<string, unknown>
 }
 
+export async function getPairQrPayload(
+  cfg: RuntimeConfig,
+  branchId: number,
+  terminalId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(
+    `${cfg.baseUrl}/api/v1/auth/pair-qr?branch_id=${branchId}&terminal_id=${terminalId}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error generando payload de vinculación'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getPairedDevices(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/auth/devices`, { headers: headers(cfg) })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando dispositivos vinculados'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function revokePairedDevice(
+  cfg: RuntimeConfig,
+  pairingId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/auth/devices/${pairingId}`, {
+    method: 'DELETE',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error revocando dispositivo'))
+  return (await res.json()) as Record<string, unknown>
+}
+
 // ── Dashboard Extendido ───────────────────────────
 
 export async function getDashboardResico(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
@@ -818,16 +884,31 @@ export async function getDashboardExecutive(cfg: RuntimeConfig): Promise<Record<
 
 export async function cancelSale(
   cfg: RuntimeConfig,
-  saleId: string
+  saleId: string,
+  body: { manager_pin: string; reason?: string }
 ): Promise<Record<string, unknown>> {
   const res = await apiFetchLong(
     `${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`,
     {
       method: 'POST',
-      headers: headers(cfg)
+      headers: headers(cfg),
+      body: JSON.stringify(body)
     }
   )
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function remoteCancelSale(
+  cfg: RuntimeConfig,
+  body: { sale_id: number; manager_pin: string; reason?: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/remote/cancel-sale`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta remotamente'))
   return (await res.json()) as Record<string, unknown>
 }
 

@@ -147,17 +147,17 @@ async def client(db_conn, monkeypatch):
 
 @pytest.fixture
 def admin_token():
-    return create_token(str(ADMIN_ID), "admin")
+    return create_token(str(ADMIN_ID), "admin", {"branch_id": BRANCH_ID})
 
 
 @pytest.fixture
 def cashier_token():
-    return create_token(str(CASHIER_ID), "cashier")
+    return create_token(str(CASHIER_ID), "cashier", {"branch_id": BRANCH_ID})
 
 
 @pytest.fixture
 def manager_token():
-    return create_token(str(MANAGER_ID), "manager")
+    return create_token(str(MANAGER_ID), "manager", {"branch_id": BRANCH_ID})
 
 
 # ── Seed fixtures ────────────────────────────────────────────────

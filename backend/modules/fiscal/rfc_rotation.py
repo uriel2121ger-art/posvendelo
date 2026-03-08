@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 class CFDIProxyRotator:
     PROXY_PROVIDERS = {
-        'residential': ['http://user:pass@proxy1.example.com:8080', 'http://user:pass@proxy2.example.com:8080'],
-        'datacenter': ['http://user:pass@dc1.example.com:8080', 'http://user:pass@dc2.example.com:8080'],
-        'tor': ['socks5://127.0.0.1:9050'],
+        'residential': [],
+        'datacenter': [],
+        'tor': [],
     }
     RFC_PROXY_MAP = {}
 
@@ -33,7 +33,7 @@ class CFDIProxyRotator:
 
     def _load_proxies(self):
         if not self.db:
-            self.proxies = [{'url': None, 'type': 'direct', 'location': 'Mérida'}]
+            self.proxies = [{'url': None, 'type': 'direct', 'location': 'Local'}]
             return
         try:
             import asyncio

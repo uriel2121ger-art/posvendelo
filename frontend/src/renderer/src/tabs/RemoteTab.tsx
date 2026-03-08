@@ -1,25 +1,35 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useConfirm } from '../components/ConfirmDialog'
+import { useConfirm, usePrompt } from '../components/ConfirmDialog'
 import {
   loadRuntimeConfig,
   getLiveSales,
   getTurnStatusRemote,
   remoteOpenDrawer,
+  remoteCancelSale,
   remoteChangePrice,
+  remoteStockUpdate,
   sendNotification,
   getPendingNotifications,
   getUserRole
 } from '../posApi'
-import { Radio, Activity, RefreshCw, DoorOpen, Tag, Send, BellRing, Target } from 'lucide-react'
+import { Radio, Activity, RefreshCw, DoorOpen, Tag, Send, BellRing, Target, Ban } from 'lucide-react'
 import { toNumber } from '../utils/numbers'
+import {
+  enqueueRemoteAction,
+  loadQueuedRemoteActions,
+  removeQueuedRemoteAction,
+  type QueuedRemoteAction
+} from '../utils/offlineQueue'
 
 export default function RemoteTab(): ReactElement {
   const confirm = useConfirm()
+  const prompt = usePrompt()
   const [turnStatus, setTurnStatus] = useState<Record<string, unknown> | null>(null)
   const [liveSales, setLiveSales] = useState<Record<string, unknown>[]>([])
   const [notifications, setNotifications] = useState<Record<string, unknown>[]>([])
+  const [queuedActions, setQueuedActions] = useState<QueuedRemoteAction[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Panel remoto: control y monitoreo en tiempo real.')
   const liveRef = useRef(0)
@@ -30,6 +40,12 @@ export default function RemoteTab(): ReactElement {
   const [cpSku, setCpSku] = useState('')
   const [cpPrice, setCpPrice] = useState('')
   const [cpReason, setCpReason] = useState('')
+  const [cancelSaleId, setCancelSaleId] = useState('')
+  const [cancelReason, setCancelReason] = useState('')
+  const [stockSku, setStockSku] = useState('')
+  const [stockQty, setStockQty] = useState('')
+  const [stockOperation, setStockOperation] = useState('add')
+  const [stockReason, setStockReason] = useState('')
 
   // Notification form
   const [ntTitle, setNtTitle] = useState('')
@@ -72,6 +88,7 @@ export default function RemoteTab(): ReactElement {
   }, [])
 
   useEffect(() => {
+    setQueuedActions(loadQueuedRemoteActions())
     void loadTurnStatus()
     void loadLiveSales()
     void loadNotifications()
@@ -82,6 +99,64 @@ export default function RemoteTab(): ReactElement {
       clearInterval(interval)
     }
   }, [loadTurnStatus, loadLiveSales, loadNotifications])
+
+  function isConnectivityError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
+    return (
+      message.includes('no se pudo conectar') ||
+      message.includes('failed to fetch') ||
+      message.includes('network') ||
+      message.includes('load failed') ||
+      message.includes('tiempo de espera')
+    )
+  }
+
+  function queueAction(
+    kind: QueuedRemoteAction['kind'],
+    summary: string,
+    payload: Record<string, unknown>
+  ): void {
+    setQueuedActions(
+      enqueueRemoteAction({
+        kind,
+        summary,
+        payload
+      })
+    )
+  }
+
+  async function handleFlushQueue(): Promise<void> {
+    const currentQueue = loadQueuedRemoteActions()
+    if (currentQueue.length === 0) {
+      setMessage('No hay acciones pendientes por sincronizar.')
+      return
+    }
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      for (const action of currentQueue) {
+        if (action.kind === 'price_change') {
+          await remoteChangePrice(cfg, action.payload as { sku: string; new_price: number; reason: string })
+        } else if (action.kind === 'stock_update') {
+          await remoteStockUpdate(cfg, action.payload as { sku: string; quantity: number; operation: string; reason: string })
+        } else if (action.kind === 'notification') {
+          await sendNotification(cfg, action.payload as { title: string; body: string; notification_type: string })
+        }
+        setQueuedActions(removeQueuedRemoteAction(action.id))
+      }
+      setMessage('Cola offline sincronizada correctamente.')
+      void loadNotifications()
+    } catch (error) {
+      setQueuedActions(loadQueuedRemoteActions())
+      setMessage(
+        isConnectivityError(error)
+          ? 'La sincronización sigue pendiente por falta de conectividad.'
+          : (error as Error).message
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function handleOpenDrawer(): Promise<void> {
     if (!canAdmin) {
@@ -129,7 +204,51 @@ export default function RemoteTab(): ReactElement {
       setCpPrice('')
       setCpReason('')
     } catch (error) {
-      setMessage((error as Error).message)
+      if (isConnectivityError(error)) {
+        queueAction('price_change', `Cambio de precio ${cpSku.trim()}`, {
+          sku: cpSku.trim(),
+          new_price: toNumber(cpPrice),
+          reason: cpReason.trim()
+        })
+        setMessage('Sin conexión: cambio de precio encolado para sincronización.')
+      } else {
+        setMessage((error as Error).message)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleStockUpdate(): Promise<void> {
+    if (!canAdmin) {
+      setMessage('Sin permisos para actualizar stock.')
+      return
+    }
+    if (!stockSku.trim() || !stockQty.trim() || !stockReason.trim()) {
+      setMessage('SKU, cantidad y motivo son obligatorios.')
+      return
+    }
+    const payload = {
+      sku: stockSku.trim(),
+      quantity: toNumber(stockQty),
+      operation: stockOperation,
+      reason: stockReason.trim()
+    }
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      await remoteStockUpdate(cfg, payload)
+      setMessage(`Stock de ${stockSku.trim()} actualizado.`)
+      setStockSku('')
+      setStockQty('')
+      setStockReason('')
+    } catch (error) {
+      if (isConnectivityError(error)) {
+        queueAction('stock_update', `Ajuste de stock ${stockSku.trim()}`, payload)
+        setMessage('Sin conexión: ajuste de stock encolado para sincronización.')
+      } else {
+        setMessage((error as Error).message)
+      }
     } finally {
       setBusy(false)
     }
@@ -151,6 +270,67 @@ export default function RemoteTab(): ReactElement {
       setMessage('Notificación enviada.')
       setNtTitle('')
       setNtBody('')
+    } catch (error) {
+      if (isConnectivityError(error)) {
+        queueAction('notification', `Mensaje ${ntTitle.trim()}`, {
+          title: ntTitle.trim(),
+          body: ntBody.trim(),
+          notification_type: ntType
+        })
+        setMessage('Sin conexión: mensaje encolado para sincronización.')
+      } else {
+        setMessage((error as Error).message)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCancelRemoteSale(): Promise<void> {
+    if (!canAdmin) {
+      setMessage('Sin permisos para cancelar ventas.')
+      return
+    }
+    if (!cancelSaleId.trim()) {
+      setMessage('Captura el ID o folio de la venta a cancelar.')
+      return
+    }
+    const saleIdNumber = Number(cancelSaleId.trim())
+    if (!Number.isInteger(saleIdNumber) || saleIdNumber <= 0) {
+      setMessage('La cancelación remota requiere un ID numérico de venta.')
+      return
+    }
+    if (
+      !(await confirm(
+        `¿Autorizar cancelación remota de la venta ${cancelSaleId.trim()}? Esta acción revierte stock y pagos asociados.`,
+        {
+          variant: 'danger',
+          title: 'Cancelación supervisada'
+        }
+      ))
+    ) {
+      return
+    }
+    const managerPin = await prompt('Ingresa el PIN de gerente/autorización para confirmar la cancelación.', {
+      title: 'PIN de autorización',
+      placeholder: 'PIN de gerente',
+      confirmText: 'Cancelar venta',
+      variant: 'warning'
+    })
+    if (managerPin == null) return
+
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      await remoteCancelSale(cfg, {
+        sale_id: saleIdNumber,
+        manager_pin: managerPin.trim(),
+        reason: cancelReason.trim() || 'Cancelación remota supervisada'
+      })
+      setMessage(`Venta ${cancelSaleId.trim()} cancelada remotamente.`)
+      setCancelSaleId('')
+      setCancelReason('')
+      void loadLiveSales()
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
@@ -179,6 +359,51 @@ export default function RemoteTab(): ReactElement {
                 <span className={busy ? 'text-amber-500' : 'text-emerald-500'}>
                   {busy ? 'TRABAJANDO' : 'ESTABLE'}
                 </span>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
+                  <Target className="w-4 h-4 text-emerald-500" /> Ajuste remoto de stock
+                </h2>
+                <div className="space-y-3">
+                  <input
+                    className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                    placeholder="SKU o código"
+                    value={stockSku}
+                    onChange={(e) => setStockSku(e.target.value)}
+                  />
+                  <div className="flex gap-3">
+                    <input
+                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                      placeholder="Cantidad"
+                      type="number"
+                      value={stockQty}
+                      onChange={(e) => setStockQty(e.target.value)}
+                    />
+                    <select
+                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider focus:border-emerald-500 focus:outline-none transition-all"
+                      value={stockOperation}
+                      onChange={(e) => setStockOperation(e.target.value)}
+                    >
+                      <option value="add">Agregar</option>
+                      <option value="subtract">Restar</option>
+                      <option value="set">Fijar</option>
+                    </select>
+                    <input
+                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                      placeholder="Motivo"
+                      value={stockReason}
+                      onChange={(e) => setStockReason(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                    onClick={() => void handleStockUpdate()}
+                    disabled={busy || !canAdmin}
+                  >
+                    Aplicar ajuste de stock
+                  </button>
+                </div>
               </div>
               <button
                 onClick={() => {
@@ -338,6 +563,33 @@ export default function RemoteTab(): ReactElement {
                 </button>
               </div>
 
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
+                  <Ban className="w-4 h-4 text-rose-500" /> Cancelación supervisada
+                </h2>
+                <div className="space-y-3">
+                  <input
+                    className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-rose-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                    placeholder="ID o folio de la venta"
+                    value={cancelSaleId}
+                    onChange={(e) => setCancelSaleId(e.target.value)}
+                  />
+                  <input
+                    className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-sm text-zinc-200 focus:border-rose-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                    placeholder="Motivo de cancelación"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  />
+                  <button
+                    className="w-full mt-2 bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50"
+                    onClick={() => void handleCancelRemoteSale()}
+                    disabled={busy || !canAdmin}
+                  >
+                    Autorizar cancelación
+                  </button>
+                </div>
+              </div>
+
               {/* Price Change Component */}
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
@@ -452,6 +704,39 @@ export default function RemoteTab(): ReactElement {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider">
+                    Cola offline
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => void handleFlushQueue()}
+                    disabled={busy || queuedActions.length === 0}
+                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-semibold text-zinc-300 disabled:opacity-50"
+                  >
+                    Sincronizar {queuedActions.length > 0 ? `(${queuedActions.length})` : ''}
+                  </button>
+                </div>
+                {queuedActions.length === 0 ? (
+                  <p className="text-sm text-zinc-500">No hay acciones pendientes.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {queuedActions.map((action) => (
+                      <div
+                        key={action.id}
+                        className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2"
+                      >
+                        <p className="text-sm font-semibold text-zinc-200">{action.summary}</p>
+                        <p className="text-[11px] text-zinc-500">
+                          {action.kind} • {action.createdAt.slice(0, 19).replace('T', ' ')}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

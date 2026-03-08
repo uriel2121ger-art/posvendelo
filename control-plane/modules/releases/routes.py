@@ -1,5 +1,5 @@
 from audit import log_audit_event
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from db.connection import get_db
 from modules.releases.schemas import (
@@ -315,8 +315,10 @@ async def resolve_release(
 async def release_manifest(
     branch_id: int | None = Query(default=None, ge=1),
     install_token: str | None = Query(default=None, min_length=8),
+    x_install_token: str | None = Header(default=None, alias="X-Install-Token"),
     db=Depends(get_db),
 ):
+    install_token = install_token or (x_install_token.strip() if isinstance(x_install_token, str) and x_install_token.strip() else None)
     if branch_id is None and not install_token:
         raise HTTPException(status_code=400, detail="branch_id o install_token requerido")
 

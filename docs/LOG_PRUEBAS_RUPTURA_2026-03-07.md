@@ -49,8 +49,8 @@ Objetivo: intentar romper el POS y su entorno inmediato con pruebas automatizada
 
 - El run E2E completo falló desde el primer caso.
 - Con `E2E_START_SERVER=1` el primer fallo real fue login:
-  - el spec usa `admin/admin123`
-  - el backend activo acepta `admin/admin`
+  - el spec usa una contraseña de prueba distinta a la configurada
+  - el backend activo acepta otra credencial local
   - resultado: la UI permanece en `/#/login` con mensaje `Credenciales invalidas`
 
 ## Hallazgos prioritarios
@@ -61,8 +61,8 @@ Severidad: alta
 
 Detalles:
 
-- `frontend/e2e/e2e-browser-v7.spec.ts` usa por defecto `E2E_PASS || 'admin123'`
-- el backend local activo acepta `admin/admin`
+- `frontend/e2e/e2e-browser-v7.spec.ts` dependía de una credencial de prueba diferente a la del backend local
+- el backend local activo usaba otra contraseña en ese momento
 - además `npm run test:e2e` falla si no existe frontend en `5173`; requiere `E2E_START_SERVER=1` o levantar `dev:browser` manualmente
 
 Impacto:

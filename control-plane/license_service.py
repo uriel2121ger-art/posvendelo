@@ -156,6 +156,129 @@ def build_signed_license(
     return envelope
 
 
+def create_license_values(
+    *,
+    license_type: str,
+    status: str = "active",
+    valid_from: datetime | None = None,
+    valid_until: datetime | None = None,
+    support_until: datetime | None = None,
+    trial_started_at: datetime | None = None,
+    trial_expires_at: datetime | None = None,
+    grace_days: int = 0,
+) -> dict[str, Any]:
+    now = _utc_now()
+    normalized_valid_from = valid_from or now
+    normalized_valid_until = valid_until
+    normalized_support_until = support_until
+    normalized_trial_started_at = trial_started_at
+    normalized_trial_expires_at = trial_expires_at
+
+    if license_type == "trial":
+        normalized_trial_started_at = normalized_trial_started_at or now
+        normalized_trial_expires_at = normalized_trial_expires_at or (normalized_trial_started_at + timedelta(days=90))
+        normalized_valid_until = normalized_valid_until or normalized_trial_expires_at
+        normalized_support_until = normalized_support_until or normalized_trial_expires_at
+    elif license_type == "monthly":
+        normalized_valid_until = normalized_valid_until or (normalized_valid_from + timedelta(days=30))
+        normalized_support_until = normalized_support_until or normalized_valid_until
+    elif license_type == "perpetual":
+        normalized_valid_until = None
+        normalized_support_until = normalized_support_until or (normalized_valid_from + timedelta(days=365))
+
+    return {
+        "license_type": license_type,
+        "status": status,
+        "valid_from": normalized_valid_from,
+        "valid_until": normalized_valid_until,
+        "support_until": normalized_support_until,
+        "trial_started_at": normalized_trial_started_at,
+        "trial_expires_at": normalized_trial_expires_at,
+        "grace_days": grace_days,
+    }
+
+
+async def create_license_record(
+    db,
+    *,
+    tenant_id: int,
+    license_type: str,
+    status: str = "active",
+    valid_from: datetime | None = None,
+    valid_until: datetime | None = None,
+    support_until: datetime | None = None,
+    trial_started_at: datetime | None = None,
+    trial_expires_at: datetime | None = None,
+    grace_days: int = 0,
+    max_branches: int | None = None,
+    max_devices: int | None = None,
+    notes: str | None = None,
+    features: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    values = create_license_values(
+        license_type=license_type,
+        status=status,
+        valid_from=valid_from,
+        valid_until=valid_until,
+        support_until=support_until,
+        trial_started_at=trial_started_at,
+        trial_expires_at=trial_expires_at,
+        grace_days=grace_days,
+    )
+    return await db.fetchrow(
+        """
+        INSERT INTO tenant_licenses (
+            tenant_id,
+            license_type,
+            status,
+            valid_from,
+            valid_until,
+            support_until,
+            trial_started_at,
+            trial_expires_at,
+            grace_days,
+            max_branches,
+            max_devices,
+            features,
+            signature_version,
+            notes
+        )
+        VALUES (
+            :tenant_id,
+            :license_type,
+            :status,
+            :valid_from,
+            :valid_until,
+            :support_until,
+            :trial_started_at,
+            :trial_expires_at,
+            :grace_days,
+            :max_branches,
+            :max_devices,
+            :features::jsonb,
+            1,
+            :notes
+        )
+        RETURNING *
+        """,
+        {
+            "tenant_id": tenant_id,
+            "license_type": values["license_type"],
+            "status": values["status"],
+            "valid_from": values["valid_from"].isoformat() if values["valid_from"] else None,
+            "valid_until": values["valid_until"].isoformat() if values["valid_until"] else None,
+            "support_until": values["support_until"].isoformat() if values["support_until"] else None,
+            "trial_started_at": values["trial_started_at"].isoformat() if values["trial_started_at"] else None,
+            "trial_expires_at": values["trial_expires_at"].isoformat() if values["trial_expires_at"] else None,
+            "grace_days": values["grace_days"],
+            "max_branches": max_branches,
+            "max_devices": max_devices,
+            "features": json.dumps(features or {}, ensure_ascii=True),
+            "notes": notes,
+        },
+    )
+
+
 async def ensure_trial_license(db, *, tenant_id: int) -> dict[str, Any]:
     existing = await db.fetchrow(
         """
@@ -172,50 +295,18 @@ async def ensure_trial_license(db, *, tenant_id: int) -> dict[str, Any]:
 
     trial_days = max(1, int(os.getenv("CP_TRIAL_DAYS", "90")))
     now = _utc_now()
-    expires_at = now + timedelta(days=trial_days)
-    return await db.fetchrow(
-        """
-        INSERT INTO tenant_licenses (
-            tenant_id,
-            license_type,
-            status,
-            valid_from,
-            valid_until,
-            support_until,
-            trial_started_at,
-            trial_expires_at,
-            grace_days,
-            max_branches,
-            max_devices,
-            features,
-            signature_version
-        )
-        VALUES (
-            :tenant_id,
-            'trial',
-            'active',
-            :valid_from,
-            :valid_until,
-            :support_until,
-            :trial_started_at,
-            :trial_expires_at,
-            0,
-            1,
-            1,
-            :features::jsonb,
-            1
-        )
-        RETURNING *
-        """,
-        {
-            "tenant_id": tenant_id,
-            "valid_from": now.isoformat(),
-            "valid_until": expires_at.isoformat(),
-            "support_until": expires_at.isoformat(),
-            "trial_started_at": now.isoformat(),
-            "trial_expires_at": expires_at.isoformat(),
-            "features": json.dumps({"plan_label": "trial-90"}, ensure_ascii=True),
-        },
+    return await create_license_record(
+        db,
+        tenant_id=tenant_id,
+        license_type="trial",
+        status="active",
+        valid_from=now,
+        trial_started_at=now,
+        trial_expires_at=now + timedelta(days=trial_days),
+        grace_days=0,
+        max_branches=1,
+        max_devices=1,
+        features={"plan_label": f"trial-{trial_days}"},
     )
 
 

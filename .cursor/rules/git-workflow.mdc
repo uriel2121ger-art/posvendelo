@@ -3,21 +3,30 @@ description: Workflow de git para TITAN POS
 alwaysApply: false
 ---
 
+# Git Workflow
+
 ## Antes de commit
+
 1. Ejecutar tests backend: `cd backend && set -a && source .env && set +a && pytest tests/ -x`
 2. Opcional frontend: `cd frontend && npm run test`
 3. Verificar que no hay credenciales en el diff
 4. Formato de mensaje: `tipo(scope): descripción en español`
    - Tipos: feat, fix, refactor, test, docs, chore
    - Ejemplo: `fix(sync): corregir sequence desincronizado post-sync`
+5. Si el cambio toca distribución, companion, agente local o control-plane, correr además:
+   - `cd control-plane && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m pytest tests/test_security.py tests/test_owner.py tests/test_licenses.py tests/test_tenants.py -q`
+   - `cd backend && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m pytest tests/test_auth.py tests/test_remote.py tests/test_sales.py tests/test_turns.py tests/test_system.py -q`
+   - `cd frontend && npx vitest run src/renderer/src/__tests__/app-routing.test.tsx src/renderer/src/__tests__/login.test.tsx src/renderer/src/__tests__/posApi.test.ts src/renderer/src/__tests__/offline-queue.test.ts src/renderer/src/__tests__/owner-portfolio-tab.test.tsx`
 
 ## Branches
+
 - `main` → producción (protegido)
 - `develop` → integración
 - `feature/nombre` → features nuevas
 - `fix/nombre` → bugfixes
 
 ## Nunca hacer
+
 - Force push a main o develop
 - Commit con credenciales, tokens o .env
 - Merge sin tests pasando

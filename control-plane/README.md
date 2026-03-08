@@ -40,7 +40,7 @@ curl http://localhost:9090/health
 
 ```bash
 curl -X POST http://localhost:9090/api/v1/tenants/ \
-  -H "X-Admin-Token: change-me" \
+  -H "X-Admin-Token: <admin-token-seguro>" \
   -H "Content-Type: application/json" \
   -d '{"name":"Cliente Demo","slug":"cliente-demo"}'
 ```
@@ -60,16 +60,46 @@ La respuesta de bootstrap ahora incluye tambien:
 - `install_report_url`
 - `bootstrap_public_key`
 - `companion_url`
+- `companion_entry_url`
 - `license_resolve_url`
+- `owner_session_url`
+- `owner_api_base_url`
+- `quick_links`
 - `license`
 
 Esos campos permiten que el instalador y el agente local compartan el mismo contrato de aprovisionamiento.
+
+## Companion y Acceso Del Dueño
+
+Flujo recomendado:
+
+1. El instalador consume `bootstrap-config` y guarda `titan-agent.json`.
+2. El agente local usa `install_token` para pedir `POST /api/v1/owner/session`.
+3. La app desktop consume al agente local, no al `install_token` crudo.
+4. El companion usa las rutas ya publicadas por `companion_entry_url` y `quick_links`.
+
+Endpoints relevantes:
+
+- `POST /api/v1/owner/session`
+- `GET /api/v1/owner/portfolio`
+- `GET /api/v1/owner/alerts`
+- `GET /api/v1/owner/events`
+- `GET /api/v1/owner/branches/{branch_id}/timeline`
+- `GET /api/v1/owner/commercial`
+- `GET /api/v1/owner/health-summary`
+- `GET /api/v1/owner/audit`
+
+Objetivo:
+
+- no pedir al usuario final rutas manuales
+- no exponer el `install_token` como credencial de uso diario
+- dejar listo el companion para soporte, dueño y operación multi-sucursal
 
 ## Licencias
 
 Rutas disponibles:
 
-- `GET /api/v1/licenses/resolve?install_token=...`
+- `GET /api/v1/licenses/resolve` con `X-Install-Token: ...`
 - `POST /api/v1/licenses/activate-device`
 - `POST /api/v1/licenses/refresh`
 - `POST /api/v1/licenses/revoke`
@@ -79,7 +109,7 @@ Emitir o renovar una licencia:
 
 ```bash
 curl -X POST http://localhost:9090/api/v1/licenses/issue \
-  -H "X-Admin-Token: change-me" \
+  -H "X-Admin-Token: <admin-token-seguro>" \
   -H "Content-Type: application/json" \
   -d '{"tenant_id":1,"license_type":"monthly","valid_until":"2026-04-01T00:00:00","grace_days":5}'
 ```
@@ -113,7 +143,7 @@ curl -X POST http://localhost:9090/api/v1/heartbeat/ \
 
 ```bash
 curl -X POST http://localhost:9090/api/v1/releases/publish \
-  -H "X-Release-Token: change-me-release" \
+  -H "X-Release-Token: <release-token-seguro>" \
   -H "Content-Type: application/json" \
   -d '{"platform":"desktop","artifact":"electron-linux","version":"2.0.0","channel":"stable","target_ref":"https://github.com/ORG/REPO/releases/download/v2.0.0/titan-pos-2.0.0.AppImage","source":"manual"}'
 ```
@@ -121,7 +151,8 @@ curl -X POST http://localhost:9090/api/v1/releases/publish \
 1. Resolver manifest de releases para una sucursal:
 
 ```bash
-curl "http://localhost:9090/api/v1/releases/manifest?install_token=TOKEN"
+curl "http://localhost:9090/api/v1/releases/manifest" \
+  -H "X-Install-Token: TOKEN"
 ```
 
 Para rollout y rollback operativo, consulta `../docs/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
@@ -143,4 +174,5 @@ curl -X POST http://localhost:9090/api/v1/branches/install-report \
 - El manifest de releases también expone `checksums_manifest_url` para desktop cuando el `target_ref` apunta a assets HTTP/HTTPS.
 - `CP_LICENSE_PRIVATE_KEY` debe configurarse en producción. Si falta, el control-plane usa una clave efímera solo válida para desarrollo.
 - `CP_COMPANION_URL` permite anunciar la URL del companion movil/web desde el control-plane.
+- `CP_OWNER_SESSION_SECRET` permite separar la firma de sesiones del dueño del `CP_ADMIN_TOKEN`.
 - `db/migrations/` permite aplicar cambios incrementales del schema en despliegues existentes.

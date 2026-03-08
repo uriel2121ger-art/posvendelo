@@ -562,7 +562,7 @@ Situaciones que ocurren inevitablemente y que el cajero debe poder manejar sin l
 ### 3.4 Manejo de Perfiles de Configuracion
 
 - [ ] **Guardar y cargar perfil:**
-  1. Ir a Configuraciones. Configurar URL: `http://192.168.10.90:8000`, Terminal ID: `2`.
+  1. Ir a Configuraciones. Configurar URL: `http://servidor-pos.local:8000`, Terminal ID: `2`.
   2. Guardar config. Nombre perfil: `Caja 2 Prod`. Guardar perfil.
   3. Cambiar URL a `http://localhost:8000`, Terminal: `1`. Guardar config.
   4. Seleccionar perfil `Caja 2 Prod` del dropdown.
@@ -1130,7 +1130,7 @@ Situaciones que "nunca deberian pasar" pero pasan. Cada una busca un crash o cor
 
 Simular una tienda real con 2 cajas operando al mismo tiempo. Requiere 2 computadoras (o 2 perfiles de navegador con diferente `terminalId`) apuntando al mismo backend.
 
-**Setup:** PC-A configura `terminalId: 1`. PC-B configura `terminalId: 2`. Ambas apuntan al mismo backend (`http://192.168.10.X:8000`).
+**Setup:** PC-A configura `terminalId: 1`. PC-B configura `terminalId: 2`. Ambas apuntan al mismo backend (`http://servidor-pos.local:8000`).
 
 ### 10.1 Apertura de Dia — 2 Cajas
 

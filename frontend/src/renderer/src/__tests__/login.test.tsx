@@ -162,7 +162,7 @@ describe('Login', () => {
     })
 
     await user.type(screen.getByPlaceholderText('Nombre de usuario'), 'admin')
-    await user.type(screen.getByPlaceholderText('••••••••'), 'admin1234')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'clave-prueba-segura')
 
     const btn = screen.getByRole('button', { name: /ingresar/i })
     expect(btn).toBeEnabled()
@@ -255,7 +255,7 @@ describe('Login', () => {
     })
 
     await user.type(screen.getByPlaceholderText('Nombre de usuario'), 'admin')
-    await user.type(screen.getByPlaceholderText('••••••••'), 'admin1234')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'clave-prueba-segura')
     await user.click(screen.getByRole('button', { name: /ingresar/i }))
 
     await waitFor(() => {
@@ -275,8 +275,9 @@ describe('Login', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Nodo local')).toBeInTheDocument()
-      expect(screen.getByText(/trial \/ active/i)).toBeInTheDocument()
-      expect(screen.getByText('15 día(s) restantes')).toBeInTheDocument()
+      expect(
+        screen.getByText('Estado de licencia disponible. Inicia sesión para revisar el detalle administrativo.')
+      ).toBeInTheDocument()
     })
   })
 })

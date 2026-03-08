@@ -14,6 +14,7 @@ from modules.branches.routes import router as branches_router
 from modules.dashboard.routes import router as dashboard_router
 from modules.heartbeat.routes import router as heartbeat_router
 from modules.licenses.routes import router as licenses_router
+from modules.owner.routes import router as owner_router
 from modules.releases.routes import router as releases_router
 from modules.tenants.routes import router as tenants_router
 from modules.tunnel.routes import router as tunnel_router
@@ -92,13 +93,14 @@ app.add_middleware(
     allow_origins=_cors_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Admin-Token", "X-Release-Token"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Token", "X-Release-Token", "X-Install-Token"],
 )
 
 app.include_router(tenants_router, prefix="/api/v1/tenants", tags=["tenants"])
 app.include_router(branches_router, prefix="/api/v1/branches", tags=["branches"])
 app.include_router(heartbeat_router, prefix="/api/v1/heartbeat", tags=["heartbeat"])
 app.include_router(licenses_router, prefix="/api/v1/licenses", tags=["licenses"])
+app.include_router(owner_router, prefix="/api/v1/owner", tags=["owner"])
 app.include_router(releases_router, prefix="/api/v1/releases", tags=["releases"])
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(tunnel_router, prefix="/api/v1/tunnel", tags=["tunnel"])

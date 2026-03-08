@@ -59,7 +59,7 @@ async def _resolve_backend_image(db, branch_id: int, release_channel: str) -> st
     release = await db.fetchrow(query, params)
     if release and release.get("target_ref"):
         return str(release["target_ref"])
-    return "ghcr.io/uriel2121ger-art/titan-pos:latest"
+    return os.getenv("CP_DEFAULT_BACKEND_IMAGE", "ghcr.io/titan-pos/titan-pos:latest").strip()
 
 
 @router.post("/register")
@@ -211,6 +211,7 @@ async def get_bootstrap_config(
     signed_license = build_signed_license(license_row, branch, machine_id=branch.get("machine_id"))
 
     cp_base_url = os.getenv("CP_BASE_URL", "http://localhost:9090").strip().rstrip("/")
+    companion_url = os.getenv("CP_COMPANION_URL", "").strip().rstrip("/")
     return {
         "success": True,
         "data": {
@@ -225,12 +226,20 @@ async def get_bootstrap_config(
             "cf_tunnel_token": branch["tunnel_token"],
             "cp_url": cp_base_url,
             "bootstrap_public_key": get_license_public_key_pem(),
-            "release_manifest_url": f"{cp_base_url}/api/v1/releases/manifest?install_token={install_token}",
-            "license_resolve_url": f"{cp_base_url}/api/v1/licenses/resolve?install_token={install_token}",
+            "release_manifest_url": f"{cp_base_url}/api/v1/releases/manifest",
+            "license_resolve_url": f"{cp_base_url}/api/v1/licenses/resolve",
+            "owner_session_url": f"{cp_base_url}/api/v1/owner/session",
+            "owner_api_base_url": f"{cp_base_url}/api/v1/owner",
             "compose_template_url": f"{cp_base_url}/api/v1/branches/compose-template?install_token={install_token}",
             "register_url": f"{cp_base_url}/api/v1/branches/register",
             "install_report_url": f"{cp_base_url}/api/v1/branches/install-report",
-            "companion_url": os.getenv("CP_COMPANION_URL", "").strip().rstrip("/"),
+            "companion_url": companion_url,
+            "companion_entry_url": f"{companion_url}/#/companion/portfolio" if companion_url else "",
+            "quick_links": {
+                "owner_portfolio": f"{companion_url}/#/companion/portfolio" if companion_url else "",
+                "owner_devices": f"{companion_url}/#/companion/dispositivos" if companion_url else "",
+                "owner_remote": f"{companion_url}/#/companion/remoto" if companion_url else "",
+            },
             "license": {**signed_license, "public_key": get_license_public_key_pem()},
         },
     }

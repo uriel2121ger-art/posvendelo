@@ -23,6 +23,7 @@ class DenominationItem(BaseModel):
 class TurnOpen(BaseModel):
     initial_cash: Decimal = Field(..., ge=0)
     branch_id: int = Field(default=1)
+    terminal_id: Optional[int] = Field(default=None, ge=1)
     notes: Optional[str] = None
 
     @field_validator("initial_cash")

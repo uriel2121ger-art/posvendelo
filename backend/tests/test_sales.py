@@ -208,6 +208,17 @@ class TestCreateSale:
         assert r.status_code == 400
         assert "turno" in r.json()["detail"].lower()
 
+    async def test_create_sale_requires_matching_terminal_turn(
+        self, client, admin_token, seed_all
+    ):
+        r = await client.post(
+            "/api/v1/sales/",
+            headers={**auth_header(admin_token), "X-Terminal-Id": "2"},
+            json=_sale_body(),
+        )
+        assert r.status_code == 400
+        assert "terminal 2" in r.json()["detail"].lower()
+
     async def test_create_sale_empty_items(
         self, client, admin_token, seed_all
     ):
@@ -315,6 +326,32 @@ class TestCancelSale:
             json={"manager_pin": "9999"},
         )
         assert r.status_code == 403
+
+    async def test_cancel_sale_writes_audit_log(
+        self, client, admin_token, db_conn, seed_all
+    ):
+        sale_id = await self._create_sale(client, admin_token)
+        r = await client.post(
+            f"/api/v1/sales/{sale_id}/cancel",
+            headers=auth_header(admin_token),
+            json={"manager_pin": TEST_MANAGER_PIN, "reason": "prueba remota"},
+        )
+        assert r.status_code == 200
+
+        audit = await db_conn.fetchrow(
+            """
+            SELECT action, entity_type, entity_id, branch_id, details
+            FROM audit_log
+            WHERE action = 'SALE_CANCEL' AND entity_id = $1
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            sale_id,
+        )
+        assert audit is not None
+        assert audit["entity_type"] == "sale"
+        assert audit["branch_id"] == 90001
+        assert "prueba remota" in str(audit["details"])
 
     async def test_cancel_already_cancelled(
         self, client, admin_token, seed_all

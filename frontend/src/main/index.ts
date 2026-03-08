@@ -6,7 +6,7 @@ import { LocalNodeAgent } from './localAgent'
 
 const defaultConnectSrc =
   process.env.ELECTRON_ALLOWED_CONNECT_SRC?.trim() ||
-  'http://localhost:* http://127.0.0.1:* http://192.168.*:*'
+  'http://localhost:* http://127.0.0.1:*'
 
 const localAgent = new LocalNodeAgent()
 
@@ -107,6 +107,16 @@ app.whenReady().then(() => {
   ipcMain.handle('agent:apply-app-update', async () => localAgent.applyStagedAppUpdate())
   ipcMain.handle('agent:discard-app-update', async () => localAgent.discardAppUpdate())
   ipcMain.handle('agent:rollback-app-update', async () => localAgent.rollbackLastAppUpdate())
+  ipcMain.handle('agent:apply-backend-update', async () => localAgent.applyBackendUpdate())
+  ipcMain.handle('agent:rollback-backend-update', async () => localAgent.rollbackLastBackendUpdate())
+  ipcMain.handle('agent:get-owner-portfolio', async () => localAgent.getOwnerPortfolio())
+  ipcMain.handle('agent:get-owner-events', async () => localAgent.getOwnerEvents())
+  ipcMain.handle('agent:get-owner-branch-timeline', async (_, branchId: number) =>
+    localAgent.getOwnerBranchTimeline(branchId)
+  )
+  ipcMain.handle('agent:get-owner-commercial', async () => localAgent.getOwnerCommercial())
+  ipcMain.handle('agent:get-owner-health-summary', async () => localAgent.getOwnerHealthSummary())
+  ipcMain.handle('agent:get-owner-audit', async () => localAgent.getOwnerAudit())
 
   localAgent.start()
 

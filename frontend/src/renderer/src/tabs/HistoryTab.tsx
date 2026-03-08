@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from '../components/ConfirmDialog'
+import { useConfirm, usePrompt } from '../components/ConfirmDialog'
 import {
   Search,
   X,
@@ -54,6 +54,7 @@ function normalizeSale(raw: Record<string, unknown>): SaleRow {
 
 export default function HistoryTab(): ReactElement {
   const confirm = useConfirm()
+  const prompt = usePrompt()
   const [rows, setRows] = useState<SaleRow[]>([])
   const [folio, setFolio] = useState('')
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'card' | 'transfer'>('all')
@@ -154,10 +155,24 @@ export default function HistoryTab(): ReactElement {
       }))
     )
       return
+    const managerPin = await prompt('Ingresa el PIN de gerente/autorización para cancelar.', {
+      title: 'PIN de autorización',
+      placeholder: 'PIN de gerente',
+      confirmText: 'Validar',
+      variant: 'warning'
+    })
+    if (managerPin == null) return
+    const reason = await prompt('Motivo de cancelación (opcional):', {
+      title: 'Motivo',
+      placeholder: 'Ej: error de captura, devolución inmediata'
+    })
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      await cancelSale(cfg, selectedId)
+      await cancelSale(cfg, selectedId, {
+        manager_pin: managerPin.trim(),
+        reason: reason?.trim() || undefined
+      })
       setMessage(`Venta ${selectedId} cancelada.`)
       setSelectedId(null)
       setDetail(null)

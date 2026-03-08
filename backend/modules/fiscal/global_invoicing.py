@@ -33,8 +33,20 @@ class GlobalInvoicingService:
         'bimonthly': '05',
     }
 
-    def __init__(self, db):
+    def __init__(self, db, branch_id: int | None = None):
         self.db = db
+        self.branch_id = branch_id
+
+    def _resolve_branch_id(self, sales: List[Dict]) -> int | None:
+        branch_ids = {
+            int(sale.get('branch_id'))
+            for sale in sales
+            if sale.get('branch_id') is not None
+        }
+        if len(branch_ids) == 1:
+            self.branch_id = next(iter(branch_ids))
+            return self.branch_id
+        return self.branch_id
 
     def _parse_date(self, value: str) -> date:
         """Parse 'YYYY-MM-DD' to date for asyncpg (evita 'str' has no attribute 'toordinal')."""
@@ -343,11 +355,18 @@ class GlobalInvoicingService:
         sales: List[Dict],
     ) -> Dict[str, Any]:
         try:
+            branch_id = self._resolve_branch_id(sales)
+            if branch_id is None:
+                return {
+                    'success': False,
+                    'error': 'No se pudo determinar una sucursal unica para la factura global',
+                }
+
             periodicidad = self.PERIODICIDADES_SAT.get(period_type, '04')
 
             fiscal_data = await self.db.fetchrow(
                 "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
-                {"bid": 1},
+                {"bid": branch_id},
             )
             fiscal_data = fiscal_data or {}
 
@@ -429,7 +448,10 @@ class GlobalInvoicingService:
 
                         postal_code = fiscal_data.get('codigo_postal') or fiscal_data.get('lugar_expedicion')
                         if not postal_code or postal_code == '00000':
-                            postal_code = '01000'
+                            return {
+                                'success': False,
+                                'error': 'Lugar de expedicion no configurado para la sucursal seleccionada',
+                            }
 
                         invoice_data = {
                             'customer': {

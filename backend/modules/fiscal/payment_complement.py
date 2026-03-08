@@ -23,15 +23,19 @@ logger = logging.getLogger(__name__)
 class PaymentReceiptService:
     """Service for generating payment receipt CFDIs."""
 
-    def __init__(self, db):
+    def __init__(self, db, branch_id: int | None = None):
         self.db = db
+        self.branch_id = branch_id
 
     async def _get_fiscal_config(self) -> dict:
         """Fetch fiscal config directly from DB."""
-        row = await self.db.fetchrow(
-            "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
-            {"bid": 1},
-        )
+        if self.branch_id is None:
+            row = await self.db.fetchrow("SELECT * FROM fiscal_config ORDER BY branch_id ASC LIMIT 1")
+        else:
+            row = await self.db.fetchrow(
+                "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
+                {"bid": self.branch_id},
+            )
         return row or {}
 
     async def generate_payment_receipt(
@@ -71,6 +75,12 @@ class PaymentReceiptService:
 
             # Get fiscal config (was missing await before)
             fiscal_config = await self._get_fiscal_config()
+            lugar_expedicion = str(fiscal_config.get('lugar_expedicion') or fiscal_config.get('codigo_postal') or '').strip()
+            if not lugar_expedicion or lugar_expedicion == '00000':
+                return {
+                    'success': False,
+                    'error': 'Lugar de expedicion no configurado para el complemento de pago',
+                }
 
             # Build payment complement XML
             payment_xml = await self._build_payment_complement(
@@ -186,7 +196,7 @@ class PaymentReceiptService:
         xml += 'Moneda="XXX" '
         xml += 'TipoDeComprobante="P" '
         xml += 'Exportacion="01" '
-        xml += 'LugarExpedicion="' + xml_escape(fiscal_config.get('lugar_expedicion', '00000')) + '">\n'
+        xml += 'LugarExpedicion="' + xml_escape(fiscal_config.get('lugar_expedicion') or fiscal_config.get('codigo_postal', '')) + '">\n'
 
         xml += '  <cfdi:Emisor '
         xml += 'Rfc="' + xml_escape(fiscal_config.get('rfc_emisor', '')) + '" '

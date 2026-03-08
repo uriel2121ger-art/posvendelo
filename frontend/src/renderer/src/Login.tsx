@@ -11,6 +11,17 @@ type AgentStatusView = {
   controlPlaneUrl: string | null
   localApiUrl: string
   branchId: number | null
+  ownerSessionReady: boolean
+  ownerAccessMode: 'owner-session' | 'install-token' | 'unavailable'
+  companionUrl: string | null
+  companionEntryUrl: string | null
+  ownerSessionUrl: string | null
+  ownerApiBaseUrl: string | null
+  quickLinks: {
+    ownerPortfolio: string | null
+    ownerDevices: string | null
+    ownerRemote: string | null
+  }
   lastBackendError: string | null
   currentAppVersion: string | null
   appVersion: string | null
@@ -31,6 +42,32 @@ type AgentStatusView = {
   desktopRollbackAvailable: boolean
   desktopRollbackVersion: string | null
   desktopRollbackMessage: string | null
+  backendUpdateStatus: 'idle' | 'available' | 'applying' | 'error'
+  backendUpdateMessage: string | null
+  backendUpdateVersion: string | null
+  backendUpdateError: string | null
+  backendRollbackAvailable: boolean
+  backendRollbackVersion: string | null
+  backendRollbackMessage: string | null
+}
+
+function getUpdateStatusLabel(status: AgentStatusView['desktopUpdateStatus']): string {
+  switch (status) {
+    case 'idle':
+      return 'sin actividad'
+    case 'available':
+      return 'disponible'
+    case 'downloading':
+      return 'descargando'
+    case 'staged':
+      return 'lista para aplicar'
+    case 'applying':
+      return 'aplicando'
+    case 'error':
+      return 'con error'
+    default:
+      return 'desconocido'
+  }
 }
 
 export default function Login(): ReactElement {
@@ -59,6 +96,13 @@ export default function Login(): ReactElement {
         controlPlaneUrl?: string | null
         localApiUrl?: string
         branchId?: number | null
+        ownerSessionReady?: boolean
+        ownerAccessMode?: AgentStatusView['ownerAccessMode']
+        companionUrl?: string | null
+        companionEntryUrl?: string | null
+        ownerSessionUrl?: string | null
+        ownerApiBaseUrl?: string | null
+        quickLinks?: AgentStatusView['quickLinks']
         lastBackendError?: string | null
         currentAppVersion?: string | null
         backendVersion?: string | null
@@ -81,6 +125,15 @@ export default function Login(): ReactElement {
           rollbackVersion?: string | null
           rollbackMessage?: string | null
         }
+        backendUpdate?: {
+          status?: AgentStatusView['backendUpdateStatus']
+          message?: string | null
+          availableVersion?: string | null
+          lastError?: string | null
+          rollbackAvailable?: boolean
+          rollbackVersion?: string | null
+          rollbackMessage?: string | null
+        }
         manifest?: {
           artifacts?: {
             app?: { version?: string | null } | null
@@ -94,6 +147,17 @@ export default function Login(): ReactElement {
         controlPlaneUrl: raw.controlPlaneUrl ?? null,
         localApiUrl: raw.localApiUrl || 'http://127.0.0.1:8000',
         branchId: raw.branchId ?? null,
+        ownerSessionReady: raw.ownerSessionReady === true,
+        ownerAccessMode: raw.ownerAccessMode ?? 'unavailable',
+        companionUrl: raw.companionUrl ?? null,
+        companionEntryUrl: raw.companionEntryUrl ?? null,
+        ownerSessionUrl: raw.ownerSessionUrl ?? null,
+        ownerApiBaseUrl: raw.ownerApiBaseUrl ?? null,
+        quickLinks: {
+          ownerPortfolio: raw.quickLinks?.ownerPortfolio ?? null,
+          ownerDevices: raw.quickLinks?.ownerDevices ?? null,
+          ownerRemote: raw.quickLinks?.ownerRemote ?? null
+        },
         lastBackendError: raw.lastBackendError ?? null,
         currentAppVersion: raw.currentAppVersion ?? null,
         appVersion: raw.manifest?.artifacts?.app?.version ?? null,
@@ -115,7 +179,15 @@ export default function Login(): ReactElement {
         desktopUpdateReady: raw.desktopUpdate?.status === 'staged',
         desktopRollbackAvailable: raw.desktopUpdate?.rollbackAvailable === true,
         desktopRollbackVersion: raw.desktopUpdate?.rollbackVersion ?? null,
-        desktopRollbackMessage: raw.desktopUpdate?.rollbackMessage ?? null
+        desktopRollbackMessage: raw.desktopUpdate?.rollbackMessage ?? null,
+        backendUpdateStatus: raw.backendUpdate?.status ?? 'idle',
+        backendUpdateMessage: raw.backendUpdate?.message ?? null,
+        backendUpdateVersion:
+          raw.backendUpdate?.availableVersion ?? raw.manifest?.artifacts?.backend?.version ?? null,
+        backendUpdateError: raw.backendUpdate?.lastError ?? null,
+        backendRollbackAvailable: raw.backendUpdate?.rollbackAvailable === true,
+        backendRollbackVersion: raw.backendUpdate?.rollbackVersion ?? null,
+        backendRollbackMessage: raw.backendUpdate?.rollbackMessage ?? null
       })
     } catch {
       setAgentStatus(null)
@@ -201,6 +273,38 @@ export default function Login(): ReactElement {
     setUpdatingApp(true)
     try {
       await api.agent.rollbackAppUpdate()
+      await refreshAgentStatus()
+    } finally {
+      setUpdatingApp(false)
+    }
+  }
+
+  const handleApplyBackendUpdate = async (): Promise<void> => {
+    const api = (
+      window as Window & {
+        api?: { agent?: { applyBackendUpdate?: () => Promise<unknown> } }
+      }
+    ).api
+    if (typeof api?.agent?.applyBackendUpdate !== 'function') return
+    setUpdatingApp(true)
+    try {
+      await api.agent.applyBackendUpdate()
+      await refreshAgentStatus()
+    } finally {
+      setUpdatingApp(false)
+    }
+  }
+
+  const handleRollbackBackendUpdate = async (): Promise<void> => {
+    const api = (
+      window as Window & {
+        api?: { agent?: { rollbackBackendUpdate?: () => Promise<unknown> } }
+      }
+    ).api
+    if (typeof api?.agent?.rollbackBackendUpdate !== 'function') return
+    setUpdatingApp(true)
+    try {
+      await api.agent.rollbackBackendUpdate()
       await refreshAgentStatus()
     } finally {
       setUpdatingApp(false)
@@ -321,62 +425,12 @@ export default function Login(): ReactElement {
                       <Wifi
                         className={`h-3.5 w-3.5 ${agentStatus.backendHealthy ? 'text-emerald-400' : 'text-rose-400'}`}
                       />
-                      Backend local
+                      Servidor local
                     </span>
                     <span className={agentStatus.backendHealthy ? 'text-emerald-400' : 'text-rose-400'}>
                       {agentStatus.backendHealthy ? 'Saludable' : 'No disponible'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>API local</span>
-                    <span className="truncate font-mono text-zinc-300">{agentStatus.localApiUrl}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Branch vinculada</span>
-                    <span className="font-mono text-zinc-300">
-                      {agentStatus.branchId ? `#${agentStatus.branchId}` : 'Sin asignar'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Version app local/remota</span>
-                    <span className="font-mono text-zinc-300">
-                      {(agentStatus.currentAppVersion ?? '-') + ' / ' + (agentStatus.appVersion ?? '-')}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Version backend local/remota</span>
-                    <span className="font-mono text-zinc-300">
-                      {(agentStatus.backendVersion ?? '-') +
-                        ' / ' +
-                        (agentStatus.availableBackendVersion ?? '-')}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Control-plane</span>
-                    <span className="truncate font-mono text-zinc-300">
-                      {agentStatus.controlPlaneUrl ?? 'No configurado'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Licencia</span>
-                    <span
-                      className={
-                        agentStatus.licenseStatus === 'active'
-                          ? 'text-emerald-400'
-                          : agentStatus.licenseStatus === 'support_expired'
-                            ? 'text-amber-300'
-                            : 'text-amber-400'
-                      }
-                    >
-                      {agentStatus.licenseType ?? 'sin licencia'} / {agentStatus.licenseStatus}
-                    </span>
-                  </div>
-                  {agentStatus.licenseDaysRemaining !== null && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span>Días restantes</span>
-                      <span className="font-mono text-zinc-300">{agentStatus.licenseDaysRemaining}</span>
-                    </div>
-                  )}
                   {!agentStatus.licenseValidSignature && (
                     <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
                       La firma local de la licencia no pudo validarse.
@@ -384,24 +438,52 @@ export default function Login(): ReactElement {
                   )}
                   {agentStatus.licenseMessage && (
                     <p className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
-                      {agentStatus.licenseMessage}
+                      Estado de licencia disponible. Inicia sesión para revisar el detalle administrativo.
                     </p>
+                  )}
+                  {agentStatus.controlPlaneUrl && (
+                    <p className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
+                      Acceso dueño:{' '}
+                      <span className="font-semibold text-emerald-300">
+                        {agentStatus.ownerSessionReady
+                          ? 'sesión segura lista'
+                          : agentStatus.ownerAccessMode === 'install-token'
+                            ? 'preparando sesión delegada'
+                            : 'sin companion remoto'}
+                      </span>
+                      .
+                    </p>
+                  )}
+                  {agentStatus.branchId && (
+                    <p className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
+                      Nodo listo para sucursal <span className="font-semibold text-zinc-100">#{agentStatus.branchId}</span>.
+                    </p>
+                  )}
+                  {(agentStatus.companionEntryUrl || agentStatus.quickLinks.ownerPortfolio) && (
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
+                      <p className="font-semibold text-zinc-100">Acceso rápido companion</p>
+                      <p className="mt-1 break-all text-[11px] text-zinc-400">
+                        {agentStatus.companionEntryUrl ||
+                          agentStatus.quickLinks.ownerPortfolio ||
+                          agentStatus.companionUrl}
+                      </p>
+                    </div>
                   )}
                   {(agentStatus.appUpdateAvailable || agentStatus.backendUpdateAvailable) && (
                     <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-blue-300">
-                      Update disponible:
-                      {agentStatus.appUpdateAvailable ? ' app desktop' : ''}
+                      Actualización disponible:
+                      {agentStatus.appUpdateAvailable ? ' aplicación de escritorio' : ''}
                       {agentStatus.appUpdateAvailable && agentStatus.backendUpdateAvailable
                         ? ' y'
                         : ''}
-                      {agentStatus.backendUpdateAvailable ? ' backend local' : ''}.
+                      {agentStatus.backendUpdateAvailable ? ' servidor local' : ''}.
                     </p>
                   )}
                   {(agentStatus.appUpdateAvailable || agentStatus.desktopUpdateReady) && (
                     <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-blue-200">
                       <p>
-                        Update app: {agentStatus.desktopUpdateVersion ?? '-'} /{' '}
-                        {agentStatus.desktopUpdateStatus}
+                        Actualización de la app: {agentStatus.desktopUpdateVersion ?? '-'} /{' '}
+                        {getUpdateStatusLabel(agentStatus.desktopUpdateStatus)}
                       </p>
                       {agentStatus.desktopUpdateMessage && (
                         <p className="mt-1 text-xs text-blue-100/90">{agentStatus.desktopUpdateMessage}</p>
@@ -414,7 +496,7 @@ export default function Login(): ReactElement {
                             disabled={updatingApp}
                             className="rounded-lg border border-blue-400/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-bold text-blue-100 disabled:opacity-50"
                           >
-                            {updatingApp ? 'Preparando...' : 'Descargar update'}
+                            {updatingApp ? 'Preparando...' : 'Descargar actualización'}
                           </button>
                         )}
                         {agentStatus.desktopUpdateReady && (
@@ -424,7 +506,7 @@ export default function Login(): ReactElement {
                             disabled={updatingApp}
                             className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-100 disabled:opacity-50"
                           >
-                            {updatingApp ? 'Abriendo...' : 'Aplicar update'}
+                            {updatingApp ? 'Abriendo...' : 'Aplicar actualización'}
                           </button>
                         )}
                         {agentStatus.desktopUpdateReady && (
@@ -440,10 +522,33 @@ export default function Login(): ReactElement {
                       </div>
                     </div>
                   )}
+                  {agentStatus.backendUpdateAvailable && (
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-cyan-100">
+                      <p>
+                        Actualización del servidor local: {agentStatus.backendUpdateVersion ?? '-'} /{' '}
+                        {getUpdateStatusLabel(agentStatus.backendUpdateStatus)}
+                      </p>
+                      {agentStatus.backendUpdateMessage && (
+                        <p className="mt-1 text-xs text-cyan-50/90">{agentStatus.backendUpdateMessage}</p>
+                      )}
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleApplyBackendUpdate()}
+                          disabled={updatingApp || agentStatus.backendUpdateStatus === 'applying'}
+                          className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-bold text-cyan-50 disabled:opacity-50"
+                        >
+                          {updatingApp || agentStatus.backendUpdateStatus === 'applying'
+                            ? 'Actualizando...'
+                            : 'Actualizar servidor local'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {agentStatus.desktopRollbackAvailable && (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100">
                       <p>
-                        Rollback disponible a {agentStatus.desktopRollbackVersion ?? 'versión previa'}.
+                        Reversión disponible a {agentStatus.desktopRollbackVersion ?? 'versión previa'}.
                       </p>
                       {agentStatus.desktopRollbackMessage && (
                         <p className="mt-1 text-xs text-amber-50/90">
@@ -457,14 +562,44 @@ export default function Login(): ReactElement {
                           disabled={updatingApp}
                           className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-50 disabled:opacity-50"
                         >
-                          {updatingApp ? 'Revirtiendo...' : 'Rollback app'}
+                          {updatingApp ? 'Revirtiendo...' : 'Volver a versión anterior'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {agentStatus.backendRollbackAvailable && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100">
+                      <p>
+                        Reversión del servidor disponible a{' '}
+                        {agentStatus.backendRollbackVersion ?? 'versión previa'}.
+                      </p>
+                      {agentStatus.backendRollbackMessage && (
+                        <p className="mt-1 text-xs text-amber-50/90">
+                          {agentStatus.backendRollbackMessage}
+                        </p>
+                      )}
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleRollbackBackendUpdate()}
+                          disabled={updatingApp || agentStatus.backendUpdateStatus === 'applying'}
+                          className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-50 disabled:opacity-50"
+                        >
+                          {updatingApp || agentStatus.backendUpdateStatus === 'applying'
+                            ? 'Revirtiendo...'
+                            : 'Volver servidor a versión anterior'}
                         </button>
                       </div>
                     </div>
                   )}
                   {agentStatus.desktopUpdateError && (
                     <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
-                      Error update app: {agentStatus.desktopUpdateError}
+                      Error en la actualización de la app: {agentStatus.desktopUpdateError}
+                    </p>
+                  )}
+                  {agentStatus.backendUpdateError && (
+                    <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
+                      Error en la actualización del servidor local: {agentStatus.backendUpdateError}
                     </p>
                   )}
                   {!agentStatus.configLoaded && (
@@ -472,9 +607,9 @@ export default function Login(): ReactElement {
                       El agente local no tiene bootstrap cargado. Revisa `titan-agent.json` o el instalador.
                     </p>
                   )}
-                  {agentStatus.lastBackendError && !agentStatus.backendHealthy && (
+                  {!agentStatus.backendHealthy && (
                     <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-rose-300">
-                      Último error: {agentStatus.lastBackendError}
+                      El nodo local no pudo validar el backend. Revisa la instalación o el servicio.
                     </p>
                   )}
                 </div>

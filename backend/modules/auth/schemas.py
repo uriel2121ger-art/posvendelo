@@ -21,3 +21,19 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     role: str = "cashier"
+    branch_id: int | None = None
+
+
+class PairTokenRequest(BaseModel):
+    branch_id: int = Field(default=1, ge=1)
+    terminal_id: int = Field(default=1, ge=1)
+    device_label: str | None = Field(default=None, max_length=120)
+
+
+class PairRequest(BaseModel):
+    pairing_token: str = Field(..., min_length=8, max_length=128)
+    device_id: str = Field(..., min_length=3, max_length=200)
+    device_name: str | None = Field(default=None, max_length=160)
+    platform: str | None = Field(default=None, max_length=80)
+    app_version: str | None = Field(default=None, max_length=80)
+    hardware_fingerprint: str | None = Field(default=None, max_length=255)

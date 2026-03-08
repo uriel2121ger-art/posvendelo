@@ -5,7 +5,7 @@ Administra licencias del control-plane sin tocar SQL manual.
 Ejemplos:
   python3 scripts/license_admin.py issue \
     --base-url http://localhost:9090 \
-    --admin-token change-me \
+    --admin-token <admin-token-seguro> \
     --tenant-id 1 \
     --license-type monthly \
     --valid-until 2026-04-01T00:00:00
@@ -76,12 +76,102 @@ def issue_license(args: argparse.Namespace) -> None:
     _print_json(result)
 
 
+def onboard_tenant(args: argparse.Namespace) -> None:
+    body = {
+        "name": args.name,
+        "slug": args.slug,
+        "branch_name": args.branch_name,
+        "branch_slug": args.branch_slug,
+        "release_channel": args.release_channel,
+        "license_type": args.license_type,
+        "license_status": args.license_status,
+        "grace_days": args.grace_days,
+        "max_branches": args.max_branches,
+        "max_devices": args.max_devices,
+        "notes": args.notes,
+    }
+    result = _request_json(
+        f"{args.base_url.rstrip('/')}/api/v1/tenants/onboard",
+        method="POST",
+        token=args.admin_token,
+        body=body,
+    )
+    _print_json(result)
+
+
 def revoke_license(args: argparse.Namespace) -> None:
     result = _request_json(
         f"{args.base_url.rstrip('/')}/api/v1/licenses/revoke",
         method="POST",
         token=args.admin_token,
         body={"license_id": args.license_id, "reason": args.reason},
+    )
+    _print_json(result)
+
+
+def renew_license(args: argparse.Namespace) -> None:
+    body = {
+        "license_id": args.license_id,
+        "valid_until": args.valid_until,
+        "support_until": args.support_until,
+        "additional_days": args.additional_days,
+        "notes": args.notes,
+    }
+    result = _request_json(
+        f"{args.base_url.rstrip('/')}/api/v1/licenses/renew",
+        method="POST",
+        token=args.admin_token,
+        body=body,
+    )
+    _print_json(result)
+
+
+def list_licenses(args: argparse.Namespace) -> None:
+    query = urlencode(
+        {
+            key: value
+            for key, value in {
+                "tenant_id": args.tenant_id,
+                "status": args.status,
+            }.items()
+            if value is not None
+        }
+    )
+    suffix = f"?{query}" if query else ""
+    result = _request_json(
+        f"{args.base_url.rstrip('/')}/api/v1/licenses/{suffix}",
+        token=args.admin_token,
+    )
+    _print_json(result)
+
+
+def license_events(args: argparse.Namespace) -> None:
+    result = _request_json(
+        f"{args.base_url.rstrip('/')}/api/v1/licenses/{args.license_id}/events",
+        token=args.admin_token,
+    )
+    _print_json(result)
+
+
+def license_summary(args: argparse.Namespace) -> None:
+    query = urlencode({"reminder_days": args.reminder_days})
+    result = _request_json(
+        f"{args.base_url.rstrip('/')}/api/v1/licenses/summary?{query}",
+        token=args.admin_token,
+    )
+    _print_json(result)
+
+
+def license_reminders(args: argparse.Namespace) -> None:
+    query = urlencode(
+        {
+            "reminder_days": args.reminder_days,
+            "limit": args.limit,
+        }
+    )
+    result = _request_json(
+        f"{args.base_url.rstrip('/')}/api/v1/licenses/reminders?{query}",
+        token=args.admin_token,
     )
     _print_json(result)
 
@@ -116,6 +206,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", required=True, help="URL del control-plane, ej. http://localhost:9090")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    onboard = sub.add_parser("onboard", help="Crear tenant, sucursal bootstrap y licencia inicial")
+    onboard.add_argument("--admin-token", required=True)
+    onboard.add_argument("--name", required=True)
+    onboard.add_argument("--slug", required=True)
+    onboard.add_argument("--branch-name", default="Sucursal Principal")
+    onboard.add_argument("--branch-slug")
+    onboard.add_argument("--release-channel", default="stable")
+    onboard.add_argument("--license-type", default="trial", choices=["trial", "monthly", "perpetual"])
+    onboard.add_argument("--license-status", default="active", choices=["active", "grace", "expired", "revoked"])
+    onboard.add_argument("--grace-days", type=int, default=0)
+    onboard.add_argument("--max-branches", type=int)
+    onboard.add_argument("--max-devices", type=int)
+    onboard.add_argument("--notes")
+    onboard.set_defaults(func=onboard_tenant)
+
     issue = sub.add_parser("issue", help="Emitir o renovar una licencia")
     issue.add_argument("--admin-token", required=True)
     issue.add_argument("--tenant-id", required=True, type=int)
@@ -137,6 +242,37 @@ def build_parser() -> argparse.ArgumentParser:
     revoke.add_argument("--license-id", required=True, type=int)
     revoke.add_argument("--reason")
     revoke.set_defaults(func=revoke_license)
+
+    renew = sub.add_parser("renew", help="Renovar una licencia existente")
+    renew.add_argument("--admin-token", required=True)
+    renew.add_argument("--license-id", required=True, type=int)
+    renew.add_argument("--valid-until")
+    renew.add_argument("--support-until")
+    renew.add_argument("--additional-days", type=int, default=0)
+    renew.add_argument("--notes")
+    renew.set_defaults(func=renew_license)
+
+    list_cmd = sub.add_parser("list", help="Listar licencias")
+    list_cmd.add_argument("--admin-token", required=True)
+    list_cmd.add_argument("--tenant-id", type=int)
+    list_cmd.add_argument("--status")
+    list_cmd.set_defaults(func=list_licenses)
+
+    events = sub.add_parser("events", help="Ver eventos de una licencia")
+    events.add_argument("--admin-token", required=True)
+    events.add_argument("--license-id", required=True, type=int)
+    events.set_defaults(func=license_events)
+
+    summary = sub.add_parser("summary", help="Resumen comercial de licencias")
+    summary.add_argument("--admin-token", required=True)
+    summary.add_argument("--reminder-days", type=int, default=30)
+    summary.set_defaults(func=license_summary)
+
+    reminders = sub.add_parser("reminders", help="Licencias que requieren atención")
+    reminders.add_argument("--admin-token", required=True)
+    reminders.add_argument("--reminder-days", type=int, default=30)
+    reminders.add_argument("--limit", type=int, default=100)
+    reminders.set_defaults(func=license_reminders)
 
     resolve = sub.add_parser("resolve", help="Resolver una licencia para un nodo")
     resolve.add_argument("--install-token", required=True)

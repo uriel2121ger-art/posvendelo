@@ -4,7 +4,6 @@
   "description": "TITAN POS desktop app for retail operations in Mexico",
   "main": "./out/main/index.js",
   "author": "TITAN POS",
-  "homepage": "https://github.com/uriel2121ger-art/titan-pos",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -26,6 +25,7 @@
     "build:mac": "electron-vite build && electron-builder --mac --publish never",
     "build:linux": "electron-vite build && electron-builder --linux --publish never",
     "dist:checksums": "node ./scripts/generate-dist-checksums.mjs",
+    "dist:verify": "node ./scripts/verify-dist-artifacts.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:browser": "vite --config vite.browser.config.ts",

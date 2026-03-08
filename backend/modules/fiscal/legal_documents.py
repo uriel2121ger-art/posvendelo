@@ -26,8 +26,9 @@ class LegalDocumentGenerator:
 
     DOCS_PATH = Path(__file__).resolve().parent.parent.parent / 'docs/actas'
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, branch_id: int | None = None):
         self.db = db
+        self.branch_id = branch_id
         # Sync dir creation -- no create_task needed
         os.makedirs(self.DOCS_PATH, exist_ok=True)
         os.makedirs(self.DOCS_PATH / 'destruccion', exist_ok=True)
@@ -46,10 +47,13 @@ class LegalDocumentGenerator:
         """Fetch fiscal config from DB."""
         if not self.db:
             return {}
-        row = await self.db.fetchrow(
-            "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
-            {"bid": 1},
-        )
+        if self.branch_id is None:
+            row = await self.db.fetchrow("SELECT * FROM fiscal_config ORDER BY branch_id ASC LIMIT 1")
+        else:
+            row = await self.db.fetchrow(
+                "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
+                {"bid": self.branch_id},
+            )
         return row or {}
 
     async def generate_destruction_acta(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -60,8 +64,10 @@ class LegalDocumentGenerator:
         config = await self._get_app_config()
         fiscal = await self._get_fiscal_config()
 
-        folio = data.get('folio', f"MER-{datetime.now().strftime('%Y%m%d%H%M%S')}")
+        folio = data.get('folio', f"ACT-{datetime.now().strftime('%Y%m%d%H%M%S')}")
         timestamp = datetime.now()
+        location_label = config.get('location_label') or config.get('city') or 'Localidad configurada'
+        address_label = config.get('address') or 'Domicilio fiscal configurado'
 
         acta_content = f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -69,7 +75,7 @@ class LegalDocumentGenerator:
 ║                           FOLIO: {folio:<42} ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-LUGAR:           Merida, Yucatan, Mexico
+LUGAR:           {location_label}
 FECHA Y HORA:    {timestamp.strftime('%d de %B de %Y, %H:%M:%S horas')}
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -95,7 +101,7 @@ Se levanta la presente acta en cumplimiento con lo dispuesto en:
 Razon Social:    {config.get('business_name', 'RAZON SOCIAL')}
 RFC:             {fiscal.get('rfc_emisor', 'RFC')}
 Regimen Fiscal:  {fiscal.get('emisor_regimen', '626')} - RESICO
-Domicilio:       {config.get('address', 'Merida, Yucatan')}
+Domicilio:       {address_label}
 
 ═══════════════════════════════════════════════════════════════════════════════
                           DESCRIPCION DE BIENES
@@ -121,7 +127,7 @@ Motivo Especifico:   {data.get('reason', 'Deterioro del producto')}
 
 En la fecha y hora antes senaladas, siendo las {timestamp.strftime('%H:%M')} horas del dia
 {timestamp.strftime('%d de %B de %Y')}, en el establecimiento comercial ubicado en
-{config.get('address', 'Merida, Yucatan')}, se detecto que los bienes arriba descritos
+{address_label}, se detecto que los bienes arriba descritos
 NO SON APTOS PARA SU COMERCIALIZACION debido a: {data.get('reason', 'deterioro')}.
 
 Se procedio a la SEGREGACION INMEDIATA del inventario apto para venta y se autoriza

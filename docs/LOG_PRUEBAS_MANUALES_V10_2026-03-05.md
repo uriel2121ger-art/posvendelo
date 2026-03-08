@@ -11,7 +11,7 @@
 
 - [x] Backend en 8090
 - [x] Frontend en 5173
-- [x] Usuario admin/admin123 logueado
+- [x] Usuario de prueba autenticado
 - [x] Turno continuado (modal "Continuar turno")
 
 ---
