@@ -39,7 +39,7 @@ curl http://localhost:9090/health
 1. Crear tenant:
 
 ```bash
-ADMIN_HEADER="X-Admin-Token"
+ADMIN_HEADER="${CP_ADMIN_HEADER_NAME}"
 curl -X POST http://localhost:9090/api/v1/tenants/ \
   -H "${ADMIN_HEADER}: ${CP_ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -100,7 +100,7 @@ Objetivo:
 
 Rutas disponibles:
 
-- `GET /api/v1/licenses/resolve` con `X-Install-Token: ...`
+- `GET /api/v1/licenses/resolve` con el header de instalación configurado
 - `POST /api/v1/licenses/activate-device`
 - `POST /api/v1/licenses/refresh`
 - `POST /api/v1/licenses/revoke`
@@ -109,7 +109,7 @@ Rutas disponibles:
 Emitir o renovar una licencia:
 
 ```bash
-ADMIN_HEADER="X-Admin-Token"
+ADMIN_HEADER="${CP_ADMIN_HEADER_NAME}"
 curl -X POST http://localhost:9090/api/v1/licenses/issue \
   -H "${ADMIN_HEADER}: ${CP_ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -144,7 +144,7 @@ curl -X POST http://localhost:9090/api/v1/heartbeat/ \
 1. Publicar metadata de release desde CI o manual:
 
 ```bash
-RELEASE_HEADER="X-Release-Token"
+RELEASE_HEADER="${CP_RELEASE_HEADER_NAME}"
 curl -X POST http://localhost:9090/api/v1/releases/publish \
   -H "${RELEASE_HEADER}: ${CP_RELEASES_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -154,8 +154,9 @@ curl -X POST http://localhost:9090/api/v1/releases/publish \
 1. Resolver manifest de releases para una sucursal:
 
 ```bash
+INSTALL_HEADER="${CP_INSTALL_HEADER_NAME}"
 curl "http://localhost:9090/api/v1/releases/manifest" \
-  -H "X-Install-Token: TOKEN"
+  -H "${INSTALL_HEADER}: TOKEN"
 ```
 
 Para rollout y rollback operativo, consulta `../docs/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
