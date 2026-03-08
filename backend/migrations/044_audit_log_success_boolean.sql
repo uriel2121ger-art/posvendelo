@@ -1,0 +1,13 @@
+ALTER TABLE audit_log
+ALTER COLUMN success DROP DEFAULT;
+
+ALTER TABLE audit_log
+ALTER COLUMN success TYPE BOOLEAN
+USING CASE
+    WHEN success IS NULL THEN TRUE
+    WHEN success::text IN ('t', 'true', 'TRUE', '1') THEN TRUE
+    ELSE FALSE
+END;
+
+ALTER TABLE audit_log
+ALTER COLUMN success SET DEFAULT TRUE;

@@ -18,6 +18,17 @@ class TestOpenTurn:
         d = r.json()["data"]
         assert d["status"] == "open"
         assert d["id"] > 0
+        assert d["terminal_id"] == 1
+
+    async def test_open_turn_uses_terminal_from_header(self, client, admin_token, seed_users):
+        r = await client.post(
+            "/api/v1/turns/open",
+            headers={**auth_header(admin_token), "X-Terminal-Id": "3"},
+            json={"initial_cash": 500, "branch_id": BRANCH_ID},
+        )
+        assert r.status_code == 200
+        d = r.json()["data"]
+        assert d["terminal_id"] == 3
 
     async def test_open_turn_duplicate(self, client, admin_token, seed_turn):
         r = await client.post(
@@ -27,6 +38,15 @@ class TestOpenTurn:
         )
         assert r.status_code == 400
         assert "abierto" in r.json()["detail"].lower()
+
+    async def test_open_turn_duplicate_reports_terminal(self, client, admin_token, seed_turn):
+        r = await client.post(
+            "/api/v1/turns/open",
+            headers={**auth_header(admin_token), "X-Terminal-Id": "2"},
+            json={"initial_cash": 500, "branch_id": BRANCH_ID},
+        )
+        assert r.status_code == 400
+        assert "terminal 1" in r.json()["detail"].lower()
 
 
 class TestCloseTurn:
@@ -115,6 +135,21 @@ class TestGetTurn:
         )
         assert r.status_code == 200
         assert r.json()["data"] is None
+
+    async def test_get_current_turn_filters_by_terminal(self, client, admin_token, seed_turn):
+        r = await client.get(
+            "/api/v1/turns/current?terminal_id=1",
+            headers=auth_header(admin_token),
+        )
+        assert r.status_code == 200
+        assert r.json()["data"]["id"] == TURN_ID
+
+        r_missing = await client.get(
+            "/api/v1/turns/current?terminal_id=2",
+            headers=auth_header(admin_token),
+        )
+        assert r_missing.status_code == 200
+        assert r_missing.json()["data"] is None
 
     async def test_get_turn_by_id(self, client, admin_token, seed_turn):
         r = await client.get(

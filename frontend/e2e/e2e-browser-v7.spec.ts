@@ -5,34 +5,49 @@
  */
 import { test, expect } from '@playwright/test'
 
-const ADMIN_USER = process.env.E2E_USER || 'admin'
-const ADMIN_PASS = process.env.E2E_PASS || 'admin123'
+import {
+  ADMIN_USER,
+  E2E_API_URL,
+  LOGIN_ERROR_PATTERN,
+  ensureShiftModalClosed,
+  primeRuntimeConfig,
+  restoreLocalStorage,
+  snapshotLocalStorage,
+  submitLogin
+} from './runtime-helpers'
 
-// ---------------------------------------------------------------------------
-// Helper: login + cerrar modal de turno
-// ---------------------------------------------------------------------------
+let cachedSessionStorage: Record<string, string> | null = null
+
+async function clickMoreMenuItem(
+  page: import('@playwright/test').Page,
+  label: RegExp
+): Promise<void> {
+  await page.getByRole('button', { name: /más/i }).click()
+  await page.getByRole('menuitem', { name: label }).click()
+}
+
 async function loginAndCloseModal(page: import('@playwright/test').Page): Promise<void> {
-  await page.goto('/#/login')
-  await page.evaluate(() => localStorage.clear())
-  await page.getByPlaceholder('Nombre de usuario').fill(ADMIN_USER)
-  await page.getByPlaceholder('••••••••').fill(ADMIN_PASS)
-  await page.getByRole('button', { name: /ingresar/i }).click()
-  await expect(page).toHaveURL(/\/#\/terminal/, { timeout: 10000 })
-
-  const continuar = page.getByRole('button', { name: /continuar turno/i })
-  const abrir = page.getByRole('button', { name: /abrir turno/i })
-  try {
-    if (await continuar.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await continuar.click()
-    } else if (await abrir.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.getByLabel(/fondo inicial/i).fill('100')
-      await abrir.click()
+  if (cachedSessionStorage) {
+    await restoreLocalStorage(page, cachedSessionStorage)
+    await page.goto('/#/terminal')
+    if (/\/#\/terminal/.test(page.url())) {
+      try {
+        await ensureShiftModalClosed(page)
+        return
+      } catch {
+        cachedSessionStorage = null
+      }
+    } else {
+      cachedSessionStorage = null
     }
-    // Ensure modal backdrop is hidden instead of arbitrary timeout
-    await page
-      .locator('.fixed.inset-0.z-50.bg-black\\/50')
-      .waitFor({ state: 'hidden', timeout: 5000 })
-      .catch(() => {})
+  }
+
+  await primeRuntimeConfig(page)
+  await submitLogin(page)
+  await expect(page).toHaveURL(/\/#\/terminal/, { timeout: 10000 })
+  cachedSessionStorage = await snapshotLocalStorage(page)
+  try {
+    await ensureShiftModalClosed(page)
   } catch {
     /* modal no mostrado */
   }
@@ -43,34 +58,28 @@ async function loginAndCloseModal(page: import('@playwright/test').Page): Promis
 // ============================================================================
 test.describe('E2E-1: Login y arranque', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/login')
-    await page.evaluate(() => localStorage.clear())
+    await primeRuntimeConfig(page)
   })
 
   test('E2E-1.1: Login exitoso → redirección a terminal y token en localStorage', async ({
     page
   }) => {
-    await page.getByPlaceholder('Nombre de usuario').fill(ADMIN_USER)
-    await page.getByPlaceholder('••••••••').fill(ADMIN_PASS)
-    await page.getByRole('button', { name: /ingresar/i }).click()
-    await expect(page).toHaveURL(/\/#\/terminal/)
+    await submitLogin(page)
+    await expect(page).toHaveURL(/\/#\/terminal/, { timeout: 10000 })
     const token = await page.evaluate(() => localStorage.getItem('titan.token'))
     expect(token).toBeTruthy()
   })
 
   test('E2E-1.2 y EC-Login: Login fallido → mensaje de error, no redirección', async ({ page }) => {
-    await page.getByPlaceholder('Nombre de usuario').fill('admin')
-    await page.getByPlaceholder('••••••••').fill('wrongpassword')
-    await page.getByRole('button', { name: /ingresar/i }).click()
+    await submitLogin(page, ADMIN_USER, 'wrongpassword')
     await expect(page).toHaveURL(/#\/login/)
-    await expect(page.getByText(/credenciales|incorrectas|inválidas/i)).toBeVisible({
+    await expect(page.getByText(LOGIN_ERROR_PATTERN)).toBeVisible({
       timeout: 5000
     })
   })
 
   test('EC-Login: Campos vacíos', async ({ page }) => {
-    await page.getByRole('button', { name: /ingresar/i }).click()
-    // HTML5 validation or manual validation message should trigger.
+    await expect(page.getByRole('button', { name: /ingresar/i })).toBeDisabled()
     await expect(page).toHaveURL(/#\/login/)
   })
 
@@ -85,6 +94,7 @@ test.describe('E2E-1: Login y arranque', () => {
     await page.getByRole('button', { name: /aceptar/i }).click()
     await expect(page).toHaveURL(/#\/login/)
     expect(await page.evaluate(() => localStorage.getItem('titan.token'))).toBeFalsy()
+    cachedSessionStorage = null
   })
 })
 
@@ -97,7 +107,7 @@ test.describe('E2E-17: Navegación global', () => {
   })
 
   test('E2E-17.1: Cada ítem del navbar lleva a la ruta correcta', async ({ page }) => {
-    const nav = [
+    const primaryNav = [
       { label: 'Ventas', hash: '/terminal' },
       { label: 'Clientes', hash: '/clientes' },
       { label: 'Productos', hash: '/productos' },
@@ -105,18 +115,25 @@ test.describe('E2E-17: Navegación global', () => {
       { label: 'Turnos', hash: '/turnos' },
       { label: 'Reportes', hash: '/reportes' },
       { label: 'Historial', hash: '/historial' },
-      { label: 'Ajustes', hash: '/configuraciones' },
-      { label: 'Stats', hash: '/estadisticas' },
-      { label: 'Mermas', hash: '/mermas' },
-      { label: 'Gastos', hash: '/gastos' },
-      { label: 'Empleados', hash: '/empleados' },
-      { label: 'Remoto', hash: '/remoto' },
-      { label: 'Fiscal', hash: '/fiscal' },
-      { label: 'Hardware', hash: '/hardware' }
+      { label: 'Ajustes', hash: '/configuraciones' }
     ]
-    for (const { label, hash } of nav) {
-      await page.getByRole('link', { name: new RegExp(label, 'i') }).click()
-      await expect(page).toHaveURL(new RegExp(`#${hash}`))
+    for (const { label, hash } of primaryNav) {
+      await page.getByRole('link', { name: label }).click()
+      await expect.poll(() => new URL(page.url()).hash).toBe(`#${hash}`)
+    }
+
+    const moreNav = [
+      { label: /estadísticas/i, hash: '/estadisticas' },
+      { label: /mermas/i, hash: '/mermas' },
+      { label: /gastos/i, hash: '/gastos' },
+      { label: /empleados/i, hash: '/empleados' },
+      { label: /remoto/i, hash: '/remoto' },
+      { label: /fiscal/i, hash: '/fiscal' },
+      { label: /hardware/i, hash: '/hardware' }
+    ]
+    for (const { label, hash } of moreNav) {
+      await clickMoreMenuItem(page, label)
+      await expect.poll(() => new URL(page.url()).hash).toBe(`#${hash}`)
     }
   })
 
@@ -160,7 +177,7 @@ test.describe('V7: Carga de pestañas', () => {
   })
   test('E2E-7.1: Reportes', async ({ page }) => {
     await page.getByRole('link', { name: /reportes/i }).click()
-    await expect(page.getByRole('heading', { name: /Reportes/i }).first()).toBeVisible({
+    await expect(page.getByRole('heading', { name: /Panel gerencial/i }).first()).toBeVisible({
       timeout: 10000
     })
   })
@@ -177,43 +194,43 @@ test.describe('V7: Carga de pestañas', () => {
     })
   })
   test('E2E-10.1: Estadísticas', async ({ page }) => {
-    await page.getByRole('link', { name: /stats/i }).click()
-    await expect(page.getByRole('heading', { name: /Estad[íi]sticas/i }).first()).toBeVisible({
+    await clickMoreMenuItem(page, /estadísticas/i)
+    await expect(page.getByRole('heading', { name: /Panel en tiempo real/i }).first()).toBeVisible({
       timeout: 10000
     })
   })
   test('E2E-11.1: Mermas', async ({ page }) => {
-    await page.getByRole('link', { name: /mermas/i }).click()
+    await clickMoreMenuItem(page, /mermas/i)
     await expect(page.getByRole('heading', { name: /Mermas/i }).first()).toBeVisible({
       timeout: 10000
     })
   })
   test('E2E-12.1: Gastos', async ({ page }) => {
-    await page.getByRole('link', { name: /gastos/i }).click()
+    await clickMoreMenuItem(page, /gastos/i)
     await expect(page.getByRole('heading', { name: /Gastos/i }).first()).toBeVisible({
       timeout: 10000
     })
   })
   test('E2E-13.1: Empleados', async ({ page }) => {
-    await page.getByRole('link', { name: /empleados/i }).click()
-    await expect(page.getByRole('heading', { name: /Empleados/i }).first()).toBeVisible({
-      timeout: 10000
-    })
+    await clickMoreMenuItem(page, /empleados/i)
+    await expect(
+      page.getByRole('heading', { name: /Directorio de Personal/i }).first()
+    ).toBeVisible({ timeout: 10000 })
   })
   test('E2E-14.1: Remoto', async ({ page }) => {
-    await page.getByRole('link', { name: /remoto/i }).click()
-    await expect(page.getByRole('heading', { name: /Remoto/i }).first()).toBeVisible({
-      timeout: 10000
-    })
+    await clickMoreMenuItem(page, /remoto/i)
+    await expect(
+      page.getByRole('heading', { name: /Monitoreo y Control Satelital/i }).first()
+    ).toBeVisible({ timeout: 10000 })
   })
   test('E2E-15.1: Fiscal', async ({ page }) => {
-    await page.getByRole('link', { name: /fiscal/i }).click()
-    await expect(page.getByRole('heading', { name: /Fiscal/i }).first()).toBeVisible({
+    await clickMoreMenuItem(page, /fiscal/i)
+    await expect(page.getByRole('heading', { name: /CFDI Individual/i }).first()).toBeVisible({
       timeout: 10000
     })
   })
   test('E2E-16.1: Hardware', async ({ page }) => {
-    await page.getByRole('link', { name: /hardware/i }).click()
+    await clickMoreMenuItem(page, /hardware/i)
     await expect(page.getByRole('heading', { name: /Hardware/i }).first()).toBeVisible({
       timeout: 10000
     })
@@ -230,9 +247,10 @@ test.describe('V7: Flujos — Terminal E2E-2 y EC', () => {
   })
 
   test('E2E-2.1 y EC-Terminal: Cobro efectivo rechaza si monto < total', async ({ page }) => {
-    await expect(page.getByPlaceholder(/Buscar SKU/i)).toBeVisible()
+    const search = page.getByPlaceholder(/Buscar (SKU|producto|producto o escanear)/i)
+    await expect(search).toBeVisible()
     // Búsqueda de un producto
-    await page.getByPlaceholder(/Buscar SKU/i).fill('1')
+    await search.fill('1')
     await page.keyboard.press('Enter')
     // Asumiendo que se agregó al carrito
 
@@ -244,13 +262,12 @@ test.describe('V7: Flujos — Terminal E2E-2 y EC', () => {
     await btnCobrar.click()
     const inputEfectivo = page.locator('input[type="number"]').first()
     await inputEfectivo.fill('0.01')
-    const confirmBtn = page.getByRole('button', { name: /Confirmar/i })
-    await confirmBtn.click()
-
-    // Debería bloquear o avisar que el monto es insuficiente
-    await expect(page.getByText(/Monto insuficiente|faltante/i).first())
-      .toBeVisible({ timeout: 5000 })
-      .catch(() => {})
+    await expect(page.getByText(/Faltante/i).first()).toBeVisible({ timeout: 5000 })
+    const cobrarEnModal = page
+      .locator('[role="dialog"]')
+      .getByRole('button', { name: /^COBRAR$/ })
+      .last()
+    await expect(cobrarEnModal).toBeVisible({ timeout: 5000 })
   })
 
   test('E2E-2.6: F9 verificador precios abre y cierra', async ({ page }) => {
@@ -265,7 +282,7 @@ test.describe('V7: Flujos — Terminal E2E-2 y EC', () => {
   })
 
   test('E2E-2.8: Guardar ticket deshabilitado con carrito vacío', async ({ page }) => {
-    const guardar = page.getByRole('button', { name: /Guardar/i }).first()
+    const guardar = page.getByRole('button', { name: /Ticket pendiente/i }).first()
     await expect(guardar).toBeVisible({ timeout: 5000 })
     await expect(guardar).toBeDisabled()
   })
@@ -280,17 +297,16 @@ test.describe('V7: Flujos — Clientes E2E-3 y EC', () => {
     page
   }) => {
     await page.getByRole('link', { name: /clientes/i }).click()
-    await page.getByRole('button', { name: /Nuevo/i }).click()
-    await page.getByRole('button', { name: /Guardar/i }).click()
+    await page.getByRole('button', { name: /^Nuevo$/ }).click()
+    const guardarCliente = page.getByRole('button', { name: /Guardar cliente/i })
+    await expect(guardarCliente).toBeDisabled()
 
     // EC: Nombre vacío -> error
-    await expect(page.getByText(/Nombre.*obligatorio|requerido/i).first())
-      .toBeVisible({ timeout: 5000 })
-      .catch(() => {})
+    await expect(page.getByPlaceholder(/Nombre completo/i)).toBeVisible({ timeout: 5000 })
 
-    await page.getByPlaceholder(/Nombre cliente/i).fill('Cliente E2E Test')
-    await page.getByPlaceholder(/Telefono/i).fill('5551234567')
-    await page.getByRole('button', { name: /Guardar/i }).click()
+    await page.getByPlaceholder(/Nombre completo/i).fill('Cliente E2E Test')
+    await page.getByPlaceholder(/tel[eé]fono/i).fill('5551234567')
+    await guardarCliente.click()
     await expect(page.getByText(/actualizado|guardado|Cliente E2E Test/i).first()).toBeVisible({
       timeout: 8000
     })
@@ -345,14 +361,14 @@ test.describe('V7: Flujos — Reportes E2E-7', () => {
 
   test('E2E-7.1: Local — Recalcular', async ({ page }) => {
     await page.getByRole('link', { name: /reportes/i }).click()
-    await page
-      .getByRole('button', { name: /Recalcular|Cargar/i })
-      .first()
-      .click()
-      .catch(() => {})
+    await expect(page.getByRole('heading', { name: /Panel gerencial/i }).first()).toBeVisible({
+      timeout: 12000
+    })
     await expect(
-      page.getByText(/KPIs|Ventas|Monto|Sin informaci[oó]n|Resultados/i).first()
-    ).toBeVisible({ timeout: 12000 })
+      page.getByText(/Ingreso bruto|Ticket promedio|Operaciones concretadas/i).first()
+    ).toBeVisible({
+      timeout: 12000
+    })
   })
 })
 
@@ -364,7 +380,7 @@ test.describe('V7: Flujos — Gastos E2E-12 y EC', () => {
   test('E2E-12.2 y EC-Gastos: Llenar monto y registrar (validación negativos)', async ({
     page
   }) => {
-    await page.getByRole('link', { name: /gastos/i }).click()
+    await clickMoreMenuItem(page, /gastos/i)
     const form = page
       .locator('form')
       .filter({ hasText: /Registrar/i })
@@ -388,7 +404,8 @@ test.describe('V7: Flujos — Configuraciones E2E-9', () => {
 
   test('E2E-9.1: Base URL visible y Guardar habilitado', async ({ page }) => {
     await page.getByRole('link', { name: /ajustes|configuraciones/i }).click()
-    await expect(page.getByPlaceholder(/Base URL/i)).toBeVisible({ timeout: 5000 })
-    await expect(page.getByRole('button', { name: /Guardar/i }).first()).toBeVisible()
+    await expect(page.getByText(/Dirección del servidor/i).first()).toBeVisible({ timeout: 5000 })
+    await expect(page.getByLabel(/Dirección del servidor/i)).toHaveValue(E2E_API_URL)
+    await expect(page.getByRole('button', { name: /Guardar conexión/i })).toBeVisible()
   })
 })

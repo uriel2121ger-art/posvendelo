@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from decimal import Decimal
 import logging
 from pathlib import Path
+from db.connection import escape_like
 from modules.fiscal.constants import IVA_RATE
 from modules.shared.constants import money
 
@@ -203,7 +204,10 @@ class XMLIngestor:
             if result:
                 return result
 
-        desc_pattern = f"%{concepto['descripcion'][:20].lower()}%"
+        desc_raw = (concepto.get("descripcion") or "")[:100].lower().strip()
+        if not desc_raw:
+            return None
+        desc_pattern = f"%{escape_like(desc_raw)}%"
         result = await self.db.fetchrow(
             "SELECT * FROM products WHERE LOWER(name) LIKE :pattern LIMIT 1",
             {"pattern": desc_pattern},

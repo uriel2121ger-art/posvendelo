@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useConfirm } from '../components/ConfirmDialog'
+import { useConfirm, usePrompt } from '../components/ConfirmDialog'
 import {
   Search,
   X,
@@ -14,7 +14,10 @@ import {
   HelpCircle,
   Ban,
   Eye,
-  Clock
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  Package
 } from 'lucide-react'
 import {
   getSaleDetail,
@@ -25,6 +28,8 @@ import {
   getUserRole
 } from '../posApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { toNumber } from '../utils/numbers'
+import { downloadCsv, getIsoDateDaysAgo } from '../utils/csv'
 
 type SaleRow = {
   id: string
@@ -35,50 +40,21 @@ type SaleRow = {
   total: number
 }
 
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
 function normalizeSale(raw: Record<string, unknown>): SaleRow {
   const id = String(raw.id ?? raw.folio ?? `sale-${Date.now()}`)
   return {
     id,
     folio: String(raw.folio ?? id),
     timestamp: String(raw.timestamp ?? raw.created_at ?? ''),
-    customerName: String(raw.customer_name ?? raw.customer ?? 'Publico General'),
+    customerName: String(raw.customer_name ?? raw.customer ?? 'Público General'),
     paymentMethod: String(raw.payment_method ?? 'cash'),
     total: toNumber(raw.total)
   }
 }
 
-function toCsvCell(value: string): string {
-  // Strip non-printable control chars, then prefix formula-triggering chars with tab
-  // eslint-disable-next-line no-control-regex
-  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
-  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
-  return `"${safe.replace(/"/g, '""')}"`
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
-  const blob = new Blob([`${csv}\n`], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 100)
-}
-
-function getIsoDateDaysAgo(days: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - days)
-  return date.toISOString().slice(0, 10)
-}
-
 export default function HistoryTab(): ReactElement {
   const confirm = useConfirm()
+  const prompt = usePrompt()
   const [rows, setRows] = useState<SaleRow[]>([])
   const [folio, setFolio] = useState('')
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'card' | 'transfer'>('all')
@@ -92,6 +68,7 @@ export default function HistoryTab(): ReactElement {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Historial operativo: busca y revisa detalle de ventas.')
   const [events, setEvents] = useState<Record<string, unknown>[]>([])
+  const [showTechnical, setShowTechnical] = useState(false)
   const requestIdRef = useRef(0)
   const detailRequestId = useRef(0)
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -124,7 +101,7 @@ export default function HistoryTab(): ReactElement {
     const reqId = ++requestIdRef.current
     const { folio: f, dateFrom: df, dateTo: dt } = filtersRef.current
     if (df && dt && df > dt) {
-      setMessage('Error: La fecha inicio no puede ser posterior a la fecha fin.')
+      setMessage('Error: La fecha de inicio no puede ser posterior a la fecha de fin.')
       return
     }
     setBusy(true)
@@ -147,6 +124,7 @@ export default function HistoryTab(): ReactElement {
     const reqId = ++detailRequestId.current
     setSelectedId(saleId)
     setDetail(null)
+    setShowTechnical(false)
     try {
       const cfg = loadRuntimeConfig()
       const payload = await getSaleDetail(cfg, saleId)
@@ -164,23 +142,37 @@ export default function HistoryTab(): ReactElement {
   async function handleCancelSale(): Promise<void> {
     if (!selectedId || !canManage) return
     if (
-      !(await confirm('¿Cancelar esta venta? Esta accion no se puede deshacer.', {
+      !(await confirm('¿Cancelar esta venta? Esta acción no se puede deshacer.', {
         variant: 'danger',
         title: 'Cancelar venta'
       }))
     )
       return
     if (
-      !(await confirm('SEGUNDA CONFIRMACION: ¿Estas seguro de cancelar?', {
+      !(await confirm('SEGUNDA CONFIRMACIÓN: ¿Estás seguro de que deseas cancelar esta venta?', {
         variant: 'danger',
-        title: 'Confirmar cancelacion'
+        title: 'Confirmar cancelación'
       }))
     )
       return
+    const managerPin = await prompt('Ingresa el PIN de gerente/autorización para cancelar.', {
+      title: 'PIN de autorización',
+      placeholder: 'PIN de gerente',
+      confirmText: 'Validar',
+      variant: 'warning'
+    })
+    if (managerPin == null) return
+    const reason = await prompt('Motivo de cancelación (opcional):', {
+      title: 'Motivo',
+      placeholder: 'Ej: error de captura, devolución inmediata'
+    })
     setBusy(true)
     try {
       const cfg = loadRuntimeConfig()
-      await cancelSale(cfg, selectedId)
+      await cancelSale(cfg, selectedId, {
+        manager_pin: managerPin.trim(),
+        reason: reason?.trim() || undefined
+      })
       setMessage(`Venta ${selectedId} cancelada.`)
       setSelectedId(null)
       setDetail(null)
@@ -232,52 +224,48 @@ export default function HistoryTab(): ReactElement {
   }, [handleLoad])
 
   return (
-    <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Header Area */}
-        <div className="px-8 py-6 border-b border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <Receipt className="w-7 h-7 text-indigo-500" />
-              Historial de Transacciones
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Header — mismo patrón que Productos/Clientes */}
+        <div className="shrink-0 flex items-center justify-between gap-4 border-b border-zinc-900 bg-zinc-950 px-4 pt-3 pb-3 lg:px-6 lg:pt-4 lg:pb-4">
+          <div className="min-w-0 shrink">
+            <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
+              <Receipt className="w-6 h-6 text-indigo-500 shrink-0" />
+              <span className="truncate">Historial de transacciones</span>
             </h1>
-            <p className="text-zinc-500 text-sm mt-1">
-              {rows.length} operaciones registradas en el periodo actual
-            </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0 flex-nowrap">
             <button
               onClick={exportVisibleCsv}
               disabled={busy || visibleRows.length === 0}
-              className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded-xl font-semibold transition-colors border border-zinc-800 disabled:opacity-50"
+              className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border border-zinc-800 disabled:opacity-50"
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
               <span>Exportar CSV</span>
             </button>
             <button
               onClick={() => void handleLoad()}
               disabled={busy}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold shadow-[0_4px_20px_-5px_rgba(79,70,229,0.4)] transition-all hover:-translate-y-0.5"
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold shrink-0"
             >
-              <RefreshCw className={`w-5 h-5 ${busy ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
               <span>Actualizar</span>
             </button>
           </div>
         </div>
 
-        {/* Filters Toolbar */}
-        <div className="px-8 py-4 bg-zinc-950/50 flex flex-wrap items-center gap-3 shrink-0">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        {/* Filters Toolbar — mismo patrón que Productos/Clientes */}
+        <div className="shrink-0 px-4 lg:px-6 py-3 bg-zinc-950/50 flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[280px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2 pl-10 pr-4 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-zinc-600"
-              placeholder="Buscar por Folio..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-10 pr-3 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-zinc-600"
+              placeholder="Buscar por folio..."
               value={folio}
               onChange={(e) => setFolio(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-2 py-1">
+          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1">
             <Calendar className="w-4 h-4 text-zinc-500 ml-2" />
             <input
               className="bg-transparent py-1 px-2 text-sm font-medium focus:outline-none text-zinc-300"
@@ -296,7 +284,7 @@ export default function HistoryTab(): ReactElement {
             />
           </div>
           <select
-            className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 cursor-pointer min-w-[180px]"
             value={paymentFilter}
             onChange={(e) =>
               setPaymentFilter(e.target.value as 'all' | 'cash' | 'card' | 'transfer')
@@ -309,19 +297,19 @@ export default function HistoryTab(): ReactElement {
           </select>
           <div className="flex items-center gap-2">
             <input
-              className="w-24 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600 text-center"
+              className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600 text-center"
               type="number"
               min={0}
-              placeholder="Min $"
+              placeholder="Mín. $"
               value={minTotal}
               onChange={(e) => setMinTotal(e.target.value)}
             />
             <span className="text-zinc-600">-</span>
             <input
-              className="w-24 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600 text-center"
+              className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600 text-center"
               type="number"
               min={0}
-              placeholder="Max $"
+              placeholder="Máx. $"
               value={maxTotal}
               onChange={(e) => setMaxTotal(e.target.value)}
             />
@@ -329,24 +317,24 @@ export default function HistoryTab(): ReactElement {
         </div>
 
         {/* Master List (Data Grid) */}
-        <div className="flex-1 overflow-y-auto px-8 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 py-3">
           {visibleRows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-zinc-500 bg-zinc-900/20 border border-zinc-800/50 rounded-2xl">
+            <div className="flex flex-col items-center justify-center h-full text-zinc-500 rounded-2xl border border-zinc-800 bg-zinc-900/40">
               <Receipt className="w-16 h-16 mb-4 opacity-20" />
               <p className="text-lg font-medium text-zinc-400">Sin resultados de búsqueda</p>
               <p className="text-sm mt-1">Ajusta los filtros o intenta con otras fechas.</p>
             </div>
           ) : (
-            <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl overflow-hidden">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
               <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-zinc-900/90 backdrop-blur-sm z-10">
-                  <tr className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold">
-                    <th className="px-6 py-4 w-40">Folio Transacción</th>
-                    <th className="px-6 py-4 w-48">Fecha y Hora</th>
-                    <th className="px-6 py-4">Cliente</th>
-                    <th className="px-6 py-4 w-32">Método</th>
-                    <th className="px-6 py-4 text-right w-32">Monto Total</th>
-                    <th className="px-6 py-4 w-16"></th>
+                <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                  <tr>
+                    <th className="px-4 py-2 w-40">Folio Transacción</th>
+                    <th className="px-4 py-2 w-48">Fecha y hora</th>
+                    <th className="px-4 py-2">Cliente</th>
+                    <th className="px-4 py-2 w-32">Método</th>
+                    <th className="px-4 py-2 text-right w-32">Monto total</th>
+                    <th className="px-4 py-2 w-16"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
@@ -359,16 +347,16 @@ export default function HistoryTab(): ReactElement {
                       }}
                       className="group hover:bg-zinc-800/40 cursor-pointer transition-colors"
                     >
-                      <td className="px-6 py-4 font-mono text-sm text-zinc-300 group-hover:text-indigo-400 transition-colors">
+                      <td className="px-4 py-2 font-mono text-sm text-zinc-300 group-hover:text-indigo-400 transition-colors">
                         {sale.folio}
                       </td>
-                      <td className="px-6 py-4 text-zinc-400 text-sm">
+                      <td className="px-4 py-2 text-zinc-400 text-sm">
                         {sale.timestamp.slice(0, 16).replace('T', ' ')}
                       </td>
-                      <td className="px-6 py-4 font-medium text-zinc-200 truncate">
+                      <td className="px-4 py-2 font-medium text-zinc-200 truncate">
                         {sale.customerName}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
                           {sale.paymentMethod === 'cash' ? (
                             <Banknote className="w-4 h-4 text-emerald-500" />
@@ -384,12 +372,12 @@ export default function HistoryTab(): ReactElement {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-2 text-right">
                         <span className="font-mono font-bold text-emerald-400 text-base">
                           ${sale.total.toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-2 text-right">
                         <button className="p-2 -mr-2 text-zinc-600 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-indigo-500/10">
                           <Eye className="w-4 h-4" />
                         </button>
@@ -403,7 +391,7 @@ export default function HistoryTab(): ReactElement {
         </div>
 
         {/* Footer info */}
-        <div className="bg-zinc-950 border-t border-zinc-900 px-8 py-3 flex items-center justify-between shrink-0 text-sm">
+        <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 px-4 lg:px-6 py-3 flex items-center justify-between text-sm">
           <span className="text-zinc-500">{message}</span>
           <span className="text-zinc-600 font-bold">{visibleRows.length} tickets encontrados</span>
         </div>
@@ -421,10 +409,10 @@ export default function HistoryTab(): ReactElement {
             className="w-[500px] bg-zinc-950 border-l border-zinc-800 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/30">
+            <div className="px-4 lg:px-6 py-3 border-b border-zinc-900 flex items-center justify-between bg-zinc-950">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-indigo-500" />
-                Detalle del Ticket
+                Detalle del ticket
               </h2>
               <button
                 onClick={() => setIsDrawerOpen(false)}
@@ -439,7 +427,7 @@ export default function HistoryTab(): ReactElement {
                 <div className="flex flex-col items-center justify-center animate-pulse py-12">
                   <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                   <p className="text-zinc-500 mt-4 font-medium text-sm">
-                    Obteniendo recibo de los servidores...
+                    Obteniendo detalle del ticket...
                   </p>
                 </div>
               ) : (
@@ -449,7 +437,7 @@ export default function HistoryTab(): ReactElement {
                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
                     <div className="flex justify-between items-start mb-6 relative">
                       <div>
-                        <p className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold mb-1">
+                        <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold mb-1">
                           Folio Oficial
                         </p>
                         <p className="text-2xl font-mono text-white tracking-tight">
@@ -457,8 +445,8 @@ export default function HistoryTab(): ReactElement {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold mb-1">
-                          Monto Total
+                        <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold mb-1">
+                          Monto total
                         </p>
                         <p className="text-2xl font-black font-mono text-emerald-400">
                           ${selectedSale.total.toFixed(2)}
@@ -477,7 +465,7 @@ export default function HistoryTab(): ReactElement {
                       </div>
                       <div>
                         <p className="text-zinc-500 text-[10px] uppercase font-bold mb-1">
-                          Método de Pago
+                          Método de pago
                         </p>
                         <div className="flex items-center gap-1.5 text-zinc-200 font-medium capitalize">
                           {selectedSale.paymentMethod === 'cash' ? (
@@ -495,15 +483,86 @@ export default function HistoryTab(): ReactElement {
                     </div>
                   </div>
 
-                  {/* Raw API Detail */}
+                  {/* Productos comprados — lista legible con scroll para 50+ ítems */}
+                  {detail &&
+                    (() => {
+                      const items = Array.isArray(detail.items) ? detail.items : []
+                      return (
+                        <div>
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3 flex items-center gap-2">
+                            <Package className="w-4 h-4" /> Productos comprados
+                            {items.length > 0 && (
+                              <span className="text-zinc-600 font-normal normal-case">
+                                ({items.length} {items.length === 1 ? 'artículo' : 'artículos'})
+                              </span>
+                            )}
+                          </h3>
+                          {items.length === 0 ? (
+                            <p className="text-sm text-zinc-500 py-2">
+                              No se pudo cargar la lista de productos.
+                            </p>
+                          ) : (
+                            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                              <div className="max-h-64 overflow-y-auto">
+                                <table className="w-full text-left border-collapse">
+                                  <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                                    <tr>
+                                      <th className="px-4 py-2">Producto</th>
+                                      <th className="px-4 py-2 text-right w-16">Cant.</th>
+                                      <th className="px-4 py-2 text-right w-20">Subtotal</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-zinc-800/50">
+                                    {items.map((it: Record<string, unknown>, idx: number) => (
+                                      <tr
+                                        key={idx}
+                                        className="hover:bg-zinc-800/40 transition-colors"
+                                      >
+                                        <td
+                                          className="px-4 py-2 text-sm text-zinc-200 truncate max-w-[220px]"
+                                          title={String(it.name ?? it.product_name ?? '')}
+                                        >
+                                          {String(it.name ?? it.product_name ?? '—')}
+                                        </td>
+                                        <td className="px-4 py-2 text-sm font-mono text-zinc-400 text-right">
+                                          {Number(it.qty ?? it.quantity ?? 0)}
+                                        </td>
+                                        <td className="px-4 py-2 text-sm font-mono text-emerald-400 text-right">
+                                          ${toNumber(it.subtotal ?? it.total).toFixed(2)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                  {/* Datos técnicos (colapsable) */}
                   {detail && (
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3 flex items-center gap-2">
-                        <FileText className="w-4 h-4" /> Desglose Técnico
-                      </h3>
-                      <pre className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-[11px] font-mono text-zinc-400 overflow-x-auto shadow-inner">
-                        {JSON.stringify(detail, null, 2)}
-                      </pre>
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowTechnical((v) => !v)}
+                        className="w-full flex items-center justify-between gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 hover:bg-zinc-800/50 transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FileText className="w-4 h-4" /> Datos técnicos (JSON)
+                        </span>
+                        {showTechnical ? (
+                          <ChevronDown className="w-4 h-4" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4" />
+                        )}
+                      </button>
+                      {showTechnical && (
+                        <pre className="border-t border-zinc-800 p-4 text-[10px] font-mono text-zinc-500 overflow-x-auto max-h-48 overflow-y-auto bg-zinc-950/50">
+                          {JSON.stringify(detail, null, 2)}
+                        </pre>
+                      )}
                     </div>
                   )}
 
@@ -511,29 +570,29 @@ export default function HistoryTab(): ReactElement {
                   {events.length > 0 && (
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-3 flex items-center gap-2">
-                        <Clock className="w-4 h-4" /> Trazabilidad de Auditoría
+                        <Clock className="w-4 h-4" /> Trazabilidad de auditoría
                       </h3>
-                      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-zinc-900/80">
-                            <tr className="border-b border-zinc-800 text-zinc-500">
-                              <th className="px-4 py-2 font-medium w-12">Nº</th>
-                              <th className="px-4 py-2 font-medium">Evento</th>
-                              <th className="px-4 py-2 font-medium text-right">Timestamp</th>
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                            <tr>
+                              <th className="px-4 py-2 w-12">Nº</th>
+                              <th className="px-4 py-2">Evento</th>
+                              <th className="px-4 py-2 text-right">Fecha/Hora</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-zinc-800/50">
                             {events.map((ev, i) => (
-                              <tr key={i} className="text-zinc-300 hover:bg-zinc-800/30">
-                                <td className="px-4 py-2.5 font-mono text-zinc-500">
+                              <tr key={i} className="hover:bg-zinc-800/40 transition-colors">
+                                <td className="px-4 py-2 text-sm font-mono text-zinc-500">
                                   {String(ev.sequence ?? i + 1)}
                                 </td>
-                                <td className="px-4 py-2.5">
+                                <td className="px-4 py-2 text-sm">
                                   <span className="bg-zinc-800 px-2 py-0.5 rounded uppercase tracking-wider text-[10px] font-bold text-zinc-300">
                                     {String(ev.event_type ?? ev.type ?? '-')}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2.5 text-right font-mono text-zinc-500">
+                                <td className="px-4 py-2 text-sm text-right font-mono text-zinc-500">
                                   {String(ev.timestamp ?? ev.created_at ?? '-').slice(11, 19)}
                                 </td>
                               </tr>
@@ -549,9 +608,9 @@ export default function HistoryTab(): ReactElement {
 
             {/* Danger Actions Area */}
             {canManage && selectedSale && (
-              <div className="p-6 border-t border-zinc-800 bg-zinc-950 flex flex-col gap-3 shrink-0">
-                <div className="text-[10px] text-zinc-500 text-center uppercase font-bold tracking-widest mb-1 flex items-center justify-center gap-2">
-                  <Ban className="w-3 h-3" /> Zona de Riesgo (Manager)
+              <div className="p-4 lg:p-6 border-t border-zinc-900 bg-zinc-950 flex flex-col gap-3 shrink-0">
+                <div className="text-[10px] text-zinc-500 text-center uppercase font-bold tracking-wider mb-1 flex items-center justify-center gap-2">
+                  <Ban className="w-3 h-3" /> Zona de riesgo (gerente)
                 </div>
                 <button
                   onClick={() => void handleCancelSale()}

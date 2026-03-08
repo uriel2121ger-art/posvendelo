@@ -1,0 +1,29 @@
+# Gitleaks — detección de secretos en el repositorio
+# https://github.com/gitleaks/gitleaks
+# Permitir solo los patrones de CI/test que son intencionales (no secretos reales)
+
+title = "TITAN POS Gitleaks config"
+
+[extend]
+useDefault = true
+
+# Valores que aparecen en CI (deploy.yml) o en docs de ejemplo — no son secretos de producción
+[allowlist]
+description = "CI and example placeholders"
+paths = [
+  '''\.github/workflows/''',
+  '''\.env\.example''',
+  '''docs/.*\.md''',
+  '''control-plane/README\.md''',
+  '''backend/\.env\.example''',
+  '''conftest\.py''',
+]
+regexes = [
+  '''ci-test-secret-not-for-production''',
+  '''ci_test_password''',
+  '''ci_admin_pass''',
+  '''change-me-in-production''',
+  '''test-only-secret-do-not-use''',
+  '''<TU_PASSWORD_SEGURA>''',
+  '''<CAMBIAR_EN_PRODUCCION>''',
+]

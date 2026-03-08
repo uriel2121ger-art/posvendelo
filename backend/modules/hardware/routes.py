@@ -286,16 +286,16 @@ async def test_drawer(
 
     drawer_printer = cfg.get("printer_name", "")
     if not drawer_printer:
-        raise HTTPException(status_code=400, detail="Impresora de cajon no configurada")
+        raise HTTPException(status_code=400, detail="Impresora de cajón no configurada")
 
     pulse = cfg.get("cash_drawer_pulse_bytes", "1B700019FA")
     try:
         await printer_svc.open_drawer(drawer_printer, pulse)
     except Exception as e:
         logger.error("Test drawer failed: %s", e)
-        raise HTTPException(status_code=500, detail="Error abriendo cajon. Verifique la conexion.")
+        raise HTTPException(status_code=500, detail="Error abriendo cajón. Verifique la conexión.")
 
-    return {"success": True, "data": {"message": "Cajon de prueba abierto"}}
+    return {"success": True, "data": {"message": "Cajón de prueba abierto"}}
 
 
 # ---------------------------------------------------------------------------

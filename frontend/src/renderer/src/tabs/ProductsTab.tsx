@@ -26,6 +26,10 @@ import {
   updateProduct
 } from '../posApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useFormDirty } from '../hooks/useFormDirty'
+import { toNumber } from '../utils/numbers'
+import { downloadCsv, parseCsvLine } from '../utils/csv'
+// SheetJS CE 0.20.3 desde CDN (package.json); el paquete "xlsx" de npm está desactualizado y vulnerable
 import * as XLSX from 'xlsx'
 
 type Product = {
@@ -39,11 +43,6 @@ type Product = {
   satClaveProdServ?: string
   satClaveUnidad?: string
   satDescripcion?: string
-}
-
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function normalizeProduct(raw: Record<string, unknown>): Product | null {
@@ -67,52 +66,19 @@ function normalizeProduct(raw: Record<string, unknown>): Product | null {
   }
 }
 
+function stripControlAndInvisibleChars(value: string): string {
+  return Array.from(value)
+    .filter((char) => {
+      const code = char.charCodeAt(0)
+      const isControl = (code >= 0x00 && code <= 0x1f) || (code >= 0x7f && code <= 0x9f)
+      const isInvisible =
+        (code >= 0x200b && code <= 0x200f) || (code >= 0x2028 && code <= 0x202f) || code === 0xfeff
+      return !isControl && !isInvisible
+    })
+    .join('')
+}
+
 // ─── Exportar / Importar CSV ─────────────────────────────────────────────────
-
-function toCsvCell(value: string): string {
-  // eslint-disable-next-line no-control-regex -- strip control chars for CSV safety
-  const clean = value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
-  const safe = /^[=+\-@\t\r\n]/.test(clean) ? `\t${clean}` : clean
-  return `"${safe.replace(/"/g, '""')}"`
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
-  const blob = new Blob([`\uFEFF${csv}\n`], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 100)
-}
-
-/** Parsea una línea CSV respetando comillas (campos con coma). */
-function parseCsvLine(line: string): string[] {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i++
-        continue
-      }
-      inQuotes = !inQuotes
-      continue
-    }
-    if (!inQuotes && c === ',') {
-      result.push(current.trim())
-      current = ''
-      continue
-    }
-    current += c
-  }
-  result.push(current.trim())
-  return result
-}
 
 /** Campos del sistema para importación y su mapeo amigable. */
 const IMPORT_FIELDS: { key: keyof Product | 'barcode'; label: string; required: boolean }[] = [
@@ -177,16 +143,18 @@ export default function ProductsTab(): ReactElement {
   const [stock, setStock] = useState('0')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState(
-    'Productos (F3): carga, alta, edicion y baja logica funcional.'
+    'Productos (F3): carga, alta, edición y baja lógica funcional.'
   )
   const requestIdRef = useRef(0)
   const skuFormRef = useRef<HTMLInputElement>(null)
   const nameFormRef = useRef<HTMLInputElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const { formDirtyRef, guardedClose, resetDirty } = useFormDirty()
 
   useFocusTrap(drawerRef, isDrawerOpen)
   const [categories, setCategories] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [category, setCategory] = useState('')
   const [lowStock, setLowStock] = useState<Record<string, unknown>[]>([])
   const [showLowStock, setShowLowStock] = useState(false)
   const [satCode, setSatCode] = useState('01010101')
@@ -305,6 +273,7 @@ export default function ProductsTab(): ReactElement {
     try {
       const cfg = loadRuntimeConfig()
       const isUpdate = Boolean(selectedSku)
+      const cat = category.trim() || undefined
       const payload: Record<string, unknown> = {
         name: name.trim(),
         price: toNumber(price),
@@ -313,10 +282,15 @@ export default function ProductsTab(): ReactElement {
         sat_clave_unidad: satUnit || 'H87',
         sat_descripcion: satDesc || ''
       }
+      if (cat) payload.category = cat
       if (isUpdate) {
         const target = products.find((p) => p.sku === selectedSku)
         if (target?.id && typeof target.id === 'number') {
-          await updateProduct(cfg, target.id, payload)
+          const result = (await updateProduct(cfg, target.id, payload)) as Record<string, unknown>
+          // If the backend returned an error detail (e.g. 404 not found), surface it
+          if (result && result.detail) {
+            throw new Error(String(result.detail))
+          }
         } else {
           payload.sku = sku.trim()
           await syncTable('products', [{ ...payload, deleted: false }], cfg)
@@ -331,6 +305,7 @@ export default function ProductsTab(): ReactElement {
         name: name.trim(),
         price: toNumber(price),
         stock: Math.max(0, Math.floor(toNumber(stock))),
+        category: cat,
         satClaveProdServ: satCode || '01010101',
         satClaveUnidad: satUnit || 'H87',
         satDescripcion: satDesc || ''
@@ -344,16 +319,20 @@ export default function ProductsTab(): ReactElement {
         }
         return [product, ...prev]
       })
+      resetDirty()
       setSelectedSku(null)
       setSku('')
       setName('')
       setPrice('0')
       setStock('0')
+      setCategory('')
       setSatCode('01010101')
       setSatUnit('H87')
       setSatDesc('')
       setSatQuery('')
       setIsDrawerOpen(false)
+      // Refresh from server to reflect real state (catches ghost-product edits)
+      void handleLoad()
       setMessage(
         isUpdate ? `Producto actualizado: ${product.sku}` : `Producto guardado: ${product.sku}`
       )
@@ -400,11 +379,13 @@ export default function ProductsTab(): ReactElement {
         cfg
       )
       setProducts((prev) => prev.filter((item) => item.sku !== selectedSku))
+      resetDirty()
       setSelectedSku(null)
       setSku('')
       setName('')
       setPrice('0')
       setStock('0')
+      setCategory('')
       setIsDrawerOpen(false)
       setMessage(`Producto eliminado: ${target.sku}`)
     } catch (error) {
@@ -415,12 +396,14 @@ export default function ProductsTab(): ReactElement {
   }
 
   function selectProduct(product: Product): void {
+    resetDirty()
     setSelectedSku(product.sku)
     setIsDrawerOpen(true)
     setSku(product.sku)
     setName(product.name)
     setPrice(product.price.toFixed(2))
     setStock(String(product.stock))
+    setCategory(product.category ?? '')
     setSatCode(product.satClaveProdServ || '01010101')
     setSatUnit(product.satClaveUnidad || 'H87')
     setSatDesc(product.satDescripcion || '')
@@ -642,12 +625,14 @@ export default function ProductsTab(): ReactElement {
   }
 
   function resetForm(): void {
+    resetDirty()
     setSelectedSku(null)
     setIsDrawerOpen(true)
     setSku('')
     setName('')
     setPrice('0')
     setStock('0')
+    setCategory('')
     setSatCode('01010101')
     setSatUnit('H87')
     setSatDesc('')
@@ -655,19 +640,15 @@ export default function ProductsTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
-      {/* Sidebar Tooling (Left) is handled by the global Layout, so this is just the content area */}
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Header Area — una sola fila: título + botones compactos */}
-        <div className="px-6 py-4 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between gap-4 shrink-0 flex-nowrap">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Header — mismo patrón que Ventas/Turnos */}
+        <div className="shrink-0 flex items-center justify-between gap-4 border-b border-zinc-900 bg-zinc-950 px-4 pt-3 pb-3 lg:px-6 lg:pt-4 lg:pb-4">
           <div className="min-w-0 shrink">
             <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
               <PackageOpen className="w-6 h-6 text-blue-500 shrink-0" />
               <span className="truncate">Catálogo de Productos</span>
             </h1>
-            <p className="text-zinc-500 text-xs mt-0.5 truncate">{products.length} productos</p>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-nowrap">
             <button
@@ -784,13 +765,13 @@ export default function ProductsTab(): ReactElement {
           </div>
         </div>
 
-        {/* Toolbar (Search & Filters) */}
-        <div className="px-8 py-4 bg-zinc-950/50 flex flex-wrap items-center gap-4 shrink-0">
-          <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+        {/* Toolbar (Search & Filters) — mismo patrón que Clientes */}
+        <div className="shrink-0 px-4 lg:px-6 py-3 bg-zinc-950/50 flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[280px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
-              placeholder="Buscar por SKU, Nombre o Código de barras..."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-10 pr-3 text-sm font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
+              placeholder="Buscar por SKU, nombre o código de barras..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -798,11 +779,11 @@ export default function ProductsTab(): ReactElement {
 
           {categories.length > 0 && (
             <select
-              className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer min-w-[200px]"
+              className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-blue-500 cursor-pointer min-w-[200px]"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="">Todas las Categorías</option>
+              <option value="">Todas las categorías</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -811,19 +792,19 @@ export default function ProductsTab(): ReactElement {
             </select>
           )}
 
-          <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden p-1">
+          <div className="flex bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden p-1">
             <button
               onClick={() => (showLowStock ? setShowLowStock(false) : void loadLowStock())}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 ${showLowStock ? 'bg-amber-500/20 text-amber-500' : 'hover:bg-zinc-800 text-zinc-400'}`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${showLowStock ? 'bg-amber-500/20 text-amber-500' : 'hover:bg-zinc-800 text-zinc-400'}`}
             >
-              <AlertCircle className="w-4 h-4" />
-              {showLowStock ? 'Ocultar Alertas' : 'Stock Bajo'}
+              <AlertCircle className="w-3.5 h-3.5" />
+              {showLowStock ? 'Ocultar alertas' : 'Stock bajo'}
             </button>
           </div>
         </div>
 
         {showLowStock && (
-          <div className="mx-8 mt-2 max-h-56 overflow-auto rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 shrink-0">
+          <div className="mx-4 lg:mx-6 mt-2 max-h-56 overflow-auto rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4 shrink-0">
             <p className="text-sm font-semibold text-amber-400 mb-1 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {lowStock.length === 0 ? 'Sin alertas' : 'Productos con pocas existencias'}
@@ -835,8 +816,8 @@ export default function ProductsTab(): ReactElement {
             ) : (
               <>
                 <p className="text-zinc-500 text-xs mb-2">
-                  Haz clic en un producto para editarlo o reponer. La lista tiene scroll y muestra
-                  hasta 50; si hay más, usa la tabla de abajo y el filtro de categoría.
+                  Haz clic en un producto para editarlo o reponerlo. Si hay más de 50, usa la tabla
+                  y el filtro.
                 </p>
                 {lowStock.length >= 50 && (
                   <p className="text-amber-500/90 text-xs mb-2">
@@ -872,22 +853,22 @@ export default function ProductsTab(): ReactElement {
         )}
 
         {/* Master List (Data Grid) */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 py-3">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold">
-                  <th className="px-6 py-4 w-40">SKU / CÓDIGO</th>
-                  <th className="px-6 py-4">Producto</th>
-                  <th className="px-6 py-4 text-right w-32">Precio</th>
-                  <th className="px-6 py-4 text-right w-32">Stock</th>
-                  <th className="px-6 py-4 w-16"></th>
+              <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                <tr>
+                  <th className="px-4 py-2 w-40">SKU / CÓDIGO</th>
+                  <th className="px-4 py-2">Producto</th>
+                  <th className="px-4 py-2 text-right w-32">Precio</th>
+                  <th className="px-4 py-2 text-right w-32">Stock</th>
+                  <th className="px-4 py-2 w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-16 text-center text-zinc-500">
+                    <td colSpan={5} className="px-4 py-12 text-center text-zinc-500">
                       <PackageOpen className="w-12 h-12 mx-auto mb-3 opacity-20" />
                       <p className="text-lg font-medium text-zinc-400">
                         No hay productos para mostrar
@@ -909,10 +890,10 @@ export default function ProductsTab(): ReactElement {
                       }}
                       className="group hover:bg-zinc-800/40 cursor-pointer transition-colors"
                     >
-                      <td className="px-6 py-4 font-mono text-sm text-zinc-400 group-hover:text-blue-400 transition-colors">
+                      <td className="px-4 py-2 font-mono text-sm text-zinc-400 group-hover:text-blue-400 transition-colors">
                         {p.sku}
                       </td>
-                      <td className="px-6 py-4 font-medium text-zinc-200">
+                      <td className="px-4 py-2 font-medium text-zinc-200">
                         {p.name}{' '}
                         {p.category && (
                           <span className="ml-2 text-[10px] bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full">
@@ -920,17 +901,17 @@ export default function ProductsTab(): ReactElement {
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-emerald-400">
+                      <td className="px-4 py-2 text-right font-bold text-emerald-400">
                         ${p.price.toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-2 text-right">
                         <span
                           className={`inline-flex items-center justify-center min-w-[2.5rem] px-2 py-1 rounded-lg text-xs font-bold ${p.stock <= 5 ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-zinc-800 text-zinc-300'}`}
                         >
                           {p.stock}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-2 text-right">
                         <button
                           type="button"
                           aria-label={`Editar ${p.sku}`}
@@ -948,7 +929,7 @@ export default function ProductsTab(): ReactElement {
         </div>
 
         {/* Footer info */}
-        <div className="bg-zinc-950 border-t border-zinc-900 px-8 py-3 flex items-center justify-between shrink-0 text-sm">
+        <div className="shrink-0 bg-zinc-950 border-t border-zinc-900 px-4 lg:px-6 py-3 flex items-center justify-between text-sm">
           <span className="text-zinc-500">{message}</span>
           <div className="flex items-center gap-4">
             <span className="text-zinc-600">{filtered.length} resultados en total</span>
@@ -981,25 +962,28 @@ export default function ProductsTab(): ReactElement {
       {isDrawerOpen && (
         <div
           className="absolute inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity flex justify-end"
-          onClick={() => setIsDrawerOpen(false)}
+          onClick={() => guardedClose(() => setIsDrawerOpen(false))}
         >
           {/* Drawer Panel */}
           <div
             ref={drawerRef}
             className="w-[450px] bg-zinc-950 border-l border-zinc-800 h-full shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0 cursor-default"
             onClick={(e) => e.stopPropagation()}
+            onInput={() => {
+              formDirtyRef.current = true
+            }}
           >
-            <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between">
+            <div className="px-4 lg:px-6 py-3 border-b border-zinc-900 flex items-center justify-between bg-zinc-950">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 {selectedSku ? (
                   <Edit2 className="w-5 h-5 text-blue-500" />
                 ) : (
                   <Plus className="w-5 h-5 text-emerald-500" />
                 )}
-                {selectedSku ? 'Editar Producto' : 'Nuevo Producto'}
+                {selectedSku ? 'Editar producto' : 'Nuevo producto'}
               </h2>
               <button
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={() => guardedClose(() => setIsDrawerOpen(false))}
                 className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1015,8 +999,9 @@ export default function ProductsTab(): ReactElement {
                   ref={skuFormRef}
                   disabled={Boolean(selectedSku)}
                   value={sku}
-                  onChange={(e) => setSku(e.target.value)}
+                  onChange={(e) => setSku(stripControlAndInvisibleChars(e.target.value))}
                   placeholder="Ej: 7501234567890"
+                  maxLength={50}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
@@ -1062,6 +1047,23 @@ export default function ProductsTab(): ReactElement {
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                  CATEGORÍA / DEPARTAMENTO
+                </label>
+                <input
+                  list="product-categories-list"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Ej: Bebidas, Abarrotes, Limpieza..."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"
+                />
+                <datalist id="product-categories-list">
+                  {categories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
               <div className="relative">
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
@@ -1114,7 +1116,7 @@ export default function ProductsTab(): ReactElement {
                           setSatQuery(`${r.code} - ${r.description}`)
                           setShowSatDropdown(false)
                         }}
-                        className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-sm transition-colors border-b border-zinc-800/50 last:border-0"
+                        className="w-full text-left px-4 py-2.5 hover:bg-zinc-800 text-sm transition-colors border-b border-zinc-800 last:border-0"
                       >
                         <span className="font-mono text-blue-400">{r.code}</span>
                         <span className="text-zinc-400 ml-2">{r.description}</span>
@@ -1150,7 +1152,7 @@ export default function ProductsTab(): ReactElement {
               </div>
             </div>
 
-            <div className="p-6 border-t border-zinc-800 bg-zinc-900/50 flex flex-col gap-3">
+            <div className="p-4 lg:p-6 border-t border-zinc-900 bg-zinc-950 flex flex-col gap-3">
               <button
                 onClick={() => void handleCreate()}
                 disabled={busy}
@@ -1182,7 +1184,7 @@ export default function ProductsTab(): ReactElement {
             className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Upload className="w-5 h-5 text-blue-500" />
                 Importar productos (CSV o Excel)
@@ -1257,28 +1259,28 @@ export default function ProductsTab(): ReactElement {
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 mb-2">Vista previa (primeras 5 filas)</p>
-                    <div className="overflow-x-auto rounded-xl border border-zinc-700 max-h-40 overflow-y-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead>
-                          <tr className="bg-zinc-800/80 text-zinc-400">
+                    <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/40 max-h-40 overflow-y-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
+                          <tr>
                             {IMPORT_FIELDS.filter((f) =>
                               importHeaders.some((col) => importMapping[col] === f.key)
                             ).map((f) => (
-                              <th key={f.key} className="px-3 py-2 font-medium">
+                              <th key={f.key} className="px-4 py-2 font-medium">
                                 {f.label}
                               </th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-zinc-800/50">
                           {importRows.slice(0, 5).map((row, i) => {
                             const mapped = getMappedRow(row)
                             return (
-                              <tr key={i} className="border-t border-zinc-800">
+                              <tr key={i} className="hover:bg-zinc-800/40 transition-colors">
                                 {IMPORT_FIELDS.filter((f) =>
                                   importHeaders.some((col) => importMapping[col] === f.key)
                                 ).map((f) => (
-                                  <td key={f.key} className="px-3 py-2 text-zinc-300">
+                                  <td key={f.key} className="px-4 py-2 text-zinc-300">
                                     {mapped[f.key] ?? '—'}
                                   </td>
                                 ))}
@@ -1298,7 +1300,7 @@ export default function ProductsTab(): ReactElement {
               )}
             </div>
             {importHeaders.length > 0 && (
-              <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-between gap-4 shrink-0 bg-zinc-950/50">
+              <div className="px-4 py-3 border-t border-zinc-800 flex items-center justify-between gap-4 shrink-0 bg-zinc-950/50">
                 {importProgress ? (
                   <span className="text-sm text-zinc-400">
                     Importando… {importProgress.done} / {importProgress.total}

@@ -24,6 +24,8 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { toNumber } from '../utils/numbers'
+import { useFormDirty } from '../hooks/useFormDirty'
 
 type Employee = {
   id: number
@@ -35,11 +37,6 @@ type Employee = {
   phone: string
   email: string
   notes: string
-}
-
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function normalizeEmployee(raw: Record<string, unknown>): Employee | null {
@@ -77,6 +74,7 @@ export default function EmployeesTab(): ReactElement {
 
   const requestIdRef = useRef(0)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const { formDirtyRef, guardedClose, resetDirty } = useFormDirty()
   const role = getUserRole()
 
   useFocusTrap(drawerRef, isDrawerOpen)
@@ -144,7 +142,7 @@ export default function EmployeesTab(): ReactElement {
   async function handleSave(): Promise<void> {
     if (busy || !canEdit) return
     if (!code.trim()) {
-      setMessage('Codigo de empleado es obligatorio.')
+      setMessage('Código de empleado es obligatorio.')
       return
     }
     if (!name.trim()) {
@@ -169,6 +167,7 @@ export default function EmployeesTab(): ReactElement {
         setEmployees((prev) =>
           prev.map((e) => (e.id === selectedId ? { ...e, ...body, id: selectedId } : e))
         )
+        resetDirty()
         setMessage(`Empleado actualizado: ${body.name}`)
         setIsDrawerOpen(false)
       } else {
@@ -176,6 +175,7 @@ export default function EmployeesTab(): ReactElement {
         const data = (result.data ?? result) as Record<string, unknown>
         const newEmp = normalizeEmployee({ ...body, id: data.id ?? Date.now() })
         if (newEmp) setEmployees((prev) => [newEmp, ...prev])
+        resetDirty()
         setMessage(`Empleado creado: ${body.name}`)
         setIsDrawerOpen(false)
       }
@@ -203,6 +203,7 @@ export default function EmployeesTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       await deleteEmployee(cfg, selectedId)
       setEmployees((prev) => prev.filter((e) => e.id !== selectedId))
+      resetDirty()
       resetForm()
       setMessage(`Empleado eliminado: ${target.name}`)
       setIsDrawerOpen(false)
@@ -214,6 +215,7 @@ export default function EmployeesTab(): ReactElement {
   }
 
   function selectEmployee(emp: Employee): void {
+    resetDirty()
     setIsDrawerOpen(true)
     setSelectedId(emp.id)
     setCode(emp.employee_code)
@@ -228,6 +230,7 @@ export default function EmployeesTab(): ReactElement {
   }
 
   function resetForm(): void {
+    resetDirty()
     setSelectedId(null)
     setCode('')
     setName('')
@@ -240,157 +243,155 @@ export default function EmployeesTab(): ReactElement {
   }
 
   return (
-    <div className="flex h-full bg-[#09090b] font-sans text-slate-200 select-none overflow-hidden relative">
-      <div className="flex flex-col flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 h-full">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
-          <div>
-            <h1 className="text-3xl font-black text-white flex items-center gap-3 tracking-tight">
-              <Users className="w-8 h-8 text-indigo-500" />
-              Directorio de Personal
-            </h1>
-            <p className="text-zinc-500 mt-1 font-medium">
-              Gestión de empleados, accesos, comisiones y salarios base.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative group w-full md:w-80">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-zinc-500" />
+    <div className="flex flex-col h-full min-h-0 overflow-hidden bg-zinc-950 font-sans text-slate-200">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-7xl mx-auto w-full p-4 lg:p-6 space-y-6">
+          {/* Header — mismo patrón que Productos/Clientes */}
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-900 bg-zinc-950 px-4 pt-3 pb-3 lg:px-6 lg:pt-4 lg:pb-4">
+            <div className="min-w-0 shrink flex-1 flex items-center gap-2">
+              <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
+                <Users className="w-6 h-6 text-indigo-500 shrink-0" />
+                <span className="truncate">Directorio de Personal</span>
+              </h1>
+              <div className="relative flex-1 min-w-0 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                <input
+                  type="text"
+                  className="block w-full pl-9 pr-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  placeholder="Buscar por nombre, código..."
+                  value={query}
+                  // eslint-disable-next-line no-control-regex
+                  onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
+                />
               </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl leading-5 text-zinc-300 placeholder-zinc-500 focus:outline-none focus:bg-zinc-950 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium sm:text-sm"
-                placeholder="Buscar por nombre, código o contacto..."
-                value={query}
-                // eslint-disable-next-line no-control-regex
-                onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
-              />
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+              <button
+                onClick={() => {
+                  resetForm()
+                  setIsDrawerOpen(true)
+                }}
+                disabled={!canEdit}
+                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Nuevo</span>
+              </button>
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                onClick={() => void handleLoad()}
+                disabled={busy}
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${busy ? 'animate-spin text-indigo-400' : ''}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Master List (Grid) */}
+          <div className="flex-1 rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden flex flex-col relative z-0">
+            <div className="flex-1 overflow-auto custom-scrollbar p-6">
+              {paginated.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
+                  <UserCog className="w-16 h-16 opacity-20" />
+                  <p className="text-lg font-medium">
+                    {query.trim()
+                      ? 'No se encontraron coincidencias.'
+                      : 'No hay empleados registrados.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {paginated.map((emp) => (
+                    <div
+                      key={emp.id}
+                      onClick={() => selectEmployee(emp)}
+                      className={`group relative bg-zinc-900 border ${selectedId === emp.id ? 'border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.15)] scale-[1.02]' : 'border-zinc-800 hover:border-zinc-700 hover:-translate-y-1'} rounded-2xl p-5 cursor-pointer transition-all duration-200 overflow-hidden flex flex-col`}
+                    >
+                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                        <Users className="w-24 h-24 -mt-8 -mr-8 text-indigo-500" />
+                      </div>
+                      <div className="flex justify-between items-start mb-4 relative z-10">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                          {emp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="bg-zinc-950/80 text-zinc-400 border border-zinc-800 px-2 py-1 rounded text-[10px] font-mono font-bold tracking-wider uppercase">
+                          {emp.employee_code || 'S/N'}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 relative z-10">
+                        <h3 className="font-bold text-base text-zinc-100 mb-1 truncate">
+                          {emp.name}
+                        </h3>
+                        <p className="text-xs text-indigo-400 font-medium mb-4 flex items-center gap-1.5">
+                          <Briefcase className="w-3.5 h-3.5" /> {emp.position || 'Sin puesto'}
+                        </p>
+
+                        <div className="space-y-2 mt-auto text-xs text-zinc-500 font-medium">
+                          {emp.phone && (
+                            <div className="flex items-center gap-2 truncate">
+                              <Phone className="w-3.5 h-3.5" />
+                              {emp.phone}
+                            </div>
+                          )}
+                          {emp.email && (
+                            <div className="flex items-center gap-2 truncate">
+                              <Mail className="w-3.5 h-3.5" />
+                              {emp.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-zinc-800 flex justify-between items-center relative z-10">
+                        <div className="text-xs">
+                          <span className="text-zinc-500 block">Salario Base</span>
+                          <span className="font-mono font-bold text-white">
+                            ${emp.base_salary.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-right">
+                          <span className="text-zinc-500 block">Comisión</span>
+                          <span className="font-mono font-bold text-emerald-400">
+                            {(emp.commission_rate * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={() => {
-                resetForm()
-                setIsDrawerOpen(true)
-              }}
-              disabled={!canEdit}
-              className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
-            >
-              <Plus className="w-5 h-5" /> <span className="hidden sm:inline">Nuevo Empleado</span>
-            </button>
-            <button
-              className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50"
-              onClick={() => void handleLoad()}
-              disabled={busy}
-            >
-              <RefreshCw className={`w-5 h-5 ${busy ? 'animate-spin text-indigo-400' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Master List (Grid) */}
-        <div className="flex-1 bg-zinc-900/40 border border-zinc-800/60 rounded-3xl overflow-hidden flex flex-col relative z-0">
-          <div className="flex-1 overflow-auto custom-scrollbar p-6">
-            {paginated.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
-                <UserCog className="w-16 h-16 opacity-20" />
-                <p className="text-lg font-medium">
-                  {query.trim()
-                    ? 'No se encontraron coincidencias.'
-                    : 'No hay empleados registrados.'}
-                </p>
+            {/* Pagination Footer */}
+            <div className="bg-zinc-950 px-4 py-3 border-t border-zinc-800 flex items-center justify-between shrink-0">
+              <div className="text-sm text-zinc-500 font-medium">
+                Mostrando <span className="text-white">{paginated.length}</span> de{' '}
+                <span className="text-white">{filtered.length}</span> empleados
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {paginated.map((emp) => (
-                  <div
-                    key={emp.id}
-                    onClick={() => selectEmployee(emp)}
-                    className={`group relative bg-zinc-900 border ${selectedId === emp.id ? 'border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.15)] scale-[1.02]' : 'border-zinc-800 hover:border-zinc-700 hover:-translate-y-1'} rounded-2xl p-5 cursor-pointer transition-all duration-200 overflow-hidden flex flex-col`}
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm font-medium hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
                   >
-                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-                      <Users className="w-24 h-24 -mt-8 -mr-8 text-indigo-500" />
-                    </div>
-                    <div className="flex justify-between items-start mb-4 relative z-10">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                        {emp.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="bg-zinc-950/80 text-zinc-400 border border-zinc-800/50 px-2 py-1 rounded text-[10px] font-mono font-bold tracking-wider uppercase">
-                        {emp.employee_code || 'S/N'}
-                      </span>
-                    </div>
-
-                    <div className="flex-1 relative z-10">
-                      <h3 className="font-bold text-base text-zinc-100 mb-1 truncate">
-                        {emp.name}
-                      </h3>
-                      <p className="text-xs text-indigo-400 font-medium mb-4 flex items-center gap-1.5">
-                        <Briefcase className="w-3.5 h-3.5" /> {emp.position || 'Sin puesto'}
-                      </p>
-
-                      <div className="space-y-2 mt-auto text-xs text-zinc-500 font-medium">
-                        {emp.phone && (
-                          <div className="flex items-center gap-2 truncate">
-                            <Phone className="w-3.5 h-3.5" />
-                            {emp.phone}
-                          </div>
-                        )}
-                        {emp.email && (
-                          <div className="flex items-center gap-2 truncate">
-                            <Mail className="w-3.5 h-3.5" />
-                            {emp.email}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-zinc-800/80 flex justify-between items-center relative z-10">
-                      <div className="text-xs">
-                        <span className="text-zinc-500 block">Salario Base</span>
-                        <span className="font-mono font-bold text-white">
-                          ${emp.base_salary.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-right">
-                        <span className="text-zinc-500 block">Comisión</span>
-                        <span className="font-mono font-bold text-emerald-400">
-                          {(emp.commission_rate * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Pagination Footer */}
-          <div className="bg-zinc-950 px-6 py-4 border-t border-zinc-800 flex items-center justify-between shrink-0">
-            <div className="text-sm text-zinc-500 font-medium">
-              Mostrando <span className="text-white">{paginated.length}</span> de{' '}
-              <span className="text-white">{filtered.length}</span> empleados
+                    Anterior
+                  </button>
+                  <span className="text-zinc-400 text-sm font-medium px-2">
+                    {page + 1} de {totalPages}
+                  </span>
+                  <button
+                    className="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm font-medium hover:bg-zinc-800 disabled:opacity-30 transition-colors"
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              )}
             </div>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  className="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm font-medium hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                >
-                  Anterior
-                </button>
-                <span className="text-zinc-400 text-sm font-medium px-2">
-                  {page + 1} de {totalPages}
-                </span>
-                <button
-                  className="px-3 py-1.5 rounded-lg border border-zinc-700 text-sm font-medium hover:bg-zinc-800 disabled:opacity-30 transition-colors"
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                  disabled={page >= totalPages - 1}
-                >
-                  Siguiente
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -411,26 +412,29 @@ export default function EmployeesTab(): ReactElement {
         {/* Backdrop */}
         <div
           className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          onClick={() => setIsDrawerOpen(false)}
+          onClick={() => guardedClose(() => setIsDrawerOpen(false))}
         />
 
         {/* Drawer Panel */}
         <div
           ref={drawerRef}
           className={`relative w-full max-w-md bg-zinc-950 border-l border-zinc-800 h-full flex flex-col transform transition-transform duration-300 ease-out shadow-2xl ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          onInput={() => {
+            formDirtyRef.current = true
+          }}
         >
-          <div className="flex items-center justify-between p-6 border-b border-zinc-800 bg-zinc-900/40">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                <UserCog className="w-5 h-5" />
+          <div className="flex items-center justify-between px-4 lg:px-6 py-3 border-b border-zinc-900 bg-zinc-950">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                <UserCog className="w-4 h-4" />
               </div>
-              <h2 className="text-xl font-bold text-white tracking-tight">
+              <h2 className="text-lg font-bold text-white truncate">
                 {selectedId ? 'Editar Perfil' : 'Nuevo Empleado'}
               </h2>
             </div>
             <button
               className="text-zinc-500 hover:text-white transition-colors bg-zinc-900 hover:bg-zinc-800 p-2 rounded-full"
-              onClick={() => setIsDrawerOpen(false)}
+              onClick={() => guardedClose(() => setIsDrawerOpen(false))}
             >
               <X className="w-5 h-5" />
             </button>
@@ -439,7 +443,7 @@ export default function EmployeesTab(): ReactElement {
           <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2 block">
                   Identidad
                 </label>
                 <div className="space-y-3">
@@ -448,7 +452,7 @@ export default function EmployeesTab(): ReactElement {
                       <UserCog className="w-4 h-4" />
                     </div>
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 pl-10 pr-4 font-semibold focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 pl-10 pr-4 font-semibold focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
                       placeholder="Nombre completo"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -456,13 +460,13 @@ export default function EmployeesTab(): ReactElement {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 px-4 font-mono text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200 uppercase"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 px-4 font-mono text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200 uppercase"
                       placeholder="Cód. Interno"
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
                     />
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 px-4 font-medium text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 px-4 font-medium text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
                       placeholder="Cargo / Puesto"
                       value={position}
                       onChange={(e) => setPosition(e.target.value)}
@@ -471,8 +475,8 @@ export default function EmployeesTab(): ReactElement {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-zinc-800/60">
-                <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
+              <div className="pt-4 border-t border-zinc-800">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2 block">
                   Contacto
                 </label>
                 <div className="space-y-3">
@@ -481,7 +485,7 @@ export default function EmployeesTab(): ReactElement {
                       <Phone className="w-4 h-4" />
                     </div>
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 pl-10 pr-4 font-mono text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 pl-10 pr-4 font-mono text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
                       placeholder="Número telefónico"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -492,7 +496,7 @@ export default function EmployeesTab(): ReactElement {
                       <Mail className="w-4 h-4" />
                     </div>
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 pl-10 pr-4 font-medium text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 pl-10 pr-4 font-medium text-sm focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600 text-zinc-200"
                       placeholder="Correo electrónico"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -501,8 +505,8 @@ export default function EmployeesTab(): ReactElement {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-zinc-800/60">
-                <label className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
+              <div className="pt-4 border-t border-zinc-800">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2 block">
                   Compensación
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -511,7 +515,7 @@ export default function EmployeesTab(): ReactElement {
                       <DollarSign className="w-4 h-4" />
                     </div>
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 pl-10 pr-4 font-mono font-bold text-emerald-400 focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 pl-10 pr-4 font-mono font-bold text-emerald-400 focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600"
                       placeholder="Salario Base"
                       type="number"
                       min={0}
@@ -524,7 +528,7 @@ export default function EmployeesTab(): ReactElement {
                       <Percent className="w-4 h-4" />
                     </div>
                     <input
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/50 py-3 pl-10 pr-4 font-mono font-bold text-indigo-300 focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                      className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 pl-10 pr-4 font-mono font-bold text-indigo-300 focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600"
                       placeholder="Comisión %"
                       type="number"
                       min={0}
@@ -537,7 +541,7 @@ export default function EmployeesTab(): ReactElement {
             </div>
           </div>
 
-          <div className="p-6 border-t border-zinc-800 bg-zinc-900/80 flex flex-col gap-3">
+          <div className="p-4 lg:p-6 border-t border-zinc-900 bg-zinc-950 flex flex-col gap-3">
             <button
               className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
               onClick={() => void handleSave()}
@@ -548,7 +552,7 @@ export default function EmployeesTab(): ReactElement {
               ) : (
                 <UserCog className="w-5 h-5" />
               )}
-              {selectedId ? 'Actualizar Ficha' : 'Crear Empleado'}
+              {selectedId ? 'Actualizar ficha' : 'Crear empleado'}
             </button>
             {selectedId && (
               <button
@@ -556,7 +560,7 @@ export default function EmployeesTab(): ReactElement {
                 onClick={() => void handleDelete()}
                 disabled={busy || !canEdit}
               >
-                Eliminar Registro
+                Eliminar registro
               </button>
             )}
           </div>

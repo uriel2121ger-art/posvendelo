@@ -2,10 +2,23 @@
  * posApi.ts — Tests de auto-discovery, runtime config, apiFetch, y pullTable.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { clearAuth, setAuthToken } from './test-utils'
+import { clearAuth } from './test-utils'
 
 // Importar después de setup de localStorage
-import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig, getUserRole } from '../posApi'
+import {
+  autoDiscoverBackend,
+  loadRuntimeConfig,
+  saveRuntimeConfig,
+  getUserRole,
+  getBackupStatus,
+  listBackups,
+  buildRestorePlan,
+  cancelSale,
+  remoteCancelSale
+} from '../posApi'
+
+const DEFAULT_HOST = window.location.hostname || '127.0.0.1'
+const DEFAULT_BASE_URL = `http://${DEFAULT_HOST}:8000`
 
 describe('loadRuntimeConfig', () => {
   beforeEach(() => clearAuth())
@@ -13,18 +26,18 @@ describe('loadRuntimeConfig', () => {
 
   it('devuelve defaults cuando localStorage vacío', () => {
     const cfg = loadRuntimeConfig()
-    expect(cfg.baseUrl).toBe('http://127.0.0.1:8000')
+    expect(cfg.baseUrl).toBe(DEFAULT_BASE_URL)
     expect(cfg.token).toBe('')
     expect(cfg.terminalId).toBe(1)
   })
 
   it('lee valores de localStorage', () => {
-    localStorage.setItem('titan.baseUrl', 'http://192.168.1.50:8090')
+    localStorage.setItem('titan.baseUrl', 'http://pos-sucursal.local:8090')
     localStorage.setItem('titan.token', 'jwt-xyz')
     localStorage.setItem('titan.terminalId', '3')
 
     const cfg = loadRuntimeConfig()
-    expect(cfg.baseUrl).toBe('http://192.168.1.50:8090')
+    expect(cfg.baseUrl).toBe('http://pos-sucursal.local:8090')
     expect(cfg.token).toBe('jwt-xyz')
     expect(cfg.terminalId).toBe(3)
   })
@@ -100,6 +113,7 @@ describe('autoDiscoverBackend', () => {
 
   it('descubre por puertos si URL guardada no responde', async () => {
     localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:9999')
+    localStorage.setItem('titan.discoverPorts', JSON.stringify([8000, 8080, 8090]))
 
     let callIdx = 0
     global.fetch = vi.fn().mockImplementation(() => {
@@ -119,8 +133,8 @@ describe('autoDiscoverBackend', () => {
     })
 
     const result = await autoDiscoverBackend()
-    expect(result).toBe('http://127.0.0.1:8080')
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://127.0.0.1:8080')
+    expect(result).toBe(`http://${DEFAULT_HOST}:8090`)
+    expect(localStorage.getItem('titan.baseUrl')).toBe(`http://${DEFAULT_HOST}:8090`)
   })
 
   it('devuelve null si ningún puerto responde', async () => {
@@ -148,7 +162,139 @@ describe('autoDiscoverBackend', () => {
     })
 
     const result = await autoDiscoverBackend()
-    expect(result).toBe('http://127.0.0.1:8000')
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://127.0.0.1:8000')
+    expect(result).toBe(DEFAULT_BASE_URL)
+    expect(localStorage.getItem('titan.baseUrl')).toBe(DEFAULT_BASE_URL)
+  })
+})
+
+describe('system recovery API helpers', () => {
+  beforeEach(() => {
+    clearAuth()
+    vi.restoreAllMocks()
+    localStorage.setItem('titan.token', 'jwt-xyz')
+  })
+
+  afterEach(() => {
+    clearAuth()
+    vi.restoreAllMocks()
+  })
+
+  it('consulta estado de respaldos', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: { backup_count: 2 } }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    })
+
+    const cfg = loadRuntimeConfig()
+    const body = await getBackupStatus(cfg)
+    expect(body).toEqual({ success: true, data: { backup_count: 2 } })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/system/status'),
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer jwt-xyz' }) })
+    )
+  })
+
+  it('lista respaldos disponibles', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: [{ name: 'backup.dump' }] }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    })
+
+    const cfg = loadRuntimeConfig()
+    const body = await listBackups(cfg)
+    expect(body).toEqual({ success: true, data: [{ name: 'backup.dump' }] })
+  })
+
+  it('prepara plan de restore', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: { backup_file: 'backup.dump' } }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    })
+
+    const cfg = loadRuntimeConfig()
+    const body = await buildRestorePlan(cfg, 'backup.dump')
+    expect(body).toEqual({ success: true, data: { backup_file: 'backup.dump' } })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/system/restore-plan'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ backup_file: 'backup.dump' })
+      })
+    )
+  })
+})
+
+describe('sales API helpers', () => {
+  beforeEach(() => {
+    clearAuth()
+    vi.restoreAllMocks()
+    localStorage.setItem('titan.token', 'jwt-xyz')
+  })
+
+  afterEach(() => {
+    clearAuth()
+    vi.restoreAllMocks()
+  })
+
+  it('envía manager_pin al cancelar venta', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: { id: 99, status: 'cancelled' } }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    })
+
+    const cfg = loadRuntimeConfig()
+    const body = await cancelSale(cfg, '99', {
+      manager_pin: '1234',
+      reason: 'cobro duplicado'
+    })
+    expect(body).toEqual({ success: true, data: { id: 99, status: 'cancelled' } })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/sales/99/cancel'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ manager_pin: '1234', reason: 'cobro duplicado' })
+      })
+    )
+  })
+
+  it('envía cancelación remota al endpoint de remote', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: { id: 77, status: 'cancelled' } }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    })
+
+    const cfg = loadRuntimeConfig()
+    const body = await remoteCancelSale(cfg, {
+      sale_id: 77,
+      manager_pin: '4321',
+      reason: 'autorización remota'
+    })
+    expect(body).toEqual({ success: true, data: { id: 77, status: 'cancelled' } })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/remote/cancel-sale'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          sale_id: 77,
+          manager_pin: '4321',
+          reason: 'autorización remota'
+        })
+      })
+    )
   })
 })

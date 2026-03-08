@@ -1,0 +1,57 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      CP_ADMIN_TOKEN: ${CP_ADMIN_TOKEN}
+      CP_RELEASES_TOKEN: ${CP_RELEASES_TOKEN}
+      DEBUG: ${DEBUG:-false}
+      CP_HOST: ${CP_HOST:-0.0.0.0}
+      CP_PORT: ${CP_PORT:-9090}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+      CF_ACCOUNT_ID: ${CF_ACCOUNT_ID:-}
+      CF_ZONE_ID: ${CF_ZONE_ID:-}
+      CF_PUBLIC_BASE_DOMAIN: ${CF_PUBLIC_BASE_DOMAIN:-}
+      CF_TUNNEL_MODE: ${CF_TUNNEL_MODE:-simulate}
+      CP_BASE_URL: ${CP_BASE_URL:-http://localhost:9090}
+      CP_LICENSE_PRIVATE_KEY: ${CP_LICENSE_PRIVATE_KEY:-}
+      CP_LICENSE_KEY_ID: ${CP_LICENSE_KEY_ID:-dev-rsa-1}
+      CP_TRIAL_DAYS: ${CP_TRIAL_DAYS:-90}
+      CP_CORS_ALLOWED_ORIGINS: ${CP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:9090,http://127.0.0.1:9090}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: titan_cp
+      POSTGRES_USER: cp_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerido}
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - cpdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cp_user -d titan_cp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  cpdata:

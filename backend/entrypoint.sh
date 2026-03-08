@@ -97,6 +97,47 @@ echo "[ENTRYPOINT] Running migrations..."
 python3 db/migrate.py
 
 # -----------------------------------------------------------
+# 3.5. Ensure initial admin user exists for fresh installs
+# -----------------------------------------------------------
+echo "[ENTRYPOINT] Ensuring initial admin user exists..."
+python3 -c "
+import asyncio, asyncpg, bcrypt, os, sys
+
+dsn = os.environ.get('DB_DSN', '')
+username = (os.environ.get('ADMIN_API_USER') or 'admin').strip()
+password = os.environ.get('ADMIN_API_PASSWORD', '').strip()
+
+async def ensure_admin():
+    if not username or not password:
+        print('[ENTRYPOINT] Skipping admin bootstrap: missing ADMIN_API_USER or ADMIN_API_PASSWORD')
+        return
+    conn = await asyncpg.connect(dsn)
+    try:
+        existing = await conn.fetchrow(
+            'SELECT id FROM users WHERE username = \$1 LIMIT 1',
+            username,
+        )
+        if existing:
+            print(f'[ENTRYPOINT] Admin bootstrap skipped: user {username} already exists')
+            return
+
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+        await conn.execute(
+            '''
+            INSERT INTO users (username, password_hash, role, name, is_active, branch_id, created_at, updated_at)
+            VALUES (\$1, \$2, 'admin', 'Administrador', 1, 1, NOW(), NOW())
+            ''',
+            username,
+            password_hash,
+        )
+        print(f'[ENTRYPOINT] Admin bootstrap created for user {username}')
+    finally:
+        await conn.close()
+
+asyncio.run(ensure_admin())
+"
+
+# -----------------------------------------------------------
 # 4. Start uvicorn (exec replaces shell — PID 1 = uvicorn)
 # -----------------------------------------------------------
 echo "[ENTRYPOINT] Starting uvicorn..."

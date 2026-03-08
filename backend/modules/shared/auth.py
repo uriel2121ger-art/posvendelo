@@ -18,7 +18,7 @@ import secrets
 import logging
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -116,7 +116,7 @@ security = HTTPBearer(auto_error=False)
 # Token functions
 # ---------------------------------------------------------------------------
 
-def create_token(user_id: str, role: str) -> str:
+def create_token(user_id: str, role: str, extra_claims: Optional[Dict[str, Any]] = None) -> str:
     """Create a JWT with short TTL and security claims."""
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
@@ -129,6 +129,10 @@ def create_token(user_id: str, role: str) -> str:
         "nbf": now,
         "jti": jti,
     }
+    if extra_claims:
+        for key, value in extra_claims.items():
+            if value is not None:
+                payload[key] = value
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -140,7 +144,7 @@ def get_user_id(auth: Dict) -> int:
     try:
         return int(auth["sub"])
     except (KeyError, ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Token invalido: sub no numerico")
+        raise HTTPException(status_code=401, detail="Token inválido: sub no numérico")
 
 
 def verify_token(
@@ -159,11 +163,11 @@ def verify_token(
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Token invalido")
+        raise HTTPException(status_code=401, detail="Token inválido")
 
     # Validate required claims exist
     if not payload.get("sub") or not payload.get("role"):
-        raise HTTPException(status_code=401, detail="Token invalido: faltan claims requeridos")
+        raise HTTPException(status_code=401, detail="Token inválido: faltan claims requeridos")
 
     # Check JTI revocation (logout/deactivation)
     jti = payload.get("jti")

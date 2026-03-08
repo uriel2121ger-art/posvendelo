@@ -331,7 +331,7 @@ async def update_stock_remote(
     if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para modificar stock")
     if body.operation not in ("add", "subtract", "set"):
-        raise HTTPException(status_code=400, detail="operation debe ser add, subtract o set")
+        raise HTTPException(status_code=400, detail="operación debe ser add, subtract o set")
 
     async with db.connection.transaction():
         product = await db.fetchrow(
@@ -353,7 +353,7 @@ async def update_stock_remote(
         if new_stock < 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Stock insuficiente. Actual: {current}, operacion: {body.operation} {body.quantity}",
+                detail=f"Stock insuficiente. Actual: {current}, operación: {body.operation} {body.quantity}",
             )
 
         await db.execute(

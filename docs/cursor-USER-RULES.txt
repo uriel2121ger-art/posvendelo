@@ -1,0 +1,6 @@
+Responde siempre en español a menos que el código requiera inglés.
+Prefiere soluciones async para operaciones de I/O.
+Cuando modifiques código existente, advierte con comentario si cambias comportamiento.
+Antes de refactors grandes, presenta un plan y espera confirmación.
+Nunca hardcodees credenciales, IPs privadas ni tokens en el código.
+Si detectas un bug crítico de seguridad, márcalo con 🚨 al inicio de tu respuesta.

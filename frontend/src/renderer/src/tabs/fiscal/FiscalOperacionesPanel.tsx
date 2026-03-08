@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react'
 import { useState } from 'react'
-import type { RuntimeConfig } from '../../posApi'
 import {
   selectOptimalRfc,
   processCrossInvoice,
@@ -12,27 +11,12 @@ import {
   generateNoiseTransaction,
   startDailyNoise
 } from '../../posApi'
+import type { FiscalPanelProps } from '../../types/fiscalTypes'
+import { inputCls, btnPrimary, btnSecondary } from '../../utils/styles'
+import { toNumber } from '../../utils/numbers'
 
-export interface FiscalPanelProps {
-  cfg: () => RuntimeConfig
-  busy: boolean
-  wrap: (fn: () => Promise<Record<string, unknown>>) => Promise<void>
-  canAdmin: boolean
-}
-
-const inputCls =
-  'w-full rounded-lg border border-zinc-800 bg-zinc-900/80 py-2 px-3 text-sm font-medium text-zinc-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-zinc-600'
-const btnPrimary =
-  'flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-sm text-white hover:bg-blue-500 transition disabled:opacity-50'
-const btnSecondary =
-  'flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2 font-bold text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50'
-const cardCls = 'rounded-xl border border-zinc-800 bg-zinc-900/50 p-4'
-const labelCls = 'text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2'
-
-function toNumber(value: string): number {
-  const n = Number(value)
-  return Number.isFinite(n) ? n : 0
-}
+const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6'
+const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2'
 
 export default function FiscalOperacionesPanel({
   cfg,
@@ -59,7 +43,7 @@ export default function FiscalOperacionesPanel({
   return (
     <div className="space-y-6">
       <div className={cardCls}>
-        <h3 className={labelCls}>Intercompany / RFC óptimo</h3>
+        <h3 className={labelCls}>Intercompañía / RFC óptimo</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
           <input
             className={inputCls}
@@ -100,7 +84,7 @@ export default function FiscalOperacionesPanel({
           <input
             className={inputCls}
             type="number"
-            placeholder="Sale ID"
+            placeholder="ID de venta"
             value={crossSaleId}
             onChange={(e) => setCrossSaleId(e.target.value)}
           />
@@ -156,11 +140,24 @@ export default function FiscalOperacionesPanel({
             value={proxyXml}
             onChange={(e) => setProxyXml(e.target.value)}
           />
-          <input className={inputCls} placeholder="RFC *" maxLength={13} value={proxyRfc} onChange={(e) => setProxyRfc(e.target.value.toUpperCase())} />
-          <input className={inputCls} placeholder="PAC URL *" value={proxyPacUrl} onChange={(e) => setProxyPacUrl(e.target.value)} />
+          <input
+            className={inputCls}
+            placeholder="RFC *"
+            maxLength={13}
+            value={proxyRfc}
+            onChange={(e) => setProxyRfc(e.target.value.toUpperCase())}
+          />
+          <input
+            className={inputCls}
+            placeholder="PAC URL *"
+            value={proxyPacUrl}
+            onChange={(e) => setProxyPacUrl(e.target.value)}
+          />
           <button
             className={btnPrimary}
-            disabled={busy || !proxyXml.trim() || !proxyRfc.trim() || !proxyPacUrl.trim() || !canAdmin}
+            disabled={
+              busy || !proxyXml.trim() || !proxyRfc.trim() || !proxyPacUrl.trim() || !canAdmin
+            }
             onClick={() =>
               void wrap(() =>
                 proxyTimbrar(cfg(), {
@@ -189,7 +186,9 @@ export default function FiscalOperacionesPanel({
               try {
                 const parsed = JSON.parse(proxiesJson)
                 if (Array.isArray(parsed)) proxies = parsed
-              } catch { /* empty */ }
+              } catch {
+                /* empty */
+              }
               void wrap(() => configureProxies(cfg(), { proxies }))
             }}
           >
@@ -198,7 +197,7 @@ export default function FiscalOperacionesPanel({
         </div>
       </div>
       <div className={cardCls}>
-        <h3 className={labelCls}>Jitter / RFC rotation</h3>
+        <h3 className={labelCls}>Variación temporal / Rotación RFC</h3>
         <div className="flex gap-2 flex-wrap">
           <button
             className={btnSecondary}
@@ -262,12 +261,12 @@ export default function FiscalOperacionesPanel({
               )
             }
           >
-            Generar transacción ruido
+            Generar transacción de ruido
           </button>
           <input
             className={inputCls + ' max-w-[80px]'}
             type="number"
-            placeholder="Target"
+            placeholder="Objetivo"
             value={noiseTarget}
             onChange={(e) => setNoiseTarget(e.target.value)}
           />

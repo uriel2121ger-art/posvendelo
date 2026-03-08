@@ -11,9 +11,11 @@ import {
   X as XIcon,
   Banknote,
   CreditCard,
+  FileText,
   Landmark,
   Tag,
-  Ticket
+  Ticket,
+  Wallet
 } from 'lucide-react'
 import {
   type RuntimeConfig,
@@ -29,6 +31,7 @@ import {
 } from '../posApi'
 
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { toNumber } from '../utils/numbers'
 
 type Product = {
   id?: number | string
@@ -57,7 +60,7 @@ type CartItem = {
   subtotal: number
 }
 
-type PaymentMethod = 'cash' | 'card' | 'transfer'
+type PaymentMethod = 'cash' | 'card' | 'transfer' | 'mixed'
 
 type PendingTicket = {
   id: string
@@ -83,6 +86,11 @@ type ActiveTicketSnapshot = {
   cart: CartItem[]
   selectedCartSku: string | null
   amountReceived: string
+  requiereFactura?: boolean
+  paymentReference?: string
+  mixedCash?: string
+  mixedCard?: string
+  mixedTransfer?: string
 }
 
 const TAX_RATE = 0.16
@@ -110,11 +118,6 @@ function getPendingStorageKey(): string {
 
 function getActiveStorageKey(): string {
   return ACTIVE_TICKETS_STORAGE_KEY + getDraftsSuffix()
-}
-
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function clampDiscount(value: number): number {
@@ -215,6 +218,8 @@ async function fetchProducts(cfg: RuntimeConfig): Promise<Product[]> {
   return raw.map(normalizeProduct).filter((item): item is Product => item !== null)
 }
 
+type MixedAmounts = { cash: number; card: number; transfer: number }
+
 async function syncSale(
   cfg: RuntimeConfig,
   cart: CartItem[],
@@ -224,7 +229,10 @@ async function syncSale(
   amountReceived?: number,
   turnId?: number | null,
   isWholesale?: boolean,
-  customerId?: number | null
+  customerId?: number | null,
+  requiereFactura?: boolean,
+  mixedAmounts?: MixedAmounts,
+  paymentRef?: string
 ): Promise<Record<string, unknown>> {
   const globalDisc = clampDiscount(globalDiscountPct) / 100
   const items: SaleItemPayload[] = cart.map((item) => {
@@ -245,14 +253,42 @@ async function syncSale(
       sat_clave_prod_serv: item.satClaveProdServ || (item.isCommon ? '01010101' : undefined)
     }
   })
-  const res = await createSale(cfg, {
+  // Serie A: factura individual, pago bancarizado (tarjeta/transferencia/mixto).
+  // Serie B: efectivo y cliente no pidió factura (público en general).
+  const serie: 'A' | 'B' =
+    paymentMethod === 'card' ||
+    paymentMethod === 'transfer' ||
+    paymentMethod === 'mixed' ||
+    (requiereFactura ?? false)
+      ? 'A'
+      : 'B'
+
+  const payload: Parameters<typeof createSale>[1] = {
     items,
     payment_method: paymentMethod,
-    cash_received: paymentMethod === 'cash' ? (amountReceived ?? 0) : undefined,
     customer_id: customerId ?? undefined,
-    serie: 'A',
-    turn_id: turnId ?? undefined
-  })
+    serie,
+    turn_id: turnId ?? undefined,
+    requiere_factura: requiereFactura ?? false
+  }
+  if (paymentMethod === 'cash') {
+    payload.cash_received = amountReceived ?? 0
+  }
+  if (paymentMethod === 'card' && paymentRef != null) {
+    payload.card_reference = paymentRef.trim() || undefined
+  }
+  if (paymentMethod === 'transfer' && paymentRef != null) {
+    payload.transfer_reference = paymentRef.trim() || undefined
+  }
+  if (paymentMethod === 'mixed' && mixedAmounts) {
+    payload.mixed_cash = mixedAmounts.cash
+    payload.mixed_card = mixedAmounts.card
+    payload.mixed_transfer = mixedAmounts.transfer
+    payload.mixed_wallet = 0
+    payload.mixed_gift_card = 0
+  }
+
+  const res = await createSale(cfg, payload)
   const data = (res.data ?? res) as Record<string, unknown>
   return data
 }
@@ -269,7 +305,7 @@ export default function Terminal(): ReactElement {
   const [_savedActive] = useState(() => readSavedActiveState())
   const _snap = _savedActive?.ticketSnapshots?.[_savedActive?.activeTicketId ?? '']
   const [cart, setCart] = useState<CartItem[]>(_snap?.cart ?? [])
-  const [customerName, setCustomerName] = useState(_snap?.customerName ?? 'Publico General')
+  const [customerName, setCustomerName] = useState(_snap?.customerName ?? 'Público General')
   const [customerId, setCustomerId] = useState<number | null>(_snap?.customerId ?? null)
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
@@ -281,8 +317,15 @@ export default function Terminal(): ReactElement {
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(_snap?.paymentMethod ?? 'cash')
   const [amountReceived, setAmountReceived] = useState(_snap?.amountReceived ?? '')
+  const [solicitaFactura, setSolicitaFactura] = useState(_snap?.requiereFactura ?? false)
+  const [paymentReference, setPaymentReference] = useState(_snap?.paymentReference ?? '')
+  const [mixedCash, setMixedCash] = useState(_snap?.mixedCash ?? '')
+  const [mixedCard, setMixedCard] = useState(_snap?.mixedCard ?? '')
+  const [mixedTransfer, setMixedTransfer] = useState(_snap?.mixedTransfer ?? '')
   const [globalDiscountPct, setGlobalDiscountPct] = useState(_snap?.globalDiscountPct ?? 0)
-  const [pendingTickets, setPendingTickets] = useState<PendingTicket[]>(() => readSavedPendingTickets())
+  const [pendingTickets, setPendingTickets] = useState<PendingTicket[]>(() =>
+    readSavedPendingTickets()
+  )
   const [activeTickets, setActiveTickets] = useState<ActiveTicketMeta[]>(
     _savedActive?.activeTickets ?? [{ id: 'active-1', label: 'Activa 1' }]
   )
@@ -290,13 +333,18 @@ export default function Terminal(): ReactElement {
   const [ticketSnapshots, setTicketSnapshots] = useState<Record<string, ActiveTicketSnapshot>>(
     _savedActive?.ticketSnapshots ?? {
       'active-1': {
-        customerName: 'Publico General',
+        customerName: 'Público General',
         customerId: null,
         paymentMethod: 'cash',
         globalDiscountPct: 0,
         cart: [],
         selectedCartSku: null,
-        amountReceived: ''
+        amountReceived: '',
+        requiereFactura: false,
+        paymentReference: '',
+        mixedCash: '',
+        mixedCard: '',
+        mixedTransfer: ''
       }
     }
   )
@@ -305,6 +353,7 @@ export default function Terminal(): ReactElement {
   )
   const ticketCounterRef = useRef(_savedActive?.ticketCounter ?? 1)
   const [ticketLabel, setTicketLabel] = useState('')
+  const [openNewAfterPending, setOpenNewAfterPending] = useState(false)
   const [qty] = useState(1)
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
@@ -363,12 +412,12 @@ export default function Terminal(): ReactElement {
   }, [customerPickerOpen])
 
   // Auto-focus search input when picker opens
-  useEffect(() => {
+  useEffect((): void | (() => void) => {
     if (customerPickerOpen) {
-      setTimeout(() => customerSearchRef.current?.focus(), 50)
-    } else {
-      setCustomerSearch('')
+      const t = setTimeout(() => customerSearchRef.current?.focus(), 50)
+      return () => clearTimeout(t)
     }
+    setCustomerSearch('')
   }, [customerPickerOpen])
 
   // Auto-load products on mount + refresh on window focus (fixes stale cache)
@@ -405,10 +454,20 @@ export default function Terminal(): ReactElement {
     const onFocus = (): void => {
       loadProducts(true)
     }
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'visible') loadProducts(true)
+    }
+    const onProductChange = (): void => {
+      loadProducts(true)
+    }
     window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('titan-products-changed', onProductChange)
     return (): void => {
       cancelled = true
       window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('titan-products-changed', onProductChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -503,6 +562,7 @@ export default function Terminal(): ReactElement {
       return []
     }
     return products
+      .filter((p) => p.name.length <= 500)
       .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
       .slice(0, 50)
   }, [products, query])
@@ -541,7 +601,8 @@ export default function Terminal(): ReactElement {
     lowStockItems: Array<{ sku: string; name: string; qty: number; currentStock: number }>
   } => {
     const missingSkus: string[] = []
-    const lowStockItems: Array<{ sku: string; name: string; qty: number; currentStock: number }> = []
+    const lowStockItems: Array<{ sku: string; name: string; qty: number; currentStock: number }> =
+      []
     for (const item of cart) {
       if (item.isCommon) continue
       const prod = products.find((p) => p.sku === item.sku)
@@ -579,7 +640,12 @@ export default function Terminal(): ReactElement {
           globalDiscountPct,
           cart,
           selectedCartSku,
-          amountReceived
+          amountReceived,
+          requiereFactura: solicitaFactura,
+          paymentReference,
+          mixedCash,
+          mixedCard,
+          mixedTransfer
         }
       }
       try {
@@ -603,6 +669,11 @@ export default function Terminal(): ReactElement {
     customerName,
     globalDiscountPct,
     paymentMethod,
+    solicitaFactura,
+    paymentReference,
+    mixedCash,
+    mixedCard,
+    mixedTransfer,
     selectedCartSku,
     activeTickets
   ])
@@ -619,7 +690,12 @@ export default function Terminal(): ReactElement {
         globalDiscountPct,
         cart,
         selectedCartSku,
-        amountReceived
+        amountReceived,
+        requiereFactura: solicitaFactura,
+        paymentReference,
+        mixedCash,
+        mixedCard,
+        mixedTransfer
       }
     }
     const nextSnapshot = snapshotsWithCurrent[nextTicketId]
@@ -634,6 +710,11 @@ export default function Terminal(): ReactElement {
     setGlobalDiscountPct(nextSnapshot.globalDiscountPct)
     setSelectedCartSku(nextSnapshot.selectedCartSku)
     setAmountReceived(nextSnapshot.amountReceived)
+    setSolicitaFactura(nextSnapshot.requiereFactura ?? false)
+    setPaymentReference(nextSnapshot.paymentReference ?? '')
+    setMixedCash(nextSnapshot.mixedCash ?? '')
+    setMixedCard(nextSnapshot.mixedCard ?? '')
+    setMixedTransfer(nextSnapshot.mixedTransfer ?? '')
     setMessage(
       `Ticket activo cambiado a: ${activeTickets.find((t) => t.id === nextTicketId)?.label ?? nextTicketId}`
     )
@@ -641,7 +722,7 @@ export default function Terminal(): ReactElement {
 
   const createNewActiveTicket = useCallback((): void => {
     if (activeTickets.length >= 8) {
-      setMessage('Limite alcanzado: maximo 8 tickets activos.')
+      setMessage('Límite alcanzado: máximo 8 tickets activos.')
       return
     }
     ticketCounterRef.current += 1
@@ -658,16 +739,26 @@ export default function Terminal(): ReactElement {
         globalDiscountPct,
         cart,
         selectedCartSku,
-        amountReceived
+        amountReceived,
+        requiereFactura: solicitaFactura,
+        paymentReference,
+        mixedCash,
+        mixedCard,
+        mixedTransfer
       },
       [nextId]: {
-        customerName: 'Publico General',
+        customerName: 'Público General',
         customerId: null,
         paymentMethod: 'cash' as PaymentMethod,
         globalDiscountPct: 0,
         cart: [],
         selectedCartSku: null,
-        amountReceived: ''
+        amountReceived: '',
+        requiereFactura: false,
+        paymentReference: '',
+        mixedCash: '',
+        mixedCard: '',
+        mixedTransfer: ''
       }
     }
 
@@ -675,12 +766,17 @@ export default function Terminal(): ReactElement {
     setTicketSnapshots(snapshotsWithCurrent)
     setActiveTicketId(nextId)
     setCart([])
-    setCustomerName('Publico General')
+    setCustomerName('Público General')
     setCustomerId(null)
     setPaymentMethod('cash')
     setGlobalDiscountPct(0)
     setSelectedCartSku(null)
     setAmountReceived('')
+    setSolicitaFactura(false)
+    setPaymentReference('')
+    setMixedCash('')
+    setMixedCard('')
+    setMixedTransfer('')
     setMessage(`Ticket activo creado: ${nextMeta.label}`)
   }, [
     activeTicketId,
@@ -691,9 +787,21 @@ export default function Terminal(): ReactElement {
     customerName,
     globalDiscountPct,
     paymentMethod,
+    solicitaFactura,
+    paymentReference,
+    mixedCash,
+    mixedCard,
+    mixedTransfer,
     selectedCartSku,
     ticketSnapshots
   ])
+
+  // Tras guardar como pendiente, abrir un ticket nuevo en la pestaña de tickets.
+  useEffect(() => {
+    if (!openNewAfterPending) return
+    setOpenNewAfterPending(false)
+    createNewActiveTicket()
+  }, [openNewAfterPending, createNewActiveTicket])
 
   async function closeActiveTicket(ticketId: string): Promise<void> {
     if (activeTickets.length <= 1) {
@@ -729,12 +837,17 @@ export default function Terminal(): ReactElement {
     const fallbackSnap = restSnapshots[fallback.id]
     setActiveTicketId(fallback.id)
     setCart(fallbackSnap?.cart ?? [])
-    setCustomerName(fallbackSnap?.customerName ?? 'Publico General')
+    setCustomerName(fallbackSnap?.customerName ?? 'Público General')
     setCustomerId(fallbackSnap?.customerId ?? null)
     setPaymentMethod(fallbackSnap?.paymentMethod ?? 'cash')
     setGlobalDiscountPct(fallbackSnap?.globalDiscountPct ?? 0)
     setSelectedCartSku(fallbackSnap?.selectedCartSku ?? null)
     setAmountReceived(fallbackSnap?.amountReceived ?? '')
+    setSolicitaFactura(fallbackSnap?.requiereFactura ?? false)
+    setPaymentReference(fallbackSnap?.paymentReference ?? '')
+    setMixedCash(fallbackSnap?.mixedCash ?? '')
+    setMixedCard(fallbackSnap?.mixedCard ?? '')
+    setMixedTransfer(fallbackSnap?.mixedTransfer ?? '')
     setMessage(`Ticket activo cerrado. Cambiado a ${fallback.label}.`)
   }
 
@@ -790,18 +903,18 @@ export default function Terminal(): ReactElement {
   )
 
   const addCommonProduct = useCallback(async (): Promise<void> => {
-    const nameRaw = await prompt('Nombre del producto comun:', {
-      title: 'Producto comun',
-      placeholder: 'Ej: Servicio de reparacion'
+    const nameRaw = await prompt('Nombre del producto común:', {
+      title: 'Producto común',
+      placeholder: 'Ej: Servicio de reparación'
     })
     if (!nameRaw) return
     const name = nameRaw.trim()
     if (!name) {
-      setMessage('Nombre invalido para producto comun.')
+      setMessage('Nombre inválido para producto común.')
       return
     }
 
-    const priceRaw = await prompt('Precio unitario del producto comun:', {
+    const priceRaw = await prompt('Precio unitario del producto común:', {
       title: 'Precio',
       defaultValue: '0',
       inputType: 'number',
@@ -810,11 +923,11 @@ export default function Terminal(): ReactElement {
     if (priceRaw == null) return
     const price = Number(priceRaw)
     if (!Number.isFinite(price) || price <= 0) {
-      setMessage('Precio invalido para producto comun.')
+      setMessage('Precio inválido para producto común.')
       return
     }
 
-    const qtyRaw = await prompt('Cantidad del producto comun:', {
+    const qtyRaw = await prompt('Cantidad del producto común:', {
       title: 'Cantidad',
       defaultValue: String(Math.max(1, qty)),
       inputType: 'number',
@@ -823,14 +936,14 @@ export default function Terminal(): ReactElement {
     if (qtyRaw == null) return
     const commonQty = Math.max(1, Math.floor(Number(qtyRaw)))
     if (!Number.isFinite(commonQty) || commonQty <= 0) {
-      setMessage('Cantidad invalida para producto comun.')
+      setMessage('Cantidad inválida para producto común.')
       return
     }
     const commonNote =
-      (await prompt('Nota opcional del producto comun:', {
+      (await prompt('Nota opcional del producto común:', {
         title: 'Nota (opcional)',
         defaultValue: '',
-        placeholder: 'Descripcion adicional...'
+        placeholder: 'Descripción adicional...'
       })) ?? ''
 
     const satRaw = await prompt('Clave SAT del producto (opcional, Enter para omitir):', {
@@ -854,7 +967,7 @@ export default function Terminal(): ReactElement {
 
     setCart((prev) => [...prev, item])
     setSelectedCartSku(sku)
-    setMessage(`Producto comun agregado: ${name}`)
+    setMessage(`Producto común agregado: ${name}`)
   }, [qty, prompt])
 
   const removeItem = useCallback((sku: string): void => {
@@ -922,24 +1035,31 @@ export default function Terminal(): ReactElement {
 
   const handleCharge = useCallback(async (): Promise<void> => {
     if (chargingRef.current) return
+    chargingRef.current = true
     if (!cart.length) {
       setMessage('No hay productos en el ticket.')
+      chargingRef.current = false
       return
     }
     if (cartWarnings.missingSkus.length > 0) {
       setMessage(
         'Hay productos marcados como "Ya no en catálogo". Quítalos del ticket (botón ×) antes de cobrar.'
       )
+      chargingRef.current = false
       return
     }
     if (cartWarnings.lowStockItems.length > 0) {
       const msg = `Hay ${cartWarnings.lowStockItems.length} producto(s) con stock insuficiente. El servidor puede rechazar la venta. ¿Cobrar de todas formas?`
-      if (!(await confirm(msg, { variant: 'warning', title: 'Stock insuficiente' }))) return
+      if (!(await confirm(msg, { variant: 'warning', title: 'Stock insuficiente' }))) {
+        chargingRef.current = false
+        return
+      }
     }
     const shift = readCurrentShift()
     if (!shift) {
       setCurrentShift(null)
       setMessage('No hay turno abierto. Abre un turno en la pestaña Turnos antes de cobrar.')
+      chargingRef.current = false
       return
     }
     // For cash: if no amount entered, assume exact payment
@@ -947,9 +1067,25 @@ export default function Terminal(): ReactElement {
       paymentMethod === 'cash' && amountReceivedNum === 0 ? totals.total : amountReceivedNum
     if (paymentMethod === 'cash' && effectiveReceived < totals.total) {
       setMessage(`Monto insuficiente. Falta: $${(totals.total - effectiveReceived).toFixed(2)}`)
+      chargingRef.current = false
       return
     }
-    chargingRef.current = true
+    let mixedAmounts: MixedAmounts | undefined
+    if (paymentMethod === 'mixed') {
+      const mc = toNumber(mixedCash)
+      const mcard = toNumber(mixedCard)
+      const mt = toNumber(mixedTransfer)
+      const sum = mc + mcard + mt
+      const tolerance = 0.02
+      if (Math.abs(sum - totals.total) > tolerance) {
+        setMessage(
+          `La suma del desglose ($${sum.toFixed(2)}) debe coincidir con el total ($${totals.total.toFixed(2)}).`
+        )
+        chargingRef.current = false
+        return
+      }
+      mixedAmounts = { cash: mc, card: mcard, transfer: mt }
+    }
     setBusy(true)
     try {
       const turnId = shift.backendTurnId ?? null
@@ -962,39 +1098,56 @@ export default function Terminal(): ReactElement {
         paymentMethod === 'cash' ? effectiveReceived : undefined,
         turnId,
         wholesaleMode,
-        customerId
+        customerId,
+        solicitaFactura,
+        mixedAmounts,
+        paymentReference
       )
       const folio = saleData.folio ?? saleData.folio_visible ?? ''
       const rawSaleTotal = Number(saleData.total)
       const saleTotal =
         Number.isFinite(rawSaleTotal) && rawSaleTotal > 0 ? rawSaleTotal : totals.total
-      const capturedChange = Math.max(0, effectiveReceived - saleTotal)
+      const capturedChange =
+        paymentMethod === 'cash' ? Math.max(0, effectiveReceived - saleTotal) : 0
       setCart([])
       setGlobalDiscountPct(0)
       setSelectedCartSku(null)
       setAmountReceived('')
-      setCustomerName('Publico General')
+      setSolicitaFactura(false)
+      setPaymentReference('')
+      setMixedCash('')
+      setMixedCard('')
+      setMixedTransfer('')
+      setCustomerName('Público General')
       setCustomerId(null)
       // Re-read shift from localStorage to avoid stale data after async sale
       const freshShift = readCurrentShift()
       if (freshShift) {
+        const cashDelta =
+          paymentMethod === 'cash'
+            ? saleTotal
+            : paymentMethod === 'mixed' && mixedAmounts
+              ? mixedAmounts.cash
+              : 0
+        const cardDelta =
+          paymentMethod === 'card'
+            ? saleTotal
+            : paymentMethod === 'mixed' && mixedAmounts
+              ? mixedAmounts.card
+              : 0
+        const transferDelta =
+          paymentMethod === 'transfer'
+            ? saleTotal
+            : paymentMethod === 'mixed' && mixedAmounts
+              ? mixedAmounts.transfer
+              : 0
         const updatedShift: ShiftState = {
           ...freshShift,
           salesCount: (freshShift.salesCount ?? 0) + 1,
           totalSales: Math.round(((freshShift.totalSales ?? 0) + saleTotal) * 100) / 100,
-          cashSales:
-            Math.round(
-              ((freshShift.cashSales ?? 0) + (paymentMethod === 'cash' ? saleTotal : 0)) * 100
-            ) / 100,
-          cardSales:
-            Math.round(
-              ((freshShift.cardSales ?? 0) + (paymentMethod === 'card' ? saleTotal : 0)) * 100
-            ) / 100,
-          transferSales:
-            Math.round(
-              ((freshShift.transferSales ?? 0) + (paymentMethod === 'transfer' ? saleTotal : 0)) *
-                100
-            ) / 100,
+          cashSales: Math.round(((freshShift.cashSales ?? 0) + cashDelta) * 100) / 100,
+          cardSales: Math.round(((freshShift.cardSales ?? 0) + cardDelta) * 100) / 100,
+          transferSales: Math.round(((freshShift.transferSales ?? 0) + transferDelta) * 100) / 100,
           lastSaleAt: new Date().toISOString()
         }
         try {
@@ -1058,6 +1211,11 @@ export default function Terminal(): ReactElement {
     customerName,
     globalDiscountPct,
     paymentMethod,
+    solicitaFactura,
+    paymentReference,
+    mixedCash,
+    mixedCard,
+    mixedTransfer,
     totals,
     wholesaleMode,
     confirm
@@ -1065,7 +1223,7 @@ export default function Terminal(): ReactElement {
 
   function saveCurrentAsPending(): void {
     if (!cart.length) {
-      setMessage('No hay items para guardar como pendiente.')
+      setMessage('No hay artículos para guardar como pendiente.')
       return
     }
     const label = ticketLabel.trim() || `Ticket-${new Date().toISOString().slice(11, 19)}`
@@ -1086,81 +1244,7 @@ export default function Terminal(): ReactElement {
     setAmountReceived('')
     setTicketLabel('')
     setMessage(`Pendiente guardado: ${label}`)
-  }
-
-  function loadPendingTicket(ticketId: string): void {
-    const found = pendingTickets.find((item) => item.id === ticketId)
-    if (!found) return
-    // Save current active ticket state before overwriting
-    setTicketSnapshots((prev) => ({
-      ...prev,
-      [activeTicketId]: {
-        customerName,
-        customerId,
-        paymentMethod,
-        globalDiscountPct,
-        cart,
-        selectedCartSku,
-        amountReceived
-      }
-    }))
-    // Restore wholesale mode from the saved ticket
-    const ticketWholesale = found.wholesaleMode ?? false
-    setWholesaleMode(ticketWholesale)
-    // Quitar líneas cuyo producto ya no existe (POS: el ticket debe ser cobrable)
-    const validItems = found.cart.filter(
-      (item) => item.isCommon || products.some((p) => p.sku === item.sku)
-    )
-    const removedCount = found.cart.length - validItems.length
-
-    if (found.cart.length > 0 && validItems.length === 0) {
-      setMessage(
-        `"${found.label}" no se puede cargar: todos los productos ya no están en el catálogo. Elimina ese pendiente del listado si ya no aplica.`
-      )
-      return
-    }
-
-    // Precios actuales del catálogo
-    const restoredCart = validItems.map((item) => {
-      const currentProduct = products.find((p) => p.sku === item.sku)
-      const currentPrice = currentProduct
-        ? ticketWholesale && currentProduct.priceWholesale
-          ? currentProduct.priceWholesale
-          : currentProduct.price
-        : item.price
-      return {
-        ...item,
-        price: currentPrice,
-        subtotal: calculateLineSubtotal(currentPrice, item.qty, item.discountPct)
-      }
-    })
-    setCart(restoredCart)
-    setCustomerName(found.customerName)
-    setCustomerId(found.customerId)
-    const safePm: PaymentMethod = (['cash', 'card', 'transfer'] as const).includes(
-      found.paymentMethod as 'cash' | 'card' | 'transfer'
-    )
-      ? (found.paymentMethod as PaymentMethod)
-      : 'cash'
-    setPaymentMethod(safePm)
-    setGlobalDiscountPct(found.globalDiscountPct)
-    setPendingTickets((prev) => prev.filter((item) => item.id !== ticketId))
-    setSelectedCartSku(restoredCart[0]?.sku ?? null)
-    setAmountReceived('')
-
-    const lowStockCount = restoredCart.filter((i) => {
-      if (i.isCommon) return false
-      const p = products.find((pr) => pr.sku === i.sku)
-      return p != null && typeof p.stock === 'number' && p.stock < i.qty
-    }).length
-    if (removedCount > 0 || lowStockCount > 0) {
-      const parts: string[] = []
-      if (removedCount > 0) parts.push(`se quitaron ${removedCount} producto(s) que ya no están en catálogo`)
-      if (lowStockCount > 0) parts.push(`${lowStockCount} con stock insuficiente (revisa o ajusta cantidad)`)
-      setMessage(`${found.label} cargado. ${parts.join('; ')}.`)
-    } else {
-      setMessage(`Pendiente cargado: ${found.label}`)
-    }
+    setOpenNewAfterPending(true)
   }
 
   const firstMatch = filtered[0]
@@ -1271,7 +1355,7 @@ export default function Terminal(): ReactElement {
         }
         const current = cart.find((item) => item.sku === selectedCartSku)
         if (!current) {
-          setMessage('El producto seleccionado ya no esta en el carrito.')
+          setMessage('El producto seleccionado ya no está en el carrito.')
           return
         }
         const raw = await prompt('Descuento de producto seleccionado (%):', {
@@ -1283,7 +1367,7 @@ export default function Terminal(): ReactElement {
         if (raw == null) return
         const parsed = Number(raw)
         if (!Number.isFinite(parsed)) {
-          setMessage('Valor de descuento invalido.')
+          setMessage('Valor de descuento inválido.')
           return
         }
         updateItemDiscount(selectedCartSku, parsed)
@@ -1302,7 +1386,7 @@ export default function Terminal(): ReactElement {
         if (raw == null) return
         const parsed = Number(raw)
         if (!Number.isFinite(parsed)) {
-          setMessage('Valor de descuento global invalido.')
+          setMessage('Valor de descuento global inválido.')
           return
         }
         setGlobalDiscountPct(clampDiscount(parsed))
@@ -1391,25 +1475,8 @@ export default function Terminal(): ReactElement {
                 <Plus className="w-4 h-4" />
               </button>
             </div>
-            {/* Shift Info & Pending */}
+            {/* Shift Info */}
             <div className="flex items-center gap-3 shrink-0 min-w-0">
-              {pendingTickets.length > 0 && (
-                <select
-                  className="bg-amber-950/30 border border-amber-900/50 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-500 focus:outline-none focus:border-amber-500 cursor-pointer max-w-[120px]"
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) loadPendingTicket(e.target.value)
-                  }}
-                  title="Cargar ticket pendiente"
-                >
-                  <option value="">Pendientes ({pendingTickets.length})</option>
-                  {pendingTickets.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label.substring(0, 10)}...
-                    </option>
-                  ))}
-                </select>
-              )}
               <div
                 className="text-sm font-medium text-zinc-400 flex items-center gap-1.5 min-w-0"
                 title={currentShift ? `Turno: ${currentShift.openedBy}` : 'Sin turno'}
@@ -1432,13 +1499,17 @@ export default function Terminal(): ReactElement {
                 <input
                   ref={searchInputRef}
                   autoFocus
+                  maxLength={200}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-10 text-sm font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-2 focus:ring-blue-500/10 transition-all shadow-inner"
                   placeholder="Buscar producto o escanear (F10)..."
                   value={query}
                   onChange={(e) => {
                     lastKeystrokeRef.current = Date.now()
+                    // Strip control chars AND normalize Unicode (prevents Zalgo)
                     // eslint-disable-next-line no-control-regex
-                    setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))
+                    const raw = e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+                    const normalized = raw.normalize('NFC').replace(/[\u0300-\u036f]{3,}/g, '')
+                    setQuery(normalized.slice(0, 200))
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -1529,7 +1600,7 @@ export default function Terminal(): ReactElement {
                           >
                             <div>
                               <div className="text-sm font-semibold text-zinc-200 group-hover:text-blue-400 transition-colors">
-                                {p.name}
+                                {p.name.length > 80 ? p.name.slice(0, 80) + '…' : p.name}
                               </div>
                               <div className="text-xs text-zinc-500 font-mono mt-0.5">{p.sku}</div>
                             </div>
@@ -1577,17 +1648,17 @@ export default function Terminal(): ReactElement {
           <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 space-y-3 relative hide-scrollbar z-10">
             {(cartWarnings.missingSkus.length > 0 || cartWarnings.lowStockItems.length > 0) && (
               <div className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 mb-2">
-                <strong>Entre sesiones hubo cambios:</strong>{' '}
-                {cartWarnings.missingSkus.length > 0 && 'algunos productos ya no están en catálogo.'}
-                {cartWarnings.missingSkus.length > 0 && cartWarnings.lowStockItems.length > 0 && ' '}
-                {cartWarnings.lowStockItems.length > 0 && 'Hay productos con stock insuficiente.'}{' '}
-                Revisa las líneas marcadas antes de cobrar.
+                {cartWarnings.missingSkus.length > 0 && cartWarnings.lowStockItems.length > 0
+                  ? 'Productos con stock insuficiente o fuera de catálogo. Revisa las líneas marcadas antes de cobrar.'
+                  : cartWarnings.missingSkus.length > 0
+                    ? 'Algunos productos ya no están en el catálogo. Revisa las líneas marcadas antes de cobrar.'
+                    : 'Productos con stock insuficiente. Revisa las líneas marcadas antes de cobrar.'}
               </div>
             )}
             {cart.length === 0 ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 pointer-events-none">
                 <ShoppingCartIcon className="w-16 h-16 mb-4 opacity-20" />
-                <p className="text-base font-medium">Ticket vacio</p>
+                <p className="text-base font-medium">Ticket vacío</p>
               </div>
             ) : (
               cart.map((item) => (
@@ -1604,7 +1675,9 @@ export default function Terminal(): ReactElement {
                       <span className="text-[10px] text-zinc-500 font-mono" title={item.sku}>
                         {item.sku.length > 13 ? item.sku.substring(0, 13) + '…' : item.sku}
                       </span>
-                      <span className="text-[10px] text-zinc-400">${item.price.toFixed(2)} c/u</span>
+                      <span className="text-[10px] text-zinc-400">
+                        ${item.price.toFixed(2)} c/u
+                      </span>
                       <div
                         className="flex items-center gap-0.5 bg-zinc-950 rounded border border-zinc-800"
                         onClick={(e) => e.stopPropagation()}
@@ -1619,7 +1692,9 @@ export default function Terminal(): ReactElement {
                         >
                           −
                         </button>
-                        <span className="w-5 text-center text-[10px] font-bold text-zinc-200">{item.qty}</span>
+                        <span className="w-5 text-center text-[10px] font-bold text-zinc-200">
+                          {item.qty}
+                        </span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -1647,7 +1722,9 @@ export default function Terminal(): ReactElement {
                           ×
                         </button>
                       </div>
-                      <span className="font-bold text-emerald-400 text-xs">${item.subtotal.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-400 text-xs">
+                        ${item.subtotal.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                   {(item.discountPct > 0 ||
@@ -1655,7 +1732,9 @@ export default function Terminal(): ReactElement {
                     cartWarnings.lowStockItems.some((l) => l.sku === item.sku)) && (
                     <div className="mt-0.5 flex flex-wrap items-center gap-1 leading-none">
                       {item.discountPct > 0 && (
-                        <span className="text-[9px] font-bold text-rose-400 uppercase">Desc. {item.discountPct}%</span>
+                        <span className="text-[9px] font-bold text-rose-400 uppercase">
+                          Desc. {item.discountPct}%
+                        </span>
                       )}
                       {cartWarnings.missingSkus.includes(item.sku) && (
                         <span className="text-[9px] font-bold uppercase px-1 py-0 rounded bg-amber-500/20 text-amber-400">
@@ -1664,7 +1743,10 @@ export default function Terminal(): ReactElement {
                       )}
                       {cartWarnings.lowStockItems.find((l) => l.sku === item.sku) && (
                         <span className="text-[9px] font-bold uppercase px-1 py-0 rounded bg-rose-500/20 text-rose-400">
-                          Stock: {cartWarnings.lowStockItems.find((l) => l.sku === item.sku)?.currentStock ?? 0} (solicitado: {item.qty})
+                          Stock:{' '}
+                          {cartWarnings.lowStockItems.find((l) => l.sku === item.sku)
+                            ?.currentStock ?? 0}{' '}
+                          (solicitado: {item.qty})
                         </span>
                       )}
                     </div>
@@ -1695,7 +1777,7 @@ export default function Terminal(): ReactElement {
                 >
                   <Users className="w-3 h-3 shrink-0" />
                   <span className="truncate">
-                    {customerName === 'Publico General' ? 'Cliente' : customerName}
+                    {customerName === 'Público General' ? 'Cliente' : customerName}
                   </span>
                 </button>
                 {/* Customer picker dropdown — compacto, máx. 3 opciones visibles para incentivar búsqueda */}
@@ -1721,17 +1803,17 @@ export default function Terminal(): ReactElement {
                       </button>
                     </div>
                     <div className="max-h-[7.5rem] overflow-y-auto">
-                      {/* Publico General — siempre primero */}
+                      {/* Público General — siempre primero */}
                       <button
                         type="button"
                         className={`w-full text-left px-2 py-1.5 text-[11px] hover:bg-zinc-800 transition flex items-center justify-between gap-2 ${customerId === null ? 'text-blue-400 bg-blue-600/10' : 'text-zinc-300'}`}
                         onClick={() => {
-                          setCustomerName('Publico General')
+                          setCustomerName('Público General')
                           setCustomerId(null)
                           setCustomerPickerOpen(false)
                         }}
                       >
-                        <span className="font-semibold truncate">Publico General</span>
+                        <span className="font-semibold truncate">Público General</span>
                         {customerId === null && (
                           <CheckCircle2 className="w-3 h-3 text-blue-400 shrink-0" />
                         )}
@@ -1761,7 +1843,11 @@ export default function Terminal(): ReactElement {
                               >
                                 <div className="min-w-0 truncate">
                                   <span className="font-semibold">{c.name}</span>
-                                  {c.phone && <span className="ml-1.5 text-zinc-500 text-[10px]">{c.phone}</span>}
+                                  {c.phone && (
+                                    <span className="ml-1.5 text-zinc-500 text-[10px]">
+                                      {c.phone}
+                                    </span>
+                                  )}
                                 </div>
                                 {customerId === c.id && (
                                   <CheckCircle2 className="w-3 h-3 text-blue-400 shrink-0" />
@@ -1785,7 +1871,7 @@ export default function Terminal(): ReactElement {
                   </div>
                 )}
                 <span className="text-[11px] text-zinc-400 font-medium leading-tight">
-                  {cart.reduce((a, i) => a + i.qty, 0)} articulos
+                  {cart.reduce((a, i) => a + i.qty, 0)} artículos
                 </span>
               </div>
               <div className="text-2xl lg:text-3xl font-black text-white tabular-nums tracking-tight text-right leading-tight">
@@ -1839,9 +1925,9 @@ export default function Terminal(): ReactElement {
               </button>
             </div>
 
-            <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-4 mb-6 text-center">
-              <p className="text-sm text-zinc-500 uppercase font-bold tracking-widest mb-1">
-                Monto a Cobrar
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 mb-6 text-center">
+              <p className="text-sm text-zinc-500 uppercase font-bold tracking-wider mb-1">
+                Monto a cobrar
               </p>
               <p className="text-5xl font-black text-white tracking-tighter tabular-nums">
                 ${totals.total.toFixed(2)}
@@ -1851,7 +1937,7 @@ export default function Terminal(): ReactElement {
             <div className="space-y-4 mb-8">
               <div className="relative">
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
-                  Método de Pago
+                  Método de pago
                 </label>
                 <select
                   autoFocus
@@ -1862,15 +1948,88 @@ export default function Terminal(): ReactElement {
                   <option value="cash">Efectivo</option>
                   <option value="card">Tarjeta</option>
                   <option value="transfer">Transferencia</option>
+                  <option value="mixed">Mixto</option>
                 </select>
                 <div className="absolute right-4 top-[38px] pointer-events-none text-zinc-500">
                   {paymentMethod === 'cash' && <Banknote className="w-5 h-5 opacity-70" />}
                   {paymentMethod === 'card' && <CreditCard className="w-5 h-5 opacity-70" />}
                   {paymentMethod === 'transfer' && <Landmark className="w-5 h-5 opacity-70" />}
+                  {paymentMethod === 'mixed' && <Wallet className="w-5 h-5 opacity-70" />}
                 </div>
               </div>
 
-              {paymentMethod === 'cash' ? (
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={solicitaFactura}
+                    onChange={(e) => setSolicitaFactura(e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                  />
+                  <FileText className="w-4 h-4 text-zinc-500 group-hover:text-zinc-400 shrink-0" />
+                  <span className="text-sm font-medium text-zinc-300 group-hover:text-zinc-200">
+                    El cliente solicita factura para esta compra
+                  </span>
+                </label>
+              </div>
+
+              {paymentMethod === 'mixed' ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                    Desglose (suma = ${totals.total.toFixed(2)})
+                  </p>
+                  <div>
+                    <label className="text-xs text-zinc-500 block mb-1">Efectivo</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium text-zinc-200 focus:outline-none focus:border-blue-500"
+                      placeholder="0.00"
+                      value={mixedCash}
+                      onChange={(e) => setMixedCash(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500 block mb-1">Tarjeta</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium text-zinc-200 focus:outline-none focus:border-blue-500"
+                      placeholder="0.00"
+                      value={mixedCard}
+                      onChange={(e) => setMixedCard(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-zinc-500 block mb-1">Transferencia</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium text-zinc-200 focus:outline-none focus:border-blue-500"
+                      placeholder="0.00"
+                      value={mixedTransfer}
+                      onChange={(e) => setMixedTransfer(e.target.value)}
+                    />
+                  </div>
+                  {(() => {
+                    const sum = toNumber(mixedCash) + toNumber(mixedCard) + toNumber(mixedTransfer)
+                    const valid = sum > 0 && Math.abs(sum - totals.total) <= 0.02
+                    return (
+                      <p
+                        className={`text-xs font-semibold ${valid ? 'text-emerald-500' : 'text-amber-500'}`}
+                      >
+                        Suma: ${sum.toFixed(2)}
+                        {!valid && sum > 0 && (
+                          <span className="ml-1">(debe ser ${totals.total.toFixed(2)})</span>
+                        )}
+                      </p>
+                    )
+                  })()}
+                </div>
+              ) : paymentMethod === 'cash' ? (
                 <div>
                   <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
                     Recibido
@@ -1878,7 +2037,7 @@ export default function Terminal(): ReactElement {
                   <input
                     type="number"
                     className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-base font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder:text-zinc-700 transition"
-                    placeholder={`Recibido... (Min $${totals.total.toFixed(2)})`}
+                    placeholder={`Recibido... (Mín. $${totals.total.toFixed(2)})`}
                     value={amountReceived}
                     onChange={(e) => setAmountReceived(e.target.value)}
                     onKeyDown={(e) => {
@@ -1902,22 +2061,47 @@ export default function Terminal(): ReactElement {
                   )}
                 </div>
               ) : (
-                <div
-                  className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-center text-sm font-medium text-emerald-400/50 cursor-pointer hover:bg-zinc-900/60 transition"
-                  onClick={() => {
-                    setIsCheckoutModalOpen(false)
-                    void handleCharge()
-                  }}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                <>
+                  {(paymentMethod === 'card' || paymentMethod === 'transfer') && (
+                    <div>
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-2">
+                        {paymentMethod === 'card'
+                          ? 'Referencia (código de autorización o últimos 4 dígitos)'
+                          : 'Referencia de transferencia'}
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={paymentMethod === 'card' ? 20 : 100}
+                        className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-zinc-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-zinc-600"
+                        placeholder={paymentMethod === 'card' ? 'Ej. 1234' : 'Ej. SPEI-123456789'}
+                        value={paymentReference}
+                        onChange={(e) => setPaymentReference(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !busy) {
+                            setIsCheckoutModalOpen(false)
+                            void handleCharge()
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div
+                    className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl px-4 py-3 flex items-center justify-center text-sm font-medium text-emerald-400/50 cursor-pointer hover:bg-zinc-900/60 transition"
+                    onClick={() => {
                       setIsCheckoutModalOpen(false)
                       void handleCharge()
-                    }
-                  }}
-                >
-                  Cobro Exacto (Enter para confirmar)
-                </div>
+                    }}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setIsCheckoutModalOpen(false)
+                        void handleCharge()
+                      }
+                    }}
+                  >
+                    Pago exacto (Enter para confirmar)
+                  </div>
+                </>
               )}
             </div>
 
@@ -1934,7 +2118,16 @@ export default function Terminal(): ReactElement {
                   setIsCheckoutModalOpen(false)
                   void handleCharge()
                 }}
-                disabled={busy || cart.length === 0}
+                disabled={
+                  busy ||
+                  cart.length === 0 ||
+                  (paymentMethod === 'mixed' &&
+                    (() => {
+                      const sum =
+                        toNumber(mixedCash) + toNumber(mixedCard) + toNumber(mixedTransfer)
+                      return sum <= 0 || Math.abs(sum - totals.total) > 0.02
+                    })())
+                }
                 className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3.5 font-black tracking-widest shadow-[0_0_20px_-5px_rgba(37,99,235,0.6)] hover:shadow-[0_0_30px_-5px_rgba(37,99,235,0.8)] transition-all disabled:opacity-50 active:scale-95"
               >
                 {busy ? 'Procesando...' : 'COBRAR'}

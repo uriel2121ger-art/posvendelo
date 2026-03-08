@@ -18,6 +18,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional
 
+import json
+
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -27,6 +29,7 @@ from db.connection import get_db, get_connection, escape_like
 from modules.shared.auth import verify_token, get_user_id
 from modules.shared.pin_auth import verify_manager_pin
 from modules.shared.rate_limit import check_pin_rate_limit
+from modules.shared.terminal_context import get_requested_terminal_id
 from modules.sales.schemas import SaleCreate, SaleItemCreate, SaleCancelRequest
 from modules.shared.constants import PRIVILEGED_ROLES, money, dec
 
@@ -341,20 +344,31 @@ async def list_sales(
 @router.post("/")
 async def create_sale(
     body: SaleCreate,
+    request: Request,
     auth: dict = Depends(verify_token),
 ):
-    """Create a complete sale transaction (atomic: folio + items + stock + credit)."""
-    user_id = get_user_id(auth)
+    """Create a complete sale transaction (atomic: folio + items + stock + credit).
 
-    # ── Validate serie ──
+    Serie A/B: tarjeta, transfer, mixed → siempre A. Efectivo + requiere_factura → A; efectivo sin factura → B.
+    """
+    user_id = get_user_id(auth)
+    requested_terminal_id = get_requested_terminal_id(request)
+
+    # ── Validate payment method (before serie: bancarizados obligan Serie A) ──
+    pm = body.payment_method.strip().lower()
+    if pm not in VALID_PAYMENT_METHODS:
+        raise HTTPException(status_code=400, detail=f"Método de pago inválido: '{pm}'")
+
+    # ── Serie: A = factura individual o pago bancarizado; B = efectivo sin factura (público general)
+    # Backend es fuente de verdad: no confiar en serie del cliente para estas reglas.
     _VALID_SERIES = {"A", "B"}
     if body.serie not in _VALID_SERIES:
         raise HTTPException(status_code=400, detail=f"Serie invalida: '{body.serie}'")
-
-    # ── Validate payment method ──
-    pm = body.payment_method.strip().lower()
-    if pm not in VALID_PAYMENT_METHODS:
-        raise HTTPException(status_code=400, detail=f"Metodo de pago invalido: '{pm}'")
+    requiere_factura = getattr(body, "requiere_factura", False)
+    if pm in ("card", "transfer", "mixed"):
+        body = body.model_copy(update={"serie": "A"})  # Bancarizados/mixto → siempre A
+    elif pm == "cash":
+        body = body.model_copy(update={"serie": "A" if requiere_factura else "B"})  # Efectivo: A si pidió factura, si no B
 
     if pm == "credit" and not body.customer_id:
         raise HTTPException(status_code=400, detail="Venta a credito requiere customer_id")
@@ -369,9 +383,9 @@ async def create_sale(
         if item.qty.is_nan() or item.qty.is_infinite():
             raise HTTPException(status_code=400, detail=f"Cantidad invalida en item {idx+1}")
         if item.price.is_nan() or item.price.is_infinite():
-            raise HTTPException(status_code=400, detail=f"Precio invalido en item {idx+1}")
+            raise HTTPException(status_code=400, detail=f"Precio inválido en item {idx+1}")
         if item.discount.is_nan() or item.discount.is_infinite():
-            raise HTTPException(status_code=400, detail=f"Descuento invalido en item {idx+1}")
+            raise HTTPException(status_code=400, detail=f"Descuento inválido en item {idx+1}")
 
     # ── Start atomic transaction ──
     sale_uuid = str(uuid_mod.uuid4())
@@ -381,19 +395,39 @@ async def create_sale(
         async with conn.transaction():
 
             # 1. Verify open turn (first lock — global order: TURNS → PRODUCTS → CUSTOMERS)
-            turn_row = await db.fetchrow(
+            turn_sql = (
                 "SELECT id, terminal_id FROM turns "
-                "WHERE user_id = :uid AND status = 'open' "
-                "ORDER BY id DESC LIMIT 1 FOR UPDATE",
-                {"uid": user_id},
+                "WHERE user_id = :uid AND status = 'open'"
             )
+            turn_params = {"uid": user_id}
+            if requested_terminal_id is not None:
+                turn_sql += " AND terminal_id = :terminal_id"
+                turn_params["terminal_id"] = requested_terminal_id
+            turn_sql += " ORDER BY id DESC LIMIT 1 FOR UPDATE"
+            turn_row = await db.fetchrow(turn_sql, turn_params)
             if not turn_row:
+                if requested_terminal_id is not None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"No hay turno abierto para la terminal {requested_terminal_id}. "
+                            "Debe abrir un turno en esa terminal antes de crear ventas."
+                        ),
+                    )
                 raise HTTPException(
                     status_code=400,
                     detail="No hay turno abierto. Debe abrir un turno antes de crear ventas.",
                 )
             turn_id = turn_row["id"]
             terminal_id = turn_row.get("terminal_id", 1) or 1
+            if requested_terminal_id is not None and terminal_id != requested_terminal_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"La terminal activa del turno ({terminal_id}) no coincide con "
+                        f"X-Terminal-Id ({requested_terminal_id})."
+                    ),
+                )
 
             # 2. Lock products + validate stock
             locked_map, kit_comp_rows = await _validate_and_lock_products(body.items, conn)
@@ -493,7 +527,8 @@ async def create_sale(
                     customer_id, user_id, turn_id, branch_id,
                     cash_received, mixed_cash, mixed_card, mixed_transfer,
                     mixed_wallet, mixed_gift_card,
-                    serie, folio_visible, status, synced
+                    serie, folio_visible, status, synced, requiere_factura,
+                    auth_code, transfer_reference
                 )
                 SELECT :uuid, NOW(),
                        :subtotal, :tax, :total, :discount, :pm,
@@ -502,7 +537,8 @@ async def create_sale(
                        :mw, :mgc,
                        :serie,
                        :serie || :tid_str || '-' || LPAD((SELECT ultimo_numero FROM new_folio)::text, 6, '0'),
-                       'completed', 0
+                       'completed', 0, :requiere_factura,
+                       :auth_code, :transfer_ref
                 RETURNING id, folio_visible
                 """,
                 {
@@ -525,11 +561,14 @@ async def create_sale(
                     "mw": dec(body.mixed_wallet or 0),
                     "mgc": dec(body.mixed_gift_card or 0),
                     "tid_str": str(terminal_id),
+                    "requiere_factura": body.requiere_factura,
+                    "auth_code": ((body.card_reference or "").strip() or None) if pm == "card" else None,
+                    "transfer_ref": ((body.transfer_reference or "").strip() or None) if pm == "transfer" else None,
                 },
             )
 
             if not sale_row:
-                raise HTTPException(status_code=500, detail="Error creando venta — INSERT no retorno ID")
+                raise HTTPException(status_code=500, detail="Error creando venta — INSERT no retornó ID")
 
             sale_id = sale_row["id"]
             folio_visible = sale_row["folio_visible"]
@@ -659,18 +698,11 @@ async def search_sales(
 
 # ── POST /{sale_id}/cancel — Cancel sale ──────────────────────────
 
-@router.post("/{sale_id}/cancel")
-async def cancel_sale(
+async def perform_sale_cancellation(
     sale_id: int,
     body: SaleCancelRequest,
-    request: Request,
-    auth: dict = Depends(verify_token),
+    auth: dict,
 ):
-    """Cancel a sale: revert stock and credit. Requires manager PIN."""
-    # PIN brute-force protection: 5 attempts per 5 min per IP
-    client_ip = request.client.host if request.client else "127.0.0.1"
-    check_pin_rate_limit(client_ip)
-
     user_id = get_user_id(auth)
 
     async with get_connection() as db:
@@ -851,11 +883,46 @@ async def cancel_sale(
                 "UPDATE sales SET status = 'cancelled', synced = 0 WHERE id = :id",
                 {"id": sale_id},
             )
+            await db.execute(
+                """INSERT INTO audit_log (
+                       user_id, action, entity_type, entity_id, record_id, branch_id, success, details, timestamp
+                   )
+                   VALUES (
+                       :user_id, 'SALE_CANCEL', 'sale', :entity_id, :record_id, :branch_id, TRUE, :details, NOW()
+                   )""",
+                {
+                    "user_id": user_id,
+                    "entity_id": sale_id,
+                    "record_id": sale_id,
+                    "branch_id": branch_id,
+                    "details": json.dumps(
+                        {
+                            "reason": body.reason or "",
+                            "manager_pin_used": True,
+                            "origin": "sales.cancel",
+                        },
+                        ensure_ascii=True,
+                    ),
+                },
+            )
 
     return {
         "success": True,
         "data": {"id": sale_id, "status": "cancelled"},
     }
+
+
+@router.post("/{sale_id}/cancel")
+async def cancel_sale(
+    sale_id: int,
+    body: SaleCancelRequest,
+    request: Request,
+    auth: dict = Depends(verify_token),
+):
+    """Cancel a sale: revert stock and credit. Requires manager PIN."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    check_pin_rate_limit(client_ip)
+    return await perform_sale_cancellation(sale_id, body, auth)
 
 
 # ── Report endpoints (CQRS views) — MUST be before /{sale_id} wildcard ─

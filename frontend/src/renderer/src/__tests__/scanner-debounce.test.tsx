@@ -22,7 +22,7 @@ const PRODUCTS: Product[] = [
 
 function ScannerInput({ onAdd }: { onAdd: (p: Product) => void }): ReactElement {
   const inputRef = useRef<HTMLInputElement>(null)
-  const lastKeystrokeRef = useRef<number>(Date.now())
+  const lastKeystrokeRef = useRef<number>(0)
   const lastEnterRef = useRef<number>(0)
   const [query, setQuery] = useState('')
 
@@ -79,12 +79,7 @@ function ScannerInput({ onAdd }: { onAdd: (p: Product) => void }): ReactElement 
 // ---------------------------------------------------------------------------
 
 /** Simulate scanner typing: set value instantly + fire onChange, then Enter */
-async function simulateScan(
-  input: HTMLInputElement,
-  barcode: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onAdd: any
-): Promise<void> {
+async function simulateScan(input: HTMLInputElement, barcode: string): Promise<void> {
   // Scanner types all chars at once (nearly instant)
   await act(async () => {
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -125,7 +120,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     render(<ScannerInput onAdd={onAdd} />)
     const input = screen.getByTestId('search-input') as HTMLInputElement
 
-    await simulateScan(input, '7501234567890', onAdd)
+    await simulateScan(input, '7501234567890')
 
     expect(onAdd).toHaveBeenCalledTimes(1)
     expect(onAdd).toHaveBeenCalledWith(
@@ -138,7 +133,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     render(<ScannerInput onAdd={onAdd} />)
     const input = screen.getByTestId('search-input') as HTMLInputElement
 
-    await simulateScan(input, '7501234567890', onAdd)
+    await simulateScan(input, '7501234567890')
 
     // Simulate second Enter immediately (CR+LF from scanner, < 150ms)
     await act(async () => {
@@ -156,7 +151,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     const input = screen.getByTestId('search-input') as HTMLInputElement
 
     // First scan
-    await simulateScan(input, '7501234567890', onAdd)
+    await simulateScan(input, '7501234567890')
     expect(onAdd).toHaveBeenCalledTimes(1)
 
     // Wait > 150ms
@@ -165,7 +160,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     })
 
     // Second scan (different product)
-    await simulateScan(input, '7509876543210', onAdd)
+    await simulateScan(input, '7509876543210')
     expect(onAdd).toHaveBeenCalledTimes(2)
     expect(onAdd).toHaveBeenLastCalledWith(
       expect.objectContaining({ sku: '7509876543210', name: 'Sabritas Adobadas' })
@@ -192,7 +187,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     const input = screen.getByTestId('search-input') as HTMLInputElement
     input.focus()
 
-    await simulateScan(input, '7501234567890', onAdd)
+    await simulateScan(input, '7501234567890')
 
     expect(document.activeElement).toBe(input)
   })
@@ -202,7 +197,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     render(<ScannerInput onAdd={onAdd} />)
     const input = screen.getByTestId('search-input') as HTMLInputElement
 
-    await simulateScan(input, '7501234567890', onAdd)
+    await simulateScan(input, '7501234567890')
 
     expect(input.value).toBe('')
   })
@@ -212,7 +207,7 @@ describe('Scanner debounce (barcode pistola)', () => {
     render(<ScannerInput onAdd={onAdd} />)
     const input = screen.getByTestId('search-input') as HTMLInputElement
 
-    await simulateScan(input, '7501234567890', onAdd)
+    await simulateScan(input, '7501234567890')
 
     // Two more rapid Enters
     await act(async () => {
@@ -234,6 +229,7 @@ describe('Scanner debounce (barcode pistola)', () => {
 // FASE 0.3: Sanitización escáner — \t y caracteres de control no deben
 // llegar al valor del input (evitar saltos de foco o acciones destructivas).
 // ---------------------------------------------------------------------------
+// eslint-disable-next-line no-control-regex
 const CONTROL_STRIP_RE = /[\x00-\x1F\x7F-\x9F]/g
 function stripControlChars(value: string): string {
   return value.replace(CONTROL_STRIP_RE, '')

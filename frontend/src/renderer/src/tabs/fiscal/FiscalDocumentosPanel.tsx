@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react'
 import { useState } from 'react'
-import type { RuntimeConfig } from '../../posApi'
 import {
   getLegalMonthlySummary,
   generateDestructionActa,
@@ -18,27 +17,12 @@ import {
   getShrinkagePending,
   getShrinkageSummary
 } from '../../posApi'
+import type { FiscalPanelProps } from '../../types/fiscalTypes'
+import { inputCls, btnPrimary, btnSecondary } from '../../utils/styles'
+import { toNumber } from '../../utils/numbers'
 
-export interface FiscalPanelProps {
-  cfg: () => RuntimeConfig
-  busy: boolean
-  wrap: (fn: () => Promise<Record<string, unknown>>) => Promise<void>
-  canAdmin: boolean
-}
-
-const inputCls =
-  'w-full rounded-lg border border-zinc-800 bg-zinc-900/80 py-2 px-3 text-sm font-medium text-zinc-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-zinc-600'
-const btnPrimary =
-  'flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-sm text-white hover:bg-blue-500 transition disabled:opacity-50'
-const btnSecondary =
-  'flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2 font-bold text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50'
-const cardCls = 'rounded-xl border border-zinc-800 bg-zinc-900/50 p-4'
-const labelCls = 'text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2'
-
-function toNumber(value: string): number {
-  const n = Number(value)
-  return Number.isFinite(n) ? n : 0
-}
+const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6'
+const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2'
 
 export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelProps): ReactElement {
   const [legalYear, setLegalYear] = useState('')
@@ -121,17 +105,74 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
       <div className={cardCls}>
         <h3 className={labelCls}>Acta de destrucción</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-          <input className={inputCls} placeholder="Producto *" value={adProductName} onChange={(e) => setAdProductName(e.target.value)} />
-          <input className={inputCls} placeholder="SKU" value={adSku} onChange={(e) => setAdSku(e.target.value)} />
-          <input className={inputCls} placeholder="Clave SAT" value={adSatKey} onChange={(e) => setAdSatKey(e.target.value)} />
-          <input className={inputCls} type="number" placeholder="Cantidad *" value={adQty} onChange={(e) => setAdQty(e.target.value)} />
-          <input className={inputCls + ' max-w-[80px]'} placeholder="Unidad" value={adUnit} onChange={(e) => setAdUnit(e.target.value)} />
-          <input className={inputCls} type="number" placeholder="Costo unitario *" value={adUnitCost} onChange={(e) => setAdUnitCost(e.target.value)} />
-          <input className={inputCls} placeholder="Categoría" value={adCategory} onChange={(e) => setAdCategory(e.target.value)} />
-          <input className={inputCls} placeholder="Razón" value={adReason} onChange={(e) => setAdReason(e.target.value)} />
-          <input className={inputCls} placeholder="Testigo" value={adWitness} onChange={(e) => setAdWitness(e.target.value)} />
-          <input className={inputCls} placeholder="Supervisor" value={adSupervisor} onChange={(e) => setAdSupervisor(e.target.value)} />
-          <input className={inputCls} placeholder="Autorizado por" value={adAuthorizedBy} onChange={(e) => setAdAuthorizedBy(e.target.value)} />
+          <input
+            className={inputCls}
+            placeholder="Producto *"
+            value={adProductName}
+            onChange={(e) => setAdProductName(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="SKU"
+            value={adSku}
+            onChange={(e) => setAdSku(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Clave SAT"
+            value={adSatKey}
+            onChange={(e) => setAdSatKey(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            type="number"
+            placeholder="Cantidad *"
+            value={adQty}
+            onChange={(e) => setAdQty(e.target.value)}
+          />
+          <input
+            className={inputCls + ' max-w-[80px]'}
+            placeholder="Unidad"
+            value={adUnit}
+            onChange={(e) => setAdUnit(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            type="number"
+            placeholder="Costo unitario *"
+            value={adUnitCost}
+            onChange={(e) => setAdUnitCost(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Categoría"
+            value={adCategory}
+            onChange={(e) => setAdCategory(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Razón"
+            value={adReason}
+            onChange={(e) => setAdReason(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Testigo"
+            value={adWitness}
+            onChange={(e) => setAdWitness(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Supervisor"
+            value={adSupervisor}
+            onChange={(e) => setAdSupervisor(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Autorizado por"
+            value={adAuthorizedBy}
+            onChange={(e) => setAdAuthorizedBy(e.target.value)}
+          />
           <button
             className={btnPrimary}
             disabled={busy || !adProductName.trim() || !adQty.trim() || !adUnitCost.trim()}
@@ -163,16 +204,52 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
       <div className={cardCls}>
         <h3 className={labelCls}>Documento de devolución</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-          <input className={inputCls} placeholder="Folio original" value={rdFolio} onChange={(e) => setRdFolio(e.target.value)} />
-          <input className={inputCls} placeholder="Producto *" value={rdProductName} onChange={(e) => setRdProductName(e.target.value)} />
-          <input className={inputCls} placeholder="SKU" value={rdSku} onChange={(e) => setRdSku(e.target.value)} />
-          <input className={inputCls} type="number" placeholder="Cantidad *" value={rdQty} onChange={(e) => setRdQty(e.target.value)} />
-          <input className={inputCls} type="number" placeholder="Precio unitario *" value={rdUnitPrice} onChange={(e) => setRdUnitPrice(e.target.value)} />
-          <select className={inputCls + ' max-w-[80px]'} value={rdSerie} onChange={(e) => setRdSerie(e.target.value)}>
+          <input
+            className={inputCls}
+            placeholder="Folio original"
+            value={rdFolio}
+            onChange={(e) => setRdFolio(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Producto *"
+            value={rdProductName}
+            onChange={(e) => setRdProductName(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="SKU"
+            value={rdSku}
+            onChange={(e) => setRdSku(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            type="number"
+            placeholder="Cantidad *"
+            value={rdQty}
+            onChange={(e) => setRdQty(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            type="number"
+            placeholder="Precio unitario *"
+            value={rdUnitPrice}
+            onChange={(e) => setRdUnitPrice(e.target.value)}
+          />
+          <select
+            className={inputCls + ' max-w-[80px]'}
+            value={rdSerie}
+            onChange={(e) => setRdSerie(e.target.value)}
+          >
             <option value="A">A</option>
             <option value="B">B</option>
           </select>
-          <input className={inputCls} placeholder="Razón devolución" value={rdReturnReason} onChange={(e) => setRdReturnReason(e.target.value)} />
+          <input
+            className={inputCls}
+            placeholder="Razón devolución"
+            value={rdReturnReason}
+            onChange={(e) => setRdReturnReason(e.target.value)}
+          />
           <button
             className={btnPrimary}
             disabled={busy || !rdProductName.trim() || !rdQty.trim() || !rdUnitPrice.trim()}
@@ -206,11 +283,16 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <input
             className={inputCls}
-            placeholder='Items JSON [{"product":"X","quantity":1,"value":10}]'
+            placeholder='Artículos JSON [{"product":"X","quantity":1,"value":10}]'
             value={voucherItemsJson}
             onChange={(e) => setVoucherItemsJson(e.target.value)}
           />
-          <input className={inputCls} placeholder="Periodo (ej: 2026-03)" value={voucherPeriod} onChange={(e) => setVoucherPeriod(e.target.value)} />
+          <input
+            className={inputCls}
+            placeholder="Período (ej: 2026-03)"
+            value={voucherPeriod}
+            onChange={(e) => setVoucherPeriod(e.target.value)}
+          />
           <button
             className={btnPrimary}
             disabled={busy || !voucherItemsJson.trim()}
@@ -219,7 +301,9 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
               try {
                 const parsed = JSON.parse(voucherItemsJson)
                 if (Array.isArray(parsed)) items = parsed
-              } catch { /* empty */ }
+              } catch {
+                /* empty */
+              }
               void wrap(() =>
                 generateLegalSelfConsumptionVoucher(cfg(), {
                   items,
@@ -228,7 +312,7 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
               )
             }}
           >
-            Generar voucher legal
+            Generar comprobante legal
           </button>
         </div>
       </div>
@@ -238,7 +322,7 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
           <input
             className={inputCls}
             type="number"
-            placeholder="Product ID"
+            placeholder="ID de producto"
             value={scProductId}
             onChange={(e) => setScProductId(e.target.value)}
           />
@@ -288,7 +372,7 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
           <input
             className={inputCls}
-            placeholder="Destinatario muestra"
+            placeholder="Destinatario de muestra"
             value={scRecipient}
             onChange={(e) => setScRecipient(e.target.value)}
           />
@@ -372,7 +456,7 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
               )
             }
           >
-            Generar voucher
+            Generar comprobante
           </button>
           <button
             className={btnSecondary}
@@ -389,7 +473,7 @@ export default function FiscalDocumentosPanel({ cfg, busy, wrap }: FiscalPanelPr
           <input
             className={inputCls}
             type="number"
-            placeholder="Product ID"
+            placeholder="ID de producto"
             value={lossProductId}
             onChange={(e) => setLossProductId(e.target.value)}
           />

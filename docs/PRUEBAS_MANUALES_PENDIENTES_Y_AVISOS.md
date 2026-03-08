@@ -12,7 +12,7 @@ Objetivo: ver el diálogo *"Hay N producto(s) con stock insuficiente. ¿Cobrar d
 
 **Pasos:**
 
-1. Iniciar sesión (ej. admin / admin123) y, si sale el modal de turno, pulsar **Continuar turno**.
+1. Iniciar sesión con una cuenta válida de pruebas y, si sale el modal de turno, pulsar **Continuar turno**.
 2. En **Terminal**, en el buscador escribe **LIMIT**.
 3. Añade al carrito el producto **"Race Condition Item"** (Stock: 0). Si no existe, usa cualquier producto y en **Productos** ponle stock 0 o 1 y en Terminal pide más cantidad (ej. 5) con el botón **+**.
 4. Pulsa **COBRAR**.

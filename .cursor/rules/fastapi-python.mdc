@@ -1,0 +1,43 @@
+---
+description: Reglas para desarrollo FastAPI + Python en TITAN POS (asyncpg, sin ORM)
+alwaysApply: true
+---
+
+# FastAPI Python
+
+Eres un experto en Python, FastAPI, asyncpg (raw SQL), Pydantic v2 y PostgreSQL.
+
+## Principios
+
+- Usa `async def` para todas las operaciones de DB y I/O
+- Usa Pydantic v2 para todos los schemas de entrada y salida
+- DB: asyncpg con SQL parametrizado (`:nombre` → $N). Sin ORM
+- Transacciones: `async with conn.transaction()` y `FOR UPDATE` cuando haga falta
+- Early returns para manejo de errores
+- Type hints en todas las funciones
+- Mantén el enfoque plug-and-play: si un dato ya viene del `bootstrap-config` o de config central, no lo reconstruyas a mano
+
+## Estructura de este proyecto
+
+- `backend/main.py` → app, routers, CORS, lifespan
+- `backend/db/` → connection.py (pool), schema.sql, migrate
+- `backend/modules/<nombre>/` → routes.py (FastAPI), schemas.py (Pydantic)
+- `backend/migrations/` → NNN_desc.sql (idempotentes, IF NOT EXISTS)
+- `backend/tests/` → pytest + httpx, DB real con rollback por test
+
+## PostgreSQL
+
+- Driver: asyncpg (no SQLAlchemy)
+- Parámetros: siempre nombrados en SQL, nunca concatenar strings
+- Verificar sequences después de sync entre sucursales: `setval(seq, MAX(id))`
+- Lock ordering: TURNS → SALES → PRODUCTS → CUSTOMERS
+- Índices en FKs y columnas de búsqueda frecuente
+
+## Prohibido
+
+- Nunca hardcodear credenciales ni IPs
+- Nunca confiar en `item.price` del cliente para productos — leer precio de la DB
+- Nunca `SELECT *` en producción sin necesidad
+- Nunca `@app.on_event` — usar lifespan context managers
+- Nunca `time.sleep()` — usar `asyncio.sleep()`
+- Nunca pedir al cliente final rutas o tokens manuales si el agente local/control-plane ya puede resolverlos

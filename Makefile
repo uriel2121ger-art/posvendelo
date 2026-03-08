@@ -2,7 +2,7 @@
 # TITAN POS — Makefile
 # ============================================================================
 
-.PHONY: up down logs test lint dev-backend dev-frontend clean setup
+.PHONY: up down logs test lint security security-backend security-frontend dev-backend dev-frontend clean setup
 
 # --- Docker ---
 up:
@@ -30,8 +30,21 @@ test-quick:
 
 # --- Quality ---
 lint:
-	cd backend && python3 -m bandit -r modules/ db/ main.py -ll -q 2>/dev/null || true
+	cd backend && python3 -m bandit -r modules/ db/ main.py -c .bandit.yaml -ll -q 2>/dev/null || true
 	cd frontend && npx eslint src/ --quiet 2>/dev/null || true
+
+# --- Security (herramientas sofisticadas) ---
+# Requiere: pip install bandit pip-audit; opcional: semgrep, gitleaks
+security:
+	$(MAKE) security-backend
+	$(MAKE) security-frontend
+
+security-backend:
+	cd backend && python3 -m bandit -r modules/ db/ main.py -c .bandit.yaml -ll
+	cd backend && pip install -q pip-audit && pip-audit
+
+security-frontend:
+	cd frontend && npm audit --omit=dev --audit-level=high
 
 # --- Utilities ---
 clean:

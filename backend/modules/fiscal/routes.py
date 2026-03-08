@@ -6,7 +6,7 @@ Endpoints for CFDI generation, global invoices, returns, and XML parsing.
 import asyncio
 import logging
 import os
-import uuid
+import tempfile
 from decimal import Decimal
 
 import aiofiles
@@ -93,6 +93,40 @@ async def generate_cfdi(
     except Exception as e:
         logger.error(f"Error calling CFDIService: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno al generar CFDI")
+
+
+@router.get("/sales-pending-invoice")
+async def get_sales_pending_invoice(
+    branch_id: int = 1,
+    limit: int = 100,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Lista ventas con requiere_factura=true que aún no tienen CFDI (para priorizar facturación)."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para ver ventas pendientes de factura")
+    try:
+        rows = await db.fetch(
+            """
+            SELECT s.id, s.folio_visible, s.total, s.timestamp, s.customer_id
+            FROM sales s
+            LEFT JOIN cfdis c ON c.sale_id = s.id
+            WHERE s.requiere_factura = true AND c.id IS NULL
+              AND COALESCE(s.status, 'completed') != 'cancelled'
+              AND s.branch_id = :branch_id
+            ORDER BY s.timestamp DESC
+            LIMIT :limit
+            """,
+            {"branch_id": branch_id, "limit": min(limit, 200)},
+        )
+        return {"success": True, "data": [dict(r) for r in (rows or [])]}
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "requiere_factura" in err_msg or "column" in err_msg and "does not exist" in err_msg:
+            logger.warning("sales.requiere_factura no existe (ejecutar migración 042); devolviendo lista vacía")
+            return {"success": True, "data": []}
+        logger.error(f"Error listing sales pending invoice: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al listar ventas pendientes de factura")
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +220,7 @@ async def process_return(
         raise
     except Exception as e:
         logger.error(f"Error processing return: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno al procesar devolucion")
+        raise HTTPException(status_code=500, detail="Error interno al procesar devolución")
 
 
 @router.get("/returns/summary")
@@ -221,30 +255,41 @@ async def parse_cfdi_xml(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Parse a CFDI XML file to extract products."""
-    if not file.filename or not file.filename.endswith('.xml'):
+    """Parse a CFDI XML file to extract products. Requires defusedxml (see docs/PARSEAR_XML_FISCAL.md)."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para parsear XML fiscal")
+    if not file.filename or not file.filename.lower().endswith(".xml"):
         raise HTTPException(status_code=400, detail="El archivo debe ser XML")
 
-    # SECURITY: Use uuid for temp filename to prevent path traversal
-    # Limit upload size to prevent memory exhaustion (DoS)
     MAX_XML_SIZE = 5 * 1024 * 1024  # 5 MB
     content = await file.read(MAX_XML_SIZE + 1)
     if len(content) > MAX_XML_SIZE:
         raise HTTPException(status_code=413, detail="Archivo XML demasiado grande (max 5MB)")
 
-    temp_path = f"/tmp/cfdi_{uuid.uuid4().hex}.xml"
+    fd, temp_path = tempfile.mkstemp(suffix=".xml", prefix="cfdi_")
+    os.close(fd)
     try:
-        async with aiofiles.open(temp_path, 'wb') as out_file:
+        async with aiofiles.open(temp_path, "wb") as out_file:
             await out_file.write(content)
 
-        from modules.fiscal.xml_ingestor import XMLIngestor
+        try:
+            from modules.fiscal.xml_ingestor import XMLIngestor
+        except ImportError as e:
+            if "defusedxml" in str(e).lower():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Requisito no cumplido: instalar defusedxml. Ejecuta en backend: pip install -r requirements.txt (ver docs/PARSEAR_XML_FISCAL.md)",
+                ) from e
+            raise
+
         ingestor = XMLIngestor(db)
-
         data = ingestor.parse_cfdi(temp_path)
-        if data.get('success'):
+        if data.get("success"):
             return {"success": True, "data": data}
-        raise HTTPException(status_code=400, detail=data.get('error'))
-
+        raise HTTPException(
+            status_code=400,
+            detail=data.get("error", "Error al parsear XML"),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -252,7 +297,10 @@ async def parse_cfdi_xml(
         raise HTTPException(status_code=500, detail="Error interno al parsear XML")
     finally:
         if os.path.exists(temp_path):
-            os.remove(temp_path)
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 # ---------------------------------------------------------------------------
 # General de Guerra (AI Cross-Auditor)

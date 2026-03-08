@@ -3,13 +3,13 @@
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import TopNavbar from '../components/TopNavbar'
 import { ConfirmProvider } from '../components/ConfirmDialog'
 import { clearAuth, setAuthToken } from './test-utils'
 
-function renderTopNavbar(path = '/terminal') {
+function renderTopNavbar(path = '/terminal'): ReturnType<typeof render> {
   return render(
     <ConfirmProvider>
       <MemoryRouter initialEntries={[path]}>
@@ -23,13 +23,15 @@ describe('TopNavbar', () => {
   beforeEach(() => {
     clearAuth()
     setAuthToken(undefined, 'admin', 'cajero1')
+    global.fetch = vi.fn().mockRejectedValue(new TypeError('offline'))
   })
 
   afterEach(() => {
     clearAuth()
   })
 
-  it('renderiza los 13 links de navegación principal', () => {
+  it('renderiza los 13 links de navegación principal', async () => {
+    const user = userEvent.setup()
     renderTopNavbar()
     const expectedLabels = [
       'Ventas',
@@ -46,16 +48,19 @@ describe('TopNavbar', () => {
       'Fiscal',
       'Ajustes'
     ]
-    for (const label of expectedLabels) {
-      // Labels are hidden on small screens but still in the DOM
-      expect(screen.getByTitle(label)).toBeInTheDocument()
-    }
+    // Abrir "Más" para que los enlaces secundarios estén en el DOM
+    await user.click(screen.getByTitle('Más opciones'))
+    await waitFor(() => {
+      for (const label of expectedLabels) {
+        expect(screen.getByTitle(label)).toBeInTheDocument()
+      }
+    })
   })
 
   it('muestra las iniciales del usuario actual', () => {
     renderTopNavbar()
     expect(screen.getByText('ca')).toBeInTheDocument()
-    expect(screen.getByTitle('Usuario Activo: cajero1')).toBeInTheDocument()
+    expect(screen.getByTitle('Usuario: cajero1')).toBeInTheDocument()
   })
 
   it('muestra "Us" si no hay user en localStorage', () => {
@@ -66,7 +71,7 @@ describe('TopNavbar', () => {
 
   it('botón de logout existe con title correcto', () => {
     renderTopNavbar()
-    const logoutBtn = screen.getByTitle('Cerrar Sesión')
+    const logoutBtn = screen.getByTitle('Cerrar sesión')
     expect(logoutBtn).toBeInTheDocument()
   })
 
@@ -74,7 +79,7 @@ describe('TopNavbar', () => {
     renderTopNavbar()
     const user = userEvent.setup()
 
-    await user.click(screen.getByTitle('Cerrar Sesión'))
+    await user.click(screen.getByTitle('Cerrar sesión'))
 
     await waitFor(() => {
       expect(screen.getByText('Aceptar')).toBeInTheDocument()
@@ -92,7 +97,7 @@ describe('TopNavbar', () => {
     renderTopNavbar()
     const user = userEvent.setup()
 
-    await user.click(screen.getByTitle('Cerrar Sesión'))
+    await user.click(screen.getByTitle('Cerrar sesión'))
 
     await waitFor(() => {
       expect(screen.getByText('Cancelar')).toBeInTheDocument()
@@ -109,7 +114,7 @@ describe('TopNavbar', () => {
 
     renderTopNavbar()
     const user = userEvent.setup()
-    await user.click(screen.getByTitle('Cerrar Sesión'))
+    await user.click(screen.getByTitle('Cerrar sesión'))
 
     await waitFor(() => {
       expect(screen.getByText(/tickets pendientes/i)).toBeInTheDocument()
@@ -126,5 +131,28 @@ describe('TopNavbar', () => {
 
     const link = screen.getByTitle('Productos').closest('a')
     expect(link).toHaveAttribute('href', '/productos')
+  })
+
+  it('muestra banner cuando la licencia está en gracia', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          success: true,
+          data: {
+            effective_status: 'grace',
+            message: 'Licencia mensual en gracia. Renueva para evitar bloqueo comercial.'
+          }
+        }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    } as unknown as Response)
+
+    renderTopNavbar()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Licencia mensual en gracia/i)).toBeInTheDocument()
+    })
   })
 })

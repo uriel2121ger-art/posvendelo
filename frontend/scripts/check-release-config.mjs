@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const configPath = resolve(process.cwd(), 'electron-builder.yml')
@@ -10,6 +10,18 @@ const checks = [
     ok: !/^\s*appId:\s*com\.electron\.app\s*$/m.test(raw),
     message:
       "appId sigue con valor placeholder ('com.electron.app'). Define uno real, por ejemplo: com.titan.pos"
+  },
+  {
+    id: 'productName',
+    ok: !/^\s*productName:\s*electron_pos\s*$/m.test(raw),
+    message:
+      "productName sigue con valor placeholder ('electron_pos'). Define el nombre comercial real."
+  },
+  {
+    id: 'executableName',
+    ok: !/^\s*executableName:\s*electron_pos\s*$/m.test(raw),
+    message:
+      "executableName sigue con valor placeholder ('electron_pos'). Define el binario distribuible real."
   },
   {
     id: 'maintainer',
@@ -26,9 +38,22 @@ const checks = [
 
 const failed = checks.filter((item) => !item.ok)
 
-if (failed.length > 0) {
+const requiredPaths = [
+  {
+    id: 'desktopIcon',
+    ok: existsSync(resolve(process.cwd(), 'resources/icon.png')),
+    message: 'Falta `resources/icon.png`; el build distribuible usará icono genérico de Electron.'
+  }
+]
+
+const failedPaths = requiredPaths.filter((item) => !item.ok)
+
+if (failed.length > 0 || failedPaths.length > 0) {
   console.error('Release config validation failed:')
   for (const issue of failed) {
+    console.error(`- [${issue.id}] ${issue.message}`)
+  }
+  for (const issue of failedPaths) {
     console.error(`- [${issue.id}] ${issue.message}`)
   }
   process.exit(1)

@@ -18,18 +18,41 @@ logger = logging.getLogger(__name__)
 
 
 class CFDIService:
-    def __init__(self, db, branch_id: int = 1):
+    def __init__(self, db, branch_id: int | None = None):
         self.db = db
         self.branch_id = branch_id
         self._facturapi = None
 
     async def _get_fiscal_config(self) -> dict:
         """Fetch fiscal config directly from DB."""
+        if self.branch_id is None:
+            return {}
         row = await self.db.fetchrow(
             "SELECT * FROM fiscal_config WHERE branch_id = :bid LIMIT 1",
             {"bid": self.branch_id},
         )
         return row or {}
+
+    async def _resolve_branch_id_for_sale(self, sale_id: int) -> int | None:
+        row = await self.db.fetchrow(
+            "SELECT branch_id FROM sales WHERE id = :sid LIMIT 1",
+            {"sid": sale_id},
+        )
+        branch_id = row.get("branch_id") if row else None
+        if isinstance(branch_id, int) and branch_id > 0:
+            self.branch_id = branch_id
+            return branch_id
+        return None
+
+    @staticmethod
+    def _resolve_customer_zip(customer_zip: str | None, fiscal_config: dict) -> str | None:
+        candidate = (customer_zip or "").strip()
+        if candidate and candidate != "00000":
+            return candidate
+        fiscal_zip = str(fiscal_config.get("codigo_postal") or fiscal_config.get("lugar_expedicion") or "").strip()
+        if fiscal_zip and fiscal_zip != "00000":
+            return fiscal_zip
+        return None
 
     async def _get_sale_details(self, sale_id: int) -> Optional[dict]:
         """Fetch sale + items directly from DB."""
@@ -107,9 +130,12 @@ class CFDIService:
 
             if not customer_zip or customer_zip == "00000":
                 fiscal_config = await self._get_fiscal_config()
-                customer_zip = fiscal_config.get("codigo_postal") or fiscal_config.get("lugar_expedicion") or "01000"
-                if customer_zip == "00000":
-                    customer_zip = "01000"
+                customer_zip = self._resolve_customer_zip(customer_zip, fiscal_config)
+                if not customer_zip:
+                    return {
+                        "success": False,
+                        "error": "Codigo postal del receptor o lugar de expedicion no configurado",
+                    }
 
             items = []
             for item in sale_data.get("items", []):
@@ -273,24 +299,32 @@ class CFDIService:
         customer_zip: str = "00000",
     ) -> Dict[str, Any]:
         try:
-            fiscal_config = await self._get_fiscal_config()
-            if not fiscal_config or not fiscal_config.get("rfc_emisor"):
-                return {"success": False, "error": "Configuracion fiscal no encontrada"}
-
-            if fiscal_config.get("facturapi_enabled") and fiscal_config.get("facturapi_api_key"):
-                return await self.generate_cfdi_via_facturapi(
-                    sale_id, customer_rfc, customer_name, customer_regime,
-                    uso_cfdi, None, customer_zip, forma_pago,
-                )
-
             sale_data = await self._get_sale_details(sale_id)
             if not sale_data:
                 return {"success": False, "error": f"Venta {sale_id} no encontrada"}
 
+            branch_id = sale_data.get("branch_id")
+            if isinstance(branch_id, int) and branch_id > 0:
+                self.branch_id = branch_id
+
+            fiscal_config = await self._get_fiscal_config()
+            if not fiscal_config or not fiscal_config.get("rfc_emisor"):
+                return {"success": False, "error": "Configuracion fiscal no encontrada"}
+
+            resolved_customer_zip = self._resolve_customer_zip(customer_zip, fiscal_config)
+            if not resolved_customer_zip:
+                return {"success": False, "error": "Codigo postal del receptor o lugar de expedicion no configurado"}
+
+            if fiscal_config.get("facturapi_enabled") and fiscal_config.get("facturapi_api_key"):
+                return await self.generate_cfdi_via_facturapi(
+                    sale_id, customer_rfc, customer_name, customer_regime,
+                    uso_cfdi, None, resolved_customer_zip, forma_pago,
+                )
+
             customer_data = {
                 "rfc": customer_rfc.upper(),
                 "nombre": customer_name or "PUBLICO EN GENERAL",
-                "codigo_postal": "00000",
+                "codigo_postal": resolved_customer_zip,
                 "regimen_fiscal": customer_regime,
                 "uso_cfdi": uso_cfdi,
             }
@@ -490,7 +524,12 @@ class CFDIService:
                 return {"success": False, "error": f"CFDI original {original_uuid} no encontrado"}
 
             original_sale_id = original.get("sale_id")
+            if isinstance(original_sale_id, int) and original_sale_id > 0:
+                await self._resolve_branch_id_for_sale(original_sale_id)
             fiscal_config = await self._get_fiscal_config()
+            resolved_customer_zip = self._resolve_customer_zip(original.get("lugar_expedicion"), fiscal_config)
+            if not resolved_customer_zip:
+                return {"success": False, "error": "Codigo postal del receptor o lugar de expedicion no configurado"}
 
             if items is None and original_sale_id:
                 sale_data = await self._get_sale_details(original_sale_id)
@@ -529,7 +568,7 @@ class CFDIService:
             customer_data = {
                 "rfc": customer_rfc.upper(),
                 "nombre": customer_name or original.get("nombre_receptor", "PUBLICO EN GENERAL"),
-                "codigo_postal": "00000",
+                "codigo_postal": resolved_customer_zip,
                 "regimen_fiscal": customer_regime,
                 "uso_cfdi": uso_cfdi,
             }

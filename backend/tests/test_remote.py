@@ -1,7 +1,9 @@
 """Tests for remote module: live sales, turn status, notifications, price change."""
 
+import json
+
 import pytest
-from conftest import auth_header, PRODUCT_ID
+from conftest import TEST_MANAGER_PIN, auth_header, PRODUCT_ID
 
 
 class TestLiveSales:
@@ -129,5 +131,71 @@ class TestChangePrice:
             "/api/v1/remote/change-price",
             headers=auth_header(cashier_token),
             json={"sku": "TEST-001", "new_price": 999},
+        )
+        assert r.status_code == 403
+
+
+class TestRemoteCancelSale:
+    async def _create_sale(self, client, admin_token):
+        r = await client.post(
+            "/api/v1/sales/",
+            headers=auth_header(admin_token),
+            json={
+                "items": [
+                    {
+                        "product_id": PRODUCT_ID,
+                        "qty": 1,
+                        "price": 116.0,
+                        "discount": 0,
+                        "price_includes_tax": True,
+                    }
+                ],
+                "payment_method": "cash",
+                "cash_received": 200,
+                "branch_id": 90001,
+                "serie": "A",
+            },
+        )
+        assert r.status_code == 200
+        return r.json()["data"]["id"]
+
+    async def test_remote_cancel_sale(self, client, admin_token, seed_all, db_conn):
+        sale_id = await self._create_sale(client, admin_token)
+        r = await client.post(
+            "/api/v1/remote/cancel-sale",
+            headers=auth_header(admin_token),
+            json={
+                "sale_id": sale_id,
+                "manager_pin": TEST_MANAGER_PIN,
+                "reason": "supervisión remota",
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["data"]["status"] == "cancelled"
+
+        audit = await db_conn.fetchrow(
+            """
+            SELECT action, entity_type, record_id, details
+            FROM audit_log
+            WHERE action = 'REMOTE_SALE_CANCEL' AND record_id = $1
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            sale_id,
+        )
+        assert audit is not None
+        assert audit["entity_type"] == "sale"
+        details = json.loads(str(audit["details"]))
+        assert details["reason"] == "supervisión remota"
+
+    async def test_remote_cancel_sale_cashier_forbidden(self, client, cashier_token, admin_token, seed_all):
+        sale_id = await self._create_sale(client, admin_token)
+        r = await client.post(
+            "/api/v1/remote/cancel-sale",
+            headers=auth_header(cashier_token),
+            json={
+                "sale_id": sale_id,
+                "manager_pin": TEST_MANAGER_PIN,
+            },
         )
         assert r.status_code == 403

@@ -17,7 +17,7 @@ vi.mock('../posApi', () => ({
   registerExpense: (...args: unknown[]) => mockRegisterExpense(...args)
 }))
 
-function renderExpenses() {
+function renderExpenses(): ReturnType<typeof render> {
   return render(
     <MemoryRouter initialEntries={['/gastos']}>
       <ExpensesTab />

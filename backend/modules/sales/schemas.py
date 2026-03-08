@@ -46,6 +46,8 @@ class SaleCreate(BaseModel):
     cash_received: Optional[Decimal] = Field(Decimal("0"), ge=0)
     notes: Optional[str] = Field(None, max_length=2000)
     requiere_factura: bool = False
+    card_reference: Optional[str] = Field(None, max_length=100)
+    transfer_reference: Optional[str] = Field(None, max_length=200)
     # Mixed payment
     mixed_cash: Optional[Decimal] = Field(Decimal("0"), ge=0)
     mixed_card: Optional[Decimal] = Field(Decimal("0"), ge=0)

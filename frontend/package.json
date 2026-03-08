@@ -1,10 +1,10 @@
 {
-  "name": "electron_pos",
+  "name": "titan-pos",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "TITAN POS desktop app for retail operations in Mexico",
+  "homepage": "https://github.com/uriel2121ger-art/titan-pos",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "TITAN POS",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -21,10 +21,12 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
-    "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux",
+    "build:unpack": "npm run build && electron-builder --dir --publish never",
+    "build:win": "npm run build && electron-builder --win --publish never",
+    "build:mac": "electron-vite build && electron-builder --mac --publish never",
+    "build:linux": "electron-vite build && electron-builder --linux --publish never",
+    "dist:checksums": "node ./scripts/generate-dist-checksums.mjs",
+    "dist:verify": "node ./scripts/verify-dist-artifacts.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev:browser": "vite --config vite.browser.config.ts",
@@ -32,7 +34,8 @@
     "build:browser": "vite build --config vite.browser.config.ts",
     "preview:browser": "npm run build:browser && vite preview --config vite.browser.config.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:prod": "E2E_START_SERVER=1 E2E_SERVER_MODE=preview playwright test"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -40,7 +43,7 @@
     "@tailwindcss/postcss": "^4.2.0",
     "lucide-react": "^0.575.0",
     "react-router-dom": "^7.13.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
@@ -75,7 +78,7 @@
     "vitest": "^4.0.18"
   },
   "overrides": {
-    "minimatch": "^10.2.2",
-    "tar": "^7.5.8"
+    "minimatch": "^10.2.4",
+    "tar": "^7.5.10"
   }
 }

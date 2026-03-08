@@ -6,15 +6,117 @@ App factory + module routers + lifespan.
 Run: cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 """
 
+import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
+import sys
+from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict
 
+import httpx
+import psutil
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
+_heartbeat_interval_seconds = int(os.getenv("CONTROL_PLANE_HEARTBEAT_INTERVAL_SECONDS", "300"))
+
+
+def _csv_env(name: str) -> list[str]:
+    return [value.strip() for value in os.environ.get(name, "").split(",") if value.strip()]
+
+
+def _get_last_backup_at() -> str | None:
+    backup_dir = Path(os.getenv("TITAN_BACKUP_DIR", "/backups"))
+    if not backup_dir.exists() or not backup_dir.is_dir():
+        return None
+
+    newest_file = None
+    newest_mtime = 0.0
+    for child in backup_dir.iterdir():
+        if not child.is_file():
+            continue
+        stat = child.stat()
+        if stat.st_mtime > newest_mtime:
+            newest_mtime = stat.st_mtime
+            newest_file = child
+
+    if newest_file is None:
+        return None
+    return datetime.fromtimestamp(newest_file.stat().st_mtime, tz=timezone.utc).isoformat()
+
+
+async def _get_sales_today() -> float:
+    try:
+        from db.connection import get_pool
+
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            total = await conn.fetchval(
+                """
+                SELECT COALESCE(SUM(total), 0)
+                FROM sales
+                WHERE status = 'completed'
+                  AND DATE("timestamp") = CURRENT_DATE
+                """
+            )
+        return float(total or 0)
+    except Exception as exc:
+        logger.warning("Heartbeat sales query failed (non-fatal): %s", exc)
+        return 0.0
+
+
+async def _build_heartbeat_payload() -> dict | None:
+    control_plane_url = os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/")
+    branch_id_raw = os.getenv("TITAN_BRANCH_ID", "").strip()
+    if not control_plane_url or not branch_id_raw:
+        return None
+
+    try:
+        branch_id = int(branch_id_raw)
+    except ValueError:
+        logger.warning("Invalid TITAN_BRANCH_ID for heartbeat: %s", branch_id_raw)
+        return None
+
+    return {
+        "url": f"{control_plane_url}/api/v1/heartbeat",
+        "payload": {
+            "branch_id": branch_id,
+            "pos_version": runtime_version,
+            "app_version": os.getenv("TITAN_APP_VERSION", runtime_version),
+            "disk_used_pct": round(psutil.disk_usage("/").percent, 2),
+            "sales_today": await _get_sales_today(),
+            "last_backup_at": _get_last_backup_at(),
+            "status": "ok",
+        },
+    }
+
+
+async def _heartbeat_loop() -> None:
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        while True:
+            try:
+                heartbeat = await _build_heartbeat_payload()
+                if heartbeat is None:
+                    return
+                response = await client.post(
+                    heartbeat["url"],
+                    json=heartbeat["payload"],
+                )
+                if response.status_code >= 400:
+                    logger.warning(
+                        "Heartbeat rejected by control-plane: %s %s",
+                        response.status_code,
+                        response.text,
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Heartbeat delivery failed (non-fatal): %s", exc)
+            await asyncio.sleep(_heartbeat_interval_seconds)
 
 # ---------------------------------------------------------------------------
 # Lifespan (event system + auto-migrations)
@@ -23,6 +125,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application):
+    heartbeat_task: asyncio.Task | None = None
+
     # Event bridge (legacy EventBus → DomainEvents)
     try:
         from modules.shared.event_bridge import setup_event_bridge
@@ -48,7 +152,15 @@ async def lifespan(application):
     except Exception as e:
         logger.warning("SAT catalog seed failed (non-fatal): %s", e)
 
+    if os.getenv("CONTROL_PLANE_URL", "").strip() and runtime_branch_id:
+        heartbeat_task = asyncio.create_task(_heartbeat_loop())
+
     yield
+
+    if heartbeat_task is not None:
+        heartbeat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat_task
 
     # Teardown: close asyncpg pool
     try:
@@ -63,11 +175,13 @@ async def lifespan(application):
 # ---------------------------------------------------------------------------
 
 debug = os.getenv("DEBUG", "false").lower() == "true"
+runtime_version = os.getenv("TITAN_VERSION", "2.0.0")
+runtime_branch_id = os.getenv("TITAN_BRANCH_ID", "").strip()
 
 app = FastAPI(
     title="TITAN POS",
     description="API POS Retail",
-    version="2.0.0",
+    version=runtime_version,
     docs_url="/docs" if debug else None,
     redoc_url=None,
     lifespan=lifespan,
@@ -82,19 +196,11 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS
-_cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
-origins = [o.strip() for o in _cors_env if o.strip()]
+origins = _csv_env("CORS_ALLOWED_ORIGINS")
 if not origins:
-    origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-    ]
+    cors_hosts = _csv_env("TITAN_DEV_ALLOWED_ORIGIN_HOSTS") or ["localhost", "127.0.0.1"]
+    cors_ports = _csv_env("TITAN_DEV_ALLOWED_ORIGIN_PORTS") or ["3000", "5173", "5174", "8080"]
+    origins = [f"http://{host}:{port}" for host in cors_hosts for port in cors_ports]
 
 # SECURITY: "null" origin removed — it allows sandboxed/file:// pages to bypass CORS.
 # Electron must handle CORS at the app layer (e.g., via session.webRequest.onBeforeSendHeaders).
@@ -104,7 +210,7 @@ try:
     import socket
     _lan_ip = socket.gethostbyname(socket.gethostname())
     if not _lan_ip.startswith("127."):
-        for _p in (3000, 5173, 5174, 8080):
+        for _p in _csv_env("TITAN_DEV_ALLOWED_ORIGIN_PORTS") or ["3000", "5173", "5174", "8080"]:
             _o = f"http://{_lan_ip}:{_p}"
             if _o not in origins:
                 origins.append(_o)
@@ -182,6 +288,30 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+
+class LicenseEnforcementMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        from modules.shared.license_state import should_block_request
+
+        blocked, state = should_block_request(request.url.path, request.method)
+        if blocked:
+            return JSONResponse(
+                status_code=402,
+                content={
+                    "success": False,
+                    "detail": state.get("message") or "Licencia vencida o inválida",
+                    "data": state,
+                },
+            )
+
+        response = await call_next(request)
+        if state.get("present"):
+            response.headers["X-Titan-License-Status"] = str(state.get("effective_status") or "unknown")
+        return response
+
+
+app.add_middleware(LicenseEnforcementMiddleware)
+
 # ---------------------------------------------------------------------------
 # Module routers
 # ---------------------------------------------------------------------------
@@ -201,6 +331,8 @@ from modules.remote.routes import router as remote_router
 from modules.sat.routes import router as sat_router
 from modules.fiscal.routes import router as fiscal_router
 from modules.hardware.routes import router as hardware_router
+from modules.shared.license_routes import router as license_router
+from modules.system.routes import router as system_router
 
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(customers_router, prefix="/api/v1/customers", tags=["customers"])
@@ -217,6 +349,8 @@ app.include_router(remote_router, prefix="/api/v1/remote", tags=["remote"])
 app.include_router(sat_router, prefix="/api/v1/sat", tags=["sat"])
 app.include_router(fiscal_router, prefix="/api/v1/fiscal", tags=["fiscal"])
 app.include_router(hardware_router, prefix="/api/v1/hardware", tags=["hardware"])
+app.include_router(license_router, prefix="/api/v1/license", tags=["license"])
+app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
 
 # ---------------------------------------------------------------------------
 # Health check
@@ -225,15 +359,26 @@ app.include_router(hardware_router, prefix="/api/v1/hardware", tags=["hardware"]
 
 @app.get("/health", tags=["system"])
 async def health_check():
+    """Health check for load balancers. Does not log stack traces to avoid leaking internals."""
     try:
         from db.connection import get_pool
         pool = await get_pool()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        return {"success": True, "data": {"status": "healthy", "service": "titan-pos"}}
-    except Exception:
-        logger.exception("Health check: DB unreachable")
-        raise HTTPException(status_code=503, detail="Database unreachable")
+        return {
+            "success": True,
+            "data": {
+                "status": "healthy",
+                "service": "titan-pos",
+                "version": app.version,
+                "branch_id": runtime_branch_id or None,
+                "os_platform": sys.platform,
+            },
+        }
+    except Exception as e:
+        if debug:
+            logger.warning("Health check failed: %s", e)
+        raise HTTPException(status_code=503, detail="Service unavailable")
 
 
 # ---------------------------------------------------------------------------

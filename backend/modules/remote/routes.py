@@ -18,8 +18,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
 from modules.shared.constants import PRIVILEGED_ROLES, money
-from modules.remote.schemas import NotificationCreate, PriceChangeRemote
+from modules.remote.schemas import NotificationCreate, PriceChangeRemote, RemoteSaleCancelRequest
 from modules.hardware.printer import open_drawer as hw_open_drawer
+from modules.sales.routes import perform_sale_cancellation
+from modules.sales.schemas import SaleCancelRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,7 +34,7 @@ async def remote_open_drawer(
 ):
     """Open cash drawer remotely. RBAC: admin/manager/owner."""
     if auth.get("role") not in PRIVILEGED_ROLES:
-        raise HTTPException(status_code=403, detail="Sin permisos para abrir cajon")
+        raise HTTPException(status_code=403, detail="Sin permisos para abrir cajón")
 
     try:
         cfg = await db.fetchrow(
@@ -42,7 +44,7 @@ async def remote_open_drawer(
         cfg = dict(cfg) if cfg else {}
 
         if not cfg.get("cash_drawer_enabled"):
-            raise HTTPException(status_code=400, detail="Cajon no habilitado")
+            raise HTTPException(status_code=400, detail="Cajón no habilitado")
         printer = cfg.get("printer_name", "")
         if not printer:
             raise HTTPException(status_code=400, detail="Impresora no configurada")
@@ -55,7 +57,7 @@ async def remote_open_drawer(
         raise
     except Exception as e:
         logger.error("Remote drawer open error: %s", e)
-        raise HTTPException(status_code=500, detail="Error abriendo cajon")
+        raise HTTPException(status_code=500, detail="Error abriendo cajón")
 
     try:
         await db.execute(
@@ -87,7 +89,7 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
     if not turn:
         return {"success": True, "data": {"active": False, "message": "Sin turno activo"}}
 
-    # Get sales summary for this turn
+    # Get sales summary for this turn (distribute mixed components)
     summary = await db.fetchrow(
         """SELECT
                COUNT(*) as sales_count,
@@ -103,6 +105,12 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
                         ELSE 0
                    END
                ), 0) as card_sales,
+               COALESCE(SUM(
+                   CASE WHEN payment_method = 'transfer' THEN total
+                        WHEN payment_method = 'mixed' THEN COALESCE(mixed_transfer, 0)
+                        ELSE 0
+                   END
+               ), 0) as transfer_sales,
                COALESCE(SUM(total), 0) as total_sales
            FROM sales WHERE turn_id = :tid AND status = 'completed'""",
         {"tid": turn["id"]},
@@ -119,6 +127,7 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
             "sales_count": int(summary["sales_count"]) if summary else 0,
             "cash_sales": money(summary["cash_sales"]) if summary else 0.0,
             "card_sales": money(summary["card_sales"]) if summary else 0.0,
+            "transfer_sales": money(summary["transfer_sales"]) if summary else 0.0,
             "total_sales": money(summary["total_sales"]) if summary else 0.0,
         },
     }
@@ -182,7 +191,7 @@ async def send_notification(
     )
 
     if not row:
-        raise HTTPException(status_code=500, detail="Error al crear notificacion")
+        raise HTTPException(status_code=500, detail="Error al crear notificación")
     return {"success": True, "data": {"id": row["id"], "message": "Notificacion enviada"}}
 
 
@@ -279,6 +288,44 @@ async def remote_change_price(
             "new_price": body.new_price,
         },
     }
+
+
+@router.post("/cancel-sale")
+async def remote_cancel_sale(
+    body: RemoteSaleCancelRequest,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Cancel sale remotely with manager authorization. RBAC: admin/manager/owner."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para cancelar ventas")
+
+    result = await perform_sale_cancellation(
+        body.sale_id,
+        SaleCancelRequest(manager_pin=body.manager_pin, reason=body.reason),
+        auth,
+    )
+
+    try:
+        await db.execute(
+            """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
+               VALUES ('REMOTE_SALE_CANCEL', 'sale', :sale_id, :uid, :details, NOW())""",
+            {
+                "sale_id": body.sale_id,
+                "uid": get_user_id(auth),
+                "details": json.dumps(
+                    {
+                        "reason": body.reason or "Panel remoto",
+                        "source": "remote.cancel-sale",
+                    },
+                    ensure_ascii=True,
+                ),
+            },
+        )
+    except Exception as audit_err:
+        logger.error("Audit log failed for REMOTE_SALE_CANCEL: %s", audit_err)
+
+    return result
 
 
 @router.get("/system-status")

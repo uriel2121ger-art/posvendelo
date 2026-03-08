@@ -1,5 +1,6 @@
-appId: com.electron.app
-productName: electron_pos
+appId: com.titanpos.pos
+productName: TITAN POS
+icon: resources/icon.png
 directories:
   buildResources: build
 files:
@@ -12,7 +13,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: electron_pos
+  executableName: titan-pos
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -33,13 +34,10 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
+  maintainer: TITAN POS
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

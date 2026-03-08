@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react'
 import { useState } from 'react'
-import type { RuntimeConfig } from '../../posApi'
 import {
   calculateSmartLoss,
   suggestOptimalCast,
@@ -11,27 +10,12 @@ import {
   generateShrinkageJustification,
   attachClimateToMerma
 } from '../../posApi'
+import type { FiscalPanelProps } from '../../types/fiscalTypes'
+import { inputCls, btnPrimary, btnSecondary } from '../../utils/styles'
+import { toNumber } from '../../utils/numbers'
 
-export interface FiscalPanelProps {
-  cfg: () => RuntimeConfig
-  busy: boolean
-  wrap: (fn: () => Promise<Record<string, unknown>>) => Promise<void>
-  canAdmin: boolean
-}
-
-const inputCls =
-  'w-full rounded-lg border border-zinc-800 bg-zinc-900/80 py-2 px-3 text-sm font-medium text-zinc-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition placeholder:text-zinc-600'
-const btnPrimary =
-  'flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold text-sm text-white hover:bg-blue-500 transition disabled:opacity-50'
-const btnSecondary =
-  'flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2 font-bold text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50'
-const cardCls = 'rounded-xl border border-zinc-800 bg-zinc-900/50 p-4'
-const labelCls = 'text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2'
-
-function toNumber(value: string): number {
-  const n = Number(value)
-  return Number.isFinite(n) ? n : 0
-}
+const cardCls = 'rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6'
+const labelCls = 'text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2'
 
 export default function FiscalAnalyticsPanel({ cfg, busy, wrap }: FiscalPanelProps): ReactElement {
   const [baseAmount, setBaseAmount] = useState('')
@@ -94,7 +78,7 @@ export default function FiscalAnalyticsPanel({ cfg, busy, wrap }: FiscalPanelPro
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <input
             className={inputCls}
-            placeholder='Items JSON [{"amount": 100}]'
+            placeholder='Artículos JSON [{"amount": 100}]'
             value={batchItems}
             onChange={(e) => setBatchItems(e.target.value)}
           />
@@ -123,12 +107,12 @@ export default function FiscalAnalyticsPanel({ cfg, busy, wrap }: FiscalPanelPro
               )
             }}
           >
-            Varianza batch
+            Varianza por lote
           </button>
         </div>
       </div>
       <div className={cardCls}>
-        <h3 className={labelCls}>Climate Shield</h3>
+        <h3 className={labelCls}>Escudo climático</h3>
         <div className="flex gap-2 flex-wrap mb-3">
           <button
             className={btnSecondary}
@@ -139,7 +123,7 @@ export default function FiscalAnalyticsPanel({ cfg, busy, wrap }: FiscalPanelPro
           </button>
           <input
             className={inputCls + ' max-w-[180px]'}
-            placeholder="Categoría producto"
+            placeholder="Categoría de producto"
             value={climateCategory}
             onChange={(e) => setClimateCategory(e.target.value)}
           />
@@ -161,7 +145,7 @@ export default function FiscalAnalyticsPanel({ cfg, busy, wrap }: FiscalPanelPro
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
           <input
             className={inputCls}
-            placeholder="Nombre producto"
+            placeholder="Nombre de producto"
             value={prodName}
             onChange={(e) => setProdName(e.target.value)}
           />
@@ -199,7 +183,7 @@ export default function FiscalAnalyticsPanel({ cfg, busy, wrap }: FiscalPanelPro
           <input
             className={inputCls + ' max-w-[100px]'}
             type="number"
-            placeholder="Merma ID"
+            placeholder="ID de merma"
             value={mermaId}
             onChange={(e) => setMermaId(e.target.value)}
           />

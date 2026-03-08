@@ -5,15 +5,24 @@ Se ejecutan en un **navegador real** (Chromium), no con scripts que simulan el D
 
 ## Requisitos
 
-1. **Backend** en `http://127.0.0.1:8000`:
+1. **Backend** en la URL configurada en `TITAN_API_URL` o `TITAN_TEST_API_URL`:
+
    ```bash
    cd backend && set -a && source .env && set +a && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
    ```
-2. **Frontend** en modo navegador en `http://localhost:5173`:
+
+2. **Frontend** en modo navegador en la URL configurada en `TITAN_BROWSER_URL` o `E2E_BASE_URL`:
+
    ```bash
    npm run dev:browser
    ```
-3. Usuario de prueba: `admin` / `admin123` (o el que tengas en la BD).
+
+3. Credenciales E2E exportadas:
+
+   ```bash
+   export E2E_USER=<usuario_valido>
+   export E2E_PASS=<password_valido>
+   ```
 
 ## Ejecutar
 
@@ -24,6 +33,28 @@ npm run test:e2e
 # O que Playwright levante el frontend (puerto 5173 libre)
 E2E_START_SERVER=1 npm run test:e2e
 ```
+
+## Ejecutar En Modo Producción
+
+Para validar el artefacto compilado contra el backend desplegado:
+
+```bash
+# 1. Generar build browser de producción
+npm run build:browser
+
+# 2. Servir el build compilado en un origen permitido por CORS
+cd src/renderer/dist-browser && python3 -m http.server 8080
+
+# 3. Ejecutar Playwright contra el build estático y el backend real
+cd ../../..
+E2E_BASE_URL=http://127.0.0.1:8080 \
+E2E_API_URL=http://127.0.0.1:8000 \
+E2E_USER=admin \
+E2E_PASS=admin \
+npx playwright test
+```
+
+Los helpers E2E siembran `titan.baseUrl` y `titan.discoverPorts` antes del login para que los tests no dependan del proxy de desarrollo ni del auto-discovery implícito.
 
 Con navegador visible:
 

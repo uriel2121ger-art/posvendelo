@@ -1,3 +1,10 @@
+import {
+  TITAN_API_URL,
+  TITAN_BROWSER_PORT,
+  TITAN_DISCOVER_HOSTS,
+  TITAN_DISCOVER_PORTS
+} from './runtimeEnv'
+
 export type RuntimeConfig = {
   baseUrl: string
   token: string
@@ -11,13 +18,45 @@ export type SaleSearchFilters = {
   limit?: number
 }
 
+/** Safe localStorage.setItem — silently swallows QuotaExceededError */
+function safeSetItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // QuotaExceededError or SecurityError — degrade gracefully
+    console.warn(`[TITAN] localStorage.setItem("${key}") failed — storage may be full`)
+  }
+}
+
+/** Simple semaphore to limit concurrent API requests and prevent TCP starvation */
+const MAX_CONCURRENT_REQUESTS = 20
+let _activeRequests = 0
+const _requestQueue: Array<() => void> = []
+
+function acquireSlot(): Promise<void> {
+  if (_activeRequests < MAX_CONCURRENT_REQUESTS) {
+    _activeRequests++
+    return Promise.resolve()
+  }
+  return new Promise<void>((resolve) => {
+    _requestQueue.push(() => {
+      _activeRequests++
+      resolve()
+    })
+  })
+}
+
+function releaseSlot(): void {
+  _activeRequests--
+  const next = _requestQueue.shift()
+  if (next) next()
+}
+
 const FALLBACKS: Record<string, string> = {
   products: '/api/v1/products/',
   customers: '/api/v1/customers/',
   inventory: '/api/v1/inventory/'
 }
-
-const _DEFAULT_PORTS = [8000, 8080, 8090, 3000]
 
 function getDiscoverPorts(): number[] {
   try {
@@ -34,7 +73,7 @@ function getDiscoverPorts(): number[] {
   } catch {
     /* use defaults */
   }
-  return _DEFAULT_PORTS
+  return TITAN_DISCOVER_PORTS
 }
 
 export async function autoDiscoverBackend(): Promise<string | null> {
@@ -48,12 +87,12 @@ export async function autoDiscoverBackend(): Promise<string | null> {
     }
   }
   for (const port of getDiscoverPorts()) {
-    for (const host of ['127.0.0.1', 'localhost']) {
+    for (const host of TITAN_DISCOVER_HOSTS) {
       const url = `http://${host}:${port}`
       try {
         const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
         if (r.status === 401 || r.ok) {
-          localStorage.setItem('titan.baseUrl', url)
+          safeSetItem('titan.baseUrl', url)
           return url
         }
       } catch {
@@ -86,17 +125,16 @@ function _isTokenExpired(token: string): boolean {
   }
 }
 
-const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
+const DEFAULT_BASE_URL = TITAN_API_URL
 
 /** En modo navegador (Vite dev puerto 5173) usar '' para que las peticiones pasen por el proxy a 8000. */
 function getEffectiveBaseUrl(saved: string): string {
   if (typeof window === 'undefined') return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
   const origin = window.location.origin
   const isViteDev =
-    window.location.port === '5173' &&
-    (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))
-  const pointsToLocal8000 =
-    saved === 'http://localhost:8000' || saved === 'http://127.0.0.1:8000' || saved === ''
+    window.location.port === TITAN_BROWSER_PORT &&
+    TITAN_DISCOVER_HOSTS.some((host) => origin.startsWith(`http://${host}:`))
+  const pointsToLocal8000 = saved === DEFAULT_BASE_URL || saved === ''
   if (isViteDev && pointsToLocal8000) return ''
   return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
 }
@@ -121,13 +159,9 @@ export function loadRuntimeConfig(): RuntimeConfig {
 }
 
 export function saveRuntimeConfig(cfg: RuntimeConfig): void {
-  try {
-    localStorage.setItem('titan.baseUrl', cfg.baseUrl)
-    localStorage.setItem('titan.token', cfg.token)
-    localStorage.setItem('titan.terminalId', String(cfg.terminalId))
-  } catch {
-    // QuotaExceededError — silently ignore, config stays in memory
-  }
+  safeSetItem('titan.baseUrl', cfg.baseUrl)
+  safeSetItem('titan.token', cfg.token)
+  safeSetItem('titan.terminalId', String(cfg.terminalId))
 }
 
 function headers(cfg: RuntimeConfig): HeadersInit {
@@ -210,6 +244,7 @@ function assertSuccess(body: Record<string, unknown>, fallbackMessage: string): 
 }
 
 async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  await acquireSlot()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -221,14 +256,18 @@ async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): 
       throw new Error('Tiempo de espera agotado. Verifica la conexión al servidor.')
     }
     const msg = err instanceof Error ? err.message : String(err)
-    if (/failed to fetch|network error|load failed/i.test(msg) || err instanceof TypeError) {
+    if (
+      /failed to fetch|network error|load failed|err_cert|ssl|tls|certificate/i.test(msg) ||
+      err instanceof TypeError
+    ) {
       throw new Error(
-        'No se pudo conectar al servidor. Comprueba que el backend esté en marcha (docker compose up -d o uvicorn en puerto 8000). Si ya está en marcha, en Configuración pon la URL del API en http://127.0.0.1:8000.'
+        `No se pudo conectar al servidor. Comprueba que el backend esté en marcha. Si ya está disponible, actualiza la URL del API en Configuración. URL esperada por defecto: ${DEFAULT_BASE_URL}.`
       )
     }
     throw err
   } finally {
     clearTimeout(timeout)
+    releaseSlot()
   }
 }
 
@@ -431,6 +470,51 @@ export async function getSystemInfo(cfg: RuntimeConfig): Promise<Record<string, 
   return (await res.json()) as Record<string, unknown>
 }
 
+export async function getBackupStatus(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/system/status`, { headers: headers(cfg) })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo obtener el estado de respaldos'))
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function listBackups(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/system/backups`, { headers: headers(cfg) })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo listar los respaldos'))
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function buildRestorePlan(
+  cfg: RuntimeConfig,
+  backupFile: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/system/restore-plan`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ backup_file: backupFile })
+  })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo preparar el plan de recuperación'))
+  }
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getLicenseStatus(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/license/status`, { headers: headers(cfg) })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(parseErrorDetail(detail, 'No se pudo obtener el estado de licencia'))
+  }
+  const body = (await res.json()) as Record<string, unknown>
+  assertSuccess(body, 'No se pudo obtener el estado de licencia')
+  return body
+}
+
 // ── Turnos ────────────────────────────────────────
 
 export async function openTurn(
@@ -443,6 +527,7 @@ export async function openTurn(
     body: JSON.stringify({
       initial_cash: body.initial_cash,
       branch_id: body.branch_id ?? 1,
+      terminal_id: cfg.terminalId,
       notes: body.notes || undefined
     })
   })
@@ -730,6 +815,37 @@ export async function getPendingNotifications(
   return (await res.json()) as Record<string, unknown>
 }
 
+export async function getPairQrPayload(
+  cfg: RuntimeConfig,
+  branchId: number,
+  terminalId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(
+    `${cfg.baseUrl}/api/v1/auth/pair-qr?branch_id=${branchId}&terminal_id=${terminalId}`,
+    { headers: headers(cfg) }
+  )
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error generando payload de vinculación'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function getPairedDevices(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/auth/devices`, { headers: headers(cfg) })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando dispositivos vinculados'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function revokePairedDevice(
+  cfg: RuntimeConfig,
+  pairingId: number
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/auth/devices/${pairingId}`, {
+    method: 'DELETE',
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error revocando dispositivo'))
+  return (await res.json()) as Record<string, unknown>
+}
+
 // ── Dashboard Extendido ───────────────────────────
 
 export async function getDashboardResico(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
@@ -744,7 +860,7 @@ export async function getDashboardWealth(cfg: RuntimeConfig): Promise<Record<str
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/wealth`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando Wealth'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando patrimonio'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -752,7 +868,7 @@ export async function getDashboardAI(cfg: RuntimeConfig): Promise<Record<string,
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/ai`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando AI'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando IA'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -760,7 +876,7 @@ export async function getDashboardExecutive(cfg: RuntimeConfig): Promise<Record<
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/dashboard/executive`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando Executive'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando vista ejecutiva'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -768,16 +884,31 @@ export async function getDashboardExecutive(cfg: RuntimeConfig): Promise<Record<
 
 export async function cancelSale(
   cfg: RuntimeConfig,
-  saleId: string
+  saleId: string,
+  body: { manager_pin: string; reason?: string }
 ): Promise<Record<string, unknown>> {
   const res = await apiFetchLong(
     `${cfg.baseUrl}/api/v1/sales/${encodeURIComponent(saleId)}/cancel`,
     {
       method: 'POST',
-      headers: headers(cfg)
+      headers: headers(cfg),
+      body: JSON.stringify(body)
     }
   )
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function remoteCancelSale(
+  cfg: RuntimeConfig,
+  body: { sale_id: number; manager_pin: string; reason?: string }
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/remote/cancel-sale`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta remotamente'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -925,7 +1056,7 @@ export async function getCustomerCredit(
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/customers/${customerId}/credit`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando credito'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando crédito'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -949,7 +1080,7 @@ export async function getProductCategories(cfg: RuntimeConfig): Promise<Record<s
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/products/categories/list`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando categorias'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando categorías'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1069,7 +1200,9 @@ export async function getSalesPendingInvoice(
     { headers: headers(cfg) }
   )
   if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error listando ventas pendientes de factura'))
+    throw new Error(
+      parseErrorDetail(await res.text(), 'Error listando ventas pendientes de factura')
+    )
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1095,7 +1228,7 @@ export async function processReturn(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error procesando devolucion'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error procesando devolución'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1128,7 +1261,7 @@ export async function parseXML(cfg: RuntimeConfig, file: File): Promise<Record<s
     },
     body: formData
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error parseando XML'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error al procesar XML'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1137,7 +1270,7 @@ export async function runAudit(cfg: RuntimeConfig): Promise<Record<string, unkno
     method: 'POST',
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error ejecutando auditoria'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error ejecutando auditoría'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1244,7 +1377,7 @@ export async function createGhostWallet(
     headers: headers(cfg),
     body: JSON.stringify(seed ? { seed } : {})
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando wallet'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando billetera'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1278,7 +1411,8 @@ export async function getWalletStats(cfg: RuntimeConfig): Promise<Record<string,
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/wallet/stats`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando stats wallet'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando estadísticas de billetera'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1300,7 +1434,8 @@ export async function createExtractionPlan(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error creando plan extracción'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error creando plan de extracción'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1318,7 +1453,7 @@ export async function getCryptoAvailable(cfg: RuntimeConfig): Promise<Record<str
     headers: headers(cfg)
   })
   if (!res.ok)
-    throw new Error(parseErrorDetail(await res.text(), 'Error cargando crypto disponible'))
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando criptomoneda disponible'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1331,7 +1466,8 @@ export async function convertCrypto(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error convirtiendo crypto'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error convirtiendo criptomoneda'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1339,7 +1475,8 @@ export async function getCryptoWealth(cfg: RuntimeConfig): Promise<Record<string
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/crypto/wealth`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando crypto wealth'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando patrimonio cripto'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1417,7 +1554,7 @@ export async function triggerFakeScreen(
     headers: headers(cfg),
     body: JSON.stringify(body ?? {})
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en fake screen'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en pantalla falsa'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1435,7 +1572,8 @@ export async function getFederationWealth(cfg: RuntimeConfig): Promise<Record<st
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/fiscal/federation/wealth`, {
     headers: headers(cfg)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error dashboard riqueza'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error al cargar panel de riqueza'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1448,7 +1586,7 @@ export async function federationLockdown(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error lockdown'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error en bloqueo de sucursal'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -1461,7 +1599,7 @@ export async function federationRelease(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error release lockdown'))
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error al liberar bloqueo'))
   return (await res.json()) as Record<string, unknown>
 }
 

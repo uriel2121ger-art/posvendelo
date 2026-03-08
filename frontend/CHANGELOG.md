@@ -1,6 +1,20 @@
-# Changelog - electron_pos
+# Changelog - TITAN POS
 
 All notable changes to this workspace are documented in this file.
+
+## 2026-03-05
+
+### Testing
+
+- Inicio de ejecución del Plan de Pruebas Manuales V10 (`docs/PLAN_PRUEBAS_MANUALES_V10.md`).
+- Log de sesión: `docs/LOG_PRUEBAS_MANUALES_V10_2026-03-05.md`.
+- Pruebas ejecutadas en navegador (Cursor IDE Browser) con frontend en `http://localhost:5173` y backend en `localhost:8090`.
+- Cache del navegador reiniciada antes de comenzar (navegación forzada).
+- Fases previstas: 0 (regresión V8), 1–12 y monkey testing; documentación continua en el log.
+- Primera ejecución: login OK, Fase 0.3 (carrito vacío — COBRAR deshabilitado) OK; Fase 0.1 (Empleados) parcial: botón se habilita con nombre+código; crear empleado no completado (revisar URL backend en Ajustes, ej. `http://localhost:8090`).
+- Segunda ejecución (mismo día): BaseUrl configurada a `http://127.0.0.1:8090` en Ajustes; re-login; Fase 1 muestreo: búsqueda de productos OK, agregar al carrito OK, modal de cobro (Efectivo, Recibido $100) y confirmación OK; pestaña Fiscal verificada (formulario CFDI, botón Generar CFDI). Fases 2–12 no ejecutadas caso por caso; documentado en `docs/LOG_PRUEBAS_MANUALES_V10_2026-03-05.md` con recomendaciones para completar el plan.
+- Tercera ejecución (continuación sin saltar ítems): Fase 0 completada: 0.1 Empleados (FALLO crear empleado — botón no clickeable; OK botón habilita con nombre+código; OK código vacío bloqueado), 0.2 Fiscal (OK CFDI folio inexistente + OK EDGE CP 0123), 0.3 Carrito vacío (OK + OK EDGE vaciar 1 item), 0.4 Precisión (OK 16×$100), 0.5 Remoto (OK EDGE cero ventas), 0.6 OMITIDO (localStorage). Fase 1.2 Búsqueda: OK inexistente, OK un carácter, OK caracteres especiales %. LOG exhaustivo actualizado con todos los ítems del plan (Fases 0–12) listados; resumen 14 OK, 1 FALLO, resto OMITIDO para ejecución en sesiones dedicadas.
+- Cuarta ejecución (continuación): Login, Continuar turno. 1.2: OK búsqueda vacía (espacios), OK solo números, OK "agua". 1.3: OK mismo producto varias veces (cantidad 2, una línea). 1.1: OK venta efectivo + cambio (2× Papas $100, Recibido $150); OK VARIANTE monto insuficiente (Total $100, Recibido $80 → no venta, mensaje). Resumen LOG: 20 OK, 1 FALLO.
 
 ## 2026-02-22
 

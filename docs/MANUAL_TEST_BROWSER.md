@@ -8,7 +8,7 @@ Pruebas realizadas **por el agente** en el navegador real (cursor-ide-browser):
 
 | Prueba | Acción | Resultado |
 |--------|--------|-----------|
-| **E2E-1.1** | Login con admin / admin123 → INGRESAR | ✅ Redirige a `#/terminal` |
+| **E2E-1.1** | Login con credenciales válidas de prueba → INGRESAR | ✅ Redirige a `#/terminal` |
 | **E2E-17.1** | Clic en Clientes, Productos, Inventario | ✅ URL cambia a #/clientes, #/productos, #/inventario; contenido de cada pestaña visible |
 | **E2E-17.2** | Navegar a `#/ruta-inexistente-xyz` | ✅ Redirige a `#/terminal` |
 | **E2E-1.5** | Clic en Cerrar sesión → Aceptar en el modal | ✅ Vuelve a `#/login` |
@@ -33,7 +33,7 @@ Para repetir en navegador: `cd frontend && npm run test:e2e` (con backend y fron
 
 - Frontend: `npm run dev:browser` → http://localhost:5173
 - Backend: `cd backend && set -a && source .env && set +a && uvicorn main:app --host 0.0.0.0 --port 8000`
-- Usuario: `admin` / `admin123` (o el que tengas en la BD)
+- Usuario: usa credenciales de prueba válidas definidas en tu entorno
 
 ---
 

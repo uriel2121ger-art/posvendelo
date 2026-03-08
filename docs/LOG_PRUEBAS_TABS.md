@@ -177,3 +177,21 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 ### Ciclo 3 (siguiente pasada)
 
 - **Pendiente:** E2E (`npm run test:e2e`) y monkey/chaos por tab requieren backend + frontend levantados; ejecución manual o en CI. Loop sigue activo: a la siguiente ejecución autónoma se retoma desde Terminal (Ciclo 3) o se profundiza en tests E2E.
+
+### Sesión global: Ruptura / stress / E2E — 2026-03-07
+
+- **Edge cases ejecutados:** flood concurrente backend (`v11`, `v12`), ticket pesado (`v14`), auditoría matemática (`v15`), mega ticket mixto (`v16`), E2E browser con Playwright.
+- **Monkey / chaos:** se reutilizaron scripts agresivos existentes; no se ejecutó `monkey_test.js` porque requiere sesión Electron/DevTools levantada.
+- **Hallazgos:** backend resistente sin `5XX` bajo flood global, pero el login queda temporalmente en `429` tras saturación; E2E falla out-of-the-box por credenciales por defecto incorrectas y dependencia de frontend en `5173`; se detectó discrepancia de `0.01` en IVA para ticket grande.
+- **Correcciones:** ninguna en esta ronda; se priorizó ejecutar, medir y documentar.
+- **Tests nuevos/modificados:** ninguno.
+- **Estado:** Estable con mejoras pendientes. Ver detalle en `docs/LOG_PRUEBAS_RUPTURA_2026-03-07.md`.
+
+### Sesión global: Ruptura profunda / wrappers — 2026-03-07
+
+- **Edge cases ejecutados:** V13 (10k ventas concurrentes), Playwright con `E2E_PASS=admin`, pruebas ad hoc de `release_manifest()` y `dashboard_alerts_send()`.
+- **Monkey / chaos:** no Electron monkey; sí E2E browser con reintentos/fallos reales.
+- **Hallazgos:** V13 también está sesgado por producto sin stock; el spec E2E de campos vacíos está mal planteado para una UI con botón deshabilitado; el spec de navegación busca `Stats` como link visible aunque la UI lo mueve a `Más`; `releases/manifest` puede devolver éxito con `backend = null`; `alerts/send` no degrada bien sin configuración Telegram.
+- **Correcciones:** ninguna en esta pasada.
+- **Tests nuevos/modificados:** ninguno.
+- **Estado:** Pendiente de corrección de tooling y wrappers. Ver detalle en `docs/LOG_PRUEBAS_RUPTURA_2026-03-07.md`.

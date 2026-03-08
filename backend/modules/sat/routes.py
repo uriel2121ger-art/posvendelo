@@ -89,9 +89,9 @@ async def get_sat_code_info(
         description = await get_sat_description(db, code)
         if description:
             return {"success": True, "data": {"code": code, "description": description}}
-        raise HTTPException(status_code=404, detail="Codigo SAT no encontrado")
+        raise HTTPException(status_code=404, detail="Código SAT no encontrado")
     except HTTPException:
         raise
     except Exception as e:
         logger.warning("SAT catalog lookup fallback: %s", e)
-        raise HTTPException(status_code=404, detail="Codigo SAT no encontrado")
+        raise HTTPException(status_code=404, detail="Código SAT no encontrado")

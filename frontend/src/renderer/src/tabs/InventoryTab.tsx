@@ -20,17 +20,14 @@ import {
   getInventoryMovements
 } from '../posApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { toNumber } from '../utils/numbers'
 
 type InventoryRow = {
   id: number
   sku: string
   name: string
   stock: number
-}
-
-function toNumber(value: unknown): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
+  min_stock?: number
 }
 
 function normalizeProduct(raw: Record<string, unknown>): InventoryRow | null {
@@ -38,11 +35,14 @@ function normalizeProduct(raw: Record<string, unknown>): InventoryRow | null {
   const sku = String(raw.sku ?? raw.code ?? '').trim()
   const name = String(raw.name ?? raw.nombre ?? '').trim()
   if (!id || !sku || !name) return null
+  const stock = Math.max(0, Math.floor(toNumber(raw.stock)))
+  const minStock = toNumber(raw.min_stock)
   return {
     id,
     sku,
     name,
-    stock: Math.max(0, Math.floor(toNumber(raw.stock)))
+    stock,
+    ...(minStock > 0 ? { min_stock: minStock } : {})
   }
 }
 
@@ -55,9 +55,7 @@ export default function InventoryTab(): ReactElement {
   const [movementQty, setMovementQty] = useState('1')
   const [movementType, setMovementType] = useState<'in' | 'out' | 'shrinkage' | 'adjust'>('in')
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState(
-    'Inventario (F4): carga y movimientos de entrada/salida funcional.'
-  )
+  const [message, setMessage] = useState('Inventario: gestiona el stock de productos.')
   const requestIdRef = useRef(0)
   const skuInputRef = useRef<HTMLInputElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -84,6 +82,21 @@ export default function InventoryTab(): ReactElement {
     const start = page * PAGE_SIZE
     return filtered.slice(start, start + PAGE_SIZE)
   }, [filtered, page])
+
+  // Rendimiento: alertas derivadas de la lista ya cargada (0 requests al abrir el panel)
+  const localLowStock = useMemo(
+    () =>
+      rows
+        .filter(
+          (r) =>
+            r.stock <= 0 ||
+            (typeof r.min_stock === 'number' && r.min_stock > 0 && r.stock <= r.min_stock)
+        )
+        .map((r) => ({ sku: r.sku, name: r.name, stock: r.stock })),
+    [rows]
+  )
+  // Si el usuario pulsó Refrescar y la API devolvió datos, usarlos; si no, datos locales
+  const alertsToShow = alerts.length > 0 ? alerts : localLowStock
 
   useEffect(() => {
     setPage(0)
@@ -161,7 +174,9 @@ export default function InventoryTab(): ReactElement {
           : movementType === 'adjust'
             ? 'ajuste'
             : 'salida'
-    const confirmQty = isAdjust ? `${signed >= 0 ? '+' : ''}${signed}` : `${typeLabel} de ${Math.abs(signed)}`
+    const confirmQty = isAdjust
+      ? `${signed >= 0 ? '+' : ''}${signed}`
+      : `${typeLabel} de ${Math.abs(signed)}`
     if (
       !(await confirm(`¿Aplicar ${confirmQty} unidades a ${targetSku}?`, {
         variant: 'warning',
@@ -272,7 +287,7 @@ export default function InventoryTab(): ReactElement {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-10 pr-3 text-sm font-medium focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-zinc-600"
-              placeholder="Buscar por SKU o Nombre para consultar..."
+              placeholder="Buscar por SKU o nombre..."
               value={query}
               // eslint-disable-next-line no-control-regex
               onChange={(e) => setQuery(e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, ''))}
@@ -294,7 +309,10 @@ export default function InventoryTab(): ReactElement {
 
           <div className="flex bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden p-1">
             <button
-              onClick={() => (showAlerts ? setShowAlerts(false) : void loadAlerts())}
+              onClick={() => {
+                if (showAlerts) setShowAlerts(false)
+                else setShowAlerts(true)
+              }}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${showAlerts ? 'bg-amber-500/20 text-amber-500' : 'hover:bg-zinc-800 text-zinc-400'}`}
             >
               <AlertCircle className="w-3.5 h-3.5" />
@@ -330,24 +348,34 @@ export default function InventoryTab(): ReactElement {
                 </button>
               </div>
               <div className="max-h-40 overflow-y-auto p-6">
-                {alerts.length === 0 ? (
-                  <p className="text-zinc-500 text-sm">No hay productos con stock bajo o agotado. Haz clic en Refrescar para actualizar.</p>
+                {alertsToShow.length === 0 ? (
+                  <p className="text-zinc-500 text-sm">
+                    No hay productos con stock bajo o agotado. Pulsa Sincronizar para actualizar la
+                    lista.
+                  </p>
                 ) : (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                    {alerts.map((a, i) => (
-                      <div
-                        key={i}
-                        className="flex justify-between items-center rounded-lg bg-zinc-950/80 px-4 py-3 border border-zinc-800"
-                      >
-                        <span className="text-zinc-300 truncate pr-2 font-medium">
-                          {String(a.sku ?? a.product_name ?? `#${i}`)}
-                        </span>
-                        <span className="text-rose-400 font-mono font-bold bg-rose-950/50 px-2 py-1 rounded shrink-0">
-                          {String(a.stock ?? a.current_stock ?? '?')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    {alerts.length === 0 && localLowStock.length > 0 && (
+                      <p className="text-amber-500/80 text-xs mb-2">
+                        Según lista cargada. Refrescar para datos del servidor.
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                      {alertsToShow.map((a, i) => (
+                        <div
+                          key={a.sku ?? i}
+                          className="flex justify-between items-center rounded-lg bg-zinc-950/80 px-4 py-3 border border-zinc-800"
+                        >
+                          <span className="text-zinc-300 truncate pr-2 font-medium">
+                            {String(a.sku ?? a.product_name ?? a.name ?? `#${i}`)}
+                          </span>
+                          <span className="text-rose-400 font-mono font-bold bg-rose-950/50 px-2 py-1 rounded shrink-0">
+                            {String(a.stock ?? a.current_stock ?? '?')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -411,7 +439,11 @@ export default function InventoryTab(): ReactElement {
                             <span
                               className={`inline-flex px-2 py-1 rounded text-[10px] font-bold uppercase ${String(m.movement_type ?? m.type) === 'IN' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}
                             >
-                              {String(m.movement_type ?? m.type) === 'IN' ? 'Entrada' : String(m.movement_type ?? m.type) === 'OUT' ? 'Salida' : String(m.movement_type ?? m.type ?? '-')}
+                              {String(m.movement_type ?? m.type) === 'IN'
+                                ? 'Entrada'
+                                : String(m.movement_type ?? m.type) === 'OUT'
+                                  ? 'Salida'
+                                  : String(m.movement_type ?? m.type ?? '-')}
                             </span>
                           </td>
                           <td className="px-4 py-2 text-sm font-mono font-bold text-zinc-300 text-right">
@@ -638,7 +670,9 @@ export default function InventoryTab(): ReactElement {
               {/* Quantity */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
-                  {movementType === 'adjust' ? 'CANTIDAD (± ENTRADA O SALIDA)' : 'CANTIDAD A APLICAR'}
+                  {movementType === 'adjust'
+                    ? 'CANTIDAD (± ENTRADA O SALIDA)'
+                    : 'CANTIDAD A APLICAR'}
                 </label>
                 <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-inner">
                   <button

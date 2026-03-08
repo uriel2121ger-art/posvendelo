@@ -11,11 +11,12 @@ import logging
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
 from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.terminal_context import get_requested_terminal_id
 from modules.shared.turn_service import calculate_turn_summary
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
 
@@ -26,6 +27,7 @@ router = APIRouter()
 @router.post("/open")
 async def open_turn(
     body: TurnOpen,
+    request: Request,
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
@@ -33,30 +35,43 @@ async def open_turn(
     user_id = get_user_id(auth)
     conn = db.connection
 
+    terminal_id = get_requested_terminal_id(request) or body.terminal_id or 1
+
     async with conn.transaction():
         existing = await conn.fetchrow(
-            "SELECT id FROM turns WHERE user_id = $1 AND status = 'open' FOR UPDATE",
+            "SELECT id, terminal_id FROM turns WHERE user_id = $1 AND status = 'open' FOR UPDATE",
             user_id,
         )
         if existing:
+            existing_terminal_id = existing["terminal_id"] or 1
+            if existing_terminal_id != terminal_id:
+                detail = (
+                    f"Ya tienes un turno abierto (ID: {existing['id']}) "
+                    f"en la terminal {existing_terminal_id}"
+                )
+            else:
+                detail = f"Ya tienes un turno abierto (ID: {existing['id']})"
             raise HTTPException(
                 status_code=400,
-                detail=f"Ya tienes un turno abierto (ID: {existing['id']})",
+                detail=detail,
             )
 
         # Usar NOW() de PostgreSQL para start_timestamp (evita bug asyncpg naive/aware en close_turn)
         row = await conn.fetchrow(
             """
-            INSERT INTO turns (user_id, branch_id, initial_cash, status, notes, start_timestamp, synced)
-            VALUES ($1, $2, $3, 'open', $4, NOW(), 0)
-            RETURNING id
+            INSERT INTO turns (user_id, branch_id, terminal_id, initial_cash, status, notes, start_timestamp, synced)
+            VALUES ($1, $2, $3, $4, 'open', $5, NOW(), 0)
+            RETURNING id, terminal_id
             """,
-            user_id, body.branch_id, body.initial_cash, body.notes,
+            user_id, body.branch_id, terminal_id, body.initial_cash, body.notes,
         )
 
     if not row:
         raise HTTPException(status_code=500, detail="Error al abrir turno")
-    return {"success": True, "data": {"id": row["id"], "status": "open"}}
+    return {
+        "success": True,
+        "data": {"id": row["id"], "status": "open", "terminal_id": row["terminal_id"]},
+    }
 
 
 @router.post("/{turn_id}/close")
@@ -131,6 +146,7 @@ async def close_turn(
 async def get_current_turn(
     user_id: Optional[int] = None,
     branch_id: Optional[int] = None,
+    terminal_id: Optional[int] = None,
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
@@ -151,6 +167,10 @@ async def get_current_turn(
     if branch_id:
         sql += " AND branch_id = :bid"
         params["bid"] = branch_id
+
+    if terminal_id:
+        sql += " AND terminal_id = :tid"
+        params["tid"] = terminal_id
 
     sql += " ORDER BY start_timestamp DESC LIMIT 1"
 

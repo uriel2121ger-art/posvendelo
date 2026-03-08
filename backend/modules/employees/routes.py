@@ -85,7 +85,7 @@ async def create_employee(
         {"code": body.employee_code},
     )
     if existing:
-        raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
+        raise HTTPException(status_code=400, detail="Código de empleado ya existe")
 
     hire_date_val = (
         datetime.strptime(body.hire_date, "%Y-%m-%d").date()
@@ -117,7 +117,7 @@ async def create_employee(
     except Exception as e:
         err_str = str(e).lower()
         if "unique" in err_str or "duplicate" in err_str:
-            raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
+            raise HTTPException(status_code=400, detail="Código de empleado ya existe")
         logger.exception("Error creando empleado")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
@@ -164,7 +164,7 @@ async def update_employee(
                 {"code": fields["employee_code"], "id": employee_id},
             )
             if conflict:
-                raise HTTPException(status_code=400, detail="Codigo de empleado ya existe")
+                raise HTTPException(status_code=400, detail="Código de empleado ya existe")
 
         set_parts = [f"{k} = :{k}" for k in fields]
         # Note: employees table has no 'synced' column
@@ -177,7 +177,7 @@ async def update_employee(
             )
         except Exception as e:
             if "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                raise HTTPException(status_code=400, detail="Codigo de empleado duplicado")
+                raise HTTPException(status_code=400, detail="Código de empleado duplicado")
             logger.exception("Error actualizando empleado")
             raise HTTPException(status_code=500, detail="Error interno del servidor")
 
