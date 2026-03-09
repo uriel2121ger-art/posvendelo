@@ -99,6 +99,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Download Linux artifacts
         uses: actions/download-artifact@v4
         with:
@@ -120,8 +126,7 @@ jobs:
 
       - name: Generate distribution manifest
         run: |
-          cd frontend
-          DIST_DIR="../release-artifacts" npm run dist:verify
+          DIST_DIR="release-artifacts" node frontend/scripts/verify-dist-artifacts.mjs
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
