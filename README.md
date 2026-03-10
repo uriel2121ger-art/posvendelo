@@ -108,11 +108,16 @@ make test
 backend/          # FastAPI + asyncpg
   main.py         # Entry point (app factory + routers + lifespan)
   db/             # asyncpg pool + DB wrapper
-  modules/        # 14 modulos de negocio (110 endpoints)
-  tests/          # 181 tests de integración (pytest + asyncio)
-frontend/         # Electron + React + TypeScript
-docs/             # Documentacion del proyecto
-_archive/         # Codigo legacy (rollback)
+  modules/        # Módulos de negocio (auth, sales, turns, remote, etc.)
+  migrations/     # SQL idempotentes (incl. 045 pending_remote_changes)
+  tests/          # Tests de integración (pytest + asyncio)
+frontend/         # Electron + React + TypeScript (app cajeros)
+control-plane/    # API central (bootstrap, licencias, tenants, cloud)
+  db/migrations/  # Schema y migraciones (002 cloud Nube TITAN)
+owner-app/        # PWA/Electron para dueños (monitoreo, sucursales)
+installers/       # Scripts instalación nodo (Linux/Windows)
+docs/             # Documentación del proyecto
+_archive/         # Código legacy (rollback)
 ```
 
 ## Stack
@@ -126,14 +131,16 @@ _archive/         # Codigo legacy (rollback)
 
 | Doc | Contenido |
 | --- | --------- |
+| [CHANGELOG.md](CHANGELOG.md) | Changelog del proyecto (releases y cambios notables) |
+| [docs/INSTRUCCIONES_DISTRIBUCION.md](docs/INSTRUCCIONES_DISTRIBUCION.md) | Cómo publicar una release y distribuir (cajeros, sucursales) |
+| [docs/INSTALACION_EQUIPOS.md](docs/INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos (Release, script, clonado) |
+| [docs/PLAN_NUBE_TITAN.md](docs/PLAN_NUBE_TITAN.md) | Plan Nube TITAN: cuenta opcional, app dueño, sync, comandos remotos |
+| [installers/README.md](installers/README.md) | Instalación Windows/Linux, contrato bootstrap y soporte plug-and-play |
 | [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) | Checklist de seguridad, pip-audit y controles implementados |
-| [docs/INGESTORES_CSV_XML.md](docs/INGESTORES_CSV_XML.md) | Ingestores CSV/XML: productos, clientes, inventario, historial (estado actual y propuestas) |
-| [docs/PARSEAR_XML_FISCAL.md](docs/PARSEAR_XML_FISCAL.md) | Parsear XML (CFDI 4.0): dependencia **defusedxml**, instalación, pruebas |
+| [docs/INGESTORES_CSV_XML.md](docs/INGESTORES_CSV_XML.md) | Ingestores CSV/XML: productos, clientes, inventario, historial |
+| [docs/PARSEAR_XML_FISCAL.md](docs/PARSEAR_XML_FISCAL.md) | Parsear XML (CFDI 4.0): defusedxml, instalación, pruebas |
 | [docs/BUG_PATTERN_ASYNCPG_FECHAS.md](docs/BUG_PATTERN_ASYNCPG_FECHAS.md) | Patrones de bug asyncpg con fechas (DATE/TIMESTAMP) |
 | [docs/DESPUES_DE_DEPLOY.md](docs/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de caché tras deploy |
-| [installers/README.md](installers/README.md) | Instalación Windows/Linux, contrato bootstrap y soporte plug-and-play |
-| [docs/FLUJO_PRUEBAS_AUTONOMO.md](docs/FLUJO_PRUEBAS_AUTONOMO.md) | Flujo autónomo por pestaña (rama `testing/autonomous-tab-validation`): edge cases, monkey, doc, correcciones |
-| [docs/LOG_PRUEBAS_TABS.md](docs/LOG_PRUEBAS_TABS.md) | Log vivo de pruebas por tab (hallazgos, correcciones, tests nuevos) |
 | [docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md](docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md) | Emisión, renovación, activación offline y reinstalación de licencias |
 | [docs/ROLLOUT_UPDATES_Y_ROLLBACK.md](docs/ROLLOUT_UPDATES_Y_ROLLBACK.md) | Publicación de fixes, rollout por canal/sucursal y rollback operativo |
 | [backend/README.md](backend/README.md) | API, tests, dependencias (incl. defusedxml para Parsear XML) |

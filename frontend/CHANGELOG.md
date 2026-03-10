@@ -2,6 +2,29 @@
 
 All notable changes to this workspace are documented in this file.
 
+## 2026-03-10
+
+### Added
+
+- Turnos por terminal: `shiftTypes` con claves de localStorage por `terminalId` (`getCurrentShiftStorageKey`, `getShiftHistoryStorageKey`, `isShiftStorageKey`).
+- Tests unitarios: `shiftTypes.test.ts` (aislamiento por terminal), `expenses-tab.test.tsx` (gastos, turno).
+- ESLint: ignore de `scripts/**/*.mjs` para runners E2E/chaos; corrección `no-useless-escape` en `localAgent.shellQuote` (comillas para shell).
+
+### Changed
+
+- `ShiftStartupModal`, `ShiftsTab`, `Terminal`, `ExpensesTab`: uso consistente de `terminalId` en `readCurrentShift`/`saveCurrentShift`/`readShiftHistory`/`saveShiftHistory`.
+- `posApi.getCurrentTurn`: envío de `terminal_id` en query y cabecera `X-Terminal-Id`.
+- React hooks: dependencias exhaustivas para evitar avisos y comportamientos obsoletos:
+  - `CompanionDevicesTab`: `loadDevices` en `useCallback` con `[canManage]`, y en deps del `useEffect`.
+  - `ShiftsTab`: `runtimeConfig.terminalId` en deps del `useEffect` (focus/storage).
+  - `Terminal`: `config.terminalId` en deps del `useEffect` (refresh shift y poll); `applyTicketSnapshot` con `[activeTicketId, config.terminalId]`; `createNewActiveTicket` con `config.terminalId` y `query`.
+
+### Fixed
+
+- Posible uso de turno/contexto de otra terminal al cambiar de terminal o en multi-caja.
+- Avisos de lint `react-hooks/exhaustive-deps` en CompanionDevicesTab, ShiftsTab y Terminal.
+- Formato Prettier en archivos tocados (main, preload, Login, tests, TopNavbar, tabs).
+
 ## 2026-03-05
 
 ### Testing

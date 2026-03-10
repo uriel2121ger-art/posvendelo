@@ -1,10 +1,18 @@
-# Documentación del proyecto — TITAN POS V2
+# Documentación del proyecto — TITAN POS
 
 Carpeta central de documentación del punto de venta.
 
 ---
 
 ## Índice
+
+### Distribución e instalación
+
+| Documento | Descripción |
+|-----------|--------------|
+| [INSTRUCCIONES_DISTRIBUCION.md](INSTRUCCIONES_DISTRIBUCION.md) | Instrucciones para publicar una release y distribuir a cajeros y sucursales. |
+| [INSTALACION_EQUIPOS.md](INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos: Release (instalador), script de nodo, o clonado. |
+| [PLAN_NUBE_TITAN.md](PLAN_NUBE_TITAN.md) | Plan Nube TITAN: cuenta opcional, app dueño, sincronización y comandos remotos. |
 
 ### Testing (Plan V6)
 
@@ -32,4 +40,4 @@ Carpeta central de documentación del punto de venta.
 
 ---
 
-*Última actualización: documentación de testing V6 consolidada en `docs/`.*
+*Última actualización: documentación de distribución, instalación en equipos y plan Nube TITAN (2026-03-10).*
