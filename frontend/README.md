@@ -61,7 +61,7 @@ npm run verify:go-live
 - Ese archivo lo generan `setup.sh` y los instaladores en `installers/`.
 - Existe un companion MVP reutilizando la UI remota en la ruta `#/companion/remoto` y `#/companion/estadisticas`.
 - El agente local también expone estado de licencia para `Login`, `TopNavbar` y `Ajustes`.
-- Para activación offline y soporte comercial, consulta `../docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md`.
+- Para activación offline y soporte comercial, consulta `../docs/operacion/RUNBOOK_LICENCIAS_Y_SOPORTE.md`.
 
 ## E2E Producción
 
@@ -79,6 +79,6 @@ Notas:
 
 - `GO_NO_GO_PRODUCCION_ELECTRON.md`
 - `ESTADO_MIGRACION_PYQT6_ELECTRON.md`
-- `../docs/RELEASE_CHECKLIST_WINDOWS_LINUX.md`
+- `../docs/distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md`
 - El nombre distribuible esperado ya no debe salir como `electron_pos`, sino como `TITAN POS` / `titan-pos`.
 - `verify:go-live` ahora también exige `resources/icon.png` para evitar builds con icono genérico.

@@ -119,4 +119,4 @@ Tras la instalación, en la máquina del nodo quedan `.env`, `docker-compose.yml
 - **Script Linux (raw):** `https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-titan.sh`
 - **Script Windows (raw):** `https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Titan.ps1`
 
-Para más detalle para quien **recibe** la distribución (instalación en equipo nuevo), ver **`docs/INSTALACION_EQUIPOS.md`**.
+Para más detalle para quien **recibe** la distribución (instalación en equipo nuevo), ver **`docs/distribucion/INSTALACION_EQUIPOS.md`**.

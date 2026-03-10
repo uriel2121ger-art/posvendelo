@@ -1,7 +1,7 @@
 # Log de ejecución — Plan de Pruebas Manuales V10 (exhaustivo)
 
 **Fecha:** 2026-03-05  
-**Plan:** `docs/PLAN_PRUEBAS_MANUALES_V10.md`  
+**Plan:** `docs/testing/PLAN_PRUEBAS_MANUALES_V10.md`  
 **Entorno:** Backend `localhost:8090`, Frontend `http://localhost:5173`  
 **Navegador:** Cursor IDE Browser. Sin saltar ningún ítem.
 

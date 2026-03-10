@@ -40,7 +40,7 @@ pip install -r requirements.txt   # Incluye defusedxml para Parsear XML (Fiscal)
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**Importante:** La funcionalidad **Parsear XML** (Fiscal → Facturación) requiere **defusedxml**. Viene en `requirements.txt`; si instalas solo algunas dependencias, incluye `defusedxml>=0.7.1`. Ver `docs/PARSEAR_XML_FISCAL.md`.
+**Importante:** La funcionalidad **Parsear XML** (Fiscal → Facturación) requiere **defusedxml**. Viene en `requirements.txt`; si instalas solo algunas dependencias, incluye `defusedxml>=0.7.1`. Ver `docs/referencia/PARSEAR_XML_FISCAL.md`.
 
 ## Estructura
 

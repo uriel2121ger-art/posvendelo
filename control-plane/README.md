@@ -159,7 +159,7 @@ curl "http://localhost:9090/api/v1/releases/manifest"
 
 La resolución real del manifest requiere el header de instalación del nodo.
 
-Para rollout y rollback operativo, consulta `../docs/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
+Para rollout y rollback operativo, consulta `../docs/operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
 
 1. Reportar estado de instalacion desde un bootstraper:
 

@@ -23,7 +23,7 @@ El flujo es un **bucle continuo**: se revisa una pestaña, se termina (se deja E
    - Probar flujos principales (casos felices).
    - Edge cases (límites, vacíos, textos largos, caracteres raros, permisos).
    - Monkey / chaos (entradas inesperadas, errores de red si aplica).
-   - Documentar en `docs/LOG_PRUEBAS_TABS.md`: hallazgos, bugs, correcciones, tests nuevos.
+   - Documentar en `docs/testing/LOG_PRUEBAS_TABS.md`: hallazgos, bugs, correcciones, tests nuevos.
    - Corregir bugs y añadir o ampliar pruebas (unitarias, integración, E2E).
 3. **Marcar la pestaña como Estable** en el LOG y **pasar a la siguiente** pestaña del orden.
 4. **Repetir** desde el paso 1 con la nueva pestaña. Al terminar la pestaña 13 (Fiscal), volver a la 1 (Terminal) para el siguiente ciclo, o dar por cerrada la ronda según convenga.
@@ -88,6 +88,6 @@ cd frontend && npm run test:e2e
 ## 5. Reglas para ejecución autónoma
 
 - **Siempre trabajar en la rama** `testing/autonomous-tab-validation`. No hacer merge a `master` sin aprobación explícita.
-- **Actualizar** `docs/LOG_PRUEBAS_TABS.md` en la misma iteración en que se ejecutan pruebas o se corrigen bugs.
+- **Actualizar** `docs/testing/LOG_PRUEBAS_TABS.md` en la misma iteración en que se ejecutan pruebas o se corrigen bugs.
 - **Releer** este flujo y el LOG antes de cada nueva ronda de pruebas para mantener coherencia.
 - Si se encuentra un bug crítico que ya existe en `master`, documentarlo en el LOG; la corrección puede ir en esta rama y luego llevarse a `master` por separado si se desea.

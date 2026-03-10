@@ -44,11 +44,11 @@ Para otros proyectos (CatálogoPro, FacturaMeEsta) ver las plantillas en el inst
 
 Cursor usa `~/.cursor/mcp.json`. En este proyecto tienes una plantilla:
 
-- **`docs/cursor-mcp.json.ejemplo`** — cópiala a `~/.cursor/mcp.json`:
+- **`docs/otros/cursor-mcp.json.ejemplo`** — cópiala a `~/.cursor/mcp.json`:
 
 ```bash
 mkdir -p ~/.cursor
-cp "docs/cursor-mcp.json.ejemplo" ~/.cursor/mcp.json
+cp "docs/otros/cursor-mcp.json.ejemplo" ~/.cursor/mcp.json
 ```
 
 Define en tu entorno (o en `.env` que Cursor cargue) las variables: `TITAN_DATABASE_URL`, `GITHUB_TOKEN`, etc.  
@@ -78,18 +78,18 @@ No instalar: agents duplicados de `~/.claude/agents/`, Figma/Stripe si no los us
 ## Paso 6 — User Rules globales
 
 En Cursor: **Settings → Rules → User Rules**.  
-Pegar el contenido de **`docs/cursor-USER-RULES.txt`** (está en este repo).
+Pegar el contenido de **`docs/otros/cursor-USER-RULES.txt`** (está en este repo).
 
 ---
 
 ## Paso 7 — AGENTS.md global (User-level)
 
 Cursor puede leer `~/.cursor/AGENTS.md` para contexto global.  
-Plantilla en este repo: **`docs/cursor-AGENTS-global.ejemplo.md`**.  
+Plantilla en este repo: **`docs/otros/cursor-AGENTS-global.ejemplo.md`**.  
 Cópiala a tu home:
 
 ```bash
-cp "docs/cursor-AGENTS-global.ejemplo.md" ~/.cursor/AGENTS.md
+cp "docs/otros/cursor-AGENTS-global.ejemplo.md" ~/.cursor/AGENTS.md
 ```
 
 ---
@@ -123,4 +123,4 @@ cp "docs/cursor-AGENTS-global.ejemplo.md" ~/.cursor/AGENTS.md
 
 ---
 
-*Documento de referencia guardado en el repo. Para el checklist de pasos pendientes ver `docs/INSTRUCTIVO_3_CHECKLIST.md`.*
+*Documento de referencia guardado en el repo. Para el checklist de pasos pendientes ver `docs/operacion/INSTRUCTIVO_3_CHECKLIST.md`.*

@@ -38,7 +38,7 @@ Checklist operativo para publicar TITAN POS con apariencia profesional y menor r
 
 1. Configurar secretos reales en `.env` y nunca usar placeholders en producción.
 1. Configurar firma de binarios para Windows con secretos `WIN_CSC_LINK` y `WIN_CSC_KEY_PASSWORD` en GitHub Actions.
-1. Si usarás autofirma propia, documentar y distribuir también el `.cer` de confianza. Ver `docs/AUTOFIRMA_WINDOWS_CONTROLADA.md`.
+1. Si usarás autofirma propia, documentar y distribuir también el `.cer` de confianza. Ver `docs/referencia/AUTOFIRMA_WINDOWS_CONTROLADA.md`.
 1. Si más adelante distribuyes macOS, agregar notarización/firma específica antes de publicar.
 1. Configurar `CP_BOOTSTRAP_PUBLIC_KEY` en el control-plane para pinning de bootstrap.
 1. Verificar que `npm audit` y los checks de release estén limpios antes de publicar.

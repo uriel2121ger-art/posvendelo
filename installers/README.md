@@ -62,7 +62,7 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps
 - La fuente canonica del compose cliente es `installers/shared/docker-compose.client.yml`; el control-plane sirve ese archivo para evitar drift.
 - La ruta Windows soporta instalación asistida: si Docker Desktop no existe, intenta instalarlo con `winget`.
 - Para salida a mercado, el pipeline de release debe validar artefactos, checksums y `dist-manifest.json` antes de publicar.
-- Para pilotos con firma autofirmada, revisa `docs/AUTOFIRMA_WINDOWS_CONTROLADA.md`.
+- Para pilotos con firma autofirmada, revisa `docs/referencia/AUTOFIRMA_WINDOWS_CONTROLADA.md`.
 
 ## Objetivo Plug-And-Play
 

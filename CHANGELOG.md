@@ -13,7 +13,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 - **CHANGELOG.md** (raíz): changelog unificado del proyecto con entrada 1.0.0.
 - **README.md**: estructura actualizada (owner-app, control-plane, migrations); tabla de documentación con enlaces a distribución, instalación y Nube TITAN.
 - **docs/README.md**: índice "Distribución e instalación" (INSTRUCCIONES_DISTRIBUCION, INSTALACION_EQUIPOS, PLAN_NUBE_TITAN).
-- **docs/INSTRUCCIONES_DISTRIBUCION.md**: guía para publicar release y distribuir a cajeros y sucursales.
+- **docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md**: guía para publicar release y distribuir a cajeros y sucursales.
 - **frontend/CHANGELOG.md**: sección 2026-03-10 (turnos por terminal, React hooks, lint).
 
 ---
@@ -39,9 +39,9 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 - **Instaladores**
   - Checklist de instalación limpia pre-lanzamiento en `installers/README.md`.
 - **Documentación**
-  - `docs/PLAN_NUBE_TITAN.md`: plan Nube TITAN (cuenta opcional, app dueño, sync, comandos remotos).
-  - `docs/INSTALACION_EQUIPOS.md`: instalación en equipos nuevos (Release, script, clonado).
-  - `docs/INSTRUCCIONES_DISTRIBUCION.md`: instrucciones para publicar y distribuir (release, cajeros, sucursales).
+  - `docs/distribucion/PLAN_NUBE_TITAN.md`: plan Nube TITAN (cuenta opcional, app dueño, sync, comandos remotos).
+  - `docs/distribucion/INSTALACION_EQUIPOS.md`: instalación en equipos nuevos (Release, script, clonado).
+  - `docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md`: instrucciones para publicar y distribuir (release, cajeros, sucursales).
 
 ### Cambiado
 

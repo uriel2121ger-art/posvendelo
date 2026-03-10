@@ -4,9 +4,9 @@
 
 - [x] **AGENTS.md** en la raíz (Paso 2)
 - [x] **.cursor/rules/** con `fastapi-python.mdc`, `security.mdc`, `git-workflow.mdc` (Paso 4)
-- [x] **docs/cursor-mcp.json.ejemplo** — plantilla MCP (Paso 3)
-- [x] **docs/cursor-AGENTS-global.ejemplo.md** — plantilla AGENTS global (Paso 7)
-- [x] **docs/cursor-USER-RULES.txt** — texto para User Rules (Paso 6)
+- [x] **docs/otros/cursor-mcp.json.ejemplo** — plantilla MCP (Paso 3)
+- [x] **docs/otros/cursor-AGENTS-global.ejemplo.md** — plantilla AGENTS global (Paso 7)
+- [x] **docs/otros/cursor-USER-RULES.txt** — texto para User Rules (Paso 6)
 - [x] **docs/INSTRUCTIVO_3_CURSOR.md** — instructivo de referencia
 
 ---
@@ -25,7 +25,7 @@ cursor --version   # 2.5+
 
 ### 3. User Rules globales
 - Cursor → **Settings → Rules → User Rules**.
-- Pegar el contenido de **docs/cursor-USER-RULES.txt**.
+- Pegar el contenido de **docs/otros/cursor-USER-RULES.txt**.
 
 ### 4. AGENTS.md global
 - **Hecho:** `~/.cursor/AGENTS.md` ya fue creado desde la plantilla del repo.

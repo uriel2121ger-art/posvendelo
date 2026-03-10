@@ -255,7 +255,7 @@ async def parse_cfdi_xml(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Parse a CFDI XML file to extract products. Requires defusedxml (see docs/PARSEAR_XML_FISCAL.md)."""
+    """Parse a CFDI XML file to extract products. Requires defusedxml (see docs/referencia/PARSEAR_XML_FISCAL.md)."""
     if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para parsear XML fiscal")
     if not file.filename or not file.filename.lower().endswith(".xml"):
@@ -278,7 +278,7 @@ async def parse_cfdi_xml(
             if "defusedxml" in str(e).lower():
                 raise HTTPException(
                     status_code=503,
-                    detail="Requisito no cumplido: instalar defusedxml. Ejecuta en backend: pip install -r requirements.txt (ver docs/PARSEAR_XML_FISCAL.md)",
+                    detail="Requisito no cumplido: instalar defusedxml. Ejecuta en backend: pip install -r requirements.txt (ver docs/referencia/PARSEAR_XML_FISCAL.md)",
                 ) from e
             raise
 

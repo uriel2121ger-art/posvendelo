@@ -61,9 +61,9 @@ npm run build:win
 
 No dejes procesos dev activos en `8090` o `5173` mientras validas el runtime productivo.
 Si más adelante habilitas auto-updates del desktop, configura ese proveedor aparte del empaquetado local.
-Antes de publicar a clientes, sigue `docs/RELEASE_CHECKLIST_WINDOWS_LINUX.md`.
-Para soporte comercial y activación offline, usa `docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md`.
-Para rollout de fixes, staging de updates y rollback, usa `docs/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
+Antes de publicar a clientes, sigue `docs/distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md`.
+Para soporte comercial y activación offline, usa `docs/operacion/RUNBOOK_LICENCIAS_Y_SOPORTE.md`.
+Para rollout de fixes, staging de updates y rollback, usa `docs/operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md`.
 
 ### Flujo Plug-And-Play
 
@@ -133,17 +133,17 @@ _archive/         # Código legacy (rollback)
 | Doc | Contenido |
 | --- | --------- |
 | [CHANGELOG.md](CHANGELOG.md) | Changelog del proyecto (releases y cambios notables) |
-| [docs/INSTRUCCIONES_DISTRIBUCION.md](docs/INSTRUCCIONES_DISTRIBUCION.md) | Cómo publicar una release y distribuir (cajeros, sucursales) |
-| [docs/INSTALACION_EQUIPOS.md](docs/INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos (Release, script, clonado) |
-| [docs/PLAN_NUBE_TITAN.md](docs/PLAN_NUBE_TITAN.md) | Plan Nube TITAN: cuenta opcional, app dueño, sync, comandos remotos |
+| [docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md](docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md) | Cómo publicar una release y distribuir (cajeros, sucursales) |
+| [docs/distribucion/INSTALACION_EQUIPOS.md](docs/distribucion/INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos (Release, script, clonado) |
+| [docs/distribucion/PLAN_NUBE_TITAN.md](docs/distribucion/PLAN_NUBE_TITAN.md) | Plan Nube TITAN: cuenta opcional, app dueño, sync, comandos remotos |
 | [installers/README.md](installers/README.md) | Instalación Windows/Linux, contrato bootstrap y soporte plug-and-play |
-| [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) | Checklist de seguridad, pip-audit y controles implementados |
-| [docs/INGESTORES_CSV_XML.md](docs/INGESTORES_CSV_XML.md) | Ingestores CSV/XML: productos, clientes, inventario, historial |
-| [docs/PARSEAR_XML_FISCAL.md](docs/PARSEAR_XML_FISCAL.md) | Parsear XML (CFDI 4.0): defusedxml, instalación, pruebas |
-| [docs/BUG_PATTERN_ASYNCPG_FECHAS.md](docs/BUG_PATTERN_ASYNCPG_FECHAS.md) | Patrones de bug asyncpg con fechas (DATE/TIMESTAMP) |
-| [docs/DESPUES_DE_DEPLOY.md](docs/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de caché tras deploy |
-| [docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md](docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md) | Emisión, renovación, activación offline y reinstalación de licencias |
-| [docs/ROLLOUT_UPDATES_Y_ROLLBACK.md](docs/ROLLOUT_UPDATES_Y_ROLLBACK.md) | Publicación de fixes, rollout por canal/sucursal y rollback operativo |
+| [docs/operacion/SECURITY_CHECKLIST.md](docs/operacion/SECURITY_CHECKLIST.md) | Checklist de seguridad, pip-audit y controles implementados |
+| [docs/referencia/INGESTORES_CSV_XML.md](docs/referencia/INGESTORES_CSV_XML.md) | Ingestores CSV/XML: productos, clientes, inventario, historial |
+| [docs/referencia/PARSEAR_XML_FISCAL.md](docs/referencia/PARSEAR_XML_FISCAL.md) | Parsear XML (CFDI 4.0): defusedxml, instalación, pruebas |
+| [docs/referencia/BUG_PATTERN_ASYNCPG_FECHAS.md](docs/referencia/BUG_PATTERN_ASYNCPG_FECHAS.md) | Patrones de bug asyncpg con fechas (DATE/TIMESTAMP) |
+| [docs/operacion/DESPUES_DE_DEPLOY.md](docs/operacion/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de caché tras deploy |
+| [docs/operacion/RUNBOOK_LICENCIAS_Y_SOPORTE.md](docs/operacion/RUNBOOK_LICENCIAS_Y_SOPORTE.md) | Emisión, renovación, activación offline y reinstalación de licencias |
+| [docs/operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md](docs/operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md) | Publicación de fixes, rollout por canal/sucursal y rollback operativo |
 | [backend/README.md](backend/README.md) | API, tests, dependencias (incl. defusedxml para Parsear XML) |
 | [docs/README.md](docs/README.md) | Índice completo de documentación por categoría |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Cómo contribuir (rama master, tests, docs) |

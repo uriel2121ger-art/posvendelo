@@ -63,7 +63,7 @@ Cualquier consulta que enlace un parámetro a un tipo DATE, por ejemplo:
 - **No** pasar `datetime` ni `str` desde Python para “el momento actual”.
 - En SQL usar **`NOW()`** o **`CURRENT_TIMESTAMP`** para escribir en columnas TIMESTAMP/TIMESTAMPTZ.
 
-Documentación detallada: **`docs/bug-investigation-cierre-turno-500.md`** (cierre de turno, `end_timestamp`, movimientos de caja, etc.).
+Documentación detallada: **`docs/otros/bug-investigation-cierre-turno-500.md`** (cierre de turno, `end_timestamp`, movimientos de caja, etc.).
 
 ---
 
@@ -73,7 +73,7 @@ Documentación detallada: **`docs/bug-investigation-cierre-turno-500.md`** (cier
 |------|------------|
 | asyncpg datetime aware → TIMESTAMP | [asyncpg #138](https://github.com/MagicStack/asyncpg/issues/138) |
 | Tipo TIMESTAMP vs TIMESTAMPTZ en parámetros | [asyncpg #791](https://github.com/MagicStack/asyncpg/issues/791) |
-| Cierre de turno 500 (TIMESTAMP) | `docs/bug-investigation-cierre-turno-500.md` |
+| Cierre de turno 500 (TIMESTAMP) | `docs/otros/bug-investigation-cierre-turno-500.md` |
 | CFDI global / reportes (DATE toordinal) | Este doc + `db/connection.py` (normalización de params) |
 
 ---

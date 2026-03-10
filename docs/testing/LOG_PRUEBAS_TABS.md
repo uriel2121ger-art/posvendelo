@@ -1,6 +1,6 @@
 # Log de pruebas por pestaña (rama testing/autonomous-tab-validation)
 
-Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → terminarla (Estable) → pasar a la siguiente → repetir. Ver `docs/FLUJO_PRUEBAS_AUTONOMO.md`.
+Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → terminarla (Estable) → pasar a la siguiente → repetir. Ver `docs/testing/FLUJO_PRUEBAS_AUTONOMO.md`.
 
 ---
 
@@ -185,7 +185,7 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 - **Hallazgos:** backend resistente sin `5XX` bajo flood global, pero el login queda temporalmente en `429` tras saturación; E2E falla out-of-the-box por credenciales por defecto incorrectas y dependencia de frontend en `5173`; se detectó discrepancia de `0.01` en IVA para ticket grande.
 - **Correcciones:** ninguna en esta ronda; se priorizó ejecutar, medir y documentar.
 - **Tests nuevos/modificados:** ninguno.
-- **Estado:** Estable con mejoras pendientes. Ver detalle en `docs/LOG_PRUEBAS_RUPTURA_2026-03-07.md`.
+- **Estado:** Estable con mejoras pendientes. Ver detalle en `docs/testing/LOG_PRUEBAS_RUPTURA_2026-03-07.md`.
 
 ### Sesión global: Ruptura profunda / wrappers — 2026-03-07
 
@@ -194,4 +194,4 @@ Documento vivo: se actualiza en cada iteración. **Loop:** revisar una tab → t
 - **Hallazgos:** V13 también está sesgado por producto sin stock; el spec E2E de campos vacíos está mal planteado para una UI con botón deshabilitado; el spec de navegación busca `Stats` como link visible aunque la UI lo mueve a `Más`; `releases/manifest` puede devolver éxito con `backend = null`; `alerts/send` no degrada bien sin configuración Telegram.
 - **Correcciones:** ninguna en esta pasada.
 - **Tests nuevos/modificados:** ninguno.
-- **Estado:** Pendiente de corrección de tooling y wrappers. Ver detalle en `docs/LOG_PRUEBAS_RUPTURA_2026-03-07.md`.
+- **Estado:** Pendiente de corrección de tooling y wrappers. Ver detalle en `docs/testing/LOG_PRUEBAS_RUPTURA_2026-03-07.md`.
