@@ -6,6 +6,18 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.0.2] - 2026-03-10
+
+### Documentación
+
+- **CHANGELOG.md** (raíz): changelog unificado del proyecto con entrada 1.0.0.
+- **README.md**: estructura actualizada (owner-app, control-plane, migrations); tabla de documentación con enlaces a distribución, instalación y Nube TITAN.
+- **docs/README.md**: índice "Distribución e instalación" (INSTRUCCIONES_DISTRIBUCION, INSTALACION_EQUIPOS, PLAN_NUBE_TITAN).
+- **docs/INSTRUCCIONES_DISTRIBUCION.md**: guía para publicar release y distribuir a cajeros y sucursales.
+- **frontend/CHANGELOG.md**: sección 2026-03-10 (turnos por terminal, React hooks, lint).
+
+---
+
 ## [1.0.0] - 2026-03-10
 
 ### Añadido
