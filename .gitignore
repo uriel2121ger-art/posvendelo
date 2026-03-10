@@ -77,3 +77,14 @@ titan-client/
 frontend/lint_output.txt
 frontend/audit-report*.json
 frontend/src/renderer/dist-browser/
+
+# Frontend out (Electron build)
+frontend/out/
+
+# Owner-app build
+owner-app/dist/
+
+# Root cache
+__pycache__/
+.pytest_cache/
+

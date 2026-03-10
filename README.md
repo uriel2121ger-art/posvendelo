@@ -116,7 +116,8 @@ control-plane/    # API central (bootstrap, licencias, tenants, cloud)
   db/migrations/  # Schema y migraciones (002 cloud Nube TITAN)
 owner-app/        # PWA/Electron para dueños (monitoreo, sucursales)
 installers/       # Scripts instalación nodo (Linux/Windows)
-docs/             # Documentación del proyecto
+scripts/          # Scripts de utilidad (api_edge_cases, test_fastapi)
+docs/             # Documentación del proyecto (índice en docs/README.md)
 _archive/         # Código legacy (rollback)
 ```
 
@@ -144,3 +145,5 @@ _archive/         # Código legacy (rollback)
 | [docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md](docs/RUNBOOK_LICENCIAS_Y_SOPORTE.md) | Emisión, renovación, activación offline y reinstalación de licencias |
 | [docs/ROLLOUT_UPDATES_Y_ROLLBACK.md](docs/ROLLOUT_UPDATES_Y_ROLLBACK.md) | Publicación de fixes, rollout por canal/sucursal y rollback operativo |
 | [backend/README.md](backend/README.md) | API, tests, dependencias (incl. defusedxml para Parsear XML) |
+| [docs/README.md](docs/README.md) | Índice completo de documentación por categoría |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Cómo contribuir (rama master, tests, docs) |
