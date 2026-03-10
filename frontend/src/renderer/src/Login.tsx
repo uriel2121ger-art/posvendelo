@@ -174,7 +174,8 @@ export default function Login(): ReactElement {
         licenseValidSignature: raw.license?.validSignature !== false,
         desktopUpdateStatus: raw.desktopUpdate?.status ?? 'idle',
         desktopUpdateMessage: raw.desktopUpdate?.message ?? null,
-        desktopUpdateVersion: raw.desktopUpdate?.availableVersion ?? raw.manifest?.artifacts?.app?.version ?? null,
+        desktopUpdateVersion:
+          raw.desktopUpdate?.availableVersion ?? raw.manifest?.artifacts?.app?.version ?? null,
         desktopUpdateError: raw.desktopUpdate?.lastError ?? null,
         desktopUpdateReady: raw.desktopUpdate?.status === 'staged',
         desktopRollbackAvailable: raw.desktopUpdate?.rollbackAvailable === true,
@@ -427,7 +428,9 @@ export default function Login(): ReactElement {
                       />
                       Servidor local
                     </span>
-                    <span className={agentStatus.backendHealthy ? 'text-emerald-400' : 'text-rose-400'}>
+                    <span
+                      className={agentStatus.backendHealthy ? 'text-emerald-400' : 'text-rose-400'}
+                    >
                       {agentStatus.backendHealthy ? 'Saludable' : 'No disponible'}
                     </span>
                   </div>
@@ -438,7 +441,8 @@ export default function Login(): ReactElement {
                   )}
                   {agentStatus.licenseMessage && (
                     <p className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
-                      Estado de licencia disponible. Inicia sesión para revisar el detalle administrativo.
+                      Estado de licencia disponible. Inicia sesión para revisar el detalle
+                      administrativo.
                     </p>
                   )}
                   {agentStatus.controlPlaneUrl && (
@@ -456,7 +460,8 @@ export default function Login(): ReactElement {
                   )}
                   {agentStatus.branchId && (
                     <p className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-300">
-                      Nodo listo para sucursal <span className="font-semibold text-zinc-100">#{agentStatus.branchId}</span>.
+                      Nodo listo para sucursal{' '}
+                      <span className="font-semibold text-zinc-100">#{agentStatus.branchId}</span>.
                     </p>
                   )}
                   {(agentStatus.companionEntryUrl || agentStatus.quickLinks.ownerPortfolio) && (
@@ -486,7 +491,9 @@ export default function Login(): ReactElement {
                         {getUpdateStatusLabel(agentStatus.desktopUpdateStatus)}
                       </p>
                       {agentStatus.desktopUpdateMessage && (
-                        <p className="mt-1 text-xs text-blue-100/90">{agentStatus.desktopUpdateMessage}</p>
+                        <p className="mt-1 text-xs text-blue-100/90">
+                          {agentStatus.desktopUpdateMessage}
+                        </p>
                       )}
                       <div className="mt-2 flex flex-wrap gap-2">
                         {agentStatus.desktopUpdateStatus !== 'staged' && (
@@ -525,11 +532,13 @@ export default function Login(): ReactElement {
                   {agentStatus.backendUpdateAvailable && (
                     <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-cyan-100">
                       <p>
-                        Actualización del servidor local: {agentStatus.backendUpdateVersion ?? '-'} /{' '}
-                        {getUpdateStatusLabel(agentStatus.backendUpdateStatus)}
+                        Actualización del servidor local: {agentStatus.backendUpdateVersion ?? '-'}{' '}
+                        / {getUpdateStatusLabel(agentStatus.backendUpdateStatus)}
                       </p>
                       {agentStatus.backendUpdateMessage && (
-                        <p className="mt-1 text-xs text-cyan-50/90">{agentStatus.backendUpdateMessage}</p>
+                        <p className="mt-1 text-xs text-cyan-50/90">
+                          {agentStatus.backendUpdateMessage}
+                        </p>
                       )}
                       <div className="mt-2">
                         <button
@@ -548,7 +557,8 @@ export default function Login(): ReactElement {
                   {agentStatus.desktopRollbackAvailable && (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100">
                       <p>
-                        Reversión disponible a {agentStatus.desktopRollbackVersion ?? 'versión previa'}.
+                        Reversión disponible a{' '}
+                        {agentStatus.desktopRollbackVersion ?? 'versión previa'}.
                       </p>
                       {agentStatus.desktopRollbackMessage && (
                         <p className="mt-1 text-xs text-amber-50/90">
@@ -604,7 +614,8 @@ export default function Login(): ReactElement {
                   )}
                   {!agentStatus.configLoaded && (
                     <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-300">
-                      El agente local no tiene bootstrap cargado. Revisa `titan-agent.json` o el instalador.
+                      El agente local no tiene bootstrap cargado. Revisa `titan-agent.json` o el
+                      instalador.
                     </p>
                   )}
                   {!agentStatus.backendHealthy && (

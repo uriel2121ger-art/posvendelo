@@ -1,4 +1,6 @@
 import os
+import secrets
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,10 +14,14 @@ from license_service import (
     get_license_public_key_pem,
     upsert_activation,
 )
-from modules.branches.schemas import BranchInstallReportRequest, BranchRegisterRequest
-from security import verify_admin
+from modules.branches.schemas import BranchGenerateLinkCodeRequest, BranchInstallReportRequest, BranchRegisterRequest
+from security import verify_admin, verify_install_token
 
 router = APIRouter()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None, microsecond=0)
 
 
 def _client_compose_template() -> str:
@@ -283,3 +289,56 @@ async def list_offline_branches(
         {"minutes": minutes},
     )
     return {"success": True, "data": rows}
+
+
+@router.post("/generate-link-code")
+async def generate_link_code(
+    body: BranchGenerateLinkCodeRequest,
+    token: dict = Depends(verify_install_token),
+    db=Depends(get_db),
+):
+    branch = await db.fetchrow(
+        """
+        SELECT b.id, b.tenant_id, b.name, b.branch_slug
+        FROM branches b
+        WHERE b.install_token = :install_token
+        LIMIT 1
+        """,
+        {"install_token": token["install_token"]},
+    )
+    if not branch:
+        raise HTTPException(status_code=404, detail="Token de instalación inválido")
+
+    code = secrets.token_hex(4).upper()
+    expires_at = _utc_now() + timedelta(minutes=body.ttl_minutes)
+    await db.execute(
+        """
+        INSERT INTO cloud_link_codes (code, branch_id, tenant_id, purpose, expires_at)
+        VALUES (:code, :branch_id, :tenant_id, :purpose, :expires_at)
+        """,
+        {
+            "code": code,
+            "branch_id": branch["id"],
+            "tenant_id": branch["tenant_id"],
+            "purpose": body.purpose,
+            "expires_at": expires_at,
+        },
+    )
+    await log_audit_event(
+        db,
+        actor="installer",
+        action="branch.generate_link_code",
+        entity_type="branch",
+        entity_id=branch["id"],
+        payload={"purpose": body.purpose, "expires_at": expires_at.isoformat()},
+    )
+    return {
+        "success": True,
+        "data": {
+            "branch_id": branch["id"],
+            "branch_name": branch["name"],
+            "branch_slug": branch["branch_slug"],
+            "code": code,
+            "expires_at": expires_at.isoformat(),
+        },
+    }

@@ -24,32 +24,71 @@ export type ShiftRecord = {
 export const CURRENT_SHIFT_KEY = 'titan.currentShift'
 export const SHIFT_HISTORY_KEY = 'titan.shiftHistory'
 
-export function readCurrentShift(): ShiftRecord | null {
+function normalizeTerminalId(terminalId?: number | null): number {
+  return Math.max(1, Number.parseInt(String(terminalId ?? 1), 10) || 1)
+}
+
+export function getCurrentShiftStorageKey(terminalId?: number | null): string {
+  return `${CURRENT_SHIFT_KEY}.${normalizeTerminalId(terminalId)}`
+}
+
+export function getShiftHistoryStorageKey(terminalId?: number | null): string {
+  return `${SHIFT_HISTORY_KEY}.${normalizeTerminalId(terminalId)}`
+}
+
+export function isShiftStorageKey(key: string | null): boolean {
+  return (
+    key === CURRENT_SHIFT_KEY ||
+    key === SHIFT_HISTORY_KEY ||
+    key?.startsWith(`${CURRENT_SHIFT_KEY}.`) === true ||
+    key?.startsWith(`${SHIFT_HISTORY_KEY}.`) === true
+  )
+}
+
+export function readCurrentShift(expectedTerminalId?: number | null): ShiftRecord | null {
   try {
-    const raw = localStorage.getItem(CURRENT_SHIFT_KEY)
+    const terminalId = normalizeTerminalId(expectedTerminalId)
+    const raw =
+      localStorage.getItem(getCurrentShiftStorageKey(terminalId)) ??
+      localStorage.getItem(CURRENT_SHIFT_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as ShiftRecord
-    return parsed?.status === 'open' ? parsed : null
+    if (parsed?.status !== 'open') return null
+    if (
+      expectedTerminalId != null &&
+      Number.isFinite(expectedTerminalId) &&
+      (parsed.terminalId ?? 1) !== expectedTerminalId
+    ) {
+      return null
+    }
+    return parsed
   } catch {
     return null
   }
 }
 
-export function saveCurrentShift(shift: ShiftRecord | null): void {
+export function saveCurrentShift(shift: ShiftRecord | null, terminalId?: number | null): void {
   try {
+    const effectiveTerminalId = shift?.terminalId ?? normalizeTerminalId(terminalId)
+    const storageKey = getCurrentShiftStorageKey(effectiveTerminalId)
     if (!shift) {
-      localStorage.removeItem(CURRENT_SHIFT_KEY)
+      localStorage.removeItem(storageKey)
+      if (terminalId == null) {
+        localStorage.removeItem(CURRENT_SHIFT_KEY)
+      }
       return
     }
-    localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(shift))
+    localStorage.setItem(storageKey, JSON.stringify(shift))
   } catch {
     // QuotaExceededError — shift stays in memory state only
   }
 }
 
-export function readShiftHistory(): ShiftRecord[] {
+export function readShiftHistory(terminalId?: number | null): ShiftRecord[] {
   try {
-    const raw = localStorage.getItem(SHIFT_HISTORY_KEY)
+    const raw =
+      localStorage.getItem(getShiftHistoryStorageKey(terminalId)) ??
+      localStorage.getItem(SHIFT_HISTORY_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as ShiftRecord[]
     return Array.isArray(parsed) ? parsed : []
@@ -58,9 +97,12 @@ export function readShiftHistory(): ShiftRecord[] {
   }
 }
 
-export function saveShiftHistory(history: ShiftRecord[]): void {
+export function saveShiftHistory(history: ShiftRecord[], terminalId?: number | null): void {
   try {
-    localStorage.setItem(SHIFT_HISTORY_KEY, JSON.stringify(history.slice(0, 100)))
+    localStorage.setItem(
+      getShiftHistoryStorageKey(terminalId),
+      JSON.stringify(history.slice(0, 100))
+    )
   } catch {
     // QuotaExceededError — history stays in memory state only
   }

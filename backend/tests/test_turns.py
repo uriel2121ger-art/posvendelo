@@ -6,19 +6,21 @@ from conftest import (
     BRANCH_ID, TURN_ID, TERMINAL_ID,
 )
 
+TEST_TERMINAL_ID = 91001
+
 
 class TestOpenTurn:
     async def test_open_turn(self, client, admin_token, seed_users):
         r = await client.post(
             "/api/v1/turns/open",
-            headers=auth_header(admin_token),
+            headers={**auth_header(admin_token), "X-Terminal-Id": str(TEST_TERMINAL_ID)},
             json={"initial_cash": 500, "branch_id": BRANCH_ID},
         )
         assert r.status_code == 200
         d = r.json()["data"]
         assert d["status"] == "open"
         assert d["id"] > 0
-        assert d["terminal_id"] == 1
+        assert d["terminal_id"] == TEST_TERMINAL_ID
 
     async def test_open_turn_uses_terminal_from_header(self, client, admin_token, seed_users):
         r = await client.post(
@@ -33,7 +35,7 @@ class TestOpenTurn:
     async def test_open_turn_duplicate(self, client, admin_token, seed_turn):
         r = await client.post(
             "/api/v1/turns/open",
-            headers=auth_header(admin_token),
+            headers={**auth_header(admin_token), "X-Terminal-Id": str(TERMINAL_ID)},
             json={"initial_cash": 500, "branch_id": BRANCH_ID},
         )
         assert r.status_code == 400
@@ -42,11 +44,11 @@ class TestOpenTurn:
     async def test_open_turn_duplicate_reports_terminal(self, client, admin_token, seed_turn):
         r = await client.post(
             "/api/v1/turns/open",
-            headers={**auth_header(admin_token), "X-Terminal-Id": "2"},
+            headers={**auth_header(admin_token), "X-Terminal-Id": str(TEST_TERMINAL_ID + 1)},
             json={"initial_cash": 500, "branch_id": BRANCH_ID},
         )
-        assert r.status_code == 400
-        assert "terminal 1" in r.json()["detail"].lower()
+        assert r.status_code == 200
+        assert r.json()["data"]["terminal_id"] == TEST_TERMINAL_ID + 1
 
 
 class TestCloseTurn:
@@ -138,15 +140,30 @@ class TestGetTurn:
 
     async def test_get_current_turn_filters_by_terminal(self, client, admin_token, seed_turn):
         r = await client.get(
-            "/api/v1/turns/current?terminal_id=1",
+            f"/api/v1/turns/current?terminal_id={TERMINAL_ID}",
             headers=auth_header(admin_token),
         )
         assert r.status_code == 200
         assert r.json()["data"]["id"] == TURN_ID
 
         r_missing = await client.get(
-            "/api/v1/turns/current?terminal_id=2",
+            f"/api/v1/turns/current?terminal_id={TERMINAL_ID + 1}",
             headers=auth_header(admin_token),
+        )
+        assert r_missing.status_code == 200
+        assert r_missing.json()["data"] is None
+
+    async def test_get_current_turn_uses_terminal_header(self, client, admin_token, seed_turn):
+        r = await client.get(
+            "/api/v1/turns/current",
+            headers={**auth_header(admin_token), "X-Terminal-Id": str(TERMINAL_ID)},
+        )
+        assert r.status_code == 200
+        assert r.json()["data"]["id"] == TURN_ID
+
+        r_missing = await client.get(
+            "/api/v1/turns/current",
+            headers={**auth_header(admin_token), "X-Terminal-Id": str(TERMINAL_ID + 1)},
         )
         assert r_missing.status_code == 200
         assert r_missing.json()["data"] is None
@@ -172,6 +189,17 @@ class TestTurnSummary:
         assert "sales_by_method" in d
         assert "expected_cash" in d
         assert d["initial_cash"] == 1000.0
+
+
+class TestTurnTerminalSafety:
+    async def test_close_turn_rejects_mismatched_terminal(self, client, admin_token, seed_turn):
+        r = await client.post(
+            f"/api/v1/turns/{TURN_ID}/close",
+            headers={**auth_header(admin_token), "X-Terminal-Id": str(TERMINAL_ID + 1)},
+            json={"final_cash": 1000},
+        )
+        assert r.status_code == 409
+        assert "no coincide" in r.json()["detail"].lower()
 
 
 class TestCashMovements:

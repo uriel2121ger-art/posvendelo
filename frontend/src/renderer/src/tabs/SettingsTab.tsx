@@ -183,6 +183,11 @@ export default function SettingsTab({
   const [backups, setBackups] = useState<Record<string, unknown>[]>([])
   const [selectedBackup, setSelectedBackup] = useState('')
   const [restorePlan, setRestorePlan] = useState<Record<string, unknown> | null>(null)
+  const [cloudLinkCode, setCloudLinkCode] = useState<{
+    code: string | null
+    branchName: string | null
+    expiresAt: string | null
+  } | null>(null)
 
   // -- Profiles State --
   const [profileName, setProfileName] = useState('')
@@ -447,6 +452,31 @@ export default function SettingsTab({
     }
   }
 
+  const handleGenerateCloudLinkCode = async (): Promise<void> => {
+    const agent = window.api?.agent
+    if (!agent?.generateLinkCode) {
+      showMessage('La vinculación con Nube TITAN requiere el agente local del desktop.', true)
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await agent.generateLinkCode(15)
+      if (result.lastError) {
+        throw new Error(result.lastError)
+      }
+      setCloudLinkCode({
+        code: result.code,
+        branchName: result.branchName,
+        expiresAt: result.expiresAt
+      })
+      showMessage('Código de vinculación Nube TITAN generado.')
+    } catch (error) {
+      showMessage((error as Error).message, true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const tabs: Array<{ id: SettingsTabId; label: string; icon: typeof Server }> = [
     { id: 'server' as const, label: 'Conexión', icon: Server },
     { id: 'business' as const, label: 'Mi negocio', icon: Building2 },
@@ -602,6 +632,41 @@ export default function SettingsTab({
                     </div>
                   </div>
 
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                    <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+                      <Link2 className="w-4 h-4 text-cyan-500" /> Nube TITAN
+                    </h2>
+                    <p className="text-sm text-zinc-500 mb-4">
+                      Genera un código temporal para vincular esta sucursal con la cuenta del dueño
+                      desde la app móvil o desktop.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateCloudLinkCode()}
+                      disabled={busy}
+                      className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-cyan-500 disabled:opacity-50"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Generar código de vinculación
+                    </button>
+                    {cloudLinkCode?.code && (
+                      <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3">
+                        <p className="text-xs uppercase tracking-wider text-cyan-300">
+                          Código actual
+                        </p>
+                        <p className="mt-1 font-mono text-2xl font-bold text-white">
+                          {cloudLinkCode.code}
+                        </p>
+                        <p className="mt-2 text-sm text-zinc-300">
+                          Sucursal: {cloudLinkCode.branchName ?? 'Sucursal actual'}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          Expira: {cloudLinkCode.expiresAt ?? 'sin dato'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Menú desplegable para usuarios avanzados / técnicos */}
                   <div className="border border-zinc-800 rounded-2xl bg-zinc-900/30 overflow-hidden">
                     <button
@@ -706,7 +771,11 @@ export default function SettingsTab({
                           </div>
                         </div>
 
-                        {(systemInfo || lastStatus || backupStatus || backups.length > 0 || restorePlan) && (
+                        {(systemInfo ||
+                          lastStatus ||
+                          backupStatus ||
+                          backups.length > 0 ||
+                          restorePlan) && (
                           <div>
                             <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2 mb-3">
                               <ShieldCheck className="w-4 h-4" /> Diagnósticos
@@ -730,7 +799,9 @@ export default function SettingsTab({
                                       disabled={busy}
                                       className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300 disabled:opacity-50"
                                     >
-                                      <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
+                                      <RefreshCw
+                                        className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`}
+                                      />
                                       Revisar respaldos
                                     </button>
                                     <button
@@ -795,8 +866,11 @@ export default function SettingsTab({
                                       >
                                         <option value="">Selecciona un respaldo</option>
                                         {backups.map((backup, index) => (
-                                          <option key={String(backup.name ?? index)} value={String(backup.name ?? '')}>
-                                            {String(backup.name ?? '-') }
+                                          <option
+                                            key={String(backup.name ?? index)}
+                                            value={String(backup.name ?? '')}
+                                          >
+                                            {String(backup.name ?? '-')}
                                           </option>
                                         ))}
                                       </select>
@@ -804,12 +878,16 @@ export default function SettingsTab({
                                     <div className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
                                       <div className="max-h-48 overflow-auto divide-y divide-zinc-800">
                                         {backups.map((backup, index) => (
-                                          <div key={String(backup.name ?? index)} className="px-4 py-3 text-sm">
+                                          <div
+                                            key={String(backup.name ?? index)}
+                                            className="px-4 py-3 text-sm"
+                                          >
                                             <div className="font-mono text-zinc-200">
                                               {String(backup.name ?? '-')}
                                             </div>
                                             <div className="mt-1 text-xs text-zinc-500">
-                                              {String(backup.modified_at ?? '-')} • {String(backup.size_bytes ?? 0)} bytes
+                                              {String(backup.modified_at ?? '-')} •{' '}
+                                              {String(backup.size_bytes ?? 0)} bytes
                                             </div>
                                           </div>
                                         ))}
@@ -827,8 +905,13 @@ export default function SettingsTab({
                                       <ol className="space-y-2 text-sm text-zinc-300">
                                         {Array.isArray(restorePlan.steps) &&
                                           restorePlan.steps.map((step, index) => (
-                                            <li key={`${index}-${String(step)}`} className="flex gap-2">
-                                              <span className="font-mono text-zinc-500">{index + 1}.</span>
+                                            <li
+                                              key={`${index}-${String(step)}`}
+                                              className="flex gap-2"
+                                            >
+                                              <span className="font-mono text-zinc-500">
+                                                {index + 1}.
+                                              </span>
                                               <span>{String(step)}</span>
                                             </li>
                                           ))}
@@ -840,7 +923,9 @@ export default function SettingsTab({
                                       </h5>
                                       <pre className="overflow-x-auto text-xs font-mono text-blue-300">
                                         {Array.isArray(restorePlan.commands)
-                                          ? restorePlan.commands.map((command) => String(command)).join('\n')
+                                          ? restorePlan.commands
+                                              .map((command) => String(command))
+                                              .join('\n')
                                           : ''}
                                       </pre>
                                     </div>
@@ -849,20 +934,20 @@ export default function SettingsTab({
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {systemInfo && (
-                                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
-                                  <pre className="p-4 text-[10px] font-mono text-emerald-400 overflow-x-auto max-h-40 overflow-y-auto">
-                                    {JSON.stringify(systemInfo, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                              {lastStatus && (
-                                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
-                                  <pre className="p-4 text-[10px] font-mono text-blue-400 overflow-x-auto max-h-40 overflow-y-auto">
-                                    {JSON.stringify(lastStatus, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
+                                {systemInfo && (
+                                  <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
+                                    <pre className="p-4 text-[10px] font-mono text-emerald-400 overflow-x-auto max-h-40 overflow-y-auto">
+                                      {JSON.stringify(systemInfo, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {lastStatus && (
+                                  <div className="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
+                                    <pre className="p-4 text-[10px] font-mono text-blue-400 overflow-x-auto max-h-40 overflow-y-auto">
+                                      {JSON.stringify(lastStatus, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

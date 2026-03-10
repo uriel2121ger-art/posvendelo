@@ -27,21 +27,34 @@ async def _resolve_branch_and_tenant(db, install_token: str) -> dict:
 
 
 async def _resolve_owner_context(db, token: dict) -> dict:
-    if token.get("auth_type") == "owner-session":
+    if token.get("auth_type") in {"owner-session", "cloud-user"}:
         tenant_id = int(token.get("tenant_id") or 0)
         branch_id = int(token.get("branch_id") or 0)
-        if tenant_id <= 0 or branch_id <= 0:
+        if tenant_id <= 0:
             raise HTTPException(status_code=401, detail="Owner session sin contexto válido")
-        row = await db.fetchrow(
-            """
-            SELECT b.id, b.tenant_id, b.name, b.branch_slug, t.name AS tenant_name, t.slug AS tenant_slug
-            FROM branches b
-            JOIN tenants t ON t.id = b.tenant_id
-            WHERE b.id = :branch_id AND b.tenant_id = :tenant_id
-            LIMIT 1
-            """,
-            {"branch_id": branch_id, "tenant_id": tenant_id},
-        )
+        if branch_id > 0:
+            row = await db.fetchrow(
+                """
+                SELECT b.id, b.tenant_id, b.name, b.branch_slug, t.name AS tenant_name, t.slug AS tenant_slug
+                FROM branches b
+                JOIN tenants t ON t.id = b.tenant_id
+                WHERE b.id = :branch_id AND b.tenant_id = :tenant_id
+                LIMIT 1
+                """,
+                {"branch_id": branch_id, "tenant_id": tenant_id},
+            )
+        else:
+            row = await db.fetchrow(
+                """
+                SELECT b.id, b.tenant_id, b.name, b.branch_slug, t.name AS tenant_name, t.slug AS tenant_slug
+                FROM branches b
+                JOIN tenants t ON t.id = b.tenant_id
+                WHERE b.tenant_id = :tenant_id
+                ORDER BY b.name, b.id
+                LIMIT 1
+                """,
+                {"tenant_id": tenant_id},
+            )
         if not row:
             raise HTTPException(status_code=404, detail="Contexto de owner session inválido")
         return row

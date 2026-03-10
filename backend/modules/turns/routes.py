@@ -31,7 +31,7 @@ async def open_turn(
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Open a new turn. Validates no open turn exists for the user (atomic)."""
+    """Open a new turn. Enforce at most one open turn per terminal."""
     user_id = get_user_id(auth)
     conn = db.connection
 
@@ -39,18 +39,27 @@ async def open_turn(
 
     async with conn.transaction():
         existing = await conn.fetchrow(
-            "SELECT id, terminal_id FROM turns WHERE user_id = $1 AND status = 'open' FOR UPDATE",
-            user_id,
+            """
+            SELECT id, user_id, terminal_id
+            FROM turns
+            WHERE status = 'open'
+              AND terminal_id = $1
+            FOR UPDATE
+            """,
+            terminal_id,
         )
         if existing:
             existing_terminal_id = existing["terminal_id"] or 1
-            if existing_terminal_id != terminal_id:
+            if existing["user_id"] != user_id:
+                detail = (
+                    f"La terminal {existing_terminal_id} ya tiene un turno abierto "
+                    f"(ID: {existing['id']}) por otro usuario"
+                )
+            else:
                 detail = (
                     f"Ya tienes un turno abierto (ID: {existing['id']}) "
                     f"en la terminal {existing_terminal_id}"
                 )
-            else:
-                detail = f"Ya tienes un turno abierto (ID: {existing['id']})"
             raise HTTPException(
                 status_code=400,
                 detail=detail,
@@ -78,6 +87,7 @@ async def open_turn(
 async def close_turn(
     turn_id: int,
     body: TurnClose,
+    request: Request,
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
@@ -86,13 +96,24 @@ async def close_turn(
 
     async with conn.transaction():
         turn = await conn.fetchrow(
-            "SELECT id, user_id, initial_cash, status FROM turns WHERE id = $1 FOR UPDATE",
+            "SELECT id, user_id, initial_cash, status, terminal_id FROM turns WHERE id = $1 FOR UPDATE",
             turn_id,
         )
         if not turn:
             raise HTTPException(status_code=404, detail="Turno no encontrado")
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno ya esta cerrado")
+
+        requested_terminal_id = get_requested_terminal_id(request)
+        turn_terminal_id = turn["terminal_id"] or 1
+        if requested_terminal_id is not None and turn_terminal_id != requested_terminal_id:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"El turno {turn_id} pertenece a la terminal {turn_terminal_id} y no "
+                    f"coincide con X-Terminal-Id ({requested_terminal_id})."
+                ),
+            )
 
         # Ownership check: only the turn owner or manager+ can close
         user_id = get_user_id(auth)
@@ -144,6 +165,7 @@ async def close_turn(
 
 @router.get("/current")
 async def get_current_turn(
+    request: Request,
     user_id: Optional[int] = None,
     branch_id: Optional[int] = None,
     terminal_id: Optional[int] = None,
@@ -158,6 +180,8 @@ async def get_current_turn(
             raise HTTPException(status_code=403, detail="Sin permisos para ver turnos de otros usuarios")
         uid = user_id
 
+    effective_terminal_id = terminal_id or get_requested_terminal_id(request)
+
     sql = ("SELECT id, user_id, pos_id, branch_id, terminal_id, start_timestamp,"
            " end_timestamp, initial_cash, final_cash, system_sales, difference,"
            " status, notes, synced, created_at, updated_at, denominations"
@@ -168,9 +192,9 @@ async def get_current_turn(
         sql += " AND branch_id = :bid"
         params["bid"] = branch_id
 
-    if terminal_id:
+    if effective_terminal_id:
         sql += " AND terminal_id = :tid"
-        params["tid"] = terminal_id
+        params["tid"] = effective_terminal_id
 
     sql += " ORDER BY start_timestamp DESC LIMIT 1"
 

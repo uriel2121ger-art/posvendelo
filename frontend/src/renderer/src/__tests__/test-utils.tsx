@@ -33,18 +33,26 @@ export function setAuthToken(token?: string, role = 'admin', user = 'admin'): vo
 /** Limpia todo localStorage de titan (incluye borradores por usuario para evitar fugas entre tests). */
 export function clearAuth(): void {
   const user = localStorage.getItem('titan.user')
+  const prefixes = ['titan.currentShift', 'titan.shiftHistory']
   const keys = [
     'titan.token',
     'titan.role',
     'titan.user',
     'titan.baseUrl',
     'titan.currentShift',
+    'titan.shiftHistory',
     'titan.pendingTickets',
     'titan.activeTickets',
     'titan.terminalId',
     'titan.hwConfig'
   ]
   keys.forEach((k) => localStorage.removeItem(k))
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index)
+    if (key && prefixes.some((prefix) => key.startsWith(`${prefix}.`))) {
+      localStorage.removeItem(key)
+    }
+  }
   if (user) {
     localStorage.removeItem(`titan.pendingTickets.${user}`)
     localStorage.removeItem(`titan.activeTickets.${user}`)

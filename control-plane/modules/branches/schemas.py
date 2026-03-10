@@ -32,3 +32,14 @@ class BranchInstallReportRequest(BaseModel):
             return None
         stripped = value.strip()
         return stripped or None
+
+
+class BranchGenerateLinkCodeRequest(BaseModel):
+    ttl_minutes: int = Field(default=15, ge=5, le=1440)
+    purpose: str = Field(default="branch_link", min_length=2, max_length=64)
+
+    @field_validator("purpose")
+    @classmethod
+    def strip_purpose(cls, value: str) -> str:
+        stripped = value.strip()
+        return stripped or "branch_link"

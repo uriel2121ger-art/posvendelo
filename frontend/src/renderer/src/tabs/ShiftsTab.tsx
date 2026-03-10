@@ -26,8 +26,7 @@ import {
 } from '../posApi'
 import {
   type ShiftRecord,
-  CURRENT_SHIFT_KEY,
-  SHIFT_HISTORY_KEY,
+  isShiftStorageKey,
   readCurrentShift,
   saveCurrentShift,
   readShiftHistory,
@@ -58,9 +57,14 @@ type BackendShiftTotals = {
 }
 
 export default function ShiftsTab(): ReactElement {
+  const runtimeConfig = loadRuntimeConfig()
   const confirm = useConfirm()
-  const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(() => readCurrentShift())
-  const [history, setHistory] = useState<ShiftRecord[]>(() => readShiftHistory())
+  const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(() =>
+    readCurrentShift(runtimeConfig.terminalId)
+  )
+  const [history, setHistory] = useState<ShiftRecord[]>(() =>
+    readShiftHistory(runtimeConfig.terminalId)
+  )
   const [operator, setOperator] = useState('Cajero 1')
   const [openingCash, setOpeningCash] = useState('0')
   const [closingCash, setClosingCash] = useState('0')
@@ -76,10 +80,11 @@ export default function ShiftsTab(): ReactElement {
   const [expectedCash, setExpectedCash] = useState<number | null>(null)
 
   useEffect((): (() => void) => {
-    const refresh = (): void => setCurrentShift(readCurrentShift())
+    const refresh = (): void => setCurrentShift(readCurrentShift(runtimeConfig.terminalId))
     const onStorage = (event: StorageEvent): void => {
-      if (event.key === CURRENT_SHIFT_KEY) refresh()
-      if (event.key === SHIFT_HISTORY_KEY) setHistory(readShiftHistory())
+      if (!isShiftStorageKey(event.key)) return
+      refresh()
+      setHistory(readShiftHistory(runtimeConfig.terminalId))
     }
     window.addEventListener('focus', refresh)
     window.addEventListener('storage', onStorage)
@@ -87,7 +92,7 @@ export default function ShiftsTab(): ReactElement {
       window.removeEventListener('focus', refresh)
       window.removeEventListener('storage', onStorage)
     }
-  }, [])
+  }, [runtimeConfig.terminalId])
 
   // Auto-fetch expected cash from backend when shift is open
   useEffect(() => {
@@ -190,7 +195,7 @@ export default function ShiftsTab(): ReactElement {
         notes: notes.trim()
       }
       setCurrentShift(shift)
-      saveCurrentShift(shift)
+      saveCurrentShift(shift, cfg.terminalId)
       setMessage(`Turno abierto en backend (ID: ${backendId}): ${shift.openedBy}`)
     } catch (error) {
       setMessage((error as Error).message)
@@ -237,10 +242,10 @@ export default function ShiftsTab(): ReactElement {
         notes: notes.trim()
       }
       const nextHistory = [closed, ...history]
-      saveShiftHistory(nextHistory)
+      saveShiftHistory(nextHistory, cfg.terminalId)
       setHistory(nextHistory)
       setCurrentShift(null)
-      saveCurrentShift(null)
+      saveCurrentShift(null, cfg.terminalId)
       setClosingCash('0')
       setNotes('')
       setSelectedShiftId(closed.id)

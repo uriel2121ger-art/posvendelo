@@ -10,6 +10,7 @@ import {
   loadRuntimeConfig,
   saveRuntimeConfig,
   getUserRole,
+  getCurrentTurn,
   getBackupStatus,
   listBackups,
   buildRestorePlan,
@@ -193,7 +194,9 @@ describe('system recovery API helpers', () => {
     expect(body).toEqual({ success: true, data: { backup_count: 2 } })
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/v1/system/status'),
-      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer jwt-xyz' }) })
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer jwt-xyz' })
+      })
     )
   })
 
@@ -229,6 +232,25 @@ describe('system recovery API helpers', () => {
         method: 'POST',
         body: JSON.stringify({ backup_file: 'backup.dump' })
       })
+    )
+  })
+
+  it('consulta turno actual usando terminal_id del runtime', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: { id: 17, status: 'open' } }),
+      text: () => Promise.resolve(''),
+      body: { cancel: () => Promise.resolve() }
+    })
+
+    localStorage.setItem('titan.terminalId', '7')
+    const cfg = loadRuntimeConfig()
+    const body = await getCurrentTurn(cfg)
+    expect(body).toEqual({ id: 17, status: 'open' })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/turns/current?terminal_id=7'),
+      expect.objectContaining({ headers: expect.objectContaining({ 'X-Terminal-Id': '7' }) })
     )
   })
 })

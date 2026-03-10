@@ -22,3 +22,8 @@ class RemoteSaleCancelRequest(BaseModel):
     sale_id: int = Field(..., ge=1)
     manager_pin: str = Field(..., min_length=1, max_length=20)
     reason: Optional[str] = Field(None, max_length=500)
+
+
+class PendingRemoteChangeResolve(BaseModel):
+    approved: bool = Field(...)
+    notes: Optional[str] = Field(None, max_length=500)

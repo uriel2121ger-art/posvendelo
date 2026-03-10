@@ -553,7 +553,10 @@ export async function closeTurn(
 }
 
 export async function getCurrentTurn(cfg: RuntimeConfig): Promise<Record<string, unknown> | null> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/current`, { headers: headers(cfg) })
+  const params = new URLSearchParams({ terminal_id: String(cfg.terminalId) })
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/turns/current?${params.toString()}`, {
+    headers: headers(cfg)
+  })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error del servidor'))
   const body = (await res.json()) as Record<string, unknown> | null
   if (!body || typeof body !== 'object') return null
@@ -815,6 +818,33 @@ export async function getPendingNotifications(
   return (await res.json()) as Record<string, unknown>
 }
 
+export async function getPendingRemoteRequests(
+  cfg: RuntimeConfig
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/remote/requests/pending`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando solicitudes remotas'))
+  return (await res.json()) as Record<string, unknown>
+}
+
+export async function resolvePendingRemoteRequest(
+  cfg: RuntimeConfig,
+  requestId: number,
+  approved: boolean,
+  notes?: string
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/remote/requests/${requestId}/resolve`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ approved, notes: notes || undefined })
+  })
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error resolviendo solicitud remota'))
+  return (await res.json()) as Record<string, unknown>
+}
+
 export async function getPairQrPayload(
   cfg: RuntimeConfig,
   branchId: number,
@@ -824,13 +854,15 @@ export async function getPairQrPayload(
     `${cfg.baseUrl}/api/v1/auth/pair-qr?branch_id=${branchId}&terminal_id=${terminalId}`,
     { headers: headers(cfg) }
   )
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error generando payload de vinculación'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error generando payload de vinculación'))
   return (await res.json()) as Record<string, unknown>
 }
 
 export async function getPairedDevices(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
   const res = await apiFetch(`${cfg.baseUrl}/api/v1/auth/devices`, { headers: headers(cfg) })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando dispositivos vinculados'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cargando dispositivos vinculados'))
   return (await res.json()) as Record<string, unknown>
 }
 
@@ -908,7 +940,8 @@ export async function remoteCancelSale(
     headers: headers(cfg),
     body: JSON.stringify(body)
   })
-  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta remotamente'))
+  if (!res.ok)
+    throw new Error(parseErrorDetail(await res.text(), 'Error cancelando venta remotamente'))
   return (await res.json()) as Record<string, unknown>
 }
 

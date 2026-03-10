@@ -10,21 +10,102 @@ instead of legacy mobile_api.py columns (message, priority, read).
 
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
 from modules.shared.constants import PRIVILEGED_ROLES, money
-from modules.remote.schemas import NotificationCreate, PriceChangeRemote, RemoteSaleCancelRequest
+from modules.remote.schemas import (
+    NotificationCreate,
+    PendingRemoteChangeResolve,
+    PriceChangeRemote,
+    RemoteSaleCancelRequest,
+)
 from modules.hardware.printer import open_drawer as hw_open_drawer
 from modules.sales.routes import perform_sale_cancellation
 from modules.sales.schemas import SaleCancelRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _json_dumps(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=True)
+
+
+def _load_agent_install_context() -> tuple[str | None, str | None]:
+    config_path = Path(os.getenv("TITAN_AGENT_CONFIG_PATH", "")).expanduser()
+    if not config_path.exists():
+        return os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/") or None, None
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/") or None, None
+    control_plane_url = str(payload.get("controlPlaneUrl") or os.getenv("CONTROL_PLANE_URL", "")).strip().rstrip("/")
+    install_token = str(payload.get("installToken") or "").strip()
+    return (control_plane_url or None, install_token or None)
+
+
+async def _ack_control_plane_remote_request(remote_request_id: int, status: str, result: dict) -> None:
+    control_plane_url, install_token = _load_agent_install_context()
+    if not control_plane_url or not install_token:
+        return
+    url = f"{control_plane_url}/api/v1/cloud/node/remote-requests/{remote_request_id}/ack"
+    async with httpx.AsyncClient(timeout=7.0) as client:
+        response = await client.post(
+            url,
+            headers={"X-Install-Token": install_token},
+            json={"status": status, "result": result},
+        )
+        response.raise_for_status()
+
+
+async def _apply_price_change_local(db, auth: dict, *, sku: str, new_price, reason: str | None = None) -> dict:
+    async with db.connection.transaction():
+        product = await db.fetchrow(
+            "SELECT id, name, price FROM products WHERE sku = :sku AND is_active = 1 FOR UPDATE",
+            {"sku": sku},
+        )
+        if not product:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+        old_price = product["price"]
+        await db.execute(
+            "UPDATE products SET price = :price, synced = 0, updated_at = NOW() WHERE id = :id",
+            {"price": new_price, "id": product["id"]},
+        )
+        if new_price != old_price:
+            await db.execute(
+                """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
+                   VALUES (:pid, 'price', :old, :new, :uid, NOW())""",
+                {"pid": product["id"], "old": old_price, "new": new_price, "uid": get_user_id(auth)},
+            )
+
+        details = _json_dumps(
+            {
+                "old_price": float(old_price),
+                "new_price": float(new_price),
+                "reason": reason or "remote.local.apply",
+            }
+        )
+        await db.execute(
+            """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
+               VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, NOW())""",
+            {"pid": product["id"], "uid": get_user_id(auth), "details": details},
+        )
+
+    return {
+        "product_id": product["id"],
+        "product_name": product["name"],
+        "old_price": old_price,
+        "new_price": new_price,
+    }
 
 
 @router.post("/open-drawer")
@@ -243,51 +324,144 @@ async def remote_change_price(
     """Change product price remotely with audit trail. RBAC: admin/manager/owner."""
     if auth.get("role") not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para cambiar precios")
+    result = await _apply_price_change_local(
+        db,
+        auth,
+        sku=body.sku,
+        new_price=body.new_price,
+        reason=body.reason or "PWA Remote v2",
+    )
+    return {"success": True, "data": result}
 
-    async with db.connection.transaction():
-        product = await db.fetchrow(
-            "SELECT id, name, price FROM products WHERE sku = :sku AND is_active = 1 FOR UPDATE",
-            {"sku": body.sku},
+
+@router.get("/requests/pending")
+async def get_pending_remote_requests(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """List pending remote requests that require local confirmation."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para revisar solicitudes remotas")
+    rows = await db.fetch(
+        """
+        SELECT
+            id,
+            remote_request_id,
+            request_type,
+            approval_mode,
+            status,
+            payload,
+            result,
+            notes,
+            requested_at,
+            expires_at,
+            created_at
+        FROM pending_remote_changes
+        WHERE status IN ('pending_confirmation', 'delivered')
+        ORDER BY created_at DESC, id DESC
+        LIMIT 100
+        """
+    )
+    return {"success": True, "data": {"count": len(rows), "requests": rows}}
+
+
+@router.post("/requests/{request_id}/resolve")
+async def resolve_pending_remote_request(
+    request_id: int,
+    body: PendingRemoteChangeResolve,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Approve or reject a remote request pending local confirmation."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para resolver solicitudes remotas")
+
+    conn = db.connection
+    remote_request_id = None
+    final_status = "rejected"
+    result_payload: dict = {}
+
+    async with conn.transaction():
+        existing = await db.fetchrow(
+            """
+            SELECT id, remote_request_id, request_type, status, payload, expires_at
+            FROM pending_remote_changes
+            WHERE id = :id
+            FOR UPDATE
+            """,
+            {"id": request_id},
         )
-        if not product:
-            raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-        old_price = product["price"]  # asyncpg returns Decimal for NUMERIC
-
-        await db.execute(
-            "UPDATE products SET price = :price, synced = 0, updated_at = NOW() WHERE id = :id",
-            {"price": body.new_price, "id": product["id"]},
-        )
-
-        # Price history — compare as Decimal to avoid float imprecision
-        if body.new_price != old_price:
+        if not existing:
+            raise HTTPException(status_code=404, detail="Solicitud remota no encontrada")
+        if existing["status"] not in {"pending_confirmation", "delivered"}:
+            raise HTTPException(status_code=400, detail="La solicitud remota ya fue procesada")
+        if existing.get("expires_at") and existing["expires_at"] < datetime.now(timezone.utc).replace(tzinfo=None):
             await db.execute(
-                """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
-                   VALUES (:pid, 'price', :old, :new, :uid, NOW())""",
-                {"pid": product["id"], "old": old_price, "new": body.new_price, "uid": get_user_id(auth)},
+                """
+                UPDATE pending_remote_changes
+                SET status = 'expired', resolved_at = NOW(), updated_at = NOW()
+                WHERE id = :id
+                """,
+                {"id": request_id},
             )
+            raise HTTPException(status_code=400, detail="La solicitud remota expiró")
 
-        # Audit log
-        details = json.dumps({
-            "old_price": float(old_price),
-            "new_price": float(body.new_price),
-            "reason": body.reason or "PWA Remote v2",
-        })
+        remote_request_id = int(existing["remote_request_id"])
+        if not body.approved:
+            final_status = "rejected"
+            result_payload = {"approved": False, "notes": body.notes or ""}
+        else:
+            payload = existing.get("payload") or {}
+            request_type = str(existing.get("request_type") or "").strip().lower()
+            if request_type in {"update_product_price", "change_price"}:
+                sku = str(payload.get("sku") or payload.get("product_sku") or "").strip()
+                if not sku:
+                    raise HTTPException(status_code=400, detail="La solicitud remota no contiene SKU")
+                if payload.get("new_price") is None:
+                    raise HTTPException(status_code=400, detail="La solicitud remota no contiene nuevo precio")
+                result_payload = await _apply_price_change_local(
+                    db,
+                    auth,
+                    sku=sku,
+                    new_price=payload["new_price"],
+                    reason=body.notes or "Aprobado desde solicitudes remotas",
+                )
+                result_payload["approved"] = True
+                result_payload["notes"] = body.notes or ""
+                final_status = "applied"
+            else:
+                final_status = "failed"
+                result_payload = {
+                    "approved": False,
+                    "notes": body.notes or "",
+                    "error": f"Tipo no soportado localmente: {request_type}",
+                }
+
         await db.execute(
-            """INSERT INTO audit_log (action, entity_type, record_id, user_id, details, timestamp)
-               VALUES ('REMOTE_PRICE_CHANGE', 'product', :pid, :uid, :details, NOW())""",
-            {"pid": product["id"], "uid": get_user_id(auth), "details": details},
+            """
+            UPDATE pending_remote_changes
+            SET
+                status = :status,
+                notes = :notes,
+                result = :result::jsonb,
+                resolved_at = NOW(),
+                updated_at = NOW()
+            WHERE id = :id
+            """,
+            {
+                "id": request_id,
+                "status": final_status,
+                "notes": body.notes,
+                "result": _json_dumps(result_payload),
+            },
         )
 
-    return {
-        "success": True,
-        "data": {
-            "product_id": product["id"],
-            "product_name": product["name"],
-            "old_price": old_price,
-            "new_price": body.new_price,
-        },
-    }
+    try:
+        await _ack_control_plane_remote_request(remote_request_id, final_status, result_payload)
+    except Exception as exc:
+        logger.warning("Control-plane ack failed for remote request %s: %s", remote_request_id, exc)
+
+    return {"success": True, "data": {"status": final_status, "result": result_payload}}
 
 
 @router.post("/cancel-sale")

@@ -18,7 +18,9 @@ const api = {
       ipcRenderer.invoke('agent:get-owner-branch-timeline', branchId),
     getOwnerCommercial: () => ipcRenderer.invoke('agent:get-owner-commercial'),
     getOwnerHealthSummary: () => ipcRenderer.invoke('agent:get-owner-health-summary'),
-    getOwnerAudit: () => ipcRenderer.invoke('agent:get-owner-audit')
+    getOwnerAudit: () => ipcRenderer.invoke('agent:get-owner-audit'),
+    generateLinkCode: (ttlMinutes?: number) =>
+      ipcRenderer.invoke('agent:generate-link-code', ttlMinutes)
   }
 }
 

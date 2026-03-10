@@ -12,9 +12,23 @@ import {
   remoteStockUpdate,
   sendNotification,
   getPendingNotifications,
+  getPendingRemoteRequests,
+  resolvePendingRemoteRequest,
   getUserRole
 } from '../posApi'
-import { Radio, Activity, RefreshCw, DoorOpen, Tag, Send, BellRing, Target, Ban } from 'lucide-react'
+import {
+  Radio,
+  Activity,
+  RefreshCw,
+  DoorOpen,
+  Tag,
+  Send,
+  BellRing,
+  Target,
+  Ban,
+  Check,
+  X
+} from 'lucide-react'
 import { toNumber } from '../utils/numbers'
 import {
   enqueueRemoteAction,
@@ -29,6 +43,10 @@ export default function RemoteTab(): ReactElement {
   const [turnStatus, setTurnStatus] = useState<Record<string, unknown> | null>(null)
   const [liveSales, setLiveSales] = useState<Record<string, unknown>[]>([])
   const [notifications, setNotifications] = useState<Record<string, unknown>[]>([])
+  const [pendingRequests, setPendingRequests] = useState<Record<string, unknown>[]>([])
+  const [pendingRequestsStatus, setPendingRequestsStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'unsupported'
+  >('idle')
   const [queuedActions, setQueuedActions] = useState<QueuedRemoteAction[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('Panel remoto: control y monitoreo en tiempo real.')
@@ -51,6 +69,7 @@ export default function RemoteTab(): ReactElement {
   const [ntTitle, setNtTitle] = useState('')
   const [ntBody, setNtBody] = useState('')
   const [ntType, setNtType] = useState('info')
+  const [requestNotes, setRequestNotes] = useState<Record<number, string>>({})
 
   const loadTurnStatus = useCallback(async (): Promise<void> => {
     try {
@@ -87,6 +106,28 @@ export default function RemoteTab(): ReactElement {
     }
   }, [])
 
+  const loadPendingRequests = useCallback(async (): Promise<void> => {
+    setPendingRequestsStatus('loading')
+    try {
+      const cfg = loadRuntimeConfig()
+      const raw = await getPendingRemoteRequests(cfg)
+      const envelope = (raw.data ?? raw) as Record<string, unknown>
+      const data = (envelope.requests ?? []) as Record<string, unknown>[]
+      setPendingRequests(Array.isArray(data) ? data : [])
+      setPendingRequestsStatus('ready')
+    } catch (error) {
+      const nextMessage = (error as Error).message
+      if (/404|not found/i.test(nextMessage)) {
+        setPendingRequests([])
+        setPendingRequestsStatus('unsupported')
+        setMessage('Este nodo todavía no expone solicitudes remotas pendientes.')
+        return
+      }
+      setPendingRequestsStatus('idle')
+      setMessage(nextMessage)
+    }
+  }, [])
+
   useEffect(() => {
     setQueuedActions(loadQueuedRemoteActions())
     void loadTurnStatus()
@@ -101,7 +142,8 @@ export default function RemoteTab(): ReactElement {
   }, [loadTurnStatus, loadLiveSales, loadNotifications])
 
   function isConnectivityError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
     return (
       message.includes('no se pudo conectar') ||
       message.includes('failed to fetch') ||
@@ -136,11 +178,20 @@ export default function RemoteTab(): ReactElement {
       const cfg = loadRuntimeConfig()
       for (const action of currentQueue) {
         if (action.kind === 'price_change') {
-          await remoteChangePrice(cfg, action.payload as { sku: string; new_price: number; reason: string })
+          await remoteChangePrice(
+            cfg,
+            action.payload as { sku: string; new_price: number; reason: string }
+          )
         } else if (action.kind === 'stock_update') {
-          await remoteStockUpdate(cfg, action.payload as { sku: string; quantity: number; operation: string; reason: string })
+          await remoteStockUpdate(
+            cfg,
+            action.payload as { sku: string; quantity: number; operation: string; reason: string }
+          )
         } else if (action.kind === 'notification') {
-          await sendNotification(cfg, action.payload as { title: string; body: string; notification_type: string })
+          await sendNotification(
+            cfg,
+            action.payload as { title: string; body: string; notification_type: string }
+          )
         }
         setQueuedActions(removeQueuedRemoteAction(action.id))
       }
@@ -311,12 +362,15 @@ export default function RemoteTab(): ReactElement {
     ) {
       return
     }
-    const managerPin = await prompt('Ingresa el PIN de gerente/autorización para confirmar la cancelación.', {
-      title: 'PIN de autorización',
-      placeholder: 'PIN de gerente',
-      confirmText: 'Cancelar venta',
-      variant: 'warning'
-    })
+    const managerPin = await prompt(
+      'Ingresa el PIN de gerente/autorización para confirmar la cancelación.',
+      {
+        title: 'PIN de autorización',
+        placeholder: 'PIN de gerente',
+        confirmText: 'Cancelar venta',
+        variant: 'warning'
+      }
+    )
     if (managerPin == null) return
 
     setBusy(true)
@@ -331,6 +385,38 @@ export default function RemoteTab(): ReactElement {
       setCancelSaleId('')
       setCancelReason('')
       void loadLiveSales()
+    } catch (error) {
+      setMessage((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleResolvePendingRequest(requestId: number, approved: boolean): Promise<void> {
+    const request = pendingRequests.find((item) => Number(item.id) === requestId)
+    if (!request) {
+      setMessage('Solicitud remota no encontrada.')
+      return
+    }
+    if (
+      !(await confirm(
+        `¿${approved ? 'Aprobar' : 'Rechazar'} la solicitud ${String(
+          request.request_type ?? 'remota'
+        )}?`,
+        {
+          variant: approved ? 'warning' : 'danger',
+          title: approved ? 'Aprobar solicitud remota' : 'Rechazar solicitud remota'
+        }
+      ))
+    )
+      return
+
+    setBusy(true)
+    try {
+      const cfg = loadRuntimeConfig()
+      await resolvePendingRemoteRequest(cfg, requestId, approved, requestNotes[requestId])
+      setPendingRequests((prev) => prev.filter((item) => Number(item.id) !== requestId))
+      setMessage(approved ? 'Solicitud remota aplicada.' : 'Solicitud remota rechazada.')
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
@@ -704,6 +790,106 @@ export default function RemoteTab(): ReactElement {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider">
+                    Solicitudes remotas pendientes
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-bold text-amber-400">
+                      {pendingRequests.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void loadPendingRequests()}
+                      disabled={busy || pendingRequestsStatus === 'loading'}
+                      className="inline-flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-300 disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`h-3.5 w-3.5 ${pendingRequestsStatus === 'loading' ? 'animate-spin' : ''}`}
+                      />
+                      Cargar
+                    </button>
+                  </div>
+                </div>
+                {pendingRequestsStatus === 'unsupported' ? (
+                  <p className="text-sm text-zinc-500">
+                    El backend actual no soporta esta bandeja local. La pantalla principal sigue
+                    operativa.
+                  </p>
+                ) : pendingRequestsStatus === 'idle' ? (
+                  <p className="text-sm text-zinc-500">
+                    Carga esta bandeja bajo demanda para evitar ruido en nodos que aún no soportan
+                    solicitudes locales.
+                  </p>
+                ) : pendingRequests.length === 0 ? (
+                  <p className="text-sm text-zinc-500">
+                    No hay solicitudes pendientes de aprobación local.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingRequests.map((request) => {
+                      const requestId = Number(request.id)
+                      const payload =
+                        request.payload && typeof request.payload === 'object'
+                          ? (request.payload as Record<string, unknown>)
+                          : {}
+                      return (
+                        <div
+                          key={requestId}
+                          className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-200">
+                                {String(request.request_type ?? 'solicitud remota')}
+                              </p>
+                              <p className="text-[11px] text-zinc-500">
+                                SKU: {String(payload.sku ?? payload.product_sku ?? '—')} • Nuevo
+                                precio:{' '}
+                                {payload.new_price != null ? `$${String(payload.new_price)}` : '—'}
+                              </p>
+                            </div>
+                            <span className="text-[11px] uppercase tracking-wider text-zinc-500">
+                              {String(request.status ?? 'pending')}
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Notas de aprobación o rechazo"
+                            value={requestNotes[requestId] ?? ''}
+                            onChange={(e) =>
+                              setRequestNotes((prev) => ({ ...prev, [requestId]: e.target.value }))
+                            }
+                            className="mt-3 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600"
+                          />
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleResolvePendingRequest(requestId, false)}
+                              disabled={busy || !canAdmin}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-800 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 disabled:opacity-50"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              Rechazar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleResolvePendingRequest(requestId, true)}
+                              disabled={busy || !canAdmin}
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-800 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Aprobar
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

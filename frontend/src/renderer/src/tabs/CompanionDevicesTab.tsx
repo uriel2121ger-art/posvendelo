@@ -1,8 +1,14 @@
 import type { ReactElement } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link2, RefreshCw, ShieldX, Smartphone } from 'lucide-react'
 
-import { getPairQrPayload, getPairedDevices, getUserRole, loadRuntimeConfig, revokePairedDevice } from '../posApi'
+import {
+  getPairQrPayload,
+  getPairedDevices,
+  getUserRole,
+  loadRuntimeConfig,
+  revokePairedDevice
+} from '../posApi'
 
 export default function CompanionDevicesTab(): ReactElement {
   const cfg = loadRuntimeConfig()
@@ -17,7 +23,7 @@ export default function CompanionDevicesTab(): ReactElement {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('Vincula móviles y controla los dispositivos autorizados.')
 
-  async function loadDevices(): Promise<void> {
+  const loadDevices = useCallback(async (): Promise<void> => {
     if (!canManage) return
     try {
       const raw = await getPairedDevices(loadRuntimeConfig())
@@ -26,11 +32,11 @@ export default function CompanionDevicesTab(): ReactElement {
     } catch (error) {
       setMessage((error as Error).message)
     }
-  }
+  }, [canManage])
 
   useEffect(() => {
     void loadDevices()
-  }, [])
+  }, [loadDevices])
 
   async function handleGenerate(): Promise<void> {
     if (!canPair) {
@@ -39,7 +45,11 @@ export default function CompanionDevicesTab(): ReactElement {
     }
     setLoading(true)
     try {
-      const raw = await getPairQrPayload(loadRuntimeConfig(), Number(branchId) || 1, Number(terminalId) || 1)
+      const raw = await getPairQrPayload(
+        loadRuntimeConfig(),
+        Number(branchId) || 1,
+        Number(terminalId) || 1
+      )
       setPairPayload((raw.data ?? raw) as Record<string, unknown>)
       setMessage('Payload de vinculación generado. Puede usarse para un QR o activación asistida.')
     } catch (error) {
@@ -153,10 +163,12 @@ export default function CompanionDevicesTab(): ReactElement {
                           {String(device.device_name ?? device.device_id ?? '-')}
                         </p>
                         <p className="text-xs text-zinc-500">
-                          {String(device.platform ?? 'plataforma')} • terminal {String(device.terminal_id ?? '-')}
+                          {String(device.platform ?? 'plataforma')} • terminal{' '}
+                          {String(device.terminal_id ?? '-')}
                         </p>
                         <p className="text-[11px] text-zinc-600">
-                          Último visto: {String(device.last_seen ?? device.paired_at ?? '-').slice(0, 19)}
+                          Último visto:{' '}
+                          {String(device.last_seen ?? device.paired_at ?? '-').slice(0, 19)}
                         </p>
                       </div>
                       <button

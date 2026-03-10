@@ -1,13 +1,6 @@
 import { app, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync
-} from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash, createVerify } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -194,6 +187,15 @@ export type OwnerAuditStatus = {
   lastError: string | null
 }
 
+export type BranchLinkCodeStatus = {
+  controlPlaneUrl: string | null
+  branchId: number | null
+  branchName: string | null
+  code: string | null
+  expiresAt: string | null
+  lastError: string | null
+}
+
 type AgentDesktopUpdateState = {
   status: 'idle' | 'available' | 'downloading' | 'staged' | 'applying' | 'error'
   currentVersion: string | null
@@ -252,7 +254,10 @@ function normalizeVersion(value: string | null | undefined): number[] {
     .filter((part) => Number.isFinite(part))
 }
 
-function isVersionGreater(next: string | null | undefined, current: string | null | undefined): boolean {
+function isVersionGreater(
+  next: string | null | undefined,
+  current: string | null | undefined
+): boolean {
   const left = normalizeVersion(next)
   const right = normalizeVersion(current)
   const max = Math.max(left.length, right.length)
@@ -293,7 +298,10 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value)
 }
 
-function verifyLicenseSignature(license: AgentLicenseEnvelope, fallbackKey?: string | null): boolean {
+function verifyLicenseSignature(
+  license: AgentLicenseEnvelope,
+  fallbackKey?: string | null
+): boolean {
   const payload = license.payload
   const signature = license.signature
   const publicKey = license.public_key || fallbackKey
@@ -312,8 +320,7 @@ function buildLicenseMessage(state: AgentLicenseState): string | null {
   if (!state.present) return 'Licencia no configurada'
   if (!state.validSignature) return 'Firma de licencia inválida'
   if (state.effectiveStatus === 'grace') return 'Licencia mensual en gracia'
-  if (state.effectiveStatus === 'expired' && state.licenseType === 'trial')
-    return 'Trial vencido'
+  if (state.effectiveStatus === 'expired' && state.licenseType === 'trial') return 'Trial vencido'
   if (state.effectiveStatus === 'expired') return 'Licencia vencida'
   if (state.effectiveStatus === 'support_expired') return 'Soporte vencido'
   if (state.daysRemaining !== null) return `${state.daysRemaining} día(s) restantes`
@@ -335,16 +342,21 @@ function deriveLicenseState(config: AgentConfig | null): AgentLicenseState {
       message: 'Licencia no configurada'
     }
   }
-  const validSignature = verifyLicenseSignature(license, config?.bootstrap?.bootstrapPublicKey ?? null)
+  const validSignature = verifyLicenseSignature(
+    license,
+    config?.bootstrap?.bootstrapPublicKey ?? null
+  )
   const state: AgentLicenseState = {
     present: true,
     validSignature,
-    licenseType: typeof license.payload.license_type === 'string' ? license.payload.license_type : null,
+    licenseType:
+      typeof license.payload.license_type === 'string' ? license.payload.license_type : null,
     effectiveStatus:
       typeof license.payload.effective_status === 'string'
         ? license.payload.effective_status
         : 'active',
-    validUntil: typeof license.payload.valid_until === 'string' ? license.payload.valid_until : null,
+    validUntil:
+      typeof license.payload.valid_until === 'string' ? license.payload.valid_until : null,
     supportUntil:
       typeof license.payload.support_until === 'string' ? license.payload.support_until : null,
     daysRemaining: daysRemaining(
@@ -413,7 +425,9 @@ function decodeOwnerSessionExpiry(ownerToken: string | null): number | null {
   try {
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
     const padding = '='.repeat((4 - (normalized.length % 4)) % 4)
-    const decoded = JSON.parse(Buffer.from(`${normalized}${padding}`, 'base64').toString('utf8')) as {
+    const decoded = JSON.parse(
+      Buffer.from(`${normalized}${padding}`, 'base64').toString('utf8')
+    ) as {
       exp?: number
     }
     return typeof decoded.exp === 'number' ? decoded.exp : null
@@ -451,9 +465,15 @@ function parseChecksumManifest(content: string, filename: string): string | null
 function inferApplyStrategy(path: string | null): AgentDesktopUpdateState['applyStrategy'] {
   const lower = (path || '').toLowerCase()
   if (lower.endsWith('.appimage')) return 'appimage'
-  if (lower.endsWith('.exe') || lower.endsWith('.msi') || lower.endsWith('.deb') || lower.endsWith('.rpm'))
+  if (
+    lower.endsWith('.exe') ||
+    lower.endsWith('.msi') ||
+    lower.endsWith('.deb') ||
+    lower.endsWith('.rpm')
+  )
     return 'installer'
-  if (lower.endsWith('.zip') || lower.endsWith('.tar.gz') || lower.endsWith('.tgz')) return 'package'
+  if (lower.endsWith('.zip') || lower.endsWith('.tar.gz') || lower.endsWith('.tgz'))
+    return 'package'
   return 'unknown'
 }
 
@@ -555,7 +575,10 @@ export class LocalNodeAgent {
       if (!existsSync(candidate)) continue
       const next = parseJsonFile<AgentConfig>(candidate)
       if (!next) continue
-      const externalLicensePath = join(candidate.replace(/titan-agent\.json$/i, ''), 'titan-license.json')
+      const externalLicensePath = join(
+        candidate.replace(/titan-agent\.json$/i, ''),
+        'titan-license.json'
+      )
       if (existsSync(externalLicensePath)) {
         const externalLicense = parseJsonFile<AgentLicenseEnvelope>(externalLicensePath)
         if (externalLicense?.payload) {
@@ -613,7 +636,8 @@ export class LocalNodeAgent {
 
     const updatesDir = this.desktopUpdatesDir()
     mkdirSync(updatesDir, { recursive: true })
-    const filename = basename(new URL(release.target_ref).pathname) || `titan-pos-${release.version}`
+    const filename =
+      basename(new URL(release.target_ref).pathname) || `titan-pos-${release.version}`
     const destination = join(updatesDir, filename)
     const rollbackExecutablePath = app.isPackaged ? app.getPath('exe') : process.execPath
 
@@ -706,7 +730,11 @@ export class LocalNodeAgent {
       lastError: null
     }
     this.saveDesktopUpdateState()
-    if (process.platform === 'linux' && this.desktopUpdateState.applyStrategy === 'appimage' && app.isPackaged) {
+    if (
+      process.platform === 'linux' &&
+      this.desktopUpdateState.applyStrategy === 'appimage' &&
+      app.isPackaged
+    ) {
       try {
         const currentExe = app.getPath('exe')
         const rollbackPath = join(
@@ -984,7 +1012,8 @@ nohup "$TARGET" >/dev/null 2>&1 &
         availableVersion: release.version,
         artifact: release.artifact ?? this.config?.backendArtifact ?? null,
         targetRef: release.target_ref,
-        rollbackAvailable: this.backendUpdateState.rollbackAvailable || this.hasBackendRollbackMetadata(),
+        rollbackAvailable:
+          this.backendUpdateState.rollbackAvailable || this.hasBackendRollbackMetadata(),
         message: 'El servidor local ya está en la versión más reciente.',
         lastError: null
       }
@@ -995,7 +1024,13 @@ nohup "$TARGET" >/dev/null 2>&1 &
     const installDir = this.installationDir()
     const envPath = installDir ? join(installDir, '.env') : null
     const composePath = installDir ? join(installDir, 'docker-compose.yml') : null
-    if (!installDir || !envPath || !composePath || !existsSync(envPath) || !existsSync(composePath)) {
+    if (
+      !installDir ||
+      !envPath ||
+      !composePath ||
+      !existsSync(envPath) ||
+      !existsSync(composePath)
+    ) {
       this.backendUpdateState = {
         ...this.backendUpdateState,
         status: 'error',
@@ -1035,7 +1070,8 @@ nohup "$TARGET" >/dev/null 2>&1 &
       availableVersion: release.version,
       artifact: release.artifact ?? this.config?.backendArtifact ?? null,
       targetRef: release.target_ref,
-      rollbackAvailable: this.backendUpdateState.rollbackAvailable || this.hasBackendRollbackMetadata(),
+      rollbackAvailable:
+        this.backendUpdateState.rollbackAvailable || this.hasBackendRollbackMetadata(),
       message: 'Aplicando actualización del servidor local...',
       lastError: null
     }
@@ -1092,7 +1128,14 @@ nohup "$TARGET" >/dev/null 2>&1 &
     const installDir = this.installationDir()
     const envPath = installDir ? join(installDir, '.env') : null
     const composePath = installDir ? join(installDir, 'docker-compose.yml') : null
-    if (!rollback?.previousImage || !installDir || !envPath || !composePath || !existsSync(envPath) || !existsSync(composePath)) {
+    if (
+      !rollback?.previousImage ||
+      !installDir ||
+      !envPath ||
+      !composePath ||
+      !existsSync(envPath) ||
+      !existsSync(composePath)
+    ) {
       this.backendUpdateState = {
         ...this.backendUpdateState,
         status: 'error',
@@ -1162,8 +1205,15 @@ nohup "$TARGET" >/dev/null 2>&1 &
     const availableBackendVersion = this.manifest?.artifacts?.backend?.version ?? null
     const license = deriveLicenseState(this.config)
     const appUpdateAvailable = isVersionGreater(availableAppVersion, currentAppVersion)
-    const desktopUpdate = this.deriveDesktopUpdateState(currentAppVersion, availableAppVersion, appUpdateAvailable)
-    const backendUpdate = this.deriveBackendUpdateState(this.backendVersion, availableBackendVersion)
+    const desktopUpdate = this.deriveDesktopUpdateState(
+      currentAppVersion,
+      availableAppVersion,
+      appUpdateAvailable
+    )
+    const backendUpdate = this.deriveBackendUpdateState(
+      this.backendVersion,
+      availableBackendVersion
+    )
     return {
       startedAt: this.startedAt,
       configPath: this.configPath,
@@ -1314,7 +1364,9 @@ nohup "$TARGET" >/dev/null 2>&1 &
         offline: Number(data.offline ?? 0) || 0,
         salesTodayTotal: Number(data.sales_today_total ?? 0) || 0,
         alertsTotal: Number(data.alerts_total ?? 0) || 0,
-        branches: Array.isArray(data.branches) ? (data.branches as Array<Record<string, unknown>>) : [],
+        branches: Array.isArray(data.branches)
+          ? (data.branches as Array<Record<string, unknown>>)
+          : [],
         alerts: Array.isArray(alertsBody.data) ? alertsBody.data : [],
         lastError: null
       }
@@ -1502,6 +1554,57 @@ nohup "$TARGET" >/dev/null 2>&1 &
     }
   }
 
+  async generateLinkCode(ttlMinutes = 15): Promise<BranchLinkCodeStatus> {
+    this.reloadConfig()
+    const controlPlaneUrl = normalizeUrl(this.config?.controlPlaneUrl)
+    const installToken = this.config?.installToken?.trim() || null
+    const branchId = this.config?.branchId ?? null
+    if (!controlPlaneUrl || !installToken) {
+      return {
+        controlPlaneUrl,
+        branchId,
+        branchName: null,
+        code: null,
+        expiresAt: null,
+        lastError: 'El nodo no tiene control-plane o install token configurado.'
+      }
+    }
+    try {
+      const response = await fetch(`${controlPlaneUrl}/api/v1/branches/generate-link-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(buildControlPlaneHeaders(installToken) ?? {})
+        },
+        body: JSON.stringify({ ttl_minutes: ttlMinutes, purpose: 'branch_link' }),
+        signal: AbortSignal.timeout(7000)
+      })
+      if (!response.ok) {
+        throw new Error(`Generate link code HTTP ${response.status}`)
+      }
+      const body = (await response.json()) as {
+        data?: { branch_id?: number; branch_name?: string; code?: string; expires_at?: string }
+      }
+      return {
+        controlPlaneUrl,
+        branchId: Number(body.data?.branch_id ?? branchId ?? 0) || branchId,
+        branchName: body.data?.branch_name ?? null,
+        code: body.data?.code ?? null,
+        expiresAt: body.data?.expires_at ?? null,
+        lastError: null
+      }
+    } catch (error) {
+      return {
+        controlPlaneUrl,
+        branchId,
+        branchName: null,
+        code: null,
+        expiresAt: null,
+        lastError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
   private configCandidates(): string[] {
     const custom = process.env.TITAN_AGENT_CONFIG_PATH?.trim()
     const userData = join(app.getPath('userData'), 'titan-agent.json')
@@ -1578,7 +1681,9 @@ nohup "$TARGET" >/dev/null 2>&1 &
       if (machineId) params.set('machine_id', machineId)
       params.set('os_platform', process.platform)
       params.set('app_version', app.getVersion())
-      const targetUrl = resolveUrl.includes('?') ? `${resolveUrl}&${params.toString()}` : `${resolveUrl}?${params.toString()}`
+      const targetUrl = resolveUrl.includes('?')
+        ? `${resolveUrl}&${params.toString()}`
+        : `${resolveUrl}?${params.toString()}`
       const response = await fetch(targetUrl, {
         headers: buildControlPlaneHeaders(installToken),
         signal: AbortSignal.timeout(7000)
@@ -1621,7 +1726,11 @@ nohup "$TARGET" >/dev/null 2>&1 &
 
   private saveDesktopUpdateState(): void {
     mkdirSync(this.desktopUpdatesDir(), { recursive: true })
-    writeFileSync(this.desktopUpdateStatePath(), JSON.stringify(this.desktopUpdateState, null, 2), 'utf8')
+    writeFileSync(
+      this.desktopUpdateStatePath(),
+      JSON.stringify(this.desktopUpdateState, null, 2),
+      'utf8'
+    )
   }
 
   private desktopRollbackStatePath(): string {
@@ -1644,7 +1753,11 @@ nohup "$TARGET" >/dev/null 2>&1 &
 
   private saveBackendUpdateState(): void {
     mkdirSync(this.desktopUpdatesDir(), { recursive: true })
-    writeFileSync(this.backendUpdateStatePath(), JSON.stringify(this.backendUpdateState, null, 2), 'utf8')
+    writeFileSync(
+      this.backendUpdateStatePath(),
+      JSON.stringify(this.backendUpdateState, null, 2),
+      'utf8'
+    )
   }
 
   private deriveDesktopUpdateState(
@@ -1653,7 +1766,11 @@ nohup "$TARGET" >/dev/null 2>&1 &
     appUpdateAvailable: boolean
   ): AgentDesktopUpdateState {
     const current = this.desktopUpdateState
-    if (current.status === 'staged' || current.status === 'downloading' || current.status === 'applying') {
+    if (
+      current.status === 'staged' ||
+      current.status === 'downloading' ||
+      current.status === 'applying'
+    ) {
       return {
         ...current,
         currentVersion,
@@ -1732,7 +1849,8 @@ nohup "$TARGET" >/dev/null 2>&1 &
         status: 'available',
         currentVersion,
         availableVersion,
-        artifact: this.manifest?.artifacts?.backend?.artifact ?? this.config?.backendArtifact ?? null,
+        artifact:
+          this.manifest?.artifacts?.backend?.artifact ?? this.config?.backendArtifact ?? null,
         targetRef: this.manifest?.artifacts?.backend?.target_ref ?? null,
         rollbackAvailable: current.rollbackAvailable || this.hasBackendRollbackMetadata(),
         message: 'Hay una actualización del servidor local disponible.',
@@ -1776,7 +1894,11 @@ nohup "$TARGET" >/dev/null 2>&1 &
     writeFileSync(path, `${serialized}\n`, 'utf8')
   }
 
-  private runDockerCompose(workingDirectory: string, envFilePath: string, args: string[]): Promise<void> {
+  private runDockerCompose(
+    workingDirectory: string,
+    envFilePath: string,
+    args: string[]
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn('docker', ['compose', '--env-file', envFilePath, ...args], {
         cwd: workingDirectory,
@@ -1792,7 +1914,9 @@ nohup "$TARGET" >/dev/null 2>&1 &
           resolve()
           return
         }
-        reject(new Error(stderr.trim() || `docker compose falló con código ${code ?? 'desconocido'}`))
+        reject(
+          new Error(stderr.trim() || `docker compose falló con código ${code ?? 'desconocido'}`)
+        )
       })
     })
   }
@@ -1828,6 +1952,6 @@ nohup "$TARGET" >/dev/null 2>&1 &
   }
 
   private shellQuote(value: string): string {
-    return `'${value.replace(/'/g, `'\"'\"'`)}'`
+    return `'${value.replace(/'/g, `'\\''`)}'`
   }
 }

@@ -2,10 +2,13 @@ import pytest
 from fastapi import HTTPException
 
 from security import (
+    hash_password,
     sign_owner_session,
     verify_admin,
+    verify_cloud_session,
     verify_install_token,
     verify_owner_access,
+    verify_password,
     verify_release_publisher,
 )
 
@@ -73,3 +76,31 @@ async def test_verify_owner_access_accepts_signed_owner_session(monkeypatch: pyt
     assert result["tenant_id"] == 10
     assert result["branch_id"] == 1
     assert result["scopes"] == ["portfolio.read"]
+
+
+def test_hash_password_roundtrip() -> None:
+    hashed = hash_password("mi-clave-super-segura")
+    assert hashed != "mi-clave-super-segura"
+    assert verify_password("mi-clave-super-segura", hashed) is True
+    assert verify_password("otra-clave", hashed) is False
+
+
+@pytest.mark.asyncio
+async def test_verify_cloud_session_accepts_cloud_user_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CP_OWNER_SESSION_SECRET", "owner-secret")
+    token = sign_owner_session(
+        {
+            "auth_type": "cloud-user",
+            "cloud_user_id": 55,
+            "tenant_id": 10,
+            "session_id": "sess-123",
+            "session_version": 1,
+            "role": "owner",
+            "scopes": ["*"],
+        },
+        ttl_seconds=600,
+    )
+    result = await verify_cloud_session(authorization=f"Bearer {token}")
+    assert result["auth_type"] == "cloud-user"
+    assert result["cloud_user_id"] == 55
+    assert result["tenant_id"] == 10

@@ -124,6 +124,15 @@ type OwnerAuditStatus = {
   lastError: string | null
 }
 
+type BranchLinkCodeStatus = {
+  controlPlaneUrl: string | null
+  branchId: number | null
+  branchName: string | null
+  code: string | null
+  expiresAt: string | null
+  lastError: string | null
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -144,6 +153,7 @@ declare global {
         getOwnerCommercial: () => Promise<OwnerCommercialStatus>
         getOwnerHealthSummary: () => Promise<OwnerHealthSummaryStatus>
         getOwnerAudit: () => Promise<OwnerAuditStatus>
+        generateLinkCode: (ttlMinutes?: number) => Promise<BranchLinkCodeStatus>
       }
     }
   }

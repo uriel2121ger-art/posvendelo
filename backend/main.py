@@ -7,6 +7,7 @@ Run: cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -23,6 +24,7 @@ from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 _heartbeat_interval_seconds = int(os.getenv("CONTROL_PLANE_HEARTBEAT_INTERVAL_SECONDS", "300"))
+_command_poll_interval_seconds = int(os.getenv("COMMAND_POLL_INTERVAL_SECONDS", "30"))
 
 
 def _csv_env(name: str) -> list[str]:
@@ -95,6 +97,54 @@ async def _build_heartbeat_payload() -> dict | None:
     }
 
 
+def _load_agent_install_context() -> tuple[str | None, str | None]:
+    control_plane_url = os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/") or None
+    config_path_raw = os.getenv("TITAN_AGENT_CONFIG_PATH", "").strip()
+    if not config_path_raw:
+        return control_plane_url, None
+    config_path = Path(config_path_raw).expanduser()
+    if not config_path.exists():
+        return control_plane_url, None
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return control_plane_url, None
+    next_cp = str(payload.get("controlPlaneUrl") or control_plane_url or "").strip().rstrip("/")
+    install_token = str(payload.get("installToken") or "").strip()
+    return (next_cp or None, install_token or None)
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed.replace(microsecond=0)
+
+
+def _remote_request_notification(request_type: str) -> tuple[str, str]:
+    normalized = request_type.strip().lower()
+    if normalized in {"update_product_price", "change_price"}:
+        return (
+            "Cambio de precio pendiente",
+            "El dueño envió un cambio de precio que requiere confirmación local.",
+        )
+    if normalized in {"update_stock", "stock_adjust"}:
+        return (
+            "Ajuste de inventario pendiente",
+            "Hay un ajuste remoto de inventario esperando confirmación local.",
+        )
+    return (
+        "Solicitud remota pendiente",
+        f"Hay una solicitud remota de tipo {request_type} esperando confirmación.",
+    )
+
+
 async def _heartbeat_loop() -> None:
     async with httpx.AsyncClient(timeout=5.0) as client:
         while True:
@@ -118,6 +168,99 @@ async def _heartbeat_loop() -> None:
                 logger.warning("Heartbeat delivery failed (non-fatal): %s", exc)
             await asyncio.sleep(_heartbeat_interval_seconds)
 
+
+async def _remote_requests_poll_loop() -> None:
+    async with httpx.AsyncClient(timeout=7.0) as client:
+        while True:
+            try:
+                control_plane_url, install_token = _load_agent_install_context()
+                if not control_plane_url or not install_token:
+                    await asyncio.sleep(_command_poll_interval_seconds)
+                    continue
+
+                response = await client.get(
+                    f"{control_plane_url}/api/v1/cloud/node/remote-requests/pending",
+                    headers={"X-Install-Token": install_token},
+                )
+                if response.status_code >= 400:
+                    logger.warning(
+                        "Remote requests poll rejected by control-plane: %s %s",
+                        response.status_code,
+                        response.text,
+                    )
+                    await asyncio.sleep(_command_poll_interval_seconds)
+                    continue
+
+                body = response.json()
+                requests = body.get("data") if isinstance(body, dict) else None
+                if not isinstance(requests, list) or not requests:
+                    await asyncio.sleep(_command_poll_interval_seconds)
+                    continue
+
+                from db.connection import DB, get_pool
+
+                pool = await get_pool()
+                async with pool.acquire() as conn:
+                    db = DB(conn)
+                    for item in requests:
+                        remote_request_id = int(item.get("id") or 0)
+                        if remote_request_id <= 0:
+                            continue
+                        request_type = str(item.get("request_type") or "").strip()
+                        approval_mode = str(item.get("approval_mode") or "local_confirmation").strip()
+                        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+                        created_at = _parse_iso_datetime(item.get("created_at"))
+                        expires_at = _parse_iso_datetime(item.get("expires_at"))
+                        inserted = await db.execute(
+                            """
+                            INSERT INTO pending_remote_changes (
+                                remote_request_id,
+                                request_type,
+                                approval_mode,
+                                status,
+                                payload,
+                                requested_at,
+                                expires_at,
+                                created_at,
+                                updated_at
+                            )
+                            VALUES (
+                                :remote_request_id,
+                                :request_type,
+                                :approval_mode,
+                                'pending_confirmation',
+                                :payload::jsonb,
+                                NOW(),
+                                :expires_at,
+                                COALESCE(:created_at, NOW()),
+                                NOW()
+                            )
+                            ON CONFLICT (remote_request_id) DO NOTHING
+                            """,
+                            {
+                                "remote_request_id": remote_request_id,
+                                "request_type": request_type,
+                                "approval_mode": approval_mode,
+                                "payload": json.dumps(payload, ensure_ascii=True),
+                                "created_at": created_at,
+                                "expires_at": expires_at,
+                            },
+                        )
+                        if str(inserted).endswith("1"):
+                            title, body_text = _remote_request_notification(request_type)
+                            await db.execute(
+                                """
+                                INSERT INTO remote_notifications (title, body, notification_type, sent, created_at)
+                                VALUES (:title, :body, 'remote_request', 0, NOW())
+                                """,
+                                {"title": title, "body": body_text},
+                            )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Remote requests poll failed (non-fatal): %s", exc)
+            await asyncio.sleep(_command_poll_interval_seconds)
+
 # ---------------------------------------------------------------------------
 # Lifespan (event system + auto-migrations)
 # ---------------------------------------------------------------------------
@@ -126,6 +269,7 @@ async def _heartbeat_loop() -> None:
 @asynccontextmanager
 async def lifespan(application):
     heartbeat_task: asyncio.Task | None = None
+    remote_requests_task: asyncio.Task | None = None
 
     # Event bridge (legacy EventBus → DomainEvents)
     try:
@@ -154,6 +298,7 @@ async def lifespan(application):
 
     if os.getenv("CONTROL_PLANE_URL", "").strip() and runtime_branch_id:
         heartbeat_task = asyncio.create_task(_heartbeat_loop())
+        remote_requests_task = asyncio.create_task(_remote_requests_poll_loop())
 
     yield
 
@@ -161,6 +306,10 @@ async def lifespan(application):
         heartbeat_task.cancel()
         with suppress(asyncio.CancelledError):
             await heartbeat_task
+    if remote_requests_task is not None:
+        remote_requests_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await remote_requests_task
 
     # Teardown: close asyncpg pool
     try:

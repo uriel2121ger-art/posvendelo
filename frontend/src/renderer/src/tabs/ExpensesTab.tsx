@@ -56,7 +56,7 @@ export default function ExpensesTab(): ReactElement {
     e.preventDefault()
     if (submitting) return
     const numAmount = Math.round(parseFloat(amount) * 100) / 100
-    if (!readCurrentShift()?.backendTurnId) {
+    if (!readCurrentShift(loadRuntimeConfig().terminalId)?.backendTurnId) {
       setError(
         'No hay turno abierto. Abre uno en la pestaña Turnos (F5) antes de registrar gastos.'
       )

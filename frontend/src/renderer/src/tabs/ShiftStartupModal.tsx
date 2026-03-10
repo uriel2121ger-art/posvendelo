@@ -78,22 +78,23 @@ export default function ShiftStartupModal({
 
   // Check shift on mount — sync with backend if localStorage is empty
   useEffect(() => {
-    const localShift = readCurrentShift()
+    const cfg = loadRuntimeConfig()
+    const localShift = readCurrentShift(cfg.terminalId)
     if (localShift) {
       setExistingShift(localShift)
       setPhase('existing_shift')
       return
     }
     // localStorage empty — ask backend for active turn (disaster recovery)
-    const cfg = loadRuntimeConfig()
     getCurrentTurn(cfg)
       .then((result) => {
         const turn = (result?.data ?? result) as Record<string, unknown> | null
-        if (turn && turn.id && turn.status === 'open') {
+        const recoveredTerminalId = Number(turn?.terminal_id ?? cfg.terminalId)
+        if (turn && turn.id && turn.status === 'open' && recoveredTerminalId === cfg.terminalId) {
           const recovered: ShiftRecord = {
             id: `shift-recovered-${turn.id}`,
             backendTurnId: Number(turn.id),
-            terminalId: Number(turn.terminal_id ?? turn.branch_id ?? cfg.terminalId),
+            terminalId: recoveredTerminalId,
             openedAt: String(turn.start_timestamp ?? new Date().toISOString()),
             openedBy: operator,
             openingCash: Number(turn.initial_cash ?? 0),
@@ -101,7 +102,7 @@ export default function ShiftStartupModal({
             salesCount: 0,
             totalSales: 0
           }
-          saveCurrentShift(recovered)
+          saveCurrentShift(recovered, cfg.terminalId)
           setExistingShift(recovered)
           setPhase('existing_shift')
           // Actualizar ventas/total en segundo plano (no bloquear la pantalla)
@@ -113,7 +114,7 @@ export default function ShiftStartupModal({
                 salesCount: Number(summary.sales_count ?? 0),
                 totalSales: Math.round(Number(summary.total_sales ?? 0) * 100) / 100
               }
-              saveCurrentShift(updated)
+              saveCurrentShift(updated, cfg.terminalId)
               setExistingShift(updated)
             })
             .catch(() => {
@@ -163,7 +164,7 @@ export default function ShiftStartupModal({
           cardSales: 0,
           transferSales: 0
         }
-        saveCurrentShift(shift)
+        saveCurrentShift(shift, cfg.terminalId)
         onComplete()
       } catch (err) {
         const msg = (err as Error).message ?? ''
@@ -173,11 +174,16 @@ export default function ShiftStartupModal({
             const cfgLoaded = loadRuntimeConfig()
             const turn = await getCurrentTurn(cfgLoaded)
             const data = (turn?.data ?? turn) as Record<string, unknown> | null
-            if (data?.id != null && data?.status === 'open') {
+            const recoveredTerminalId = Number(data?.terminal_id ?? cfgLoaded.terminalId)
+            if (
+              data?.id != null &&
+              data?.status === 'open' &&
+              recoveredTerminalId === cfgLoaded.terminalId
+            ) {
               const recovered: ShiftRecord = {
                 id: `shift-recovered-${data.id}`,
                 backendTurnId: Number(data.id),
-                terminalId: Number(data.terminal_id ?? data.branch_id ?? cfgLoaded.terminalId),
+                terminalId: recoveredTerminalId,
                 openedAt: String(data.start_timestamp ?? new Date().toISOString()),
                 openedBy: operator,
                 openingCash: Number(data.initial_cash ?? 0),
@@ -193,7 +199,7 @@ export default function ShiftStartupModal({
               } catch {
                 /* resumen opcional */
               }
-              saveCurrentShift(recovered)
+              saveCurrentShift(recovered, cfgLoaded.terminalId)
               setExistingShift(recovered)
               setPhase('existing_shift')
               setError('')
@@ -284,9 +290,9 @@ export default function ShiftStartupModal({
           expectedCash: expectedFromBackend,
           cashDifference: differenceFromBackend
         }
-        const history = readShiftHistory()
-        saveShiftHistory([closed, ...history])
-        saveCurrentShift(null)
+        const history = readShiftHistory(cfg.terminalId)
+        saveShiftHistory([closed, ...history], cfg.terminalId)
+        saveCurrentShift(null, cfg.terminalId)
 
         setCut({ expected: expectedFromBackend, counted: cash, difference: differenceFromBackend })
 
@@ -304,7 +310,7 @@ export default function ShiftStartupModal({
         // Si el backend dice que el turno ya estaba cerrado, limpiar estado local
         // para no permitir "Volver" a un turno fantasma
         if (msg.toLowerCase().includes('cerrado')) {
-          saveCurrentShift(null)
+          saveCurrentShift(null, loadRuntimeConfig().terminalId)
           setExistingShift(null)
           setPhase('no_shift')
           setError('Ese turno ya estaba cerrado. Puedes abrir uno nuevo.')

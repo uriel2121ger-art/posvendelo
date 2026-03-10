@@ -83,3 +83,23 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps
 - `docker-compose.yml`: compose cliente servido por el `control-plane`
 - `titan-agent.json`: contrato compartido entre instalador, agente local y app desktop
 - `INSTALL_SUMMARY.txt`: resumen de soporte con branch, health local, manifest y companion
+
+## Checklist instalación limpia pre-lanzamiento
+
+Antes de distribuir una release, ejecutar al menos una vez una instalación limpia en Linux y una en Windows para validar los instaladores.
+
+**Requisito:** control-plane en marcha con al menos un tenant y una sucursal (branch) con `install_token` válido.
+
+**Linux (entorno limpio: VM, contenedor o CI con Docker):**
+
+1. `bash installers/linux/install-titan.sh --cp-url <URL_CONTROL_PLANE> --install-token <TOKEN>`
+2. Comprobar que se generen en el directorio de instalación: `.env`, `docker-compose.yml`, `titan-agent.json`, `INSTALL_SUMMARY.txt`
+3. Opcional: `docker compose up -d` y verificar `http://127.0.0.1:<puerto>/health`
+
+**Windows (VM o runner de CI):**
+
+1. `powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 -CpUrl <URL> -InstallToken <TOKEN>`
+2. Comprobar los mismos artefactos; si se usa Docker Desktop, completar con `Continue-Install.ps1` si aplica
+3. Opcional: comprobar health del API local
+
+Si no hay CI para instaladores, este checklist debe ejecutarse de forma manual antes de cada distribución.

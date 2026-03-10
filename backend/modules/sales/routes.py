@@ -396,7 +396,7 @@ async def create_sale(
 
             # 1. Verify open turn (first lock — global order: TURNS → PRODUCTS → CUSTOMERS)
             turn_sql = (
-                "SELECT id, terminal_id FROM turns "
+                "SELECT id, terminal_id, branch_id FROM turns "
                 "WHERE user_id = :uid AND status = 'open'"
             )
             turn_params = {"uid": user_id}
@@ -420,12 +420,29 @@ async def create_sale(
                 )
             turn_id = turn_row["id"]
             terminal_id = turn_row.get("terminal_id", 1) or 1
+            turn_branch_id = turn_row.get("branch_id")
             if requested_terminal_id is not None and terminal_id != requested_terminal_id:
                 raise HTTPException(
                     status_code=409,
                     detail=(
                         f"La terminal activa del turno ({terminal_id}) no coincide con "
                         f"X-Terminal-Id ({requested_terminal_id})."
+                    ),
+                )
+            if body.turn_id is not None and body.turn_id != turn_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"El turno enviado por el cliente ({body.turn_id}) no coincide con "
+                        f"el turno abierto actual ({turn_id}) para la terminal {terminal_id}."
+                    ),
+                )
+            if turn_branch_id is not None and body.branch_id != turn_branch_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"La sucursal enviada ({body.branch_id}) no coincide con la sucursal "
+                        f"del turno abierto ({turn_branch_id}) para la terminal {terminal_id}."
                     ),
                 )
 
@@ -553,7 +570,7 @@ async def create_sale(
                     "cid": body.customer_id,
                     "uid": user_id,
                     "tid_turn": turn_id,
-                    "bid": body.branch_id,
+                    "bid": turn_branch_id or body.branch_id,
                     "cash_received": dec(body.cash_received or 0),
                     "mc": dec(body.mixed_cash or 0),
                     "mcard": dec(body.mixed_card or 0),

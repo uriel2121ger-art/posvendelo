@@ -276,7 +276,9 @@ describe('Login', () => {
     await waitFor(() => {
       expect(screen.getByText('Nodo local')).toBeInTheDocument()
       expect(
-        screen.getByText('Estado de licencia disponible. Inicia sesión para revisar el detalle administrativo.')
+        screen.getByText(
+          'Estado de licencia disponible. Inicia sesión para revisar el detalle administrativo.'
+        )
       ).toBeInTheDocument()
     })
   })

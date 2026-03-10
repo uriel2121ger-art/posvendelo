@@ -131,6 +131,8 @@ class DummyDb:
         if "WHERE b.id = :branch_id AND b.tenant_id = :tenant_id" in query:
             if params.get("branch_id") == 1 and params.get("tenant_id") == 10:
                 return self._branch
+        if "WHERE b.tenant_id = :tenant_id" in query and params.get("tenant_id") == 10:
+            return self._branch
         if "FROM tenant_licenses" in query and params.get("tenant_id") == 10:
             return self._license
         return None
@@ -260,6 +262,24 @@ async def test_owner_portfolio_accepts_owner_session(monkeypatch: pytest.MonkeyP
             "branch_slug": "centro",
             "scopes": ["portfolio.read"],
             "raw_token": token,
+        },
+        db=DummyDb(),
+    )
+
+    assert response["data"]["tenant_name"] == "Tenant Demo"
+    assert response["data"]["branches_total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_owner_portfolio_accepts_cloud_user_without_branch_id() -> None:
+    response = await owner_portfolio(
+        token={
+            "auth_type": "cloud-user",
+            "role": "owner",
+            "tenant_id": 10,
+            "branch_id": None,
+            "cloud_user_id": 999,
+            "scopes": ["portfolio.read"],
         },
         db=DummyDb(),
     )

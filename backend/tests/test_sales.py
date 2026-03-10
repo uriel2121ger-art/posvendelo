@@ -219,6 +219,28 @@ class TestCreateSale:
         assert r.status_code == 400
         assert "terminal 2" in r.json()["detail"].lower()
 
+    async def test_create_sale_rejects_stale_client_turn_id(
+        self, client, admin_token, seed_all
+    ):
+        r = await client.post(
+            "/api/v1/sales/",
+            headers=auth_header(admin_token),
+            json=_sale_body(turn_id=TURN_ID + 999),
+        )
+        assert r.status_code == 409
+        assert "turno enviado por el cliente" in r.json()["detail"].lower()
+
+    async def test_create_sale_rejects_branch_mismatch_with_open_turn(
+        self, client, admin_token, seed_all
+    ):
+        r = await client.post(
+            "/api/v1/sales/",
+            headers=auth_header(admin_token),
+            json=_sale_body(branch_id=BRANCH_ID + 1),
+        )
+        assert r.status_code == 409
+        assert "sucursal enviada" in r.json()["detail"].lower()
+
     async def test_create_sale_empty_items(
         self, client, admin_token, seed_all
     ):

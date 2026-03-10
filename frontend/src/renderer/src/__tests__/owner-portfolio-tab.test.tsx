@@ -28,12 +28,20 @@ describe('OwnerPortfolioTab', () => {
           offline: 1,
           salesTodayTotal: 1550.5,
           alertsTotal: 1,
-          branches: [{ id: 1, branch_name: 'Sucursal Centro', branch_slug: 'centro', is_online: 1 }],
+          branches: [
+            { id: 1, branch_name: 'Sucursal Centro', branch_slug: 'centro', is_online: 1 }
+          ],
           alerts: [{ kind: 'install_error', message: 'compose failed' }],
           lastError: null
         }),
         getOwnerEvents: vi.fn().mockResolvedValue({
-          events: [{ event_type: 'heartbeat.ok', message: 'Heartbeat ok recibido', branch_name: 'Sucursal Centro' }],
+          events: [
+            {
+              event_type: 'heartbeat.ok',
+              message: 'Heartbeat ok recibido',
+              branch_name: 'Sucursal Centro'
+            }
+          ],
           lastError: null
         }),
         getOwnerBranchTimeline: vi.fn().mockResolvedValue({
@@ -47,7 +55,14 @@ describe('OwnerPortfolioTab', () => {
             days_until_support: 25,
             reminder_types: ['license_expiring']
           },
-          events: [{ id: 1, event_type: 'license.renew', actor: 'admin', created_at: '2026-03-08T10:00:00' }],
+          events: [
+            {
+              id: 1,
+              event_type: 'license.renew',
+              actor: 'admin',
+              created_at: '2026-03-08T10:00:00'
+            }
+          ],
           lastError: null
         }),
         getOwnerHealthSummary: vi.fn().mockResolvedValue({

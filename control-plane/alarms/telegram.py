@@ -18,13 +18,22 @@ def collect_alert_candidates(branches: list[dict[str, Any]], *, now: datetime | 
         install_status = branch.get("install_status")
         install_error = branch.get("install_error")
 
-        if last_seen is None or current_time - last_seen > timedelta(minutes=15):
+        if last_seen is None or current_time - last_seen > timedelta(minutes=10):
             alerts.append(
                 {
                     "severity": "warning",
                     "kind": "offline_branch",
                     "branch_id": branch.get("id"),
                     "message": f"Sucursal {branch.get('branch_name') or branch.get('name') or branch.get('id')} offline",
+                }
+            )
+        if last_seen is None or current_time - last_seen > timedelta(days=5):
+            alerts.append(
+                {
+                    "severity": "critical",
+                    "kind": "offline_branch_long",
+                    "branch_id": branch.get("id"),
+                    "message": f"Sucursal {branch.get('branch_name') or branch.get('name') or branch.get('id')} offline por más de 5 días",
                 }
             )
 

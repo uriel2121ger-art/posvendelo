@@ -1,4 +1,5 @@
 import base64
+import bcrypt
 import hashlib
 import hmac
 import json
@@ -90,6 +91,22 @@ def _owner_secret() -> str:
     return secret
 
 
+def hash_password(plain: str) -> str:
+    password = (plain or "").strip()
+    if len(password) < 8:
+        raise ValueError("La contraseña debe tener al menos 8 caracteres")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    if not plain or not hashed:
+        return False
+    try:
+        return bool(bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8")))
+    except ValueError:
+        return False
+
+
 def sign_owner_session(claims: dict, *, ttl_seconds: int | None = None) -> str:
     now = int(time.time())
     ttl = ttl_seconds or int(os.getenv("CP_OWNER_SESSION_TTL_SECONDS", "28800"))
@@ -140,3 +157,20 @@ async def verify_owner_access(
     if not install_token:
         raise HTTPException(status_code=401, detail="Owner access token requerido")
     return {"auth_type": "install-token", "install_token": install_token}
+
+
+async def verify_cloud_session(
+    authorization: str | None = Header(default=None),
+    x_owner_token: str | None = Header(default=None, alias="X-Owner-Token"),
+) -> dict:
+    bearer_token = _extract_bearer_token(authorization)
+    provided = bearer_token or (x_owner_token.strip() if isinstance(x_owner_token, str) else None)
+    if not provided:
+        raise HTTPException(status_code=401, detail="Sesión cloud requerida")
+    if "." not in provided:
+        raise HTTPException(status_code=401, detail="Sesión cloud inválida")
+    payload = verify_owner_session_token(provided)
+    auth_type = str(payload.get("auth_type") or "owner-session").strip().lower()
+    if auth_type != "cloud-user":
+        raise HTTPException(status_code=403, detail="Token cloud inválido")
+    return payload

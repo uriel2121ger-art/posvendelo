@@ -2,8 +2,12 @@
 
 param(
   [Parameter(Mandatory = $true)][string]$CpUrl,
-  [Parameter(Mandatory = $true)][string]$InstallToken,
+  [string]$InstallToken = "",
   [string]$BranchName = "",
+  [string]$CloudEmail = "",
+  [string]$CloudPassword = "",
+  [string]$TenantName = "",
+  [switch]$ExistingCloud,
   [string]$InstallDir = "$env:LOCALAPPDATA\TitanPOS",
   [string]$PublisherCertPath = "",
   [int]$ApiPort = 0,
@@ -74,6 +78,54 @@ function New-RandomHex([int]$Length) {
   $bytes = New-Object byte[] $byteLength
   [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
   return ([BitConverter]::ToString($bytes)).Replace("-", "").Substring(0, $Length).ToLower()
+}
+
+function Ensure-CloudInstallToken {
+  if ($InstallToken) {
+    return
+  }
+
+  if (-not $CloudEmail) {
+    $script:CloudEmail = Read-Host "Correo cloud"
+  }
+  if (-not $CloudPassword) {
+    $secure = Read-Host "Contraseña cloud" -AsSecureString
+    $script:CloudPassword = [System.Net.NetworkCredential]::new("", $secure).Password
+  }
+  if (-not $BranchName) {
+    $script:BranchName = Read-Host "Nombre de la sucursal"
+  }
+  if (-not $ExistingCloud.IsPresent -and -not $TenantName) {
+    $script:TenantName = Read-Host "Empresa o negocio"
+  }
+
+  if ($ExistingCloud.IsPresent) {
+    $authBody = @{
+      email = $CloudEmail
+      password = $CloudPassword
+    } | ConvertTo-Json
+    $login = Invoke-RestMethod -Method Post -Uri "$($CpUrl.TrimEnd('/'))/api/v1/cloud/login" -ContentType "application/json" -Body $authBody
+    $sessionToken = $login.data.session_token
+    if (-not $sessionToken) {
+      throw "No se pudo obtener sesión cloud"
+    }
+    $branchBody = @{ branch_name = $(if ($BranchName) { $BranchName } else { "Sucursal Principal" }) } | ConvertTo-Json
+    $branch = Invoke-RestMethod -Method Post -Uri "$($CpUrl.TrimEnd('/'))/api/v1/cloud/register-branch" -ContentType "application/json" -Headers @{ Authorization = "Bearer $sessionToken" } -Body $branchBody
+    $script:InstallToken = $branch.data.install_token
+  } else {
+    $registerBody = @{
+      email = $CloudEmail
+      password = $CloudPassword
+      business_name = $TenantName
+      branch_name = $(if ($BranchName) { $BranchName } else { "Sucursal Principal" })
+    } | ConvertTo-Json
+    $register = Invoke-RestMethod -Method Post -Uri "$($CpUrl.TrimEnd('/'))/api/v1/cloud/register" -ContentType "application/json" -Body $registerBody
+    $script:InstallToken = $register.data.install_token
+  }
+
+  if (-not $InstallToken) {
+    throw "No se pudo obtener install token desde el onboarding cloud"
+  }
 }
 
 function Get-FreeTcpPort([int]$PreferredPort) {
@@ -156,6 +208,21 @@ function Send-InstallReport([string]$Status, [string]$ErrorMessage) {
 }
 
 try {
+  if (-not $InstallToken) {
+    $activateCloud = Read-Host "¿Activar Nube TITAN ahora para generar install token? [s/N]"
+    if ($activateCloud -match '^[sS]$') {
+      $hasAccount = Read-Host "¿Ya tienes cuenta cloud? [s/N]"
+      if ($hasAccount -match '^[sS]$') {
+        $ExistingCloud = $true
+      }
+      Ensure-CloudInstallToken
+    }
+  }
+
+  if (-not $InstallToken) {
+    throw "Se requiere install token o activar onboarding cloud."
+  }
+
   Ensure-Docker
   Import-PublisherCert
   Wait-DockerReady

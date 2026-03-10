@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { flushSync } from 'react-dom'
 
 import { useConfirm, usePrompt } from '../components/ConfirmDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -97,10 +98,12 @@ const TAX_RATE = 0.16
 const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
 import {
   type ShiftRecord as ShiftState,
-  CURRENT_SHIFT_KEY,
+  isShiftStorageKey,
+  saveCurrentShift,
   readCurrentShift
 } from '../types/shiftTypes'
 const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
+const PRODUCT_CACHE_STORAGE_KEY = 'titan.productsCache'
 
 /** Sufijo por usuario para que los borradores persistan entre sesiones y no se mezclen entre usuarios. */
 function getDraftsSuffix(): string {
@@ -120,6 +123,10 @@ function getActiveStorageKey(): string {
   return ACTIVE_TICKETS_STORAGE_KEY + getDraftsSuffix()
 }
 
+function getProductCacheKey(): string {
+  return PRODUCT_CACHE_STORAGE_KEY + getDraftsSuffix()
+}
+
 function clampDiscount(value: number): number {
   return Math.max(0, Math.min(100, value))
 }
@@ -129,6 +136,23 @@ type SavedActiveState = {
   activeTicketId: string
   ticketSnapshots: Record<string, ActiveTicketSnapshot>
   ticketCounter: number
+}
+
+function createEmptyTicketSnapshot(): ActiveTicketSnapshot {
+  return {
+    customerName: 'Público General',
+    customerId: null,
+    paymentMethod: 'cash',
+    globalDiscountPct: 0,
+    cart: [],
+    selectedCartSku: null,
+    amountReceived: '',
+    requiereFactura: false,
+    paymentReference: '',
+    mixedCash: '',
+    mixedCard: '',
+    mixedTransfer: ''
+  }
 }
 
 function readSavedActiveState(): SavedActiveState | null {
@@ -218,6 +242,31 @@ async function fetchProducts(cfg: RuntimeConfig): Promise<Product[]> {
   return raw.map(normalizeProduct).filter((item): item is Product => item !== null)
 }
 
+function readCachedProducts(): Product[] {
+  try {
+    const raw =
+      localStorage.getItem(getProductCacheKey()) ?? localStorage.getItem(PRODUCT_CACHE_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item): item is Record<string, unknown> => item != null && typeof item === 'object')
+      .map(normalizeProduct)
+      .filter((item): item is Product => item !== null)
+  } catch {
+    return []
+  }
+}
+
+function writeCachedProducts(products: Product[]): void {
+  try {
+    localStorage.setItem(getProductCacheKey(), JSON.stringify(products))
+    localStorage.setItem(PRODUCT_CACHE_STORAGE_KEY, JSON.stringify(products))
+  } catch {
+    /* quota o sin acceso */
+  }
+}
+
 type MixedAmounts = { cash: number; card: number; transfer: number }
 
 async function syncSale(
@@ -299,8 +348,10 @@ export default function Terminal(): ReactElement {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const lastKeystrokeRef = useRef<number>(Date.now())
   const lastEnterRef = useRef<number>(0)
-  const [config] = useState<RuntimeConfig>(() => loadRuntimeConfig())
-  const [products, setProducts] = useState<Product[]>([])
+  const suppressSearchChangeUntilRef = useRef<number>(0)
+  const lastSubmittedSearchRef = useRef<string>('')
+  const config = loadRuntimeConfig()
+  const [products, setProducts] = useState<Product[]>(() => readCachedProducts())
   // Restore active ticket state from localStorage (navigation persistence)
   const [_savedActive] = useState(() => readSavedActiveState())
   const _snap = _savedActive?.ticketSnapshots?.[_savedActive?.activeTicketId ?? '']
@@ -332,20 +383,7 @@ export default function Terminal(): ReactElement {
   const [activeTicketId, setActiveTicketId] = useState(_savedActive?.activeTicketId ?? 'active-1')
   const [ticketSnapshots, setTicketSnapshots] = useState<Record<string, ActiveTicketSnapshot>>(
     _savedActive?.ticketSnapshots ?? {
-      'active-1': {
-        customerName: 'Público General',
-        customerId: null,
-        paymentMethod: 'cash',
-        globalDiscountPct: 0,
-        cart: [],
-        selectedCartSku: null,
-        amountReceived: '',
-        requiereFactura: false,
-        paymentReference: '',
-        mixedCash: '',
-        mixedCard: '',
-        mixedTransfer: ''
-      }
+      'active-1': createEmptyTicketSnapshot()
     }
   )
   const [selectedCartSku, setSelectedCartSku] = useState<string | null>(
@@ -357,7 +395,9 @@ export default function Terminal(): ReactElement {
   const [qty] = useState(1)
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
-  const [currentShift, setCurrentShift] = useState<ShiftState | null>(() => readCurrentShift())
+  const [currentShift, setCurrentShift] = useState<ShiftState | null>(() =>
+    readCurrentShift(loadRuntimeConfig().terminalId)
+  )
   const [wholesaleMode, setWholesaleMode] = useState(false)
   const [, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
@@ -365,9 +405,34 @@ export default function Terminal(): ReactElement {
   const [isDiscountModalOpen] = useState(false)
   const [isCommonModalOpen] = useState(false)
   const [isNoteModalOpen] = useState(false)
+  const shouldClearSearchAfterAddRef = useRef(false)
 
   const checkoutModalRef = useRef<HTMLDivElement>(null)
   useFocusTrap(checkoutModalRef, isCheckoutModalOpen)
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
+      body: JSON.stringify({
+        sessionId: 'd100d7',
+        runId: 'dual-terminal-pre-fix',
+        hypothesisId: 'H3',
+        location: 'Terminal.tsx:385',
+        message: 'terminal mounted',
+        data: {
+          terminalId: config.terminalId,
+          activeTicketId,
+          pendingKey: getPendingStorageKey(),
+          activeKey: getActiveStorageKey(),
+          hash: window.location.hash
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+    // #endregion
+  }, [activeTicketId, config.terminalId])
 
   useEffect((): void => {
     saveRuntimeConfig(config)
@@ -434,6 +499,26 @@ export default function Terminal(): ReactElement {
       fetchProducts(config)
         .then((data) => {
           if (cancelled) return
+          // #region agent log
+          fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
+            body: JSON.stringify({
+              sessionId: 'd100d7',
+              runId: 'dual-terminal-pre-fix',
+              hypothesisId: 'H5',
+              location: 'Terminal.tsx:438',
+              message: 'products loaded',
+              data: {
+                terminalId: config.terminalId,
+                count: data.length,
+                sampleSkus: data.slice(0, 5).map((item) => item.sku)
+              },
+              timestamp: Date.now()
+            })
+          }).catch(() => {})
+          // #endregion
+          writeCachedProducts(data)
           setProducts(data)
           if (!silent)
             setMessage(data.length ? `${data.length} productos cargados` : 'Sin productos')
@@ -509,9 +594,9 @@ export default function Terminal(): ReactElement {
   }, [pendingTickets])
 
   useEffect((): (() => void) => {
-    const refreshShift = (): void => setCurrentShift(readCurrentShift())
+    const refreshShift = (): void => setCurrentShift(readCurrentShift(config.terminalId))
     const onStorage = (event: StorageEvent): void => {
-      if (event.key === CURRENT_SHIFT_KEY) refreshShift()
+      if (isShiftStorageKey(event.key)) refreshShift()
     }
     window.addEventListener('focus', refreshShift)
     window.addEventListener('storage', onStorage)
@@ -519,12 +604,12 @@ export default function Terminal(): ReactElement {
       window.removeEventListener('focus', refreshShift)
       window.removeEventListener('storage', onStorage)
     }
-  }, [])
+  }, [config.terminalId])
 
   // Poll backend every 60s to sync shift counters (multi-terminal visibility)
   useEffect(() => {
     const poll = setInterval(() => {
-      const shift = readCurrentShift()
+      const shift = readCurrentShift(config.terminalId)
       if (!shift?.backendTurnId) return
       const cfg = loadRuntimeConfig()
       getTurnSummary(cfg, shift.backendTurnId)
@@ -542,7 +627,7 @@ export default function Terminal(): ReactElement {
               totalSales: Math.round(backendTotal * 100) / 100
             }
             try {
-              localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updated))
+              saveCurrentShift(updated, config.terminalId)
             } catch {
               /* storage full */
             }
@@ -554,18 +639,23 @@ export default function Terminal(): ReactElement {
         })
     }, 60_000)
     return () => clearInterval(poll)
-  }, [])
+  }, [config.terminalId])
+
+  const searchableProducts = useMemo(
+    (): Product[] => (products.length > 0 ? products : readCachedProducts()),
+    [products]
+  )
 
   const filtered = useMemo((): Product[] => {
     const q = query.trim().toLowerCase()
     if (!q) {
       return []
     }
-    return products
+    return searchableProducts
       .filter((p) => p.name.length <= 500)
       .filter((p) => p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
       .slice(0, 50)
-  }, [products, query])
+  }, [query, searchableProducts])
 
   const totals = useMemo((): {
     subtotalBeforeDiscount: number
@@ -626,6 +716,173 @@ export default function Terminal(): ReactElement {
   const changeDue = Math.max(0, amountReceivedNum - totals.total)
   const pendingAmount = Math.max(0, totals.total - amountReceivedNum)
 
+  const buildCurrentTicketSnapshot = useCallback(
+    (): ActiveTicketSnapshot => ({
+      customerName,
+      customerId,
+      paymentMethod,
+      globalDiscountPct,
+      cart,
+      selectedCartSku,
+      amountReceived,
+      requiereFactura: solicitaFactura,
+      paymentReference,
+      mixedCash,
+      mixedCard,
+      mixedTransfer
+    }),
+    [
+      amountReceived,
+      cart,
+      customerId,
+      customerName,
+      globalDiscountPct,
+      paymentMethod,
+      solicitaFactura,
+      paymentReference,
+      mixedCash,
+      mixedCard,
+      mixedTransfer,
+      selectedCartSku
+    ]
+  )
+
+  const applyTicketSnapshot = useCallback(
+    (snapshot: ActiveTicketSnapshot): void => {
+      // #region agent log
+      fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
+        body: JSON.stringify({
+          sessionId: 'd100d7',
+          runId: 'dual-terminal-pre-fix',
+          hypothesisId: 'H1',
+          location: 'Terminal.tsx:646',
+          message: 'apply ticket snapshot',
+          data: {
+            terminalId: config.terminalId,
+            nextCartLen: snapshot.cart.length,
+            nextCustomerId: snapshot.customerId,
+            nextPaymentMethod: snapshot.paymentMethod,
+            searchDomValue: searchInputRef.current?.value ?? '',
+            activeTicketId
+          },
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
+      // #endregion
+      setCart(snapshot.cart)
+      setCustomerName(snapshot.customerName)
+      setCustomerId(snapshot.customerId ?? null)
+      setPaymentMethod(snapshot.paymentMethod)
+      setGlobalDiscountPct(snapshot.globalDiscountPct)
+      setSelectedCartSku(snapshot.selectedCartSku)
+      setAmountReceived(snapshot.amountReceived)
+      setSolicitaFactura(snapshot.requiereFactura ?? false)
+      setPaymentReference(snapshot.paymentReference ?? '')
+      setMixedCash(snapshot.mixedCash ?? '')
+      setMixedCard(snapshot.mixedCard ?? '')
+      setMixedTransfer(snapshot.mixedTransfer ?? '')
+      setQuery('')
+    },
+    [activeTicketId, config.terminalId]
+  )
+
+  const focusSearchInput = useCallback((): void => {
+    requestAnimationFrame(() => searchInputRef.current?.focus())
+  }, [])
+
+  const clearSearchDomValue = useCallback((): void => {
+    if (searchInputRef.current) {
+      searchInputRef.current.value = ''
+    }
+  }, [])
+
+  const clearSearch = useCallback((): void => {
+    suppressSearchChangeUntilRef.current = Date.now() + 250
+    flushSync(() => {
+      setQuery('')
+    })
+    clearSearchDomValue()
+    requestAnimationFrame(() => {
+      flushSync(() => {
+        setQuery('')
+      })
+      clearSearchDomValue()
+      focusSearchInput()
+    })
+  }, [clearSearchDomValue, focusSearchInput])
+
+  useEffect(() => {
+    if (!shouldClearSearchAfterAddRef.current) return
+    shouldClearSearchAfterAddRef.current = false
+    flushSync(() => {
+      setQuery('')
+    })
+    clearSearchDomValue()
+    focusSearchInput()
+  }, [cart, clearSearchDomValue, focusSearchInput])
+
+  const normalizeSearchInput = useCallback((rawValue: string): string => {
+    // Strip control chars AND normalize Unicode (prevents Zalgo)
+    // eslint-disable-next-line no-control-regex
+    const raw = rawValue.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+    return raw
+      .normalize('NFC')
+      .replace(/[\u0300-\u036f]{3,}/g, '')
+      .slice(0, 200)
+  }, [])
+
+  const findProductForSearch = useCallback(
+    (rawValue: string, now: number): Product | null => {
+      const normalizedInput = normalizeSearchInput(rawValue).trim()
+      if (!normalizedInput) return null
+
+      let scannerMinSpeed = 50
+      let scannerPrefix = ''
+      let scannerSuffix = ''
+      let isScanner = false
+      try {
+        const hwRaw = localStorage.getItem('titan.hwConfig')
+        if (hwRaw) {
+          const hwCfg = JSON.parse(hwRaw) as HardwareConfig
+          if (!hwCfg || typeof hwCfg !== 'object') throw new Error('invalid hwConfig')
+          if (hwCfg.scanner?.enabled) {
+            scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
+            scannerPrefix = hwCfg.scanner.prefix || ''
+            scannerSuffix = hwCfg.scanner.suffix || ''
+            const elapsed = now - lastKeystrokeRef.current
+            if (elapsed < scannerMinSpeed && normalizedInput.length > 2) {
+              isScanner = true
+            }
+          }
+        }
+      } catch {
+        /* parse error */
+      }
+
+      let searchTerm = normalizedInput
+      if (isScanner) {
+        if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
+          searchTerm = searchTerm.slice(scannerPrefix.length)
+        }
+        if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
+          searchTerm = searchTerm.slice(0, -scannerSuffix.length)
+        }
+      }
+
+      const lowered = searchTerm.toLowerCase()
+      return (
+        searchableProducts.find((p) => p.sku.toLowerCase() === lowered) ??
+        searchableProducts.find(
+          (p) => p.sku.toLowerCase().includes(lowered) || p.name.toLowerCase().includes(lowered)
+        ) ??
+        null
+      )
+    },
+    [normalizeSearchInput, searchableProducts]
+  )
+
   // Snapshot current ticket AND persist to localStorage atomically.
   // Previously split into 2 effects with a race condition: if the component
   // unmounted between them (tab navigation), localStorage never got written.
@@ -633,20 +890,7 @@ export default function Terminal(): ReactElement {
     setTicketSnapshots((prev) => {
       const updated = {
         ...prev,
-        [activeTicketId]: {
-          customerName,
-          customerId,
-          paymentMethod,
-          globalDiscountPct,
-          cart,
-          selectedCartSku,
-          amountReceived,
-          requiereFactura: solicitaFactura,
-          paymentReference,
-          mixedCash,
-          mixedCard,
-          mixedTransfer
-        }
+        [activeTicketId]: buildCurrentTicketSnapshot()
       }
       try {
         const state: SavedActiveState = {
@@ -669,12 +913,7 @@ export default function Terminal(): ReactElement {
     customerName,
     globalDiscountPct,
     paymentMethod,
-    solicitaFactura,
-    paymentReference,
-    mixedCash,
-    mixedCard,
-    mixedTransfer,
-    selectedCartSku,
+    buildCurrentTicketSnapshot,
     activeTickets
   ])
 
@@ -683,38 +922,15 @@ export default function Terminal(): ReactElement {
 
     const snapshotsWithCurrent = {
       ...ticketSnapshots,
-      [activeTicketId]: {
-        customerName,
-        customerId,
-        paymentMethod,
-        globalDiscountPct,
-        cart,
-        selectedCartSku,
-        amountReceived,
-        requiereFactura: solicitaFactura,
-        paymentReference,
-        mixedCash,
-        mixedCard,
-        mixedTransfer
-      }
+      [activeTicketId]: buildCurrentTicketSnapshot()
     }
     const nextSnapshot = snapshotsWithCurrent[nextTicketId]
     if (!nextSnapshot) return
 
     setTicketSnapshots(snapshotsWithCurrent)
     setActiveTicketId(nextTicketId)
-    setCart(nextSnapshot.cart)
-    setCustomerName(nextSnapshot.customerName)
-    setCustomerId(nextSnapshot.customerId ?? null)
-    setPaymentMethod(nextSnapshot.paymentMethod)
-    setGlobalDiscountPct(nextSnapshot.globalDiscountPct)
-    setSelectedCartSku(nextSnapshot.selectedCartSku)
-    setAmountReceived(nextSnapshot.amountReceived)
-    setSolicitaFactura(nextSnapshot.requiereFactura ?? false)
-    setPaymentReference(nextSnapshot.paymentReference ?? '')
-    setMixedCash(nextSnapshot.mixedCash ?? '')
-    setMixedCard(nextSnapshot.mixedCard ?? '')
-    setMixedTransfer(nextSnapshot.mixedTransfer ?? '')
+    applyTicketSnapshot(nextSnapshot)
+    focusSearchInput()
     setMessage(
       `Ticket activo cambiado a: ${activeTickets.find((t) => t.id === nextTicketId)?.label ?? nextTicketId}`
     )
@@ -729,79 +945,54 @@ export default function Terminal(): ReactElement {
     const nextNumber = ticketCounterRef.current
     const nextId = `active-${Date.now()}`
     const nextMeta: ActiveTicketMeta = { id: nextId, label: `Activa ${nextNumber}` }
+    const snapshotToPersist = buildCurrentTicketSnapshot()
+
+    // #region agent log
+    fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
+      body: JSON.stringify({
+        sessionId: 'd100d7',
+        runId: 'dual-terminal-pre-fix',
+        hypothesisId: 'H1',
+        location: 'Terminal.tsx:792',
+        message: 'create new active ticket',
+        data: {
+          terminalId: config.terminalId,
+          activeTicketId,
+          nextId,
+          currentCartLen: snapshotToPersist.cart.length,
+          currentPaymentMethod: snapshotToPersist.paymentMethod,
+          queryState: query,
+          searchDomValue: searchInputRef.current?.value ?? ''
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+    // #endregion
 
     const snapshotsWithCurrent = {
       ...ticketSnapshots,
-      [activeTicketId]: {
-        customerName,
-        customerId,
-        paymentMethod,
-        globalDiscountPct,
-        cart,
-        selectedCartSku,
-        amountReceived,
-        requiereFactura: solicitaFactura,
-        paymentReference,
-        mixedCash,
-        mixedCard,
-        mixedTransfer
-      },
-      [nextId]: {
-        customerName: 'Público General',
-        customerId: null,
-        paymentMethod: 'cash' as PaymentMethod,
-        globalDiscountPct: 0,
-        cart: [],
-        selectedCartSku: null,
-        amountReceived: '',
-        requiereFactura: false,
-        paymentReference: '',
-        mixedCash: '',
-        mixedCard: '',
-        mixedTransfer: ''
-      }
+      [activeTicketId]: snapshotToPersist,
+      [nextId]: createEmptyTicketSnapshot()
     }
 
     setActiveTickets((prev) => [...prev, nextMeta].slice(0, 8))
     setTicketSnapshots(snapshotsWithCurrent)
     setActiveTicketId(nextId)
-    setCart([])
-    setCustomerName('Público General')
-    setCustomerId(null)
-    setPaymentMethod('cash')
-    setGlobalDiscountPct(0)
-    setSelectedCartSku(null)
-    setAmountReceived('')
-    setSolicitaFactura(false)
-    setPaymentReference('')
-    setMixedCash('')
-    setMixedCard('')
-    setMixedTransfer('')
+    applyTicketSnapshot(createEmptyTicketSnapshot())
+    focusSearchInput()
     setMessage(`Ticket activo creado: ${nextMeta.label}`)
   }, [
     activeTicketId,
     activeTickets,
-    amountReceived,
-    cart,
-    customerId,
-    customerName,
-    globalDiscountPct,
-    paymentMethod,
-    solicitaFactura,
-    paymentReference,
-    mixedCash,
-    mixedCard,
-    mixedTransfer,
-    selectedCartSku,
+    applyTicketSnapshot,
+    buildCurrentTicketSnapshot,
+    config.terminalId,
+    focusSearchInput,
+    query,
     ticketSnapshots
   ])
-
-  // Tras guardar como pendiente, abrir un ticket nuevo en la pestaña de tickets.
-  useEffect(() => {
-    if (!openNewAfterPending) return
-    setOpenNewAfterPending(false)
-    createNewActiveTicket()
-  }, [openNewAfterPending, createNewActiveTicket])
 
   async function closeActiveTicket(ticketId: string): Promise<void> {
     if (activeTickets.length <= 1) {
@@ -836,18 +1027,8 @@ export default function Terminal(): ReactElement {
     if (!fallback) return
     const fallbackSnap = restSnapshots[fallback.id]
     setActiveTicketId(fallback.id)
-    setCart(fallbackSnap?.cart ?? [])
-    setCustomerName(fallbackSnap?.customerName ?? 'Público General')
-    setCustomerId(fallbackSnap?.customerId ?? null)
-    setPaymentMethod(fallbackSnap?.paymentMethod ?? 'cash')
-    setGlobalDiscountPct(fallbackSnap?.globalDiscountPct ?? 0)
-    setSelectedCartSku(fallbackSnap?.selectedCartSku ?? null)
-    setAmountReceived(fallbackSnap?.amountReceived ?? '')
-    setSolicitaFactura(fallbackSnap?.requiereFactura ?? false)
-    setPaymentReference(fallbackSnap?.paymentReference ?? '')
-    setMixedCash(fallbackSnap?.mixedCash ?? '')
-    setMixedCard(fallbackSnap?.mixedCard ?? '')
-    setMixedTransfer(fallbackSnap?.mixedTransfer ?? '')
+    applyTicketSnapshot(fallbackSnap ?? createEmptyTicketSnapshot())
+    focusSearchInput()
     setMessage(`Ticket activo cerrado. Cambiado a ${fallback.label}.`)
   }
 
@@ -896,6 +1077,7 @@ export default function Terminal(): ReactElement {
           }
         ]
       })
+      shouldClearSearchAfterAddRef.current = true
       setSelectedCartSku(product.sku)
       setMessage(`Agregado: ${product.name}`)
     },
@@ -1055,7 +1237,7 @@ export default function Terminal(): ReactElement {
         return
       }
     }
-    const shift = readCurrentShift()
+    const shift = readCurrentShift(config.terminalId)
     if (!shift) {
       setCurrentShift(null)
       setMessage('No hay turno abierto. Abre un turno en la pestaña Turnos antes de cobrar.')
@@ -1121,7 +1303,7 @@ export default function Terminal(): ReactElement {
       setCustomerName('Público General')
       setCustomerId(null)
       // Re-read shift from localStorage to avoid stale data after async sale
-      const freshShift = readCurrentShift()
+      const freshShift = readCurrentShift(config.terminalId)
       if (freshShift) {
         const cashDelta =
           paymentMethod === 'cash'
@@ -1150,11 +1332,7 @@ export default function Terminal(): ReactElement {
           transferSales: Math.round(((freshShift.transferSales ?? 0) + transferDelta) * 100) / 100,
           lastSaleAt: new Date().toISOString()
         }
-        try {
-          localStorage.setItem(CURRENT_SHIFT_KEY, JSON.stringify(updatedShift))
-        } catch {
-          /* storage full — shift counters may drift */
-        }
+        saveCurrentShift(updatedShift, config.terminalId)
         setCurrentShift(updatedShift)
       }
       setMessage(
@@ -1237,17 +1415,34 @@ export default function Terminal(): ReactElement {
       cart,
       wholesaleMode
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
+      body: JSON.stringify({
+        sessionId: 'd100d7',
+        runId: 'dual-terminal-pre-fix',
+        hypothesisId: 'H1',
+        location: 'Terminal.tsx:1329',
+        message: 'save current as pending',
+        data: {
+          terminalId: config.terminalId,
+          activeTicketId,
+          label,
+          cartLen: cart.length,
+          queryState: query,
+          searchDomValue: searchInputRef.current?.value ?? '',
+          pendingCount: pendingTickets.length
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+    // #endregion
     setPendingTickets((prev) => [pending, ...prev].slice(0, 30))
-    setCart([])
-    setGlobalDiscountPct(0)
-    setSelectedCartSku(null)
-    setAmountReceived('')
     setTicketLabel('')
     setMessage(`Pendiente guardado: ${label}`)
     setOpenNewAfterPending(true)
   }
-
-  const firstMatch = filtered[0]
 
   const openCheckoutModal = useCallback(async (): Promise<void> => {
     if (cart.length === 0) return
@@ -1263,6 +1458,12 @@ export default function Terminal(): ReactElement {
     }
     setIsCheckoutModalOpen(true)
   }, [cart.length, cartWarnings.missingSkus.length, cartWarnings.lowStockItems.length, confirm])
+
+  useEffect(() => {
+    if (!openNewAfterPending) return
+    setOpenNewAfterPending(false)
+    createNewActiveTicket()
+  }, [openNewAfterPending, createNewActiveTicket])
 
   useEffect((): (() => void) => {
     const onKeyDown = async (event: KeyboardEvent): Promise<void> => {
@@ -1468,7 +1669,7 @@ export default function Terminal(): ReactElement {
                 ))}
               </div>
               <button
-                onClick={createNewActiveTicket}
+                onClick={() => createNewActiveTicket()}
                 className="shrink-0 p-1.5 rounded-t-lg bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition border border-zinc-800 border-b-0"
                 title="Nuevo (Ctrl+N)"
               >
@@ -1500,16 +1701,20 @@ export default function Terminal(): ReactElement {
                   ref={searchInputRef}
                   autoFocus
                   maxLength={200}
+                  defaultValue=""
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-10 text-sm font-medium text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:bg-zinc-900 focus:ring-2 focus:ring-blue-500/10 transition-all shadow-inner"
                   placeholder="Buscar producto o escanear (F10)..."
-                  value={query}
                   onChange={(e) => {
                     lastKeystrokeRef.current = Date.now()
-                    // Strip control chars AND normalize Unicode (prevents Zalgo)
-                    // eslint-disable-next-line no-control-regex
-                    const raw = e.target.value.replace(/[\x00-\x1F\x7F-\x9F]/g, '')
-                    const normalized = raw.normalize('NFC').replace(/[\u0300-\u036f]{3,}/g, '')
-                    setQuery(normalized.slice(0, 200))
+                    const normalized = normalizeSearchInput(e.target.value)
+                    if (
+                      Date.now() < suppressSearchChangeUntilRef.current &&
+                      normalized === normalizeSearchInput(lastSubmittedSearchRef.current)
+                    ) {
+                      clearSearchDomValue()
+                      return
+                    }
+                    setQuery(normalized)
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -1520,55 +1725,97 @@ export default function Terminal(): ReactElement {
                       if (now - lastEnterRef.current < 150) return
                       lastEnterRef.current = now
 
-                      if (!query.trim()) return
-
-                      let scannerMinSpeed = 50
-                      let scannerPrefix = ''
-                      let scannerSuffix = ''
-                      let isScanner = false
-                      try {
-                        const hwRaw = localStorage.getItem('titan.hwConfig')
-                        if (hwRaw) {
-                          const hwCfg = JSON.parse(hwRaw)
-                          if (!hwCfg || typeof hwCfg !== 'object')
-                            throw new Error('invalid hwConfig')
-                          if (hwCfg.scanner?.enabled) {
-                            scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
-                            scannerPrefix = hwCfg.scanner.prefix || ''
-                            scannerSuffix = hwCfg.scanner.suffix || ''
-                            const elapsed = now - lastKeystrokeRef.current
-                            if (elapsed < scannerMinSpeed && query.trim().length > 2) {
-                              isScanner = true
-                            }
-                          }
-                        }
-                      } catch {
-                        /* parse error */
+                      const currentValue = e.currentTarget.value
+                      // #region agent log
+                      fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'X-Debug-Session-Id': 'd100d7'
+                        },
+                        body: JSON.stringify({
+                          sessionId: 'd100d7',
+                          runId: 'dual-terminal-pre-fix',
+                          hypothesisId: 'H2',
+                          location: 'Terminal.tsx:1529',
+                          message: 'terminal enter pressed',
+                          data: {
+                            terminalId: config.terminalId,
+                            activeTicketId,
+                            currentValue,
+                            queryState: query,
+                            cartLen: cart.length,
+                            searchDomValue: searchInputRef.current?.value ?? ''
+                          },
+                          timestamp: Date.now()
+                        })
+                      }).catch(() => {})
+                      // #endregion
+                      if (!currentValue.trim()) return
+                      lastSubmittedSearchRef.current = currentValue
+                      const match = findProductForSearch(currentValue, now)
+                      if (!match) {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-Debug-Session-Id': 'd100d7'
+                          },
+                          body: JSON.stringify({
+                            sessionId: 'd100d7',
+                            runId: 'dual-terminal-pre-fix',
+                            hypothesisId: 'H6',
+                            location: 'Terminal.tsx:1534',
+                            message: 'terminal enter no match',
+                            data: {
+                              terminalId: config.terminalId,
+                              activeTicketId,
+                              currentValue,
+                              queryState: query,
+                              filteredCount: filtered.length,
+                              productCount: products.length,
+                              normalizedInput: normalizeSearchInput(currentValue).trim(),
+                              exactSkuExists: products.some(
+                                (item) =>
+                                  item.sku.toLowerCase() ===
+                                  normalizeSearchInput(currentValue).trim().toLowerCase()
+                              ),
+                              sampleSkus: products.slice(0, 5).map((item) => item.sku)
+                            },
+                            timestamp: Date.now()
+                          })
+                        }).catch(() => {})
+                        // #endregion
+                        return
                       }
-
-                      let searchTerm = query.trim()
-                      if (isScanner) {
-                        if (scannerPrefix && searchTerm.startsWith(scannerPrefix)) {
-                          searchTerm = searchTerm.slice(scannerPrefix.length)
-                        }
-                        if (scannerSuffix && searchTerm.endsWith(scannerSuffix)) {
-                          searchTerm = searchTerm.slice(0, -scannerSuffix.length)
-                        }
-                        const exact = products.find(
-                          (p) => p.sku.toLowerCase() === searchTerm.toLowerCase()
-                        )
-                        if (exact) {
-                          addProduct(exact)
-                          setQuery('')
-                          searchInputRef.current?.focus()
-                          return
-                        }
-                      }
-                      if (firstMatch) {
-                        addProduct(firstMatch)
-                        setQuery('')
-                        searchInputRef.current?.focus()
-                      }
+                      addProduct(match)
+                      clearSearch()
+                      // #region agent log
+                      fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'X-Debug-Session-Id': 'd100d7'
+                        },
+                        body: JSON.stringify({
+                          sessionId: 'd100d7',
+                          runId: 'dual-terminal-pre-fix',
+                          hypothesisId: 'H2',
+                          location: 'Terminal.tsx:1540',
+                          message: 'terminal enter matched',
+                          data: {
+                            terminalId: config.terminalId,
+                            activeTicketId,
+                            matchedSku: match.sku,
+                            matchedName: match.name,
+                            queryStateAfter: query,
+                            searchDomValueAfter: searchInputRef.current?.value ?? ''
+                          },
+                          timestamp: Date.now()
+                        })
+                      }).catch(() => {})
+                      // #endregion
                       return
                     }
                   }}
@@ -1593,8 +1840,7 @@ export default function Terminal(): ReactElement {
                             key={p.sku}
                             onClick={() => {
                               addProduct(p)
-                              setQuery('')
-                              searchInputRef.current?.focus()
+                              clearSearch()
                             }}
                             className="flex items-center justify-between p-3 border-b border-zinc-800/50 hover:bg-zinc-800 transition-colors text-left group"
                           >

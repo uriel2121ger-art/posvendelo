@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Uso: bash install-titan.sh --cp-url URL --install-token TOKEN [--branch-name NOMBRE] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO]"
+  echo "Uso: bash install-titan.sh --cp-url URL [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO]"
 }
 
 CP_URL=""
@@ -17,6 +17,10 @@ BOOTSTRAP_JSON=""
 REGISTER_JSON=""
 AGENT_JSON_PATH=""
 CURRENT_STEP="inicio"
+CLOUD_EMAIL=""
+CLOUD_PASSWORD=""
+TENANT_NAME=""
+EXISTING_CLOUD_ACCOUNT="false"
 
 report_status() {
   local status="$1"
@@ -67,6 +71,22 @@ while [[ $# -gt 0 ]]; do
       BRANCH_NAME="$2"
       shift 2
       ;;
+    --cloud-email)
+      CLOUD_EMAIL="$2"
+      shift 2
+      ;;
+    --cloud-password)
+      CLOUD_PASSWORD="$2"
+      shift 2
+      ;;
+    --tenant-name)
+      TENANT_NAME="$2"
+      shift 2
+      ;;
+    --existing-cloud)
+      EXISTING_CLOUD_ACCOUNT="true"
+      shift 1
+      ;;
     --dir)
       INSTALL_DIR="$2"
       shift 2
@@ -86,7 +106,113 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$CP_URL" || -z "$INSTALL_TOKEN" ]]; then
+if [[ -z "$CP_URL" ]]; then
+  usage
+  exit 1
+fi
+
+bootstrap_cloud_install_token() {
+  local auth_json auth_response auth_token branch_json branch_response generated_token
+
+  if [[ -z "$CLOUD_EMAIL" ]]; then
+    read -r -p "Correo cloud: " CLOUD_EMAIL
+  fi
+  if [[ -z "$CLOUD_PASSWORD" ]]; then
+    read -rs -p "Contraseña cloud: " CLOUD_PASSWORD
+    echo
+  fi
+  if [[ "$EXISTING_CLOUD_ACCOUNT" != "true" && -z "$TENANT_NAME" ]]; then
+    read -r -p "Empresa o negocio: " TENANT_NAME
+  fi
+  if [[ -z "$BRANCH_NAME" ]]; then
+    read -r -p "Nombre de la sucursal: " BRANCH_NAME
+  fi
+
+  auth_json="$(mktemp)"
+  if [[ "$EXISTING_CLOUD_ACCOUNT" == "true" ]]; then
+    CLOUD_EMAIL="$CLOUD_EMAIL" CLOUD_PASSWORD="$CLOUD_PASSWORD" python3 - <<'PY' > "$auth_json"
+import json
+import os
+print(json.dumps({"email": os.environ["CLOUD_EMAIL"], "password": os.environ["CLOUD_PASSWORD"]}))
+PY
+    auth_response="$(curl -fsSL -X POST -H "Content-Type: application/json" --data @"$auth_json" "${CP_URL%/}/api/v1/cloud/login")"
+  else
+    CLOUD_EMAIL="$CLOUD_EMAIL" CLOUD_PASSWORD="$CLOUD_PASSWORD" TENANT_NAME="$TENANT_NAME" BRANCH_NAME="$BRANCH_NAME" python3 - <<'PY' > "$auth_json"
+import json
+import os
+print(json.dumps({
+    "email": os.environ["CLOUD_EMAIL"],
+    "password": os.environ["CLOUD_PASSWORD"],
+    "business_name": os.environ["TENANT_NAME"],
+    "branch_name": os.environ["BRANCH_NAME"],
+}))
+PY
+    auth_response="$(curl -fsSL -X POST -H "Content-Type: application/json" --data @"$auth_json" "${CP_URL%/}/api/v1/cloud/register")"
+    generated_token="$(AUTH_RESPONSE="$auth_response" python3 - <<'PY'
+import json
+import os
+body = json.loads(os.environ["AUTH_RESPONSE"])
+print((body.get("data") or {}).get("install_token") or "")
+PY
+)"
+    if [[ -n "$generated_token" ]]; then
+      INSTALL_TOKEN="$generated_token"
+      rm -f "$auth_json"
+      return
+    fi
+  fi
+
+  auth_token="$(AUTH_RESPONSE="$auth_response" python3 - <<'PY'
+import json
+import os
+body = json.loads(os.environ["AUTH_RESPONSE"])
+print((body.get("data") or {}).get("session_token") or "")
+PY
+)"
+  if [[ -z "$auth_token" ]]; then
+    echo "[TITAN] No se pudo obtener sesión cloud."
+    rm -f "$auth_json"
+    exit 1
+  fi
+
+  branch_json="$(mktemp)"
+  BRANCH_NAME="$BRANCH_NAME" python3 - <<'PY' > "$branch_json"
+import json
+import os
+print(json.dumps({"branch_name": os.environ["BRANCH_NAME"] or "Sucursal Principal"}))
+PY
+  branch_response="$(curl -fsSL -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${auth_token}" --data @"$branch_json" "${CP_URL%/}/api/v1/cloud/register-branch")"
+  INSTALL_TOKEN="$(BRANCH_RESPONSE="$branch_response" python3 - <<'PY'
+import json
+import os
+body = json.loads(os.environ["BRANCH_RESPONSE"])
+print((body.get("data") or {}).get("install_token") or "")
+PY
+)"
+  rm -f "$auth_json" "$branch_json"
+  if [[ -z "$INSTALL_TOKEN" ]]; then
+    echo "[TITAN] No se pudo obtener install_token desde cloud/register-branch."
+    exit 1
+  fi
+}
+
+if [[ -z "$INSTALL_TOKEN" ]]; then
+  if [[ -n "$CLOUD_EMAIL" || -n "$CLOUD_PASSWORD" || -n "$TENANT_NAME" ]]; then
+    bootstrap_cloud_install_token
+  else
+    read -r -p "¿Activar Nube TITAN ahora para generar el install token? [s/N] " ACTIVATE_CLOUD
+    if [[ "$ACTIVATE_CLOUD" =~ ^[Ss]$ ]]; then
+      read -r -p "¿Ya tienes cuenta cloud? [s/N] " HAS_ACCOUNT
+      if [[ "$HAS_ACCOUNT" =~ ^[Ss]$ ]]; then
+        EXISTING_CLOUD_ACCOUNT="true"
+      fi
+      bootstrap_cloud_install_token
+    fi
+  fi
+fi
+
+if [[ -z "$INSTALL_TOKEN" ]]; then
+  echo "[TITAN] Se requiere install_token o activar onboarding cloud."
   usage
   exit 1
 fi
