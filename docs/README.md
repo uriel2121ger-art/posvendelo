@@ -1,6 +1,6 @@
 # Documentación — TITAN POS
 
-Índice por categoría. La documentación está en subcarpetas.
+Índice por categoría. La documentación está en subcarpetas: distribucion/, operacion/, testing/, referencia/, informes/, otros/.
 
 ---
 
@@ -40,13 +40,13 @@
 | [MANUAL_TEST_BROWSER.md](testing/MANUAL_TEST_BROWSER.md) | Pruebas manuales en navegador (E2E, atajos F1–F11). |
 | [FLUJO_PRUEBAS_AUTONOMO.md](testing/FLUJO_PRUEBAS_AUTONOMO.md) | Flujo autónomo por pestaña. |
 | [LOG_PRUEBAS_TABS.md](testing/LOG_PRUEBAS_TABS.md) | Log de pruebas por tab. |
-| [PLAN_PRUEBAS_MANUALES_V8.md](testing/PLAN_PRUEBAS_MANUALES_V8.md) — V10 | Planes y logs de pruebas manuales. |
+| [PLAN_PRUEBAS_MANUALES_V8.md](testing/PLAN_PRUEBAS_MANUALES_V8.md) / [V9](testing/PLAN_PRUEBAS_MANUALES_V9.md) / [V10](testing/PLAN_PRUEBAS_MANUALES_V10.md) | Planes y logs de pruebas manuales. |
 | [QA_TESTING_CONSOLIDADO.md](testing/QA_TESTING_CONSOLIDADO.md) | QA testing consolidado. |
-| [REPORTE_QA_*.md](testing/REPORTE_QA_EXEC_V8.md) | Reportes QA. |
+| [REPORTE_QA_EXEC_V8.md](testing/REPORTE_QA_EXEC_V8.md) / [REPORTE_QA_FINAL_V7.md](testing/REPORTE_QA_FINAL_V7.md) | Reportes QA. |
 | [REVISION_VISUAL_EXHAUSTIVA.md](testing/REVISION_VISUAL_EXHAUSTIVA.md) | Revisión visual exhaustiva. |
-| REPORTE_VULNERABILIDADES_V10.md … V16 | Reportes de vulnerabilidades. |
+| [REPORTE_VULNERABILIDADES_V10.md](testing/REPORTE_VULNERABILIDADES_V10.md) … V16 | Reportes de vulnerabilidades. |
 
-E2E Playwright: ver [frontend/e2e/README.md](../frontend/e2e/README.md) y \`npm run test:e2e\`.
+E2E Playwright: ver [frontend/e2e/README.md](../frontend/e2e/README.md) y `npm run test:e2e`.
 
 ---
 
