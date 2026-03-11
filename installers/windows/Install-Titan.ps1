@@ -128,6 +128,61 @@ function Ensure-CloudInstallToken {
   }
 }
 
+function Collect-HardwareInfo {
+  $boardSerial = (Get-CimInstance Win32_BaseBoard).SerialNumber
+  $boardName = (Get-CimInstance Win32_BaseBoard).Product
+  $cpuModel = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
+  $macPrimary = (Get-NetAdapter -Physical | Where-Object Status -eq 'Up' | Select-Object -First 1).MacAddress
+  $diskSerial = (Get-CimInstance Win32_DiskDrive | Where-Object MediaType -like '*fixed*' | Select-Object -First 1).SerialNumber
+
+  # Clean up placeholder/invalid values
+  $invalidValues = @('', 'Default string', 'Default', 'To Be Filled By O.E.M.', 'Not Specified', 'None', 'N/A', '0')
+  if ($boardSerial -in $invalidValues) { $boardSerial = $null }
+  if ($boardName -in $invalidValues) { $boardName = $null }
+
+  return @{
+    board_serial = $boardSerial
+    board_name   = $boardName
+    cpu_model    = $cpuModel
+    mac_primary  = $macPrimary
+    disk_serial  = $diskSerial
+  }
+}
+
+function Invoke-PreRegister {
+  Write-Step "Recolectando información de hardware..."
+  $hwInfo = Collect-HardwareInfo
+
+  $branchNameValue = if ($BranchName) { $BranchName } else { "Sucursal Principal" }
+  $payload = @{
+    hw_info     = $hwInfo
+    os_platform = "windows"
+    branch_name = $branchNameValue
+  } | ConvertTo-Json -Depth 4
+
+  Write-Step "Registrando equipo en el servidor central..."
+  try {
+    $response = Invoke-RestMethod -Method Post `
+      -Uri "$($CpUrl.TrimEnd('/'))/api/v1/branches/pre-register" `
+      -ContentType "application/json" `
+      -Body $payload
+  } catch {
+    throw "No se pudo conectar al servidor central. Verifique su conexión a internet e intente de nuevo."
+  }
+
+  $data = $response.data
+  if ($data.is_new -eq $true) {
+    Write-Step "Equipo registrado por primera vez."
+  } else {
+    Write-Step "Equipo reconocido. Período de prueba continúa."
+  }
+
+  $script:InstallToken = $data.install_token
+  if (-not $InstallToken) {
+    throw "No se obtuvo token de instalación del servidor."
+  }
+}
+
 function Get-FreeTcpPort([int]$PreferredPort) {
   for ($port = $PreferredPort; $port -lt ($PreferredPort + 200); $port++) {
     $listener = $null
@@ -209,18 +264,16 @@ function Send-InstallReport([string]$Status, [string]$ErrorMessage) {
 
 try {
   if (-not $InstallToken) {
-    $activateCloud = Read-Host "¿Activar Nube PosVendelo ahora para generar install token? [s/N]"
-    if ($activateCloud -match '^[sS]$') {
-      $hasAccount = Read-Host "¿Ya tienes cuenta cloud? [s/N]"
-      if ($hasAccount -match '^[sS]$') {
-        $ExistingCloud = $true
-      }
+    if ($CloudEmail -or $CloudPassword -or $TenantName) {
       Ensure-CloudInstallToken
+    } else {
+      # Pre-register with hardware fingerprint (plug-and-play, no account needed)
+      Invoke-PreRegister
     }
   }
 
   if (-not $InstallToken) {
-    throw "Se requiere install token o activar onboarding cloud."
+    throw "No se pudo obtener un token de instalación."
   }
 
   Ensure-Docker
@@ -315,6 +368,9 @@ Owner API: $($bootstrapData.owner_api_base_url)
 Credenciales iniciales de acceso a caja:
 - Usuario: $adminUser
 - Contraseña: $adminPassword
+
+Período de prueba: 120 días desde el primer registro
+Activar Nube: Desde la app, Configuración > Nube PosVendelo
 
 Archivos clave:
 - .env

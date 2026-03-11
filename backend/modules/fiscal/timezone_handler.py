@@ -172,7 +172,7 @@ def validate_cfdi_timestamp(timestamp: str, codigo_postal: str,
     if not result['valid']:
         result['error'] = (
             f"Diferencia de {int(diff)} minutos entre timestamp del CFDI "
-            f"y hora actual. Maximo permitido: {max_difference_minutes} min"
+            f"y hora actual. Máximo permitido: {max_difference_minutes} min"
         )
 
     return result

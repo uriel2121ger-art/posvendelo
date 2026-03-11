@@ -9,8 +9,9 @@ class CloudRegisterRequest(BaseModel):
     branch_name: str = Field(default="Sucursal Principal", min_length=2, max_length=120)
     branch_slug: str | None = Field(default=None, min_length=2, max_length=80)
     link_code: str | None = Field(default=None, min_length=4, max_length=32)
+    install_token: str | None = Field(default=None, min_length=8, max_length=128)
 
-    @field_validator("password", "full_name", "business_name", "branch_name", "branch_slug", "link_code")
+    @field_validator("password", "full_name", "business_name", "branch_name", "branch_slug", "link_code", "install_token")
     @classmethod
     def strip_strings(cls, value: str | None) -> str | None:
         if value is None:

@@ -517,7 +517,7 @@ class CFDIService:
         customer_regime: str = "616",
         uso_cfdi: str = "G02",
         items: Optional[list] = None,
-        descripcion: str = "Nota de credito por devolucion",
+        descripcion: str = "Nota de crédito por devolución",
     ) -> Dict[str, Any]:
         try:
             original = await self.db.fetchrow(
@@ -539,7 +539,7 @@ class CFDIService:
                 items = sale_data.get("items", []) if sale_data else []
 
             if not items:
-                return {"success": False, "error": "No hay productos para la nota de credito"}
+                return {"success": False, "error": "No hay productos para la nota de crédito"}
 
             # Use item subtotals (pre-tax) if available, otherwise back-calculate from total
             raw_subtotal = Decimal("0")

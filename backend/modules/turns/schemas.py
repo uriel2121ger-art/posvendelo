@@ -16,7 +16,7 @@ class DenominationItem(BaseModel):
     @classmethod
     def denomination_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("La denominacion debe ser un numero finito")
+            raise ValueError("La denominación debe ser un número finito")
         return v
 
 
@@ -30,7 +30,7 @@ class TurnOpen(BaseModel):
     @classmethod
     def initial_cash_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("El monto debe ser un numero finito")
+            raise ValueError("El monto debe ser un número finito")
         return v
 
 
@@ -43,7 +43,7 @@ class TurnClose(BaseModel):
     @classmethod
     def final_cash_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("El monto debe ser un numero finito")
+            raise ValueError("El monto debe ser un número finito")
         return v
 
 
@@ -56,5 +56,5 @@ class CashMovementCreate(BaseModel):
     @classmethod
     def amount_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("El monto debe ser un numero finito")
+            raise ValueError("El monto debe ser un número finito")
         return v

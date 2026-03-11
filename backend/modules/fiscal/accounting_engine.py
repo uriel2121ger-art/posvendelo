@@ -239,7 +239,7 @@ class CerebroContable:
             'iva_a_pagar': money(max(Decimal('0'), iva_acumulado - iva_a_favor)),
             'isr_adicional': money(isr_adicional),
             'ahorro_total': money(iva_a_favor - (iva_acumulado - iva_a_favor)),
-            'recomendacion': f'Genera factura global por ${money(subtotal_acumulado):,.2f} para optimizar IVA'
+            'recomendacion': f'Genera factura global por ${money(subtotal_acumulado)} para optimizar IVA'
         }
     
     async def _generar_recomendaciones(self, iva_neto: Decimal, isr: Decimal, 
@@ -250,7 +250,7 @@ class CerebroContable:
         # IVA
         if iva_neto > 0:
             recomendaciones.append(
-                f"💰 Tienes IVA a pagar: ${money(iva_neto):,.2f}"
+                f"💰 Tienes IVA a pagar: ${money(iva_neto)}"
             )
         else:
             recomendaciones.append(

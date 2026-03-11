@@ -134,7 +134,7 @@ class TestCustomerCredit:
         assert r.status_code == 200
         d = r.json()["data"]
         assert d["customer_id"] == CUSTOMER_ID
-        assert d["credit_limit"] == 5000.0
-        assert d["credit_balance"] == 0.0
-        assert d["available_credit"] == 5000.0
+        assert d["credit_limit"] == "5000.00"
+        assert d["credit_balance"] == "0.00"
+        assert d["available_credit"] == "5000.00"
         assert isinstance(d["pending_sales"], list)

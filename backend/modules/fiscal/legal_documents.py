@@ -201,7 +201,7 @@ El hash SHA-256 garantiza la integridad del documento desde su creacion.
         """
         Genera documento de devolucion.
         Serie A: Requiere CFDI de Egreso.
-        Serie B: Nota de credito interna.
+        Serie B: Nota de crédito interna.
         """
         folio = f"DEV-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         timestamp = datetime.now()
@@ -259,7 +259,7 @@ Estado del Producto: {data.get('product_condition', 'integro')}
     Generar CFDI de Egreso (Nota de Credito) relacionado al UUID:
     {data.get('original_uuid', 'PENDIENTE')}
 
-    Tipo Relacion: 01 - Nota de credito de los documentos relacionados
+    Tipo Relacion: 01 - Nota de crédito de los documentos relacionados
 """
         else:
             doc_content += """

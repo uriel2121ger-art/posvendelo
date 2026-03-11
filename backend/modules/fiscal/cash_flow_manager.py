@@ -92,7 +92,7 @@ class CashExtractionEngine:
 
             result = {'success': True, 'amount': money(amount), 'type': document_type, 'hash': contract_hash[:16] + '...', 'requires_notary': requires_notary}
             if requires_notary:
-                result['warning'] = f'Monto superior a ${money(self.UMBRAL_FECHA_CIERTA):,.0f}. Recomendable fecha cierta ante Notario.'
+                result['warning'] = f'Monto superior a ${money(self.UMBRAL_FECHA_CIERTA, 0)}. Recomendable fecha cierta ante Notario.'
             return result
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -106,7 +106,7 @@ class CashExtractionEngine:
         fecha = datetime.now()
         return f"""CONTRATO DE {e['document_type']}
 Fecha: {fecha.strftime('%d de %B de %Y')}
-Monto: ${money(e['amount']):,.2f} MXN
+Monto: ${money(e['amount'])} MXN
 Donante/Mutuante: {e.get('donor_name', 'N/A')} (RFC: {e.get('donor_rfc', 'N/A')})
 Parentesco: {self.PARENTESCOS.get(e.get('parentesco', ''), 'N/A')}
 Hash: {e['contract_hash']}

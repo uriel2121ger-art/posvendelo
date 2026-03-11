@@ -156,5 +156,5 @@ class PredictiveExtraction:
             'avg_daily_serie_b': money(avg_daily),
             'optimal_daily': money(optimal),
             'days_sampled': len(daily_sales),
-            'recommendation': f'Retira ${money(optimal):,.0f}/día'
+            'recommendation': f'Retira ${money(optimal, 0)}/día'
         }

@@ -48,7 +48,7 @@ async def test_price_forgery_blocked(client, seed_all, admin_token):
     assert resp.status_code == 200
     data = resp.json()["data"]
     # Product price in DB is $116.00 (IVA included) → base = 100.00 → +IVA → total = 116.00
-    assert data["total"] == 116.0, f"Expected 116.0, got {data['total']} — price forgery NOT blocked!"
+    assert data["total"] == "116.00", f"Expected '116.00', got {data['total']} — price forgery NOT blocked!"
 
 
 async def test_common_product_uses_client_price(client, seed_all, admin_token):
@@ -75,7 +75,7 @@ async def test_common_product_uses_client_price(client, seed_all, admin_token):
     assert resp.status_code == 200
     data = resp.json()["data"]
     # Common product: client price $25 (IVA included) → base ~21.55 → +IVA → ~25.00
-    assert data["total"] == 25.0, f"Expected 25.0, got {data['total']}"
+    assert data["total"] == "25.00", f"Expected '25.00', got {data['total']}"
 
 
 # ── 2. Null Byte Sanitization ────────────────────────────────────

@@ -1,9 +1,12 @@
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -391,6 +394,49 @@ async def cloud_register(body: CloudRegisterRequest, request: Request, db=Depend
             "SELECT id, install_token, name, branch_slug FROM branches WHERE id = :branch_id",
             {"branch_id": link_code["branch_id"]},
         )
+    elif body.install_token:
+        # Link existing anonymous tenant to cloud account
+        branch = await db.fetchrow(
+            """
+            SELECT b.id, b.tenant_id, b.name, b.branch_slug, b.install_token
+            FROM branches b
+            JOIN tenants t ON t.id = b.tenant_id
+            WHERE b.install_token = :install_token
+            """,
+            {"install_token": body.install_token},
+        )
+        if not branch:
+            raise HTTPException(status_code=404, detail="Token de instalación inválido")
+        tenant = await db.fetchrow(
+            "SELECT id, name, slug FROM tenants WHERE id = :tenant_id",
+            {"tenant_id": branch["tenant_id"]},
+        )
+        # Update tenant to non-anonymous with business name
+        if body.business_name:
+            new_slug = await _unique_tenant_slug(db, body.business_name)
+            await db.execute(
+                """
+                UPDATE tenants
+                SET name = :name, slug = :slug, is_anonymous = 0, updated_at = NOW()
+                WHERE id = :tenant_id
+                """,
+                {"tenant_id": tenant["id"], "name": body.business_name, "slug": new_slug},
+            )
+            tenant = await db.fetchrow(
+                "SELECT id, name, slug FROM tenants WHERE id = :tenant_id",
+                {"tenant_id": tenant["id"]},
+            )
+        # Mark branch as cloud activated
+        await db.execute(
+            "UPDATE branches SET cloud_activated = 1, updated_at = NOW() WHERE id = :branch_id",
+            {"branch_id": branch["id"]},
+        )
+        # Provision tunnel
+        from modules.tunnel.service import ensure_tunnel_provisioned
+        try:
+            await ensure_tunnel_provisioned(db, branch_id=branch["id"], branch_slug=branch["branch_slug"])
+        except Exception as exc:
+            logger.warning("Tunnel provision during cloud register failed: %s", exc)
     else:
         if not body.business_name:
             raise HTTPException(status_code=400, detail="El nombre del negocio es requerido")

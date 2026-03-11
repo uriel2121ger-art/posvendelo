@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES, money
+from modules.shared.constants import PRIVILEGED_ROLES, money, sanitize_rows
 from modules.inventory.schemas import StockAdjustment
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ async def list_movements(
     params["offset"] = offset
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/alerts")
@@ -77,7 +77,7 @@ async def stock_alerts(auth: dict = Depends(verify_token), db=Depends(get_db)):
         ORDER BY COALESCE(stock, 0) ASC
         LIMIT 200
     """)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 # ============================================================================

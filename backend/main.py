@@ -270,6 +270,7 @@ async def _remote_requests_poll_loop() -> None:
 async def lifespan(application):
     heartbeat_task: asyncio.Task | None = None
     remote_requests_task: asyncio.Task | None = None
+    discovery_task: asyncio.Task | None = None
 
     # Event bridge (legacy EventBus → DomainEvents)
     try:
@@ -320,6 +321,13 @@ async def lifespan(application):
         heartbeat_task = asyncio.create_task(_heartbeat_loop())
         remote_requests_task = asyncio.create_task(_remote_requests_poll_loop())
 
+    # UDP discovery broadcast — siempre activo para que terminales LAN encuentren el servidor
+    try:
+        from modules.discovery.broadcast import start_discovery_broadcast
+        discovery_task = asyncio.create_task(start_discovery_broadcast())
+    except Exception as e:
+        logger.warning("Discovery broadcast startup failed (non-fatal): %s", e)
+
     yield
 
     if jti_cleanup_task is not None:
@@ -334,6 +342,10 @@ async def lifespan(application):
         remote_requests_task.cancel()
         with suppress(asyncio.CancelledError):
             await remote_requests_task
+    if discovery_task is not None:
+        discovery_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await discovery_task
 
     # Teardown: close asyncpg pool
     try:
@@ -506,6 +518,7 @@ from modules.fiscal.routes import router as fiscal_router
 from modules.hardware.routes import router as hardware_router
 from modules.shared.license_routes import router as license_router
 from modules.system.routes import router as system_router
+from modules.cloud.routes import router as cloud_router
 
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(customers_router, prefix="/api/v1/customers", tags=["customers"])
@@ -524,6 +537,7 @@ app.include_router(fiscal_router, prefix="/api/v1/fiscal", tags=["fiscal"])
 app.include_router(hardware_router, prefix="/api/v1/hardware", tags=["hardware"])
 app.include_router(license_router, prefix="/api/v1/license", tags=["license"])
 app.include_router(system_router, prefix="/api/v1/system", tags=["system"])
+app.include_router(cloud_router, prefix="/api/v1/cloud", tags=["cloud"])
 
 # ---------------------------------------------------------------------------
 # Health check

@@ -24,7 +24,9 @@ from modules.tunnel.routes import router as tunnel_router
 
 logger = logging.getLogger(__name__)
 debug = os.getenv("DEBUG", "false").lower() == "true"
-DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", "/app/downloads"))
+# Ruta por defecto: carpeta downloads junto a main.py (funciona en local y en Docker /app)
+_default_downloads = Path(__file__).resolve().parent / "downloads"
+DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", str(_default_downloads)))
 
 CAJERO_WINDOWS_INSTALLER = "titan-pos-setup.exe"
 CAJERO_APPIMAGE = "titan-pos.AppImage"
@@ -34,6 +36,7 @@ OWNER_WINDOWS_INSTALLER = "titan-owner-setup.exe"
 OWNER_APPIMAGE = "titan-owner.AppImage"
 OWNER_DEB = "titan-owner_amd64.deb"
 OWNER_WEB_ZIP = "titan-owner-web.zip"
+OWNER_APK = "titan-owner.apk"
 
 
 def _cors_origins() -> list[str]:
@@ -225,6 +228,7 @@ async def landing_page() -> str:
       <a class="btn" href="/download/owner/appimage">Dueño AppImage</a>
       <a class="btn" href="/download/owner/deb">Dueño .deb</a>
       <a class="btn" href="/download/owner/web">Dueño Web (zip)</a>
+      <a class="btn" href="/download/owner/apk">Dueño Android (APK)</a>
       <a class="btn" href="/downloads">Ver todos los instaladores</a>
       <a class="btn" href="/health">Estado del servicio</a>
       <a class="btn" href="mailto:ventas@posvendelo.com">Contactar ventas</a>
@@ -280,6 +284,7 @@ async def downloads_page() -> str:
     <li><a href="/download/owner/appimage">Linux AppImage</a></li>
     <li><a href="/download/owner/deb">Linux Debian/Ubuntu (.deb)</a></li>
     <li><a href="/download/owner/web">Web/PWA (.zip)</a></li>
+    <li><a href="/download/owner/apk">Android (.apk)</a></li>
   </ul>
   <p><a href="/">Volver al inicio</a></p>
 </body>
@@ -356,6 +361,17 @@ async def download_owner_deb() -> FileResponse:
 async def download_owner_web() -> FileResponse:
     path = _require_download(OWNER_WEB_ZIP)
     return FileResponse(path=str(path), filename=OWNER_WEB_ZIP, media_type="application/zip")
+
+
+@app.api_route("/download/owner/apk", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_owner_apk() -> FileResponse:
+    path = _require_download(OWNER_APK)
+    return FileResponse(
+        path=str(path),
+        filename=OWNER_APK,
+        media_type="application/vnd.android.package-archive",
+    )
+
 
 @app.get("/health", tags=["system"])
 async def health_check():

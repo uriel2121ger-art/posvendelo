@@ -111,8 +111,8 @@ class TestChangePrice:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert d["old_price"] == 116.0
-        assert d["new_price"] == 150.0
+        assert d["old_price"] == "116.00"
+        assert d["new_price"] == "150.00"
         assert d["product_name"] == "Producto Test"
 
         # Verify price_history record

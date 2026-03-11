@@ -22,7 +22,7 @@ def _validate_printer(name: str) -> str:
     """Validate printer name to prevent command injection."""
     name = name.strip()
     if not name or not _PRINTER_RE.match(name):
-        raise ValueError(f"Nombre de impresora invalido: {name!r}")
+        raise ValueError(f"Nombre de impresora inválido: {name!r}")
     return name
 
 

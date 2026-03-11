@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token
-from modules.shared.constants import PRIVILEGED_ROLES, money, dec
+from modules.shared.constants import PRIVILEGED_ROLES, money, dec, sanitize_row, sanitize_rows
 from modules.customers.schemas import CustomerCreate, CustomerUpdate
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ async def list_customers(
     params["offset"] = offset
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/{customer_id}")
@@ -68,7 +68,7 @@ async def get_customer(customer_id: int, auth: dict = Depends(verify_token), db=
     )
     if not row:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return {"success": True, "data": row}
+    return {"success": True, "data": sanitize_row(row)}
 
 
 @router.get("/{customer_id}/sales")
@@ -88,7 +88,7 @@ async def get_customer_sales(
         """,
         {"cid": customer_id, "limit": limit},
     )
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 # ============================================================================
@@ -163,7 +163,7 @@ async def update_customer(
     _MANAGER_FIELDS = {"credit_limit", "is_active"}
     role = auth.get("role", "")
     if _MANAGER_FIELDS & fields.keys() and role not in PRIVILEGED_ROLES:
-        raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar credito o estado de cliente")
+        raise HTTPException(status_code=403, detail="Solo gerentes pueden modificar crédito o estado de cliente")
 
     # API usa codigo_postal; la columna en DB es postal_code
     _COLUMN_MAP = {"codigo_postal": "postal_code"}
@@ -251,6 +251,6 @@ async def get_customer_credit(
             "credit_limit": money(customer["credit_limit"]),
             "credit_balance": money(customer["credit_balance"]),
             "available_credit": money(max(dec("0"), dec(customer["credit_limit"]) - dec(customer["credit_balance"]))),
-            "pending_sales": pending_sales,
+            "pending_sales": sanitize_rows(pending_sales),
         },
     }

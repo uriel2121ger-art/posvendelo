@@ -61,7 +61,7 @@ class TestAdjust:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert float(d["new_stock"]) == 120.0
+        assert d["new_stock"] == "120.00"
 
     async def test_adjust_stock_negative(
         self, client, admin_token, seed_product
@@ -76,7 +76,7 @@ class TestAdjust:
             },
         )
         assert r.status_code == 200
-        assert float(r.json()["data"]["new_stock"]) == 90.0
+        assert r.json()["data"]["new_stock"] == "90.00"
 
     async def test_adjust_stock_negative_exceeds(
         self, client, admin_token, seed_product
@@ -121,7 +121,7 @@ class TestAdjust:
             },
         )
         assert r.status_code == 200
-        assert float(r.json()["data"]["new_stock"]) == 107.0  # 100 + 7
+        assert r.json()["data"]["new_stock"] == "107.00"  # 100 + 7
         row = await db_conn.fetchrow(
             "SELECT stock FROM products WHERE id = $1", PRODUCT_ID
         )

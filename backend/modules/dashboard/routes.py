@@ -41,10 +41,10 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
            AND status = 'completed'""",
         {"year_start": year_start, "year_end": year_end},
     )
-    facturado_a = money(result["total_a"]) if result else 0.0
-    facturado_b = money(result["total_b"]) if result else 0.0
+    facturado_a = dec(result["total_a"]) if result else Decimal("0")
+    facturado_b = dec(result["total_b"]) if result else Decimal("0")
 
-    limite = money(RESICO_ANNUAL_LIMIT)
+    limite = RESICO_ANNUAL_LIMIT
     restante = limite - facturado_a
     porcentaje = (facturado_a / limite) * 100
 
@@ -64,11 +64,11 @@ async def get_resico_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
     return {
         "success": True,
         "data": {
-            "serie_a": facturado_a,
-            "serie_b": facturado_b,
-            "total": facturado_a + facturado_b,
-            "limite_resico": limite,
-            "restante": restante,
+            "serie_a": money(facturado_a),
+            "serie_b": money(facturado_b),
+            "total": money(facturado_a + facturado_b),
+            "limite_resico": money(limite),
+            "restante": money(restante),
             "porcentaje": money(porcentaje),
             "proyeccion_anual": money(proyeccion),
             "status": status,
@@ -266,10 +266,10 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
         "data": {
             "alerts": [{
                 "product_name": p["name"],
-                "urgency": "CRITICAL" if money(p.get("stock") or 0) <= 2 else "WARNING",
+                "urgency": "CRITICAL" if dec(p.get("stock") or 0) <= 2 else "WARNING",
                 "current_stock": money(p.get("stock") or 0),
-                "days_until_stockout": max(1, int(money(p.get("stock") or 0) / max(money(p.get("sold_30d") or 0) / 30, 0.01))),
-                "recommended_order": int(money(p.get("min_stock") or 5) * 2),
+                "days_until_stockout": max(1, int(dec(p.get("stock") or 0) / max(dec(p.get("sold_30d") or 0) / 30, Decimal("0.01")))),
+                "recommended_order": int(dec(p.get("min_stock") or 5) * 2),
             } for p in low_stock],
             "top_products": [{
                 "name": t["name"],

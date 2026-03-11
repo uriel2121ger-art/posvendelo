@@ -734,10 +734,12 @@ CREATE TABLE IF NOT EXISTS sale_cfdi_relation (
 -- 47. VERSION DE SCHEMA
 -- =============================================================================
 
+-- Unificado con backend/migrations/001_schema_version.sql y backend/db/migrate.py (SCHEMA_VERSION_DDL)
 CREATE TABLE IF NOT EXISTS schema_version (
-    version BIGINT PRIMARY KEY,
-    applied_at TIMESTAMP DEFAULT NOW(),
-    description TEXT
+    id BIGSERIAL PRIMARY KEY,
+    version INTEGER NOT NULL UNIQUE,
+    description TEXT,
+    applied_at TIMESTAMP DEFAULT NOW()
 );
 
 

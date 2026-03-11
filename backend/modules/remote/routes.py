@@ -104,8 +104,8 @@ async def _apply_price_change_local(db, auth: dict, *, sku: str, new_price, reas
     return {
         "product_id": product["id"],
         "product_name": product["name"],
-        "old_price": old_price,
-        "new_price": new_price,
+        "old_price": money(old_price),
+        "new_price": money(new_price),
     }
 
 

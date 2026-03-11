@@ -61,9 +61,9 @@ class TestCreateSale:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert d["subtotal"] == 100.0
-        assert d["tax"] == 16.0
-        assert d["total"] == 116.0
+        assert d["subtotal"] == "100.00"
+        assert d["tax"] == "16.00"
+        assert d["total"] == "116.00"
 
     async def test_create_sale_price_includes_tax(
         self, client, admin_token, seed_all
@@ -79,8 +79,8 @@ class TestCreateSale:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert d["subtotal"] == 200.0
-        assert d["tax"] == 32.0
+        assert d["subtotal"] == "200.00"
+        assert d["tax"] == "32.00"
 
     async def test_create_sale_price_excludes_tax(
         self, client, admin_token, seed_all
@@ -97,9 +97,9 @@ class TestCreateSale:
         assert r.status_code == 200
         d = r.json()["data"]
         # price=116 (not tax-stripped), tax=116*0.16=18.56, total=134.56
-        assert d["subtotal"] == 116.0
-        assert d["tax"] == 18.56
-        assert d["total"] == 134.56
+        assert d["subtotal"] == "116.00"
+        assert d["tax"] == "18.56"
+        assert d["total"] == "134.56"
 
     async def test_create_sale_deducts_stock(
         self, client, admin_token, db_conn, seed_all
@@ -157,7 +157,8 @@ class TestCreateSale:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert d["total"] < 116.0  # discount applied
+        from decimal import Decimal
+        assert Decimal(d["total"]) < Decimal("116.00")  # discount applied
 
     async def test_create_sale_folio_increments(
         self, client, admin_token, seed_all
@@ -266,7 +267,8 @@ class TestCreateSale:
         assert r.status_code == 200
         d = r.json()["data"]
         # Wholesale price 100 IVA-incl → subtotal ≈ 86.21
-        assert d["total"] < 116.0
+        from decimal import Decimal
+        assert Decimal(d["total"]) < Decimal("116.00")
 
     async def test_create_sale_multiple_items(
         self, client, admin_token, seed_all
@@ -290,9 +292,9 @@ class TestCreateSale:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert d["subtotal"] == 200.0
-        assert d["tax"] == 32.0
-        assert d["total"] == 232.0
+        assert d["subtotal"] == "200.00"
+        assert d["tax"] == "32.00"
+        assert d["total"] == "232.00"
 
 
 class TestCancelSale:

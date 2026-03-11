@@ -29,7 +29,7 @@ class TestResicoDashboard:
         assert "serie_a" in d
         assert "serie_b" in d
         assert "limite_resico" in d
-        assert d["limite_resico"] == 3500000.0
+        assert d["limite_resico"] == "3500000.00"
         assert d["status"] in ("GREEN", "YELLOW", "RED", "EXCEEDED")
 
 

@@ -43,3 +43,31 @@ class BranchGenerateLinkCodeRequest(BaseModel):
     def strip_purpose(cls, value: str) -> str:
         stripped = value.strip()
         return stripped or "branch_link"
+
+
+class HardwareInfo(BaseModel):
+    board_serial: str | None = Field(default=None, max_length=200)
+    board_name: str | None = Field(default=None, max_length=200)
+    cpu_model: str | None = Field(default=None, max_length=200)
+    mac_primary: str | None = Field(default=None, max_length=200)
+    disk_serial: str | None = Field(default=None, max_length=200)
+
+    @field_validator("board_serial", "board_name", "cpu_model", "mac_primary", "disk_serial")
+    @classmethod
+    def strip_hw(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class BranchPreRegisterRequest(BaseModel):
+    hw_info: HardwareInfo
+    os_platform: str = Field(..., min_length=2, max_length=32)
+    branch_name: str = Field(default="Sucursal Principal", min_length=2, max_length=120)
+
+    @field_validator("os_platform", "branch_name")
+    @classmethod
+    def strip_fields(cls, value: str) -> str:
+        stripped = value.strip()
+        return stripped or "Sucursal Principal"

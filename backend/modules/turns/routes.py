@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES, money
+from modules.shared.constants import PRIVILEGED_ROLES, money, sanitize_row, sanitize_rows
 from modules.shared.terminal_context import get_requested_terminal_id
 from modules.shared.turn_service import calculate_turn_summary
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
@@ -156,9 +156,9 @@ async def close_turn(
         "data": {
             "id": turn_id,
             "status": "closed",
-            "expected_cash": str(expected_cash),
-            "final_cash": str(body.final_cash),
-            "difference": str(difference),
+            "expected_cash": money(expected_cash),
+            "final_cash": money(body.final_cash),
+            "difference": money(difference),
         },
     }
 
@@ -201,7 +201,7 @@ async def get_current_turn(
     row = await db.fetchrow(sql, params)
     if not row:
         return {"success": True, "data": None}
-    return {"success": True, "data": row}
+    return {"success": True, "data": sanitize_row(row)}
 
 
 @router.get("/{turn_id}")
@@ -224,7 +224,7 @@ async def get_turn(
     role = auth.get("role", "")
     if row["user_id"] != uid and role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para ver este turno")
-    return {"success": True, "data": row}
+    return {"success": True, "data": sanitize_row(row)}
 
 
 @router.get("/{turn_id}/summary")
@@ -300,7 +300,7 @@ async def get_turn_summary(
             "status": turn["status"],
             "initial_cash": money(initial),
             "sales_count": sales_count,
-            "sales_by_method": sales_by_method,
+            "sales_by_method": sanitize_rows(sales_by_method),
             "total_sales": money(total_sales),
             "cash_in": money(mov_in),
             "cash_out": money(mov_out),

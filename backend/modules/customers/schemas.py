@@ -69,7 +69,7 @@ class CustomerCreate(BaseModel):
     @classmethod
     def credit_limit_finite(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         if v is not None and not v.is_finite():
-            raise ValueError("El limite de credito debe ser un numero finito")
+            raise ValueError("El límite de crédito debe ser un número finito")
         return v
 
 
@@ -115,7 +115,7 @@ class CustomerUpdate(BaseModel):
     @classmethod
     def credit_limit_finite(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         if v is not None and not v.is_finite():
-            raise ValueError("El limite de credito debe ser un numero finito")
+            raise ValueError("El límite de crédito debe ser un número finito")
         return v
 
 

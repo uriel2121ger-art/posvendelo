@@ -267,7 +267,7 @@ class TestStockUpdate:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert float(d["new_stock"]) == 110.0
+        assert d["new_stock"] == "110.00"
 
     async def test_stock_update_subtract(self, client, admin_token, seed_product):
         r = await client.post(
@@ -276,7 +276,7 @@ class TestStockUpdate:
             json={"sku": "TEST-001", "operation": "subtract", "quantity": 5},
         )
         assert r.status_code == 200
-        assert float(r.json()["data"]["new_stock"]) == 95.0
+        assert r.json()["data"]["new_stock"] == "95.00"
 
     async def test_stock_update_set(self, client, admin_token, seed_product):
         r = await client.post(
@@ -285,7 +285,7 @@ class TestStockUpdate:
             json={"sku": "TEST-001", "operation": "set", "quantity": 50},
         )
         assert r.status_code == 200
-        assert float(r.json()["data"]["new_stock"]) == 50.0
+        assert r.json()["data"]["new_stock"] == "50.00"
 
     async def test_stock_creates_movement(self, client, admin_token, db_conn, seed_product):
         await client.post(

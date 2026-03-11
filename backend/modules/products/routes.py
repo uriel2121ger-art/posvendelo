@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES, money
+from modules.shared.constants import PRIVILEGED_ROLES, money, sanitize_row, sanitize_rows
 from modules.products.schemas import ProductCreate, ProductUpdate, StockUpdateRemote, SimplePriceUpdate
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ async def list_products(
     params["offset"] = offset
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/low-stock")
@@ -87,7 +87,7 @@ async def low_stock_products(
         """,
         {"threshold": threshold, "limit": limit},
     )
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/sku/{sku}")
@@ -99,7 +99,7 @@ async def get_product_by_sku(sku: str, auth: dict = Depends(verify_token), db=De
     )
     if not row:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    return {"success": True, "data": row}
+    return {"success": True, "data": sanitize_row(row)}
 
 
 @router.get("/scan/{sku}")
@@ -112,7 +112,7 @@ async def scan_product(sku: str, auth: dict = Depends(verify_token), db=Depends(
     if product:
         return {
             "success": True,
-            "data": {"found": True, "product": dict(product)},
+            "data": {"found": True, "product": sanitize_row(product)},
         }
 
     suggestions = await db.fetch(
@@ -151,7 +151,7 @@ async def get_product(product_id: int, auth: dict = Depends(verify_token), db=De
     )
     if not row:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    return {"success": True, "data": row}
+    return {"success": True, "data": sanitize_row(row)}
 
 
 # ============================================================================
@@ -383,8 +383,8 @@ async def update_stock_remote(
         "success": True,
         "data": {
             "product_id": product["id"],
-            "previous_stock": current,
-            "new_stock": new_stock,
+            "previous_stock": money(current),
+            "new_stock": money(new_stock),
         },
     }
 
@@ -427,7 +427,7 @@ async def update_price_remote(
         "data": {
             "product_id": product["id"],
             "old_price": old_price,
-            "new_price": body.new_price,
+            "new_price": money(body.new_price),
         },
     }
 

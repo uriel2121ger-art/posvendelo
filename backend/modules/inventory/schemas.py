@@ -25,7 +25,7 @@ class StockAdjustment(BaseModel):
     @classmethod
     def quantity_not_zero_and_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("La cantidad debe ser un numero finito")
+            raise ValueError("La cantidad debe ser un número finito")
         if v == 0:
             raise ValueError("La cantidad no puede ser cero")
         return v
@@ -42,7 +42,7 @@ class InventoryTransfer(BaseModel):
     @classmethod
     def quantity_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("La cantidad debe ser un numero finito")
+            raise ValueError("La cantidad debe ser un número finito")
         return v
 
 

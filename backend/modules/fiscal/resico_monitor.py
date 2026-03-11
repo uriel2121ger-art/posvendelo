@@ -139,15 +139,15 @@ class RESICOMonitor:
             recs.append("Contacta a tu contador para migrar a Regimen General")
             recs.append("Las ventas adicionales tributaran a tasa mayor")
         elif estado['codigo'] == 'CRITICO':
-            recs.append(f"Solo puedes facturar ${money(restante):,.2f} mas este anio")
+            recs.append(f"Solo puedes facturar ${money(restante)} mas este anio")
             recs.append("Considera pausar pagos con tarjeta/transferencia")
             recs.append(f"A este ritmo, llegaras al limite en {dias} dias")
         elif estado['codigo'] == 'PRECAUCION':
-            recs.append(f"Te quedan ${money(restante):,.2f} de capacidad")
+            recs.append(f"Te quedan ${money(restante)} de capacidad")
             recs.append("Revisa tu estrategia de facturacion global")
         else:
             recs.append("Continua con tu operacion normal")
-            recs.append(f"Capacidad restante: ${money(restante):,.2f}")
+            recs.append(f"Capacidad restante: ${money(restante)}")
 
         return recs
 

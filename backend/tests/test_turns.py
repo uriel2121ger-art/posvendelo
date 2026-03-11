@@ -73,8 +73,8 @@ class TestCloseTurn:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert d["expected_cash"] == 1000.0
-        assert d["difference"] == 50.0  # 1050 - 1000
+        assert d["expected_cash"] == "1000.00"
+        assert d["difference"] == "50.00"  # 1050 - 1000
 
     async def test_close_turn_with_denominations(self, client, admin_token, seed_turn):
         r = await client.post(
@@ -188,7 +188,7 @@ class TestTurnSummary:
         assert d["turn_id"] == TURN_ID
         assert "sales_by_method" in d
         assert "expected_cash" in d
-        assert d["initial_cash"] == 1000.0
+        assert d["initial_cash"] == "1000.00"
 
 
 class TestTurnTerminalSafety:

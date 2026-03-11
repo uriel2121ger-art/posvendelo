@@ -26,7 +26,7 @@ class TestExpenseSummary:
         )
         assert r.status_code == 200
         d = r.json()["data"]
-        assert isinstance(d["month"], (int, float))
+        assert isinstance(d["month"], str)
 
     async def test_get_expense_summary_empty(
         self, client, admin_token, seed_branch
@@ -37,7 +37,7 @@ class TestExpenseSummary:
             headers=auth_header(admin_token),
         )
         assert r.status_code == 200
-        assert r.json()["data"]["month"] == 0.0
+        assert r.json()["data"]["month"] == "0.00"
 
 
 class TestRegisterExpense:

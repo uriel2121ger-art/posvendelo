@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Uso: bash install-titan.sh --cp-url URL [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO]"
+  echo "Uso: bash install-titan.sh --cp-url URL [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO] [--backend-image IMAGEN]"
 }
 
 CP_URL=""
@@ -21,6 +21,7 @@ CLOUD_EMAIL=""
 CLOUD_PASSWORD=""
 TENANT_NAME=""
 EXISTING_CLOUD_ACCOUNT="false"
+BACKEND_IMAGE_OVERRIDE=""
 
 report_status() {
   local status="$1"
@@ -97,6 +98,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --db-port)
       LOCAL_POSTGRES_PORT="$2"
+      shift 2
+      ;;
+    --backend-image)
+      BACKEND_IMAGE_OVERRIDE="$2"
       shift 2
       ;;
     *)
@@ -200,19 +205,13 @@ if [[ -z "$INSTALL_TOKEN" ]]; then
   if [[ -n "$CLOUD_EMAIL" || -n "$CLOUD_PASSWORD" || -n "$TENANT_NAME" ]]; then
     bootstrap_cloud_install_token
   else
-    read -r -p "¿Activar Nube PosVendelo ahora para generar el install token? [s/N] " ACTIVATE_CLOUD
-    if [[ "$ACTIVATE_CLOUD" =~ ^[Ss]$ ]]; then
-      read -r -p "¿Ya tienes cuenta cloud? [s/N] " HAS_ACCOUNT
-      if [[ "$HAS_ACCOUNT" =~ ^[Ss]$ ]]; then
-        EXISTING_CLOUD_ACCOUNT="true"
-      fi
-      bootstrap_cloud_install_token
-    fi
+    # Pre-register with hardware fingerprint (plug-and-play, no account needed)
+    pre_register
   fi
 fi
 
 if [[ -z "$INSTALL_TOKEN" ]]; then
-  echo "[POSVENDELO] Se requiere install_token o activar onboarding cloud."
+  echo "[POSVENDELO] No se pudo obtener un token de instalación."
   usage
   exit 1
 fi
@@ -232,6 +231,97 @@ for port in range(start, start + 200):
             raise SystemExit(0)
 raise SystemExit(1)
 PY
+}
+
+collect_hw_info() {
+  local board_serial board_name cpu_model mac_primary disk_serial
+
+  board_serial="$(cat /sys/class/dmi/id/board_serial 2>/dev/null || echo '')"
+  board_name="$(cat /sys/class/dmi/id/board_name 2>/dev/null || echo '')"
+  cpu_model="$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo '')"
+
+  # Primary MAC: first physical NIC (not lo, docker, veth, br-)
+  mac_primary="$(ip link show 2>/dev/null \
+    | grep -B1 'link/ether' \
+    | grep -v 'docker\|veth\|br-\|virbr' \
+    | grep 'link/ether' \
+    | head -n1 \
+    | awk '{print $2}' || echo '')"
+  if [[ -z "$mac_primary" ]]; then
+    mac_primary="$(cat /sys/class/net/e*/address 2>/dev/null | head -n1 || echo '')"
+  fi
+
+  # Disk serial: first real disk (nvme or sd)
+  disk_serial="$(lsblk -ndo SERIAL /dev/nvme0n1 2>/dev/null || lsblk -ndo SERIAL /dev/sda 2>/dev/null || echo '')"
+
+  HW_INFO_JSON="$(BOARD_SERIAL="$board_serial" BOARD_NAME="$board_name" CPU_MODEL="$cpu_model" MAC_PRIMARY="$mac_primary" DISK_SERIAL="$disk_serial" python3 - <<'PY'
+import json
+import os
+
+hw = {
+    "board_serial": os.environ.get("BOARD_SERIAL", "").strip() or None,
+    "board_name": os.environ.get("BOARD_NAME", "").strip() or None,
+    "cpu_model": os.environ.get("CPU_MODEL", "").strip() or None,
+    "mac_primary": os.environ.get("MAC_PRIMARY", "").strip() or None,
+    "disk_serial": os.environ.get("DISK_SERIAL", "").strip() or None,
+}
+print(json.dumps(hw))
+PY
+)"
+}
+
+pre_register() {
+  echo "[POSVENDELO] Recolectando información de hardware..."
+  collect_hw_info
+
+  local pre_reg_json pre_reg_response
+  pre_reg_json="$(mktemp)"
+
+  OS_PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')" BRANCH_NAME="${BRANCH_NAME:-Sucursal Principal}" HW_INFO_JSON="$HW_INFO_JSON" python3 - <<'PY' > "$pre_reg_json"
+import json
+import os
+
+payload = {
+    "hw_info": json.loads(os.environ["HW_INFO_JSON"]),
+    "os_platform": os.environ["OS_PLATFORM"],
+    "branch_name": os.environ.get("BRANCH_NAME", "Sucursal Principal"),
+}
+print(json.dumps(payload))
+PY
+
+  echo "[POSVENDELO] Registrando equipo en el servidor central..."
+  CURRENT_STEP="pre-registro"
+  pre_reg_response="$(curl -fsSL -X POST \
+    -H "Content-Type: application/json" \
+    --data @"$pre_reg_json" \
+    "${CP_URL%/}/api/v1/branches/pre-register")" || {
+    echo "[POSVENDELO] No se pudo conectar al servidor central."
+    echo "[POSVENDELO] Verifique su conexión a internet e intente de nuevo."
+    rm -f "$pre_reg_json"
+    exit 1
+  }
+
+  INSTALL_TOKEN="$(PRE_REG="$pre_reg_response" python3 - <<'PY'
+import json
+import os
+
+body = json.loads(os.environ["PRE_REG"])
+data = body.get("data", {})
+is_new = data.get("is_new", True)
+if is_new:
+    print(f"[INFO] Equipo registrado por primera vez.", file=__import__("sys").stderr)
+else:
+    print(f"[INFO] Equipo reconocido. Período de prueba continúa.", file=__import__("sys").stderr)
+print(data.get("install_token", ""))
+PY
+)"
+
+  rm -f "$pre_reg_json"
+
+  if [[ -z "$INSTALL_TOKEN" ]]; then
+    echo "[POSVENDELO] No se obtuvo token de instalación del servidor."
+    exit 1
+  fi
 }
 
 run_compose() {
@@ -279,7 +369,7 @@ if [[ -z "$LOCAL_POSTGRES_PORT" ]]; then
   LOCAL_POSTGRES_PORT="$(pick_port 5434)"
 fi
 
-POS_VERSION="$POS_VERSION" LOCAL_API_PORT="$LOCAL_API_PORT" LOCAL_POSTGRES_PORT="$LOCAL_POSTGRES_PORT" python3 - "$BOOTSTRAP_JSON" > .env <<'PY'
+POS_VERSION="$POS_VERSION" LOCAL_API_PORT="$LOCAL_API_PORT" LOCAL_POSTGRES_PORT="$LOCAL_POSTGRES_PORT" BACKEND_IMAGE_OVERRIDE="${BACKEND_IMAGE_OVERRIDE:-}" python3 - "$BOOTSTRAP_JSON" > .env <<'PY'
 import json
 import os
 import secrets
@@ -300,9 +390,9 @@ print(f"TITAN_LICENSE_KEY={data.get('tenant_slug', '')}")
 print(f"TITAN_BRANCH_ID={data['branch_id']}")
 print(f"TITAN_VERSION={os.environ.get('POS_VERSION', '2.0.0')}")
 print(f"CF_TUNNEL_TOKEN={data.get('cf_tunnel_token') or ''}")
-print(
-    f"BACKEND_IMAGE={data.get('backend_image') or os.environ.get('TITAN_DEFAULT_BACKEND_IMAGE', 'ghcr.io/titan-pos/titan-pos:latest')}"
-)
+override = os.environ.get("BACKEND_IMAGE_OVERRIDE", "").strip()
+backend_image = override or data.get("backend_image") or os.environ.get("TITAN_DEFAULT_BACKEND_IMAGE", "ghcr.io/titan-pos/titan-pos:latest")
+print(f"BACKEND_IMAGE={backend_image}")
 print(f"LOCAL_API_PORT={os.environ['LOCAL_API_PORT']}")
 print(f"LOCAL_POSTGRES_PORT={os.environ['LOCAL_POSTGRES_PORT']}")
 print("TITAN_LICENSE_ENFORCEMENT=true")
@@ -401,6 +491,9 @@ Credenciales iniciales de acceso a caja:
 - Usuario: ${ADMIN_USER}
 - Contraseña: ${ADMIN_PASSWORD}
 
+Período de prueba: 120 días desde el primer registro
+Activar Nube: Desde la app, Configuración > Nube PosVendelo
+
 Archivos clave:
 - .env
 - docker-compose.yml
@@ -433,9 +526,30 @@ curl -fsSL -X POST \
   "${CP_URL%/}/api/v1/branches/register" >/dev/null
 
 CURRENT_STEP="descargando imagenes"
-run_compose pull
+PULL_FAILED=0
+run_compose pull || PULL_FAILED=$?
+if [[ "$PULL_FAILED" -ne 0 ]]; then
+  echo ""
+  echo "[TITAN] No se pudo descargar alguna imagen (por ejemplo la del API)."
+  if [[ -n "${BACKEND_IMAGE_OVERRIDE:-}" ]] && docker image inspect "$BACKEND_IMAGE_OVERRIDE" >/dev/null 2>&1; then
+    echo "[TITAN] La imagen $BACKEND_IMAGE_OVERRIDE existe localmente. Continuando con el arranque..."
+  else
+    echo "[TITAN] Si tienes la imagen del API construida en esta máquina, ejecuta de nuevo con:"
+    echo "        --backend-image titan-pos:local"
+    echo "        (construir antes:  docker build -t titan-pos:local ./backend  desde la raíz del repo)"
+    echo ""
+    report_status "error" "fallo al descargar imagenes docker"
+    exit 1
+  fi
+fi
 CURRENT_STEP="arrancando stack"
-run_compose up -d
+CF_TUNNEL_TOKEN="$(awk -F= '$1=="CF_TUNNEL_TOKEN"{print $2}' .env | head -n1)"
+if [[ -n "$CF_TUNNEL_TOKEN" ]]; then
+  run_compose up -d
+else
+  echo "[POSVENDELO] Modo local (sin túnel remoto)."
+  run_compose up -d
+fi
 
 echo "[POSVENDELO] Esperando health local..."
 CURRENT_STEP="validando health"

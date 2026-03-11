@@ -31,7 +31,7 @@ from modules.shared.pin_auth import verify_manager_pin
 from modules.shared.rate_limit import check_pin_rate_limit
 from modules.shared.terminal_context import get_requested_terminal_id
 from modules.sales.schemas import SaleCreate, SaleItemCreate, SaleCancelRequest
-from modules.shared.constants import PRIVILEGED_ROLES, money, dec
+from modules.shared.constants import PRIVILEGED_ROLES, money, dec, sanitize_row, sanitize_rows
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -221,9 +221,9 @@ async def _process_credit_payment(
         {"id": customer_id},
     )
     if not cust:
-        raise HTTPException(status_code=400, detail="Cliente no encontrado para venta a credito")
+        raise HTTPException(status_code=400, detail="Cliente no encontrado para venta a crédito")
     if cust.get("credit_authorized") != 1:
-        raise HTTPException(status_code=400, detail="Cliente no tiene credito habilitado")
+        raise HTTPException(status_code=400, detail="Cliente no tiene crédito habilitado")
 
     balance = dec(cust.get("credit_balance") or 0)
     limit_val = dec(cust.get("credit_limit") or 0)
@@ -232,8 +232,8 @@ async def _process_credit_payment(
     if limit_val > 0 and new_balance > limit_val:
         raise HTTPException(
             status_code=400,
-            detail=f"Excede limite de credito. Limite: ${money(limit_val):.2f}, "
-                   f"Balance actual: ${money(balance):.2f}, Venta: ${money(amount):.2f}",
+            detail=f"Excede límite de crédito. Limite: ${money(limit_val)}, "
+                   f"Balance actual: ${money(balance)}, Venta: ${money(amount)}",
         )
 
     await db.execute(
@@ -250,7 +250,7 @@ async def _process_credit_payment(
             "amount": amount,
             "before": balance,
             "after": new_balance,
-            "notes": f"Venta a credito - folio:{folio_visible}",
+            "notes": f"Venta a crédito - folio:{folio_visible}",
             "uid": user_id,
         },
     )
@@ -336,7 +336,7 @@ async def list_sales(
     params["offset"] = offset
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 # ── POST / — Create sale ──────────────────────────────────────────
@@ -363,7 +363,7 @@ async def create_sale(
     # Backend es fuente de verdad: no confiar en serie del cliente para estas reglas.
     _VALID_SERIES = {"A", "B"}
     if body.serie not in _VALID_SERIES:
-        raise HTTPException(status_code=400, detail=f"Serie invalida: '{body.serie}'")
+        raise HTTPException(status_code=400, detail=f"Serie inválida: '{body.serie}'")
     requiere_factura = getattr(body, "requiere_factura", False)
     if pm in ("card", "transfer", "mixed"):
         body = body.model_copy(update={"serie": "A"})  # Bancarizados/mixto → siempre A
@@ -371,17 +371,17 @@ async def create_sale(
         body = body.model_copy(update={"serie": "A" if requiere_factura else "B"})  # Efectivo: A si pidió factura, si no B
 
     if pm == "credit" and not body.customer_id:
-        raise HTTPException(status_code=400, detail="Venta a credito requiere customer_id")
+        raise HTTPException(status_code=400, detail="Venta a crédito requiere customer_id")
 
     # ── Validate items ──
     if not body.items:
         raise HTTPException(status_code=400, detail="La venta debe tener al menos un item")
     if len(body.items) > 2000:
-        raise HTTPException(status_code=400, detail="Maximo 2000 items por venta")
+        raise HTTPException(status_code=400, detail="Máximo 2000 items por venta")
 
     for idx, item in enumerate(body.items):
         if item.qty.is_nan() or item.qty.is_infinite():
-            raise HTTPException(status_code=400, detail=f"Cantidad invalida en item {idx+1}")
+            raise HTTPException(status_code=400, detail=f"Cantidad inválida en item {idx+1}")
         if item.price.is_nan() or item.price.is_infinite():
             raise HTTPException(status_code=400, detail=f"Precio inválido en item {idx+1}")
         if item.discount.is_nan() or item.discount.is_infinite():
@@ -518,8 +518,8 @@ async def create_sale(
                 if abs(mixed_sum - total_val) > tolerance:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Suma de pagos mixtos (${money(mixed_sum):.2f}) "
-                               f"no coincide con total (${money(total_val):.2f})",
+                        detail=f"Suma de pagos mixtos (${money(mixed_sum)}) "
+                               f"no coincide con total (${money(total_val)})",
                     )
 
             # 7. Ensure sequence exists
@@ -654,7 +654,7 @@ async def create_sale(
     if pm == "cash":
         change = max(Decimal("0"), dec(body.cash_received or 0) - total_val)
 
-    logger.info(f"Sale created: ID={sale_id}, folio={folio_visible}, total=${money(total_val):.2f}")
+    logger.info(f"Sale created: ID={sale_id}, folio={folio_visible}, total=${money(total_val)}")
 
     return {
         "success": True,
@@ -710,7 +710,7 @@ async def search_sales(
     params["limit"] = limit
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 # ── POST /{sale_id}/cancel — Cancel sale ──────────────────────────
@@ -1051,8 +1051,8 @@ async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(
     return {
         "success": True,
         "data": {
-            **sale_row,
-            "items": items,
+            **sanitize_row(sale_row),
+            "items": sanitize_rows(items),
         }
     }
 
