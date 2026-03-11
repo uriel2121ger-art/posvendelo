@@ -272,6 +272,35 @@ def _require_download(filename: str) -> Path:
     return path
 
 
+def _installer_no_disponible_html(nombre: str = "Este instalador") -> HTMLResponse:
+    """Página amigable cuando un instalador aún no está disponible (evita 404 crudo)."""
+    body = f"""<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instalador no disponible | PosVendelo</title>
+<style>body{{font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:60px auto;padding:0 20px;text-align:center;color:#1a1a2e;}}
+h1{{font-size:1.4rem;color:#435edf;}} p{{color:#555;line-height:1.6;}}
+a{{color:#5675ff;text-decoration:none;font-weight:600;}} a:hover{{text-decoration:underline;}}
+.box{{background:#f5f7ff;border:1px solid #e0e5ff;border-radius:12px;padding:24px;}}</style></head>
+<body><div class="box"><h1>{nombre} no está disponible</h1>
+<p>Puede que aún no hayamos publicado esta versión para tu plataforma.</p>
+<p><strong>App dueño:</strong> usa la versión <a href="/download/owner/web">Web/PWA (.zip)</a> para usar el panel en el navegador.</p>
+<p><a href="/">Inicio</a> · <a href="/downloads">Ver todas las descargas</a></p></div></body></html>"""
+    return HTMLResponse(content=body, status_code=200)
+
+
+def _serve_download(
+    filename: str,
+    media_type: str,
+    display_name: str | None = None,
+) -> FileResponse | HTMLResponse:
+    """Sirve el archivo si existe; si no, página amigable para que la app dueño siga siendo usable (Web)."""
+    path = DOWNLOADS_DIR / filename
+    if not path.exists() or not path.is_file():
+        return _installer_no_disponible_html(display_name or filename)
+    return FileResponse(path=str(path), filename=filename, media_type=media_type)
+
+
 @app.get("/downloads", response_class=HTMLResponse, include_in_schema=False)
 async def downloads_page() -> str:
     return """<!doctype html>

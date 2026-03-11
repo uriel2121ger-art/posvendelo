@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ class CerebroContable:
             )
         else:
             recomendaciones.append(
-                f"✅ Tienes IVA a favor: ${money(abs(iva_neto)):,.2f}"
+                f"✅ Tienes IVA a favor: ${dec(abs(iva_neto)):,.2f}"
             )
         
         # Serie B pendiente

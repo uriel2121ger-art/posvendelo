@@ -6,7 +6,7 @@ Puntos y crédito sin RFC ni nombre del cliente.
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 import hashlib
 import secrets
@@ -189,7 +189,7 @@ class GhostWallet:
                 'total_earned': money(total_earned),
                 'total_spent': money(total_spent),
                 'total_transactions': int(row.get('total_transactions', 0) or 0),
-                'retention_rate': round(float(total_spent / total_earned * 100), 2) if total_earned > 0 else 0
+                'retention_rate': str((total_spent / total_earned * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)) if total_earned > 0 else '0.00'
             }
         except Exception as e:
             logger.error(f"Error ghost wallet stats: {e}")

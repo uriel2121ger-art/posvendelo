@@ -9,7 +9,7 @@ from decimal import Decimal
 import hashlib
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import money, sanitize_row
 
 logger = logging.getLogger(__name__)
 
@@ -122,5 +122,5 @@ Hash: {e['contract_hash']}
             FROM cash_extractions WHERE extraction_date >= :ys AND extraction_date < :ye GROUP BY document_type
         """, ys=year_start, ye=year_end)
         total = sum((Decimal(str(r['total'] or 0)) for r in result), Decimal('0'))
-        return {'year': year, 'by_type': {r['document_type']: dict(r) for r in result}, 'total_extracted': money(total),
+        return {'year': year, 'by_type': {r['document_type']: sanitize_row(r) for r in result}, 'total_extracted': money(total),
                 'limite_informable': money(self.LIMITE_INFORMABLE), 'requires_annual_declaration': total >= self.LIMITE_INFORMABLE}

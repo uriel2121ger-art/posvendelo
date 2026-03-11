@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 # ---------------------------------------------------------------------------
 # ESC/POS command constants
@@ -210,10 +210,10 @@ def build_sale_receipt(
     rb.line("-")
 
     # --- Totals ---
-    sale_subtotal = money(sale.get("subtotal", 0))
-    sale_discount = money(sale.get("discount", 0))
-    sale_tax = money(sale.get("tax", 0))
-    sale_total = money(sale.get("total", 0))
+    sale_subtotal = dec(sale.get("subtotal", 0))
+    sale_discount = dec(sale.get("discount", 0))
+    sale_tax = dec(sale.get("tax", 0))
+    sale_total = dec(sale.get("total", 0))
 
     rb.columns("Subtotal:", f"${sale_subtotal:,.2f}")
     if sale_discount > 0:
@@ -228,8 +228,8 @@ def build_sale_receipt(
 
     # --- Change (cash payments) ---
     if payment == "cash":
-        received = money(sale.get("cash_received", 0))
-        change = money(sale.get("change_given", 0))
+        received = dec(sale.get("cash_received", 0))
+        change = dec(sale.get("change_given", 0))
         if received > 0:
             rb.columns("Recibido:", f"${received:,.2f}")
             rb.columns("Cambio:", f"${change:,.2f}")
@@ -299,7 +299,7 @@ def build_shift_report(
     rb.bold("VENTAS")
 
     sales_count = summary.get("sales_count", 0)
-    total_sales = money(summary.get("total_sales", 0))
+    total_sales = dec(summary.get("total_sales", 0))
     rb.columns("Num. ventas:", str(sales_count))
     rb.columns("Total ventas:", f"${total_sales:,.2f}")
 
@@ -310,17 +310,17 @@ def build_shift_report(
         method = str(row.get("payment_method", ""))
         label = method_labels.get(method, method)
         count = row.get("count", 0)
-        total = money(row.get("total", 0))
+        total = dec(row.get("total", 0))
         rb.columns(f"  {label} ({count}):", f"${total:,.2f}")
 
     rb.line("-")
     rb.bold("EFECTIVO")
 
-    initial = money(summary.get("initial_cash", turn.get("initial_cash", 0)))
-    cash_in = money(summary.get("cash_in", 0))
-    cash_out = money(summary.get("cash_out", 0))
-    expected = money(summary.get("expected_cash", 0))
-    final = money(turn.get("final_cash", 0))
+    initial = dec(summary.get("initial_cash", turn.get("initial_cash", 0)))
+    cash_in = dec(summary.get("cash_in", 0))
+    cash_out = dec(summary.get("cash_out", 0))
+    expected = dec(summary.get("expected_cash", 0))
+    final = dec(turn.get("final_cash", 0))
     difference = final - expected
 
     rb.columns("Fondo inicial:", f"${initial:,.2f}")

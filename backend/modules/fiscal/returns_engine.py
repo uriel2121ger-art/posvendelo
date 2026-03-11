@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 from modules.fiscal.constants import IVA_RATE
-from modules.shared.constants import money
+from modules.shared.constants import money, sanitize_row
 
 logger = logging.getLogger(__name__)
 
@@ -286,7 +286,7 @@ class ReturnsEngine:
 
         return {
             'period': f'{start} a {end}',
-            'by_serie': {r['original_serie']: dict(r) for r in rows},
+            'by_serie': {r['original_serie']: sanitize_row(r) for r in rows},
             'total_returns': sum(r['count'] for r in rows),
             'total_amount': money(sum(Decimal(str(r['total'] or 0)) for r in rows)),
         }

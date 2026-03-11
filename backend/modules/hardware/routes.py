@@ -4,7 +4,6 @@ POSVENDELO — Hardware Module Routes
 Endpoints for printer/scanner/drawer configuration, discovery, and control.
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -82,10 +81,9 @@ async def _get_hw_config(db) -> dict:
 
 async def _get_initial_setup_status(db) -> dict:
     """Return first-run setup status stored in app_config."""
-    cfg, marker = await asyncio.gather(
-        _get_hw_config(db),
-        db.fetchrow("SELECT value, updated_at FROM app_config WHERE key = 'initial_setup' LIMIT 1"),
-    )
+    # Sequential — asyncpg doesn't support concurrent ops on the same connection
+    cfg = await _get_hw_config(db)
+    marker = await db.fetchrow("SELECT value, updated_at FROM app_config WHERE key = 'initial_setup' LIMIT 1")
 
     completed = False
     completed_at = None

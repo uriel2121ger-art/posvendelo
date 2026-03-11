@@ -10,7 +10,7 @@ import logging
 import statistics
 import random
 
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ class PredictiveExtraction:
             'success': True, 'target': money(target), 'days': len(plan),
             'daily_average': money(target / len(plan)) if plan else 0,
             'plan': plan, 'contracts': contracts,
-            'message': f'Plan generado. Promedio ${money(target/len(plan)):,.0f}/día' if plan else 'Plan vacío'
+            'message': f'Plan generado. Promedio ${dec(target/len(plan)):,.0f}/día' if plan else 'Plan vacío'
         }
     
     async def _suggest_extraction_method(self, amount: Decimal) -> str:
