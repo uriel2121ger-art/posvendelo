@@ -109,7 +109,7 @@ class CFDIService:
             from modules.fiscal.rfc_validator import validate_rfc
             rfc_result = validate_rfc(customer_rfc)
             if not rfc_result.get('valid'):
-                return {"success": False, "error": f"RFC invalido: {rfc_result.get('error', 'Formato incorrecto')}"}
+                return {"success": False, "error": f"RFC inválido: {rfc_result.get('error', 'Formato incorrecto')}"}
 
             facturapi = await self._get_facturapi()
             if not facturapi:

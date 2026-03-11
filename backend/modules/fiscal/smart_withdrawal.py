@@ -103,7 +103,7 @@ class PredictiveExtraction:
             'success': True, 'target': money(target), 'days': len(plan),
             'daily_average': money(target / len(plan)) if plan else 0,
             'plan': plan, 'contracts': contracts,
-            'message': f'Plan generado. Promedio ${float(target/len(plan)):,.0f}/día' if plan else 'Plan vacío'
+            'message': f'Plan generado. Promedio ${money(target/len(plan)):,.0f}/día' if plan else 'Plan vacío'
         }
     
     async def _suggest_extraction_method(self, amount: Decimal) -> str:
@@ -156,5 +156,5 @@ class PredictiveExtraction:
             'avg_daily_serie_b': money(avg_daily),
             'optimal_daily': money(optimal),
             'days_sampled': len(daily_sales),
-            'recommendation': f'Retira ${float(optimal):,.0f}/día'
+            'recommendation': f'Retira ${money(optimal):,.0f}/día'
         }

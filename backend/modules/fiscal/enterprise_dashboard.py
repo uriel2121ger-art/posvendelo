@@ -10,7 +10,7 @@ import logging
 import os
 import secrets
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT
+from ..shared.constants import RESICO_ANNUAL_LIMIT, money
 
 logger = logging.getLogger(__name__)
 
@@ -97,12 +97,12 @@ class FederationDashboard:
             for r in regs:
                 cash = Decimal(str(r.get('fondo_inicial') or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                 total_cash += cash
-                reg_list.append({'pos_id': r['pos_id'], 'cash': float(cash)})
+                reg_list.append({'pos_id': r['pos_id'], 'cash': money(cash)})
 
             branch_data.append({
                 'id': b_id, 'name': branch['name'],
                 'sales_count': int(s.get('count', 0)),
-                'sales_total': float(branch_total),
+                'sales_total': money(branch_total),
                 'open_registers': len(regs),
                 'registers': reg_list,
                 'low_stock_count': ls_count,
@@ -114,8 +114,8 @@ class FederationDashboard:
             'branches': branch_data,
             'totals': {
                 'branches_active': len([b for b in branch_data if b['status'] == 'active']),
-                'total_sales': float(total_sales),
-                'total_cash_in_registers': float(total_cash),
+                'total_sales': money(total_sales),
+                'total_cash_in_registers': money(total_cash),
                 'low_stock_alerts': sum(b['low_stock_count'] for b in branch_data)
             }
         }
@@ -184,10 +184,10 @@ class FederationDashboard:
             
             rfc_data.append({
                 'rfc': emitter['rfc'], 'razon_social': emitter['razon_social'],
-                'facturado': float(facturado.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                'limite': float(self.RESICO_LIMIT),
-                'restante': float(restante.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                'porcentaje': float(porcentaje.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'facturado': money(facturado),
+                'limite': money(self.RESICO_LIMIT),
+                'restante': money(restante),
+                'porcentaje': money(porcentaje),
                 'status': status
             })
             total_facturado += facturado
@@ -196,9 +196,9 @@ class FederationDashboard:
         return {
             'year': int(year), 'rfcs': rfc_data,
             'totals': {
-                'total_facturado': float(total_facturado.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                'capacidad_total': float((self.RESICO_LIMIT * len(emitters)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                'capacidad_usada': float(((total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)) if emitters else 0
+                'total_facturado': money(total_facturado),
+                'capacidad_total': money(self.RESICO_LIMIT * len(emitters)),
+                'capacidad_usada': money((total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100) if emitters else 0
             },
             'recommendation': self._generate_fiscal_recommendation(rfc_data)
         }
@@ -239,9 +239,9 @@ class FederationDashboard:
 
         return {
             'timestamp': datetime.now().isoformat(),
-            'ingresos': {'serie_a': float(ta), 'serie_b': float(tb), 'total': float(ingresos)},
-            'utilidad': {'bruta': float(utilidad_bruta), 'isr_estimado': float(isr_estimado), 'neta': float(utilidad_neta)},
-            'extracciones': {'total_extraido': float(te), 'operaciones': re['count'] if re else 0, 'disponible': float(disponible)},
+            'ingresos': {'serie_a': money(ta), 'serie_b': money(tb), 'total': money(ingresos)},
+            'utilidad': {'bruta': money(utilidad_bruta), 'isr_estimado': money(isr_estimado), 'neta': money(utilidad_neta)},
+            'extracciones': {'total_extraido': money(te), 'operaciones': re['count'] if re else 0, 'disponible': money(disponible)},
             'extraction_calculator': await self._calc_safe(disponible, te)
         }
         
@@ -255,7 +255,7 @@ class FederationDashboard:
 
         pcnt = Decimal(str(len(personas) or 1))
         recommended = min(disp, (limit * pcnt) / 4) if disp > 0 else Decimal('0')
-        return {'recommended_today': float(recommended.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)), 'contracts_needed': len(personas)}
+        return {'recommended_today': money(recommended), 'contracts_needed': len(personas)}
     
     # ==========================================================================
     # LOCKDOWN REMOTO

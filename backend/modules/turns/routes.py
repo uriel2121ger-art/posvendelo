@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.shared.terminal_context import get_requested_terminal_id
 from modules.shared.turn_service import calculate_turn_summary
 from modules.turns.schemas import TurnOpen, TurnClose, CashMovementCreate
@@ -298,14 +298,14 @@ async def get_turn_summary(
         "data": {
             "turn_id": turn_id,
             "status": turn["status"],
-            "initial_cash": float(initial),
+            "initial_cash": money(initial),
             "sales_count": sales_count,
             "sales_by_method": sales_by_method,
-            "total_sales": float(total_sales),
-            "cash_in": float(mov_in),
-            "cash_out": float(mov_out),
-            "expenses": float(expenses),
-            "expected_cash": float(expected),
+            "total_sales": money(total_sales),
+            "cash_in": money(mov_in),
+            "cash_out": money(mov_out),
+            "expenses": money(expenses),
+            "expected_cash": money(expected),
         },
     }
 

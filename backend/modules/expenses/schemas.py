@@ -15,7 +15,7 @@ class ExpenseCreate(BaseModel):
     @classmethod
     def amount_must_be_finite(cls, v: Decimal) -> Decimal:
         if not v.is_finite():
-            raise ValueError("El monto debe ser un numero finito")
+            raise ValueError("El monto debe ser un número finito")
         return v
 
     @field_validator("description")
@@ -23,5 +23,5 @@ class ExpenseCreate(BaseModel):
     def description_not_blank(cls, v: str) -> str:
         stripped = v.strip()
         if not stripped:
-            raise ValueError("La descripcion no puede estar en blanco")
+            raise ValueError("La descripción no puede estar en blanco")
         return stripped

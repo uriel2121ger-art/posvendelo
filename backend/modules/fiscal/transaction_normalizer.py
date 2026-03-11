@@ -87,7 +87,7 @@ class FiscalNoiseGenerator:
             if total == 0:
                 return self.DEFAULT_HOURLY_PROBABILITY
                 
-            return {int(r['hr']): float(r['cnt'])/total for r in rows}
+            return {int(r['hr']): r['cnt']/total for r in rows}
         except Exception as e:
             logger.error(f"Error clone behavior: {e}")
             return self.DEFAULT_HOURLY_PROBABILITY

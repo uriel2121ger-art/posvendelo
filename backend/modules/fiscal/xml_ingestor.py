@@ -78,7 +78,7 @@ class XMLIngestor:
 
         except ET.ParseError as e:
             logger.error(f"Error parsing XML: {e}")
-            return {'success': False, 'error': f'XML invalido: {e}'}
+            return {'success': False, 'error': f'XML inválido: {e}'}
         except Exception as e:
             logger.error(f"Error processing CFDI: {e}")
             return {'success': False, 'error': str(e)}

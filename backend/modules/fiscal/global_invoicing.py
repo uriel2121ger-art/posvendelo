@@ -161,7 +161,7 @@ class GlobalInvoicingService:
                 d_start = datetime.strptime(start_date, '%Y-%m-%d')
                 d_end = datetime.strptime(end_date, '%Y-%m-%d')
             except (ValueError, TypeError):
-                return {'success': False, 'error': f'Formato de fecha invalido: {start_date} / {end_date}'}
+                return {'success': False, 'error': f'Formato de fecha inválido: {start_date} / {end_date}'}
             days = (d_end - d_start).days
             period_type = 'daily' if days <= 1 else ('weekly' if days <= 7 else 'monthly')
 
@@ -403,9 +403,9 @@ class GlobalInvoicingService:
             items = []
             if len(aggregated['items']) <= 50:
                 for item in aggregated['items']:
-                    qty = float(item.get('qty', 1)) or 1
+                    qty = money(item.get('qty', 1)) or 1
                     total_val = money(item.get('total', 0))
-                    unit_price = total_val / qty if qty else total_val
+                    unit_price = round(total_val / qty, 2) if qty else total_val
 
                     sat_code_raw = item.get('sat_code', '01010101')
                     sat_code_normalized = normalize_sat_key(sat_code_raw)

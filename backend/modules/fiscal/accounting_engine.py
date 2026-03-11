@@ -250,11 +250,11 @@ class CerebroContable:
         # IVA
         if iva_neto > 0:
             recomendaciones.append(
-                f"💰 Tienes IVA a pagar: ${float(iva_neto.quantize(Decimal('0.01'))):,.2f}"
+                f"💰 Tienes IVA a pagar: ${money(iva_neto):,.2f}"
             )
         else:
             recomendaciones.append(
-                f"✅ Tienes IVA a favor: ${float(abs(iva_neto).quantize(Decimal('0.01'))):,.2f}"
+                f"✅ Tienes IVA a favor: ${money(abs(iva_neto)):,.2f}"
             )
         
         # Serie B pendiente

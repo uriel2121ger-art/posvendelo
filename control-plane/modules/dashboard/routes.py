@@ -136,7 +136,7 @@ async def dashboard_branch_health(
         if row.get("tunnel_status") == "error":
             health = "critical"
             reasons.append("tunnel_error")
-        disk_used_pct = float(row.get("disk_used_pct") or 0)
+        disk_used_pct = Decimal(str(row.get("disk_used_pct") or 0))
         if disk_used_pct >= 90:
             health = "critical"
             reasons.append("disk_high")

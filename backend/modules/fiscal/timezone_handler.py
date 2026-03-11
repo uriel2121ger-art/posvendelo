@@ -152,7 +152,7 @@ def validate_cfdi_timestamp(timestamp: str, codigo_postal: str,
     except ValueError:
         return {
             'valid': False,
-            'error': f'Formato de timestamp invalido: {timestamp}'
+            'error': f'Formato de timestamp inválido: {timestamp}'
         }
 
     # Obtener hora actual en esa zona

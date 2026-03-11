@@ -266,10 +266,10 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
         "data": {
             "alerts": [{
                 "product_name": p["name"],
-                "urgency": "CRITICAL" if float(p.get("stock") or 0) <= 2 else "WARNING",
-                "current_stock": float(p.get("stock") or 0),
-                "days_until_stockout": max(1, int(float(p.get("stock") or 0) / max(float(p.get("sold_30d") or 0) / 30, 0.01))),
-                "recommended_order": int(float(p.get("min_stock") or 5) * 2),
+                "urgency": "CRITICAL" if money(p.get("stock") or 0) <= 2 else "WARNING",
+                "current_stock": money(p.get("stock") or 0),
+                "days_until_stockout": max(1, int(money(p.get("stock") or 0) / max(money(p.get("sold_30d") or 0) / 30, 0.01))),
+                "recommended_order": int(money(p.get("min_stock") or 5) * 2),
             } for p in low_stock],
             "top_products": [{
                 "name": t["name"],

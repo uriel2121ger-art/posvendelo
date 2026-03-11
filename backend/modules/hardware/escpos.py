@@ -8,6 +8,9 @@ No external dependencies — outputs raw bytes for CUPS lp -o raw.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
+
+from modules.shared.constants import money
 
 # ---------------------------------------------------------------------------
 # ESC/POS command constants
@@ -197,19 +200,20 @@ def build_sale_receipt(
         subtotal = item.get("subtotal", 0)
         price = item.get("price", 0)
 
-        qty_str = str(int(qty)) if float(qty) == int(qty) else f"{qty:.2f}"
+        qty_dec = Decimal(str(qty))
+        qty_str = str(int(qty_dec)) if qty_dec == qty_dec.to_integral_value() else f"{qty_dec:.2f}"
         rb.three_columns(qty_str, name[:char_width - 16], f"${subtotal:,.2f}")
 
-        if float(qty) > 1:
+        if qty_dec > 1:
             rb.left(f"  @${price:,.2f} c/u")
 
     rb.line("-")
 
     # --- Totals ---
-    sale_subtotal = float(sale.get("subtotal", 0))
-    sale_discount = float(sale.get("discount", 0))
-    sale_tax = float(sale.get("tax", 0))
-    sale_total = float(sale.get("total", 0))
+    sale_subtotal = money(sale.get("subtotal", 0))
+    sale_discount = money(sale.get("discount", 0))
+    sale_tax = money(sale.get("tax", 0))
+    sale_total = money(sale.get("total", 0))
 
     rb.columns("Subtotal:", f"${sale_subtotal:,.2f}")
     if sale_discount > 0:
@@ -224,8 +228,8 @@ def build_sale_receipt(
 
     # --- Change (cash payments) ---
     if payment == "cash":
-        received = float(sale.get("cash_received", 0))
-        change = float(sale.get("change_given", 0))
+        received = money(sale.get("cash_received", 0))
+        change = money(sale.get("change_given", 0))
         if received > 0:
             rb.columns("Recibido:", f"${received:,.2f}")
             rb.columns("Cambio:", f"${change:,.2f}")
@@ -295,7 +299,7 @@ def build_shift_report(
     rb.bold("VENTAS")
 
     sales_count = summary.get("sales_count", 0)
-    total_sales = float(summary.get("total_sales", 0))
+    total_sales = money(summary.get("total_sales", 0))
     rb.columns("Num. ventas:", str(sales_count))
     rb.columns("Total ventas:", f"${total_sales:,.2f}")
 
@@ -306,17 +310,17 @@ def build_shift_report(
         method = str(row.get("payment_method", ""))
         label = method_labels.get(method, method)
         count = row.get("count", 0)
-        total = float(row.get("total", 0))
+        total = money(row.get("total", 0))
         rb.columns(f"  {label} ({count}):", f"${total:,.2f}")
 
     rb.line("-")
     rb.bold("EFECTIVO")
 
-    initial = float(summary.get("initial_cash", turn.get("initial_cash", 0)))
-    cash_in = float(summary.get("cash_in", 0))
-    cash_out = float(summary.get("cash_out", 0))
-    expected = float(summary.get("expected_cash", 0))
-    final = float(turn.get("final_cash", 0))
+    initial = money(summary.get("initial_cash", turn.get("initial_cash", 0)))
+    cash_in = money(summary.get("cash_in", 0))
+    cash_out = money(summary.get("cash_out", 0))
+    expected = money(summary.get("expected_cash", 0))
+    final = money(turn.get("final_cash", 0))
     difference = final - expected
 
     rb.columns("Fondo inicial:", f"${initial:,.2f}")

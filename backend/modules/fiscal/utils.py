@@ -225,11 +225,10 @@ def calculate_iva(subtotal: float, rate: float = 0.16) -> float:
     Returns:
         IVA amount
     """
-    from decimal import Decimal, ROUND_HALF_UP
-    result = (Decimal(str(subtotal)) * Decimal(str(rate))).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    return float(result)
+    from decimal import Decimal
+    from modules.shared.constants import money
+    result = Decimal(str(subtotal)) * Decimal(str(rate))
+    return money(result)
 
 def truncate_string(text: str, max_length: int, suffix: str = '...') -> str:
     """

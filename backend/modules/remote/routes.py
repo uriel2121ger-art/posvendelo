@@ -90,8 +90,8 @@ async def _apply_price_change_local(db, auth: dict, *, sku: str, new_price, reas
 
         details = _json_dumps(
             {
-                "old_price": float(old_price),
-                "new_price": float(new_price),
+                "old_price": money(old_price),
+                "new_price": money(new_price),
                 "reason": reason or "remote.local.apply",
             }
         )

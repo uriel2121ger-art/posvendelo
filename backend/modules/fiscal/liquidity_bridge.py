@@ -9,6 +9,8 @@ from decimal import Decimal
 import logging
 import hashlib
 
+from modules.shared.constants import money
+
 logger = logging.getLogger(__name__)
 
 class CryptoBridge:
@@ -96,12 +98,12 @@ class CryptoBridge:
     async def _get_remaining_daily_limit(self) -> float:
         today = datetime.now().strftime('%Y-%m-%d')
         row = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at::date = :today", today=datetime.strptime(today, '%Y-%m-%d').date())
-        return max(0, self.MAX_DAILY_CONVERSION - float(Decimal(row['total'] or 0).quantize(Decimal("0.01"))) if row else self.MAX_DAILY_CONVERSION)
+        return max(0, self.MAX_DAILY_CONVERSION - money(Decimal(row['total'] or 0)) if row else self.MAX_DAILY_CONVERSION)
     
     async def _get_remaining_weekly_limit(self) -> float:
         week_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
         row = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at::date >= :week_start", week_start=datetime.strptime(week_start, '%Y-%m-%d').date())
-        return max(0, self.MAX_WEEKLY_CONVERSION - float(Decimal(row['total'] or 0).quantize(Decimal("0.01"))) if row else self.MAX_WEEKLY_CONVERSION)
+        return max(0, self.MAX_WEEKLY_CONVERSION - money(Decimal(row['total'] or 0)) if row else self.MAX_WEEKLY_CONVERSION)
     
     async def create_conversion(self, amount_mxn: float, stablecoin: str = 'USDT', wallet_address: str = None, cover_description: str = None) -> Dict[str, Any]:
         amount_mxn = Decimal(str(amount_mxn))
@@ -144,11 +146,11 @@ class CryptoBridge:
     async def get_crypto_wealth(self) -> Dict[str, Any]:
         await self._ensure_table()
         wallets = await self.db.fetch("SELECT name, stablecoin, balance_usd, last_updated FROM cold_wallets ORDER BY balance_usd DESC")
-        total_usd = float(sum(Decimal(w['balance_usd'] or 0).quantize(Decimal("0.01")) for w in wallets))
+        total_usd = money(sum(Decimal(str(w['balance_usd'] or 0)) for w in wallets))
         
         conversions = await self.db.fetch("SELECT stablecoin, COALESCE(SUM(amount_usd), 0) as total FROM crypto_conversions WHERE status = 'completed' GROUP BY stablecoin")
         return {
             'wallets': [dict(w) for w in wallets], 'total_usd': total_usd, 'total_mxn': total_usd * self.USD_TO_MXN,
-            'by_stablecoin': {c['stablecoin']: float(Decimal(c['total'] or 0).quantize(Decimal("0.01"))) for c in conversions},
+            'by_stablecoin': {c['stablecoin']: money(Decimal(str(c['total'] or 0))) for c in conversions},
             'status': 'Fondos líquidos'
         }

@@ -52,8 +52,8 @@ class SelfConsumptionEngine:
                 if Decimal(str(p['stock'] or 0)) < Decimal(str(quantity)):
                     return {'success': False, 'error': 'Stock insuficiente'}
 
-                unit_cost = float((Decimal(str(p['price'] or 0)) * Decimal("0.7")).quantize(Decimal("0.01")))
-                total_value = unit_cost * quantity
+                unit_cost = (Decimal(str(p['price'] or 0)) * Decimal("0.7")).quantize(Decimal("0.01"))
+                total_value = (unit_cost * Decimal(str(quantity))).quantize(Decimal("0.01"))
 
                 await self.db.execute("""
                     INSERT INTO self_consumption (product_id, product_name, product_sku, quantity, unit_cost, total_value, category, reason, beneficiary, created_at)

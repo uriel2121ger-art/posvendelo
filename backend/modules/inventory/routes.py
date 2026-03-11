@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.inventory.schemas import StockAdjustment
 
 logger = logging.getLogger(__name__)
@@ -149,8 +149,8 @@ async def adjust_stock(
         "success": True,
         "data": {
             "product_id": body.product_id,
-            "previous_stock": round(float(current_stock), 2),
-            "adjustment": round(float(adjustment), 2),
-            "new_stock": round(float(new_stock), 2),
+            "previous_stock": money(current_stock),
+            "adjustment": money(adjustment),
+            "new_stock": money(new_stock),
         },
     }

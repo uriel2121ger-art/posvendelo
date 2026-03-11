@@ -15,7 +15,7 @@ def _validate_email(v: Optional[str]) -> Optional[str]:
         return v
     v = v.strip()
     if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', v):
-        raise ValueError("Email invalido")
+        raise ValueError("Email inválido")
     return v
 
 
@@ -24,7 +24,7 @@ def _validate_phone(v: Optional[str]) -> Optional[str]:
         return v
     v = v.strip()
     if not re.match(r'^[\d\s()+\-]{7,30}$', v):
-        raise ValueError("Telefono invalido: solo digitos, espacios, parentesis, + y -")
+        raise ValueError("Teléfono inválido: solo dígitos, espacios, paréntesis, + y -")
     return v
 
 
@@ -41,7 +41,7 @@ def _validate_hire_date(v: Optional[str]) -> Optional[str]:
 
 def _validate_salary_finite(v: Optional[Decimal], field_name: str) -> Optional[Decimal]:
     if v is not None and not v.is_finite():
-        raise ValueError(f"{field_name} debe ser un numero finito")
+        raise ValueError(f"{field_name} debe ser un número finito")
     return v
 
 
@@ -61,7 +61,7 @@ class EmployeeCreate(BaseModel):
     def strip_name(cls, v: str) -> str:
         stripped = v.strip()
         if not stripped:
-            raise ValueError("nombre no puede estar vacio")
+            raise ValueError("nombre no puede estar vacío")
         return stripped
 
     @field_validator("email")

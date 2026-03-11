@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.shared.turn_service import calculate_turn_summary
 from modules.hardware.schemas import (
     PrinterConfigUpdate,
@@ -520,12 +520,12 @@ async def print_shift_report(
 
     summary = {
         "sales_count": ts["sales_count"],
-        "total_sales": float(ts["total_sales"]),
+        "total_sales": money(ts["total_sales"]),
         "sales_by_method": ts["sales_by_method"],
-        "initial_cash": float(ts["initial"]),
-        "cash_in": float(ts["mov_in"]),
-        "cash_out": float(ts["mov_out"]),
-        "expected_cash": float(ts["expected_cash"]),
+        "initial_cash": money(ts["initial"]),
+        "cash_in": money(ts["mov_in"]),
+        "cash_out": money(ts["mov_out"]),
+        "expected_cash": money(ts["expected_cash"]),
     }
 
     char_width = cfg.get("receipt_char_width", 48) or 48

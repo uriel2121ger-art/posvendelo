@@ -32,7 +32,7 @@ ALLOWED_TABLES = {"products", "customers", "sales", "shifts"}
 def _serialize(value):
     """Convert DB values to JSON-safe types."""
     if isinstance(value, Decimal):
-        return float(value.quantize(Decimal("0.01")))
+        return money(value)
     if isinstance(value, datetime):
         return value.isoformat()
     return value
@@ -297,8 +297,8 @@ async def sync_push(
                 skip_row = False
                 for fname, fval in num_fields.items():
                     try:
-                        flt = float(fval)
-                        if math.isnan(flt) or math.isinf(flt):
+                        d = Decimal(str(fval))
+                        if not d.is_finite():
                             raise ValueError("NaN or Inf")
                         f = money(fval)
                     except (ValueError, TypeError):

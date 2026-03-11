@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT
+from ..shared.constants import RESICO_ANNUAL_LIMIT, money
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +81,10 @@ class NostradamusFiscal:
             ratio_b = (total_b / total * 100) if total > 0 else Decimal("0")
 
             return {
-                'serie_a': float(total_a),
-                'serie_b': float(total_b),
-                'total': float(total),
-                'ratio_b_percentage': float(ratio_b.quantize(Decimal("0.1"))),
+                'serie_a': money(total_a),
+                'serie_b': money(total_b),
+                'total': money(total),
+                'ratio_b_percentage': money(ratio_b.quantize(Decimal("0.1"))),
                 'status': 'excess_b' if ratio_b > 70 else 'balanced' if ratio_b > 30 else 'excess_a'
             }
         except Exception as e:
@@ -143,11 +143,11 @@ class NostradamusFiscal:
             excess_deductions = total_deductions - total_income if total_deductions > total_income else Decimal("0")
 
             return {
-                'total_deductions': float(total_deductions),
-                'total_income_a': float(total_income),
-                'taxable_base': float(taxable_base),
-                'excess_deductions': float(excess_deductions),
-                'deduction_ratio': float((total_deductions / total_income * 100).quantize(Decimal("0.1")) if total_income > 0 else Decimal("0")),
+                'total_deductions': money(total_deductions),
+                'total_income_a': money(total_income),
+                'taxable_base': money(taxable_base),
+                'excess_deductions': money(excess_deductions),
+                'deduction_ratio': money(total_deductions / total_income * 100 if total_income > 0 else Decimal("0")),
                 'has_opportunity': excess_deductions > 0
             }
         except Exception as e:
@@ -171,23 +171,23 @@ class NostradamusFiscal:
 
                 rfc_data.append({
                     'rfc': emp['rfc'],
-                    'invoiced': float(amount),
-                    'remaining': float(remaining),
-                    'percentage': float(percentage.quantize(Decimal("0.1"))),
+                    'invoiced': money(amount),
+                    'remaining': money(remaining),
+                    'percentage': money(percentage),
                 })
             
             best_rfc = max(rfc_data, key=lambda x: x['remaining']) if rfc_data else None
             
             return {
                 'rfcs': rfc_data,
-                'total_invoiced': float(total_invoiced),
-                'total_remaining': sum(r['remaining'] for r in rfc_data) if rfc_data else float(self.RESICO_ANNUAL_LIMIT),
+                'total_invoiced': money(total_invoiced),
+                'total_remaining': sum(r['remaining'] for r in rfc_data) if rfc_data else money(self.RESICO_ANNUAL_LIMIT),
                 'best_rfc': best_rfc,
                 'days_remaining_year': (datetime.now().replace(month=12, day=31) - datetime.now()).days
             }
         except Exception as e:
             logger.error(f"Error en RESICO: {e}", exc_info=True)
-            return {'rfcs': [], 'total_remaining': float(self.RESICO_ANNUAL_LIMIT)}
+            return {'rfcs': [], 'total_remaining': money(self.RESICO_ANNUAL_LIMIT)}
     
     def _generate_prescriptions(self, balance: Dict, deductions: Dict, resico: Dict):
         """Genera prescripciones accionables."""

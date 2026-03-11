@@ -1811,7 +1811,7 @@ async def generate_climate_shrinkage_justification(
         result = await shield.generate_shrinkage_justification(
             merma_data={
                 "product_name": request.product_name,
-                "quantity": float(request.quantity),
+                "quantity": request.quantity,
                 "category": request.category,
                 "id": request.id,
             }
@@ -1906,7 +1906,7 @@ async def register_self_consumption(
         engine = SelfConsumptionEngine(db)
         result = await engine.register_consumption(
             product_id=request.product_id,
-            quantity=float(request.quantity),
+            quantity=request.quantity,
             category=request.category,
             reason=request.reason,
             beneficiary=request.beneficiary,
@@ -1932,7 +1932,7 @@ async def register_sample(
         engine = SelfConsumptionEngine(db)
         result = await engine.register_sample(
             product_id=request.product_id,
-            quantity=float(request.quantity),
+            quantity=request.quantity,
             recipient=request.recipient,
         )
         return {"success": True, "data": result}
@@ -1956,7 +1956,7 @@ async def register_employee_consumption(
         engine = SelfConsumptionEngine(db)
         result = await engine.register_employee_consumption(
             product_id=request.product_id,
-            quantity=float(request.quantity),
+            quantity=request.quantity,
             employee_name=request.employee_name,
         )
         return {"success": True, "data": result}
@@ -2045,7 +2045,7 @@ async def register_loss(
         engine = MaterialityEngine(db)
         result = await engine.register_loss(
             product_id=request.product_id,
-            quantity=float(request.quantity),
+            quantity=request.quantity,
             reason=request.reason,
             category=request.category,
             witness_name=request.witness_name,
