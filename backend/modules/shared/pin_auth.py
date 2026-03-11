@@ -1,5 +1,5 @@
 """
-TITAN POS - Shared PIN Authentication
+POSVENDELO - Shared PIN Authentication
 
 Verificación de PIN de gerente reutilizable para endpoints que requieren
 autorización de un manager/admin/owner mediante PIN.
@@ -54,21 +54,26 @@ async def verify_manager_pin(pin: str, conn) -> dict:
     """
     rows = await conn.fetch(_PIN_QUERY)
 
+    # Always iterate ALL rows to prevent timing-based user enumeration.
+    # Do NOT early-return inside the loop.
+    matched_row = None
     for row in rows:
         stored: str = row["pin_hash"]
         try:
             if stored.startswith("$2b$") or stored.startswith("$2a$"):
                 # Hash bcrypt moderno
-                if bcrypt.checkpw(pin.encode(), stored.encode()):
-                    return dict(row)
+                if bcrypt.checkpw(pin.encode(), stored.encode()) and matched_row is None:
+                    matched_row = dict(row)
             else:
                 # Hash SHA-256 legado — comparación timing-safe
                 candidate = hashlib.sha256(pin.encode()).hexdigest()
-                if hmac.compare_digest(candidate, stored):
-                    return dict(row)
+                if hmac.compare_digest(candidate, stored) and matched_row is None:
+                    matched_row = dict(row)
         except Exception:
             # Hash corrupto o formato inesperado — ignorar y continuar
             logger.warning("Error al verificar pin_hash para user_id=%s", row.get("id"))
             continue
 
+    if matched_row is not None:
+        return matched_row
     raise HTTPException(status_code=403, detail="PIN de gerente inválido")

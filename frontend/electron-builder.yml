@@ -1,5 +1,5 @@
 appId: com.titanpos.pos
-productName: TITAN POS
+productName: POSVENDELO
 icon: resources/icon.png
 directories:
   buildResources: build
@@ -34,7 +34,7 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: TITAN POS
+  maintainer: POSVENDELO
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}

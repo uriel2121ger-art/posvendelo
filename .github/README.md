@@ -1,4 +1,4 @@
-# GitHub — TITAN POS
+# GitHub — POSVENDELO
 
 ## Workflows
 

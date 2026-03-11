@@ -1,5 +1,5 @@
 """
-TITAN POS — Hardware Module Schemas
+POSVENDELO — Hardware Module Schemas
 
 Pydantic models for hardware configuration endpoints.
 """
@@ -57,3 +57,18 @@ class PrintReceiptRequest(BaseModel):
 
 class PrintShiftReportRequest(BaseModel):
     turn_id: int = Field(..., gt=0)
+
+
+class InitialSetupPayload(BaseModel):
+    business_name: str = Field(..., min_length=2, max_length=100)
+    business_legal_name: Optional[str] = Field(None, max_length=200)
+    business_address: Optional[str] = Field(None, max_length=200)
+    business_rfc: Optional[str] = Field(None, max_length=13)
+    business_regimen: Optional[str] = Field(None, max_length=200)
+    business_phone: Optional[str] = Field(None, max_length=20)
+    business_footer: Optional[str] = Field(None, max_length=200)
+    receipt_printer_name: Optional[str] = Field(None, max_length=100)
+    receipt_printer_enabled: bool = False
+    receipt_auto_print: bool = False
+    scanner_enabled: bool = False
+    cash_drawer_enabled: bool = False

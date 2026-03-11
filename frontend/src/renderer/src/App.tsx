@@ -9,8 +9,15 @@ import {
   type ErrorInfo,
   type ReactNode
 } from 'react'
-import { HashRouter, Navigate, Route, Routes, useNavigate, Outlet } from 'react-router-dom'
-import { loadRuntimeConfig, createCashMovement, openDrawerForSale, pullTable } from './posApi'
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate, Outlet } from 'react-router-dom'
+import {
+  loadRuntimeConfig,
+  createCashMovement,
+  openDrawerForSale,
+  pullTable,
+  getInitialSetupStatus,
+  serverLogout
+} from './posApi'
 import CustomersTab from './tabs/CustomersTab'
 import DashboardStatsTab from './tabs/DashboardStatsTab'
 import CompanionDevicesTab from './tabs/CompanionDevicesTab'
@@ -23,6 +30,7 @@ import MermasTab from './tabs/MermasTab'
 import ProductsTab from './tabs/ProductsTab'
 import ReportsTab from './tabs/ReportsTab'
 import SettingsTab from './tabs/SettingsTab'
+import InitialSetupWizard from './tabs/InitialSetupWizard'
 import ShiftsTab from './tabs/ShiftsTab'
 import EmployeesTab from './tabs/EmployeesTab'
 import FiscalTab from './tabs/FiscalTab'
@@ -462,9 +470,12 @@ const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 function RoutedApp(): ReactElement {
   const navigate = useNavigate()
+  const location = useLocation()
   const [cashMovModal, setCashMovModal] = useState<CashMovModalState>('hidden')
   const [priceCheckModal, setPriceCheckModal] = useState(false)
   const [shiftResolved, setShiftResolved] = useState(false)
+  const [setupRequired, setSetupRequired] = useState(false)
+  const [setupChecked, setSetupChecked] = useState(false)
 
   // Idle timeout — auto-logout after 30 min of inactivity
   useEffect((): (() => void) => {
@@ -475,6 +486,8 @@ function RoutedApp(): ReactElement {
         try {
           const hasToken = localStorage.getItem('titan.token')
           if (!hasToken) return
+          // Fire-and-forget server-side JWT revocation before clearing local state
+          serverLogout().catch(() => {})
           localStorage.removeItem('titan.token')
           localStorage.removeItem('titan.role')
           localStorage.removeItem('titan.shiftHistory')
@@ -589,9 +602,52 @@ function RoutedApp(): ReactElement {
   })()
   const isCompanionRoute = window.location.hash.startsWith('#/companion')
 
+  useEffect((): (() => void) => {
+    let cancelled = false
+
+    if (!hasToken || isCompanionRoute) {
+      setSetupRequired(false)
+      setSetupChecked(true)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setSetupChecked(false)
+    void getInitialSetupStatus(loadRuntimeConfig())
+      .then((status) => {
+        if (cancelled) return
+        setSetupRequired(!status.completed)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSetupRequired(false)
+      })
+      .finally(() => {
+        if (!cancelled) setSetupChecked(true)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [hasToken, isCompanionRoute])
+
+  useEffect(() => {
+    if (!hasToken || isCompanionRoute || !setupChecked) return
+
+    if (setupRequired && location.pathname !== '/setup-inicial') {
+      navigate('/setup-inicial', { replace: true })
+      return
+    }
+
+    if (!setupRequired && location.pathname === '/setup-inicial') {
+      navigate('/terminal', { replace: true })
+    }
+  }, [hasToken, isCompanionRoute, setupChecked, setupRequired, location.pathname, navigate])
+
   return (
     <>
-      {hasToken && !shiftResolved && !isCompanionRoute && (
+      {hasToken && !shiftResolved && !isCompanionRoute && (!setupChecked || !setupRequired) && (
         <ShiftStartupModal
           onComplete={() => setShiftResolved(true)}
           onExit={() => {
@@ -719,6 +775,14 @@ function RoutedApp(): ReactElement {
             element={
               <TabErrorBoundary tabName="Historial">
                 <HistoryTab />
+              </TabErrorBoundary>
+            }
+          />
+          <Route
+            path="/setup-inicial"
+            element={
+              <TabErrorBoundary tabName="Setup inicial">
+                <InitialSetupWizard />
               </TabErrorBoundary>
             }
           />

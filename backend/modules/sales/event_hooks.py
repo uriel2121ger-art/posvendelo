@@ -1,5 +1,5 @@
 """
-TITAN POS - Sales Event Hooks
+POSVENDELO - Sales Event Hooks
 
 Hooks into the DomainEvent system to automatically record sale events
 in the SaleEventStore (Event Sourcing, Phase 5).

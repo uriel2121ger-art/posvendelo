@@ -1,8 +1,8 @@
 #Requires -RunAsAdministrator
 
 param(
-  [string]$Subject = "CN=TITAN POS Publisher",
-  [string]$FriendlyName = "TITAN POS Self-Signed Code Signing",
+  [string]$Subject = "CN=POSVENDELO Publisher",
+  [string]$FriendlyName = "POSVENDELO Self-Signed Code Signing",
   [string]$OutputDir = "$PSScriptRoot\..\..\artifacts\codesign",
   [Parameter(Mandatory = $true)][string]$PfxPassword
 )

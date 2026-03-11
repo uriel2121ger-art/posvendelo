@@ -1,5 +1,5 @@
 """
-TITAN POS — Standalone Migration Runner
+POSVENDELO — Standalone Migration Runner
 Applies pending SQL migrations from backend/migrations/ in order.
 Standalone: does NOT import db/connection.py to avoid side-effects.
 

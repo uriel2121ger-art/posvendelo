@@ -1,4 +1,4 @@
-# Pruebas manuales en el navegador — TITAN POS V2
+# Pruebas manuales en el navegador — POSVENDELO V2
 
 Ejecuta estos pasos **manualmente** en el navegador (http://localhost:5173) con el backend en 8000.
 

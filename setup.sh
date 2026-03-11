@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# TITAN POS — Instalador Automático
+# POSVENDELO — Instalador Automático
 # Uso: bash setup.sh   (o doble clic en INSTALAR.desktop)
 # Re-ejecutable: no sobreescribe .env si ya existe
 # ============================================================================
@@ -21,7 +21,7 @@ banner() {
     echo ""
     echo -e "${CYAN}${BOLD}"
     echo "  ╔════════════════════════════════════════════╗"
-    echo "  ║         TITAN POS — INSTALADOR             ║"
+    echo "  ║         POSVENDELO — INSTALADOR             ║"
     echo "  ╚════════════════════════════════════════════╝"
     echo -e "${NC}"
     echo ""
@@ -82,7 +82,7 @@ else
             echo "    sudo usermod -aG docker $USER"
             echo "    # Cerrar sesión y volver a entrar"
             echo ""
-            die "Docker es necesario para TITAN POS"
+            die "Docker es necesario para POSVENDELO"
         fi
     else
         fail "No se puede instalar Docker (sudo no disponible)"
@@ -93,7 +93,7 @@ else
         echo "    sudo usermod -aG docker $USER"
         echo "    # Cerrar sesión y volver a entrar"
         echo ""
-        die "Docker es necesario para TITAN POS"
+        die "Docker es necesario para POSVENDELO"
     fi
 fi
 
@@ -126,7 +126,7 @@ AGENTCFG
 ok "Agente local base generado en $AGENT_JSON_PATH"
 
 cat > "${SCRIPT_DIR}/INSTALL_SUMMARY.txt" <<EOF
-TITAN POS - RESUMEN DE INSTALACION
+POSVENDELO - RESUMEN DE INSTALACION
 
 Directorio: ${SCRIPT_DIR}
 Health local: http://127.0.0.1:8000/health
@@ -160,6 +160,8 @@ else
 
     # Crear .env desde template
     cp .env.example .env
+    # Strip CRLF line endings (Windows-edited .env.example)
+    sed -i 's/\r$//' .env
 
     # Reemplazar cada variable por nombre (evita ambigüedad)
     sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${PG_PASS}|" .env
@@ -169,12 +171,19 @@ else
     # DATABASE_URL: insertar password real y apuntar a hostname Docker
     sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://titan_user:${PG_PASS}@postgres:5432/titan_pos|" .env
 
+    # Standalone mode: ensure license enforcement is disabled (no control plane)
+    if grep -q "^TITAN_LICENSE_ENFORCEMENT=" .env; then
+        sed -i "s|^TITAN_LICENSE_ENFORCEMENT=.*|TITAN_LICENSE_ENFORCEMENT=false|" .env
+    else
+        echo "TITAN_LICENSE_ENFORCEMENT=false" >> .env
+    fi
+
     ok "Archivo .env generado con secretos aleatorios"
 
     # Guardar credenciales en archivo legible
     cat > CREDENCIALES.txt <<CREDS
 ╔══════════════════════════════════════════════════╗
-║          TITAN POS — CREDENCIALES                ║
+║          POSVENDELO — CREDENCIALES                ║
 ║   Guarda este archivo en un lugar seguro         ║
 ╚══════════════════════════════════════════════════╝
 
@@ -338,7 +347,7 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════
 # FASE 5: Iniciar servidor
 # ═══════════════════════════════════════════════════════════════════════════
-step 6 "Iniciando servidor TITAN POS..."
+step 6 "Iniciando servidor POSVENDELO..."
 
 docker compose up -d api
 ok "Contenedor api iniciado"
@@ -376,7 +385,7 @@ mkdir -p "$DESKTOP_DIR"
 
 cat > "$DESKTOP_DIR/TITAN-POS.desktop" <<DESK
 [Desktop Entry]
-Name=TITAN POS
+Name=POSVENDELO
 Comment=Punto de Venta
 Exec=xdg-open http://localhost:8000
 Terminal=false
@@ -400,7 +409,7 @@ echo -e "  ${GREEN}${BOLD}══════════════════
 echo -e "  ${GREEN}${BOLD}  ✅ ¡INSTALACIÓN COMPLETADA!${NC}"
 echo -e "  ${GREEN}${BOLD}════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  Se creó un acceso directo ${BOLD}TITAN POS${NC} en tu escritorio."
+echo -e "  Se creó un acceso directo ${BOLD}POSVENDELO${NC} en tu escritorio."
 echo -e "  Ábrelo para comenzar a usar el punto de venta."
 echo ""
 echo -e "  La primera vez, la aplicación te pedirá crear"

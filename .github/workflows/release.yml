@@ -1,4 +1,4 @@
-name: TITAN POS Release Artifacts
+name: POSVENDELO Release Artifacts
 
 on:
   push:

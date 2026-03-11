@@ -1,4 +1,4 @@
--- TITAN POS - Domain Events Table (Phase 2: Outbox Pattern)
+-- POSVENDELO - Domain Events Table (Phase 2: Outbox Pattern)
 -- Run this migration to enable persistent domain events.
 
 CREATE TABLE IF NOT EXISTS domain_events (

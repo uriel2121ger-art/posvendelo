@@ -1,4 +1,4 @@
-# Flujo de pruebas autónomo por pestaña (TITAN POS)
+# Flujo de pruebas autónomo por pestaña (POSVENDELO)
 
 **Rama de trabajo:** `testing/autonomous-tab-validation`  
 **Objetivo:** No tocar `master` hasta que se valide y decida merge. Todo el trabajo (pruebas, documentación, correcciones, nuevos tests) se hace en esta rama.

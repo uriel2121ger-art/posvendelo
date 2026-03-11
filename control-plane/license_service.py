@@ -11,6 +11,10 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 logger = logging.getLogger(__name__)
 
 _dev_private_key: rsa.RSAPrivateKey | None = None
+_persistent_key: rsa.RSAPrivateKey | None = None  # cached parsed persistent key
+
+# Cached key status reported at startup (set by _load_private_key on first call)
+_key_mode: str | None = None  # "persistent" | "ephemeral"
 
 
 def _utc_now() -> datetime:
@@ -40,19 +44,72 @@ def _isoformat(value: Any) -> str | None:
 
 
 def _load_private_key() -> rsa.RSAPrivateKey:
-    global _dev_private_key
+    """Load the RSA private key used to sign licenses.
+
+    Resolution order:
+    1. ``CP_LICENSE_PRIVATE_KEY`` env var (PEM, newlines as ``\\n``) — persistent key, recommended for production.
+    2. Ephemeral in-memory key generated at startup — only valid while the process is alive.
+       If ``CP_LICENSE_KEY_STRICT=true``, the absence of ``CP_LICENSE_PRIVATE_KEY`` raises
+       ``RuntimeError`` immediately so the container fails fast instead of silently
+       invalidating previously issued licenses on restart.
+    """
+    global _dev_private_key, _persistent_key, _key_mode
+
+    # Return cached persistent key if already parsed
+    if _persistent_key is not None:
+        return _persistent_key
 
     raw_key = os.getenv("CP_LICENSE_PRIVATE_KEY", "").strip()
     if raw_key:
-        return serialization.load_pem_private_key(raw_key.replace("\\n", "\n").encode("utf-8"), password=None)
+        # Normalize line endings: handle CRLF from Windows environments
+        pem_str = raw_key.replace("\r\n", "\n").replace("\r", "").replace("\\r\\n", "\\n").replace("\\r", "").replace("\\n", "\n")
+        key = serialization.load_pem_private_key(pem_str.encode("utf-8"), password=None)
+        _persistent_key = key  # cache parsed key
+        if _key_mode != "persistent":
+            _key_mode = "persistent"
+            logger.info(
+                "LICENSE KEY: persistent RSA key loaded from CP_LICENSE_PRIVATE_KEY "
+                "(key_id=%s). Licenses will survive restarts.",
+                os.getenv("CP_LICENSE_KEY_ID", "dev-rsa-1").strip() or "dev-rsa-1",
+            )
+        return key
+
+    strict = os.getenv("CP_LICENSE_KEY_STRICT", "false").strip().lower() in ("true", "1", "yes")
+    if strict:
+        raise RuntimeError(
+            "CP_LICENSE_KEY_STRICT=true but CP_LICENSE_PRIVATE_KEY is not set. "
+            "Generate a keypair with:  bash scripts/generate-license-keypair.sh  "
+            "then set CP_LICENSE_PRIVATE_KEY in your .env file and restart."
+        )
 
     if _dev_private_key is None:
         _dev_private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        _key_mode = "ephemeral"
         logger.warning(
-            "CP_LICENSE_PRIVATE_KEY no configurada; se genero una clave efimera de desarrollo. "
-            "Las licencias dejaran de validar despues de reiniciar el control-plane."
+            "========================================================================\n"
+            "  WARNING: USING EPHEMERAL RSA LICENSE KEY\n"
+            "  CP_LICENSE_PRIVATE_KEY is not set. A temporary in-memory key was\n"
+            "  generated. ALL previously issued licenses will become INVALID after\n"
+            "  the next restart of the control-plane.\n"
+            "\n"
+            "  To fix this in production:\n"
+            "    1. Run:  bash scripts/generate-license-keypair.sh\n"
+            "    2. Add CP_LICENSE_PRIVATE_KEY to your .env file\n"
+            "    3. Set CP_LICENSE_KEY_STRICT=true to prevent silent fallback\n"
+            "    4. Restart the control-plane\n"
+            "========================================================================"
         )
     return _dev_private_key
+
+
+def verify_license_key_at_startup() -> str:
+    """Call during application startup to trigger key loading and return the mode.
+
+    Returns ``"persistent"`` or ``"ephemeral"``.
+    Raises ``RuntimeError`` when ``CP_LICENSE_KEY_STRICT=true`` and no key is configured.
+    """
+    _load_private_key()
+    return _key_mode or "ephemeral"
 
 
 def get_license_public_key_pem() -> str:
@@ -265,11 +322,11 @@ async def create_license_record(
             "tenant_id": tenant_id,
             "license_type": values["license_type"],
             "status": values["status"],
-            "valid_from": values["valid_from"].isoformat() if values["valid_from"] else None,
-            "valid_until": values["valid_until"].isoformat() if values["valid_until"] else None,
-            "support_until": values["support_until"].isoformat() if values["support_until"] else None,
-            "trial_started_at": values["trial_started_at"].isoformat() if values["trial_started_at"] else None,
-            "trial_expires_at": values["trial_expires_at"].isoformat() if values["trial_expires_at"] else None,
+            "valid_from": values["valid_from"],
+            "valid_until": values["valid_until"],
+            "support_until": values["support_until"],
+            "trial_started_at": values["trial_started_at"],
+            "trial_expires_at": values["trial_expires_at"],
             "grace_days": values["grace_days"],
             "max_branches": max_branches,
             "max_devices": max_devices,

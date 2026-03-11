@@ -35,7 +35,7 @@ export default function CompanionLayout({ children }: { children: ReactNode }): 
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-500">
-              TITAN COMPANION
+              POSVENDELO COMPANION
             </p>
             <h1 className="truncate text-lg font-bold text-white">Companion remoto y portfolio</h1>
           </div>

@@ -1,4 +1,4 @@
-# Plan de Pruebas Manuales V9 — TITAN POS
+# Plan de Pruebas Manuales V9 — POSVENDELO
 
 Guia de pruebas manuales consolidada. Organizada por prioridad de ejecucion, sin duplicados, con criterios de pase/fallo explicitos.
 

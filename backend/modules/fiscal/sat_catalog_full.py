@@ -84,12 +84,14 @@ class SATCatalogManager:
         await self._ensure_db()
         
         query = query.strip()
-        like_query = f"%{query}%"
+        # Escape LIKE wildcards to prevent injection of % and _ chars
+        escaped = query.replace("%", "\\%").replace("_", "\\_")
+        like_query = f"%{escaped}%"
         
         async with aiosqlite.connect(self.db_path) as conn:
             async with conn.execute("""
                 SELECT clave, descripcion FROM c_ClaveProdServ
-                WHERE clave LIKE ? OR descripcion LIKE ?
+                WHERE clave LIKE ? ESCAPE '\\' OR descripcion LIKE ? ESCAPE '\\'
                 ORDER BY clave LIMIT ?
             """, (like_query, like_query, limit)) as cursor:
                 return await cursor.fetchall()

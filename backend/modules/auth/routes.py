@@ -1,5 +1,5 @@
 """
-TITAN POS - Auth Module Routes
+POSVENDELO - Auth Module Routes
 
 Login + verify endpoints using asyncpg direct.
 Bcrypt-only password verification. Rate-limited login with env override.
@@ -14,7 +14,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from db.connection import get_db
-from modules.shared.auth import verify_token, create_token, TOKEN_EXPIRE_MINUTES
+from modules.shared.auth import verify_token, create_token, revoke_token, TOKEN_EXPIRE_MINUTES
 from modules.shared.rate_limit import limiter
 from modules.auth.schemas import LoginRequest, PairRequest, PairTokenRequest, TokenResponse
 from modules.shared.auth import get_user_id
@@ -42,12 +42,12 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
     if not user:
         # Simulate bcrypt work to prevent timing oracle
         bcrypt.hashpw(b"dummy-timing-pad", bcrypt.gensalt(rounds=12))
-        raise HTTPException(status_code=401, detail="Credenciales invalidas")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     stored_hash = user.get("password_hash")
     if not stored_hash or not (stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$")):
         bcrypt.hashpw(b"dummy-timing-pad", bcrypt.gensalt(rounds=12))
-        raise HTTPException(status_code=401, detail="Credenciales invalidas")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     try:
         auth_success = bcrypt.checkpw(
@@ -59,7 +59,7 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
         auth_success = False
 
     if not auth_success:
-        raise HTTPException(status_code=401, detail="Credenciales invalidas")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     role = user.get("role", "cashier")
     branch_id = user.get("branch_id")
@@ -76,6 +76,20 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
 _do_login = limiter.limit(_login_rate)(_do_login)
 
 router.post("/login", response_model=TokenResponse)(_do_login)
+
+
+@router.post("/logout")
+async def logout(auth: dict = Depends(verify_token)):
+    """Revoke current JWT so it cannot be reused."""
+    jti = auth.get("jti")
+    revoked = False
+    if jti:
+        exp = auth.get("exp")
+        expires_at = (
+            datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None
+        )
+        revoked = await revoke_token(jti, expires_at)
+    return {"success": True, "data": {"logged_out": True, "jti_revoked": revoked}}
 
 
 @router.get("/verify")

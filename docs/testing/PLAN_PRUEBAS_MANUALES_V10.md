@@ -1,4 +1,4 @@
-# Plan de Pruebas Manuales V10 — TITAN POS
+# Plan de Pruebas Manuales V10 — POSVENDELO
 
 Guia de pruebas manuales **mas exigente**: mas edge cases, variantes por escenario y fase dedicada a **monkey testing**. Criterios de pase/fallo estrictos.
 

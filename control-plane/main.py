@@ -4,12 +4,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from db.connection import close_pool, get_pool
+from license_service import verify_license_key_at_startup
 from modules.branches.routes import router as branches_router
 from modules.cloud.routes import router as cloud_router
 from modules.dashboard.routes import router as dashboard_router
@@ -22,6 +24,16 @@ from modules.tunnel.routes import router as tunnel_router
 
 logger = logging.getLogger(__name__)
 debug = os.getenv("DEBUG", "false").lower() == "true"
+DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", "/app/downloads"))
+
+CAJERO_WINDOWS_INSTALLER = "titan-pos-setup.exe"
+CAJERO_APPIMAGE = "titan-pos.AppImage"
+CAJERO_DEB = "titan-pos_amd64.deb"
+CAJERO_APK = "titan-pos.apk"
+OWNER_WINDOWS_INSTALLER = "titan-owner-setup.exe"
+OWNER_APPIMAGE = "titan-owner.AppImage"
+OWNER_DEB = "titan-owner_amd64.deb"
+OWNER_WEB_ZIP = "titan-owner-web.zip"
 
 
 def _cors_origins() -> list[str]:
@@ -41,16 +53,16 @@ async def _ensure_schema() -> None:
         tables_exist = await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'tenants')"
         )
-        if tables_exist:
-            await conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    name TEXT PRIMARY KEY,
-                    applied_at TIMESTAMP DEFAULT NOW()
-                )
-                """
+        # Ensure schema_migrations exists unconditionally (both fresh and existing DBs)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT NOW()
             )
-        else:
+            """
+        )
+        if not tables_exist:
             await conn.execute(schema_path.read_text())
             logger.info("control-plane base schema applied")
 
@@ -71,13 +83,22 @@ async def _ensure_schema() -> None:
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    # Verify license key before anything else so a misconfigured production
+    # deployment fails fast instead of starting up with an ephemeral key.
+    try:
+        key_mode = verify_license_key_at_startup()
+        logger.info("control-plane startup: license key mode = %s", key_mode)
+    except RuntimeError as exc:
+        logger.critical("STARTUP ABORTED — license key error: %s", exc)
+        raise
+
     await _ensure_schema()
     yield
     await close_pool()
 
 
 app = FastAPI(
-    title="TITAN Control Plane",
+    title="PosVendelo Control Plane",
     version="1.0.0",
     docs_url="/docs" if debug else None,
     redoc_url=None,
@@ -114,6 +135,227 @@ app.include_router(releases_router, prefix="/api/v1/releases", tags=["releases"]
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(tunnel_router, prefix="/api/v1/tunnel", tags=["tunnel"])
 
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def landing_page() -> str:
+    return """<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PosVendelo | Punto de venta para México</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #040614;
+      --card: rgba(14, 20, 48, 0.78);
+      --line: rgba(125, 147, 255, 0.35);
+      --text: #f5f7ff;
+      --muted: #b8c3ff;
+      --accent: #5675ff;
+      --accent-soft: #8aa0ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1000px 500px at 80% -10%, rgba(86, 117, 255, 0.35), transparent 70%),
+        radial-gradient(900px 500px at -10% 110%, rgba(79, 199, 255, 0.25), transparent 70%),
+        var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
+    .card {
+      width: min(980px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--card);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      padding: 36px;
+    }
+    .brand { font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-soft); }
+    h1 { margin: 12px 0 14px; font-size: clamp(30px, 5vw, 52px); line-height: 1.05; }
+    p { margin: 0 0 22px; color: var(--muted); font-size: clamp(16px, 2.1vw, 19px); max-width: 760px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    .btn {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 11px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .btn.primary { background: linear-gradient(180deg, var(--accent), #435edf); border-color: transparent; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 18px; }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .item b { display: block; color: var(--text); margin-bottom: 6px; font-size: 15px; }
+    .footer { margin-top: 20px; color: var(--muted); font-size: 13px; opacity: 0.9; }
+    code { color: #d4dcff; background: rgba(255, 255, 255, 0.06); padding: 2px 6px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">POSVENDELO</div>
+    <h1>Tu punto de venta en la nube,<br>listo para crecer.</h1>
+    <p>
+      Plataforma POS para México con sincronización de sucursales, operación offline-first y control centralizado.
+      Esta instancia está activa y preparada para onboarding de clientes.
+    </p>
+    <div class="actions">
+      <a class="btn primary" href="/download/cajero/windows">Cajero Windows</a>
+      <a class="btn" href="/download/cajero/appimage">Cajero AppImage</a>
+      <a class="btn" href="/download/cajero/deb">Cajero .deb</a>
+      <a class="btn" href="/download/cajero/apk">Cajero Android (APK)</a>
+      <a class="btn" href="/download/owner/windows">Dueño Windows</a>
+      <a class="btn" href="/download/owner/appimage">Dueño AppImage</a>
+      <a class="btn" href="/download/owner/deb">Dueño .deb</a>
+      <a class="btn" href="/download/owner/web">Dueño Web (zip)</a>
+      <a class="btn" href="/downloads">Ver todos los instaladores</a>
+      <a class="btn" href="/health">Estado del servicio</a>
+      <a class="btn" href="mailto:ventas@posvendelo.com">Contactar ventas</a>
+    </div>
+    <section class="grid">
+      <article class="item">
+        <b>Control central</b>
+        Tenants, sucursales, licencias y comandos remotos desde un solo panel.
+      </article>
+      <article class="item">
+        <b>Nodo local confiable</b>
+        La verdad de operación vive en sucursal y se sincroniza al cloud.
+      </article>
+      <article class="item">
+        <b>Seguridad activa</b>
+        Túnel de Cloudflare y endurecimiento para endpoints técnicos.
+      </article>
+      <article class="item">
+        <b>Instalación guiada</b>
+        Alta de equipos con token de instalación y configuración automática.
+      </article>
+    </section>
+    <div class="footer">API base: <code>/api/v1/*</code> · Salud: <code>/health</code></div>
+  </main>
+</body>
+</html>"""
+
+
+def _require_download(filename: str) -> Path:
+    path = DOWNLOADS_DIR / filename
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Instalador no disponible")
+    return path
+
+
+@app.get("/downloads", response_class=HTMLResponse, include_in_schema=False)
+async def downloads_page() -> str:
+    return """<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Descargas PosVendelo</title></head>
+<body style="font-family:Segoe UI,Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;line-height:1.5">
+  <h1>Descargas PosVendelo</h1>
+  <h2>App Cajeros</h2>
+  <ul>
+    <li><a href="/download/cajero/windows">Windows (.exe)</a></li>
+    <li><a href="/download/cajero/appimage">Linux AppImage</a></li>
+    <li><a href="/download/cajero/deb">Linux Debian/Ubuntu (.deb)</a></li>
+    <li><a href="/download/cajero/apk">Android (.apk)</a></li>
+  </ul>
+  <h2>App Dueño</h2>
+  <ul>
+    <li><a href="/download/owner/windows">Windows (.exe)</a></li>
+    <li><a href="/download/owner/appimage">Linux AppImage</a></li>
+    <li><a href="/download/owner/deb">Linux Debian/Ubuntu (.deb)</a></li>
+    <li><a href="/download/owner/web">Web/PWA (.zip)</a></li>
+  </ul>
+  <p><a href="/">Volver al inicio</a></p>
+</body>
+</html>"""
+
+
+@app.api_route("/download/windows", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_windows() -> FileResponse:
+    path = _require_download(CAJERO_WINDOWS_INSTALLER)
+    return FileResponse(path=str(path), filename=CAJERO_WINDOWS_INSTALLER, media_type="application/octet-stream")
+
+
+@app.api_route("/download/appimage", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_appimage() -> FileResponse:
+    path = _require_download(CAJERO_APPIMAGE)
+    return FileResponse(path=str(path), filename=CAJERO_APPIMAGE, media_type="application/octet-stream")
+
+
+@app.api_route("/download/deb", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_deb() -> FileResponse:
+    path = _require_download(CAJERO_DEB)
+    return FileResponse(path=str(path), filename=CAJERO_DEB, media_type="application/vnd.debian.binary-package")
+
+
+
+
+@app.api_route("/download/cajero/windows", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_cajero_windows() -> FileResponse:
+    path = _require_download(CAJERO_WINDOWS_INSTALLER)
+    return FileResponse(path=str(path), filename=CAJERO_WINDOWS_INSTALLER, media_type="application/octet-stream")
+
+
+@app.api_route("/download/cajero/appimage", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_cajero_appimage() -> FileResponse:
+    path = _require_download(CAJERO_APPIMAGE)
+    return FileResponse(path=str(path), filename=CAJERO_APPIMAGE, media_type="application/octet-stream")
+
+
+@app.api_route("/download/cajero/deb", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_cajero_deb() -> FileResponse:
+    path = _require_download(CAJERO_DEB)
+    return FileResponse(path=str(path), filename=CAJERO_DEB, media_type="application/vnd.debian.binary-package")
+
+
+@app.api_route("/download/cajero/apk", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_cajero_apk() -> FileResponse:
+    path = _require_download(CAJERO_APK)
+    return FileResponse(
+        path=str(path),
+        filename=CAJERO_APK,
+        media_type="application/vnd.android.package-archive",
+    )
+
+
+@app.api_route("/download/owner/windows", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_owner_windows() -> FileResponse:
+    path = _require_download(OWNER_WINDOWS_INSTALLER)
+    return FileResponse(path=str(path), filename=OWNER_WINDOWS_INSTALLER, media_type="application/octet-stream")
+
+
+@app.api_route("/download/owner/appimage", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_owner_appimage() -> FileResponse:
+    path = _require_download(OWNER_APPIMAGE)
+    return FileResponse(path=str(path), filename=OWNER_APPIMAGE, media_type="application/octet-stream")
+
+
+@app.api_route("/download/owner/deb", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_owner_deb() -> FileResponse:
+    path = _require_download(OWNER_DEB)
+    return FileResponse(path=str(path), filename=OWNER_DEB, media_type="application/vnd.debian.binary-package")
+
+
+@app.api_route("/download/owner/web", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_owner_web() -> FileResponse:
+    path = _require_download(OWNER_WEB_ZIP)
+    return FileResponse(path=str(path), filename=OWNER_WEB_ZIP, media_type="application/zip")
 
 @app.get("/health", tags=["system"])
 async def health_check():

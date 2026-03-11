@@ -82,9 +82,9 @@ def collect_alert_candidates(branches: list[dict[str, Any]], *, now: datetime | 
 
 def format_alerts_message(alerts: list[dict[str, Any]]) -> str:
     if not alerts:
-        return "TITAN Control Plane: sin alertas activas."
+        return "PosVendelo Control Plane: sin alertas activas."
 
-    lines = ["TITAN Control Plane - Alertas activas"]
+    lines = ["PosVendelo Control Plane - Alertas activas"]
     for alert in alerts:
         lines.append(f"- [{alert['severity']}] {alert['message']}")
     return "\n".join(lines)

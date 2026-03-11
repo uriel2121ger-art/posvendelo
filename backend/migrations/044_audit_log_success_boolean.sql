@@ -11,3 +11,7 @@ END;
 
 ALTER TABLE audit_log
 ALTER COLUMN success SET DEFAULT TRUE;
+
+INSERT INTO schema_version(version, description)
+VALUES (44, 'audit_log success boolean type')
+ON CONFLICT DO NOTHING;

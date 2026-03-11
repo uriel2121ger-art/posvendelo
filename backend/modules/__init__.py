@@ -1,5 +1,5 @@
 """
-TITAN POS - Modular Monolith
+POSVENDELO - Modular Monolith
 
 Domain modules organized by bounded context.
 Each module exposes its public API via __init__.py.

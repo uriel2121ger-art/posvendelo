@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 /**
- * Utilidades compartidas para tests de TITAN POS.
+ * Utilidades compartidas para tests de POSVENDELO.
  * Custom render con Router + helpers de localStorage.
  */
 import type { ReactElement, ReactNode } from 'react'

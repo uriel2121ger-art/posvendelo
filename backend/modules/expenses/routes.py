@@ -1,5 +1,5 @@
 """
-TITAN POS - Expenses Module Routes
+POSVENDELO - Expenses Module Routes
 
 Cash expense tracking via cash_movements table.
 """
@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.expenses.schemas import ExpenseCreate
 
 logger = logging.getLogger(__name__)
@@ -58,8 +58,8 @@ async def get_expense_summary(
         return {
             "success": True,
             "data": {
-                "month": round(float(month_row["total"]), 2) if month_row else 0.0,
-                "year": round(float(year_row["total"]), 2) if year_row else 0.0,
+                "month": money(month_row["total"]) if month_row else 0,
+                "year": money(year_row["total"]) if year_row else 0,
             },
         }
     except Exception as e:

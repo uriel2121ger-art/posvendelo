@@ -1,5 +1,5 @@
 """
-TITAN POS - SAT Catalog Module Routes
+POSVENDELO - SAT Catalog Module Routes
 
 Queries sat_clave_prod_serv table in PostgreSQL via asyncpg.
 Falls back to embedded _COMMON_CODES if table is unavailable.

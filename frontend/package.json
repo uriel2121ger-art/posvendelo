@@ -1,10 +1,10 @@
 {
   "name": "titan-pos",
   "version": "1.0.0",
-  "description": "TITAN POS desktop app for retail operations in Mexico",
+  "description": "POSVENDELO desktop app for retail operations in Mexico",
   "homepage": "https://github.com/uriel2121ger-art/titan-pos",
   "main": "./out/main/index.js",
-  "author": "TITAN POS",
+  "author": "POSVENDELO",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -33,6 +33,9 @@
     "dev:browser:open": "node scripts/dev-browser-open.mjs",
     "build:browser": "vite build --config vite.browser.config.ts",
     "preview:browser": "npm run build:browser && vite preview --config vite.browser.config.ts",
+    "cap:sync": "npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "build:android": "npm run build:browser && npx cap sync android",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:prod": "E2E_START_SERVER=1 E2E_SERVER_MODE=preview playwright test"
@@ -46,6 +49,9 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",

@@ -456,7 +456,7 @@ async def cloud_register(body: CloudRegisterRequest, request: Request, db=Depend
         branch_id=branch["id"],
         cloud_user_id=user["id"],
         notification_type="success",
-        title="Cuenta Nube TITAN activada",
+        title="Cuenta Nube PosVendelo activada",
         body=f"La cuenta cloud quedó vinculada a {branch['name']}.",
     )
     return {
@@ -664,8 +664,10 @@ async def cloud_forgot_password(body: CloudPasswordForgotRequest, db=Depends(get
             entity_id=user["id"],
         )
     data = {"queued": True}
+    # SECURITY: Never leak reset tokens in response — even in DEBUG mode.
+    # Use server logs for debugging reset flows instead.
     if os.getenv("DEBUG", "false").strip().lower() == "true" and debug_token:
-        data["debug_reset_token"] = debug_token
+        logger.debug("DEBUG reset token for user %s: %s", user.get("id", "?"), debug_token)
     return {"success": True, "data": data}
 
 

@@ -33,7 +33,7 @@ export default defineConfig(({ command, mode }) => ({
   },
   plugins: [react()],
   build: {
-    outDir: 'dist-browser',
+    outDir: resolve(__dirname, 'dist-browser'),
     emptyOutDir: true,
     minify: mode === 'production',
     sourcemap: mode !== 'production',

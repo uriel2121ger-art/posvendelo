@@ -1,5 +1,5 @@
 """
-TITAN POS - Shared Rate Limiter
+POSVENDELO - Shared Rate Limiter
 
 Single limiter instance shared between main.py and route modules.
 Uses slowapi with get_remote_address as the key function.

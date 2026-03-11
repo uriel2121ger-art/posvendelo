@@ -1,1 +1,1 @@
-"""TITAN POS - Inventory Module"""
+"""POSVENDELO - Inventory Module"""

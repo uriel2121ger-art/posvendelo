@@ -455,7 +455,7 @@ export default function SettingsTab({
   const handleGenerateCloudLinkCode = async (): Promise<void> => {
     const agent = window.api?.agent
     if (!agent?.generateLinkCode) {
-      showMessage('La vinculación con Nube TITAN requiere el agente local del desktop.', true)
+      showMessage('La vinculación con Nube PosVendelo requiere el agente local del desktop.', true)
       return
     }
     setBusy(true)
@@ -469,7 +469,7 @@ export default function SettingsTab({
         branchName: result.branchName,
         expiresAt: result.expiresAt
       })
-      showMessage('Código de vinculación Nube TITAN generado.')
+      showMessage('Código de vinculación Nube PosVendelo generado.')
     } catch (error) {
       showMessage((error as Error).message, true)
     } finally {
@@ -634,7 +634,7 @@ export default function SettingsTab({
 
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                     <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-                      <Link2 className="w-4 h-4 text-cyan-500" /> Nube TITAN
+                      <Link2 className="w-4 h-4 text-cyan-500" /> Nube PosVendelo
                     </h2>
                     <p className="text-sm text-zinc-500 mb-4">
                       Genera un código temporal para vincular esta sucursal con la cuenta del dueño

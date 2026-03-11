@@ -1,4 +1,4 @@
-# Reporte de Pruebas Manuales V10 - TITAN POS
+# Reporte de Pruebas Manuales V10 - POSVENDELO
 **Estado:** Finalizado
 **Fases ejecutadas:** 0 a 12 (Completo)
 
@@ -73,7 +73,7 @@ A destacar positivamente:
 Evaluando la resistencia de los subsistemas del POS, encontramos fallos regresivos importantes:
 
 ### 1. Funcionalidad Rota: "Cancelación de Venta" INACCESIBLE (FAIL CRÍTICO)
-Al intentar anular un ticket desde el Módulo de Historial, el botón de "Aceptar" confirmación lanza un error de red silencioso en consola: **`422 Unprocessable Entity - Field required`**. Esto indica que el frontend actualizadó no está enviando al backend un campo obligatorio (probablemente el motivo de cancelación o un ID con el tipado correcto), lo que significa que **en TITAN POS V10, las devoluciones inmediatas están completamente rotas**. Esta es una regresión crítica de negocio que blinda al sistema de devoluciones.
+Al intentar anular un ticket desde el Módulo de Historial, el botón de "Aceptar" confirmación lanza un error de red silencioso en consola: **`422 Unprocessable Entity - Field required`**. Esto indica que el frontend actualizadó no está enviando al backend un campo obligatorio (probablemente el motivo de cancelación o un ID con el tipado correcto), lo que significa que **en POSVENDELO V10, las devoluciones inmediatas están completamente rotas**. Esta es una regresión crítica de negocio que blinda al sistema de devoluciones.
 
 ### 2. Inyección de Template Masiva zombifica el Terminal (FAIL)
 El módulo de "Ajustes de Diseño de Ticket" permite guardar Cadenas de Texto Masivas (ej. 20,000 letras "A") en el pie de página. El backend lo permite y lo guarda en Base de Datos.
@@ -134,7 +134,7 @@ Se solicitó la inyección recursiva e irreflexiva de `Arreglos Gigantes (+50MB 
 ---
 **CONCLUSIÓN DEL PENTEST DE ALTA INTENSIDAD v10 Y ESTRÉS x10:**
 La arquitectura cliente-servidor tiene un "Muro de Acero" en su API (FastAPI tipa e impide ataques destructivos y SQLi de forma excelente). No obstante, el Cliente (Frontend Vite/React) adolece de protecciones de **QoS (Calidad de Servicio) interna**. 
-TITAN POS no delega tareas pesadas o ráfagas asíncronas a un `WebWorker`, por lo que un DDoS local o la ingesta de JSONes extremadamente largos va a congelar la caja registradora irremediablemente. Aunado al `QuotaExceededError` del LocalStorage, el Front-End puede ser forzado a un Denegation of Service (DoS local) con relativa facilidad bajo estrés extremo.
+POSVENDELO no delega tareas pesadas o ráfagas asíncronas a un `WebWorker`, por lo que un DDoS local o la ingesta de JSONes extremadamente largos va a congelar la caja registradora irremediablemente. Aunado al `QuotaExceededError` del LocalStorage, el Front-End puede ser forzado a un Denegation of Service (DoS local) con relativa facilidad bajo estrés extremo.
 
 ## 🛑 POST-MORTEM: El "Bug Zombi" de Ajustes de Conexión (El Veredicto Final)
 

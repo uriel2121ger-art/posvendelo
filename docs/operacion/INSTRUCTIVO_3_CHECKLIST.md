@@ -1,6 +1,6 @@
 # Checklist — Instructivo 3 (Cursor)
 
-## Hecho en el proyecto TITAN POS
+## Hecho en el proyecto POSVENDELO
 
 - [x] **AGENTS.md** en la raíz (Paso 2)
 - [x] **.cursor/rules/** con `fastapi-python.mdc`, `security.mdc`, `git-workflow.mdc` (Paso 4)

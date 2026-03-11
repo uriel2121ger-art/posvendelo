@@ -47,6 +47,9 @@ vi.mock('../tabs/OwnerPortfolioTab', () => ({
 vi.mock('../tabs/CompanionDevicesTab', () => ({
   default: () => <div data-testid="companion-devices-tab">Dispositivos</div>
 }))
+vi.mock('../tabs/InitialSetupWizard', () => ({
+  default: () => <div data-testid="initial-setup-wizard">Setup inicial</div>
+}))
 
 // Mock ShiftStartupModal — auto-resolve para no bloquear tests
 function ShiftStartupModalMock({ onComplete }: { onComplete: () => void }): null {
@@ -74,7 +77,8 @@ vi.mock('../posApi', () => ({
   createCashMovement: vi.fn().mockResolvedValue({}),
   openDrawerForSale: vi.fn().mockResolvedValue({}),
   getCurrentTurn: vi.fn().mockResolvedValue(null),
-  pullTable: vi.fn().mockResolvedValue([])
+  pullTable: vi.fn().mockResolvedValue([]),
+  getInitialSetupStatus: vi.fn().mockResolvedValue({ completed: true })
 }))
 
 // App usa HashRouter internamente, así que importamos directo
@@ -266,6 +270,26 @@ describe('App Routing', () => {
 
     await waitFor(() => {
       expect(window.location.hash).toBe('#/terminal')
+    })
+  })
+
+
+  it('redirige a /setup-inicial cuando el setup no está completo', async () => {
+    const posApi = await import('../posApi')
+    vi.mocked(posApi.getInitialSetupStatus).mockResolvedValueOnce({
+      completed: false,
+      completed_at: null,
+      business_name: '',
+      printer_name: ''
+    })
+
+    setAuthToken()
+    window.location.hash = '#/terminal'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/setup-inicial')
+      expect(screen.getByTestId('initial-setup-wizard')).toBeInTheDocument()
     })
   })
 

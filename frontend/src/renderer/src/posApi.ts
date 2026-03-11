@@ -24,7 +24,7 @@ function safeSetItem(key: string, value: string): void {
     localStorage.setItem(key, value)
   } catch {
     // QuotaExceededError or SecurityError — degrade gracefully
-    console.warn(`[TITAN] localStorage.setItem("${key}") failed — storage may be full`)
+    console.warn(`[POSVENDELO] localStorage.setItem("${key}") failed — storage may be full`)
   }
 }
 
@@ -203,6 +203,25 @@ function handleExpiredSession(): never {
   }
   window.location.hash = '#/login'
   throw new Error('Sesión expirada. Inicia sesión de nuevo.')
+}
+
+/**
+ * Fire-and-forget server-side logout to revoke the JWT's JTI.
+ * Does NOT throw — safe to call before clearing localStorage.
+ */
+export async function serverLogout(): Promise<void> {
+  try {
+    const cfg = loadRuntimeConfig()
+    if (!cfg.token) return
+    const url = `${cfg.baseUrl}/api/v1/auth/logout`
+    await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.token}` },
+      signal: AbortSignal.timeout(3000)
+    })
+  } catch {
+    /* best-effort — token will expire naturally via TTL */
+  }
 }
 
 function parseErrorDetail(text: string, fallback: string): string {
@@ -2387,6 +2406,50 @@ export async function startDailyNoise(
 // ---------------------------------------------------------------------------
 // Hardware
 // ---------------------------------------------------------------------------
+
+export type InitialSetupStatus = {
+  completed: boolean
+  completed_at: string | null
+  business_name: string
+  printer_name: string
+}
+
+export type InitialSetupPayload = {
+  business_name: string
+  business_legal_name?: string
+  business_address?: string
+  business_rfc?: string
+  business_regimen?: string
+  business_phone?: string
+  business_footer?: string
+  receipt_printer_name?: string
+  receipt_printer_enabled: boolean
+  receipt_auto_print: boolean
+  scanner_enabled: boolean
+  cash_drawer_enabled: boolean
+}
+
+export async function getInitialSetupStatus(cfg: RuntimeConfig): Promise<InitialSetupStatus> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/hardware/setup-status`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error consultando setup inicial'))
+  const json = (await res.json()) as { data: InitialSetupStatus }
+  return json.data
+}
+
+export async function completeInitialSetup(
+  cfg: RuntimeConfig,
+  body: InitialSetupPayload
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/setup-wizard`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error guardando setup inicial'))
+  return (await res.json()) as Record<string, unknown>
+}
 
 export type CupsPrinter = {
   name: string

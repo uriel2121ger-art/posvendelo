@@ -135,7 +135,7 @@ class CrossBranchBilling:
                 original_rfc TEXT,
                 target_rfc TEXT,
                 cross_concept TEXT,
-                amount DOUBLE PRECISION,
+                amount NUMERIC(12,2),
                 timestamp TIMESTAMP
             )
         """)

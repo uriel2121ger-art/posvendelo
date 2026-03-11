@@ -1,4 +1,4 @@
-# TITAN POS — Checklist de seguridad
+# POSVENDELO — Checklist de seguridad
 
 Referencia rápida para revisión y despliegue seguro. Ver también `.cursor/rules/security.mdc`.
 

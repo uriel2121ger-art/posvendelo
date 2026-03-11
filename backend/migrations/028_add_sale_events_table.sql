@@ -1,5 +1,5 @@
 -- =============================================================================
--- TITAN POS — Event Sourcing: sale_events table
+-- POSVENDELO — Event Sourcing: sale_events table
 -- Phase 5: Append-only event store for sale aggregates
 --
 -- Run: psql -U titan_user -d titan_pos -f migrations/add_sale_events_table.sql

@@ -43,5 +43,5 @@ export const TITAN_DISCOVER_PORTS = readPortList(
   defaultDiscoverPorts
 )
 export const TITAN_BROWSER_PORT = browserPort
-export const TITAN_APP_LABEL = readString(import.meta.env.VITE_TITAN_APP_LABEL) ?? 'TITAN POS'
+export const TITAN_APP_LABEL = readString(import.meta.env.VITE_TITAN_APP_LABEL) ?? 'POSVENDELO'
 export const TITAN_RELEASE_LABEL = readString(import.meta.env.VITE_TITAN_RELEASE_LABEL)

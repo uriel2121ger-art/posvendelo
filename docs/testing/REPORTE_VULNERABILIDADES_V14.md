@@ -21,8 +21,8 @@ Este ticket fue enviado a la API de Ventas POST (`/api/v1/sales/`) de manera sec
 Este resultado es una prueba fehaciente de la optimización del diseño de tu API (Arquitectura de Capas Lógicas y Pydantic) y de ORM:
 
 1. **Cálculos de Impuestos Múltiples:** A pesar de tener que desglosar el cálculo del IVA 16% línea por línea de forma distinta para 50 precios distintos, las matemáticas del servidor en Python lo hicieron en fracciones de milisegundo sin colgar la memoria.
-2. **Bulk Inserts Transparentes:** El hecho de que Postgres haya insertado las 50 ventas maestras con sus 2,500 dependencias hijas en menos de 2.5 segundos, significa que Titan POS tiene sobrada capacidad para ser instalado en una ferretería grande (donde los clientes se llevan cientos de tuercas, pijas y material diverso en un solo ticket) sin que la UI se le quede pensando indefinidamente al presionar "Cobrar".
+2. **Bulk Inserts Transparentes:** El hecho de que Postgres haya insertado las 50 ventas maestras con sus 2,500 dependencias hijas en menos de 2.5 segundos, significa que PosVendelo tiene sobrada capacidad para ser instalado en una ferretería grande (donde los clientes se llevan cientos de tuercas, pijas y material diverso en un solo ticket) sin que la UI se le quede pensando indefinidamente al presionar "Cobrar".
 
 ## 🏆 CONCLUSIÓN ABSOLUTA
-El sistema **TITAN POS soporta tickets de longitud masiva (Mayoreo Extremo) sin inmutarse.** 
+El sistema **POSVENDELO soporta tickets de longitud masiva (Mayoreo Extremo) sin inmutarse.** 
 No existe retraso notable (lag) a nivel backend para calcular, validar inventario dual, deducir y generar folios de tickets con hasta 50 líneas distintas cada uno. Las validaciones lógicas pasaron limpiamente.

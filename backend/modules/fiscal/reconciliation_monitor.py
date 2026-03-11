@@ -32,6 +32,7 @@ class DiscrepancyMonitor:
 
     async def register_expense(self, amount: float, category: str, payment_method: str,
                                 description: str = None, is_visible: bool = True) -> Dict[str, Any]:
+        amount = Decimal(str(amount))
         try:
             await self.db.execute("""
                 INSERT INTO personal_expenses (expense_date, amount, category, payment_method, description, is_visible_to_sat, created_at)

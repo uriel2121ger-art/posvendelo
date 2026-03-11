@@ -1,5 +1,5 @@
 """
-TITAN POS - Shared Turn Service
+POSVENDELO - Shared Turn Service
 
 Funciones de dominio reutilizables para el módulo de turnos.
 Encapsulan queries y cálculos compartidos entre turns/routes.py

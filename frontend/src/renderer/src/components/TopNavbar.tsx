@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useConfirm } from './ConfirmDialog'
-import { getLicenseStatus, loadRuntimeConfig } from '../posApi'
+import { getLicenseStatus, loadRuntimeConfig, serverLogout } from '../posApi'
 import {
   ShoppingCart,
   Box,
@@ -160,6 +160,9 @@ export default function TopNavbar(): ReactElement {
       : '¿Cerrar sesión de forma segura?'
 
     if (!(await confirm(msg, { variant: 'warning', title: 'Cerrar sesión' }))) return
+
+    // Revoke JWT server-side before clearing local state
+    await serverLogout()
 
     try {
       // No borrar titan.pendingTickets ni titan.activeTickets (ni sus variantes por usuario):

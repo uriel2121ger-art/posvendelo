@@ -1,4 +1,4 @@
-# Scripts — TITAN POS
+# Scripts — POSVENDELO
 
 Scripts de utilidad en la raíz del proyecto.
 

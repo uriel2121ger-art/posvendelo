@@ -8,9 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'TITAN Dueño',
-        short_name: 'TITAN Dueño',
-        description: 'Monitoreo remoto multi-sucursal para TITAN POS.',
+        name: 'PosVendelo Dueño',
+        short_name: 'PosVendelo Dueño',
+        description: 'Monitoreo remoto multi-sucursal para POSVENDELO.',
         theme_color: '#0891b2',
         background_color: '#09090f',
         display: 'standalone',

@@ -1,1 +1,1 @@
-"""TITAN POS - Sync Module"""
+"""POSVENDELO - Sync Module"""

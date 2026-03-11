@@ -1,5 +1,5 @@
 """
-TITAN POS - Inventory Module Routes
+POSVENDELO - Inventory Module Routes
 
 Stock movements + adjust endpoint with transactional safety.
 """

@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 $statePath = Join-Path $env:ProgramData "TitanPOS\install-state.json"
 
 function Write-Step([string]$Message) {
-  Write-Host "[TITAN] $Message" -ForegroundColor Cyan
+  Write-Host "[POSVENDELO] $Message" -ForegroundColor Cyan
 }
 
 function Ensure-Docker {
@@ -209,7 +209,7 @@ function Send-InstallReport([string]$Status, [string]$ErrorMessage) {
 
 try {
   if (-not $InstallToken) {
-    $activateCloud = Read-Host "¿Activar Nube TITAN ahora para generar install token? [s/N]"
+    $activateCloud = Read-Host "¿Activar Nube PosVendelo ahora para generar install token? [s/N]"
     if ($activateCloud -match '^[sS]$') {
       $hasAccount = Read-Host "¿Ya tienes cuenta cloud? [s/N]"
       if ($hasAccount -match '^[sS]$') {
@@ -230,7 +230,7 @@ try {
   New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $InstallDir "backups") | Out-Null
 
-  $bootstrap = Invoke-RestMethod -Method Get -Uri "$($CpUrl.TrimEnd('/'))/api/v1/branches/bootstrap-config?install_token=$InstallToken"
+  $bootstrap = Invoke-RestMethod -Method Get -Uri "$($CpUrl.TrimEnd('/'))/api/v1/branches/bootstrap-config" -Headers @{"Authorization" = "Bearer $InstallToken"}
   $bootstrapData = $bootstrap.data
 
   if ($ApiPort -le 0) {
@@ -261,6 +261,10 @@ LOCAL_API_PORT=$ApiPort
 LOCAL_POSTGRES_PORT=$DbPort
 TITAN_LICENSE_ENFORCEMENT=true
 "@ | Set-Content -Encoding UTF8 $envPath
+
+  $adminUser = "admin"
+  $adminPasswordLine = Get-Content $envPath | Where-Object { $_ -like "ADMIN_API_PASSWORD=*" } | Select-Object -First 1
+  $adminPassword = if ($adminPasswordLine) { ($adminPasswordLine -split "=", 2)[1] } else { "" }
 
   @{
     controlPlaneUrl = $bootstrapData.cp_url
@@ -295,7 +299,7 @@ TITAN_LICENSE_ENFORCEMENT=true
   } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $agentPath
 
   @"
-TITAN POS - RESUMEN DE INSTALACION
+POSVENDELO - RESUMEN DE INSTALACION
 
 Directorio: $InstallDir
 Branch ID: $($bootstrapData.branch_id)
@@ -307,6 +311,10 @@ Manifest: $($bootstrapData.release_manifest_url)
 Companion: $($bootstrapData.companion_url)
 Companion Portfolio: $($bootstrapData.companion_entry_url)
 Owner API: $($bootstrapData.owner_api_base_url)
+
+Credenciales iniciales de acceso a caja:
+- Usuario: $adminUser
+- Contraseña: $adminPassword
 
 Archivos clave:
 - .env
@@ -325,7 +333,7 @@ $PublisherCertPath
 "@ | Add-Content -Encoding UTF8 (Join-Path $InstallDir "INSTALL_SUMMARY.txt")
   }
 
-  Invoke-WebRequest -Uri "$($CpUrl.TrimEnd('/'))/api/v1/branches/compose-template?install_token=$InstallToken" -OutFile $composePath
+  Invoke-WebRequest -Uri "$($CpUrl.TrimEnd('/'))/api/v1/branches/compose-template" -Headers @{"Authorization" = "Bearer $InstallToken"} -OutFile $composePath
 
   $registerPayload = @{
     install_token = $InstallToken

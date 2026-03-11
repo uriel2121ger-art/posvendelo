@@ -2,7 +2,7 @@
 # https://github.com/gitleaks/gitleaks
 # Permitir solo los patrones de CI/test que son intencionales (no secretos reales)
 
-title = "TITAN POS Gitleaks config"
+title = "POSVENDELO Gitleaks config"
 
 [extend]
 useDefault = true

@@ -1,5 +1,5 @@
 """
-TITAN POS - Shared Authentication
+POSVENDELO - Shared Authentication
 
 Extracts JWT auth from mobile_api.py so both mobile_api and modules/ routes
 can share the same verify_token / create_token functions.
@@ -13,10 +13,8 @@ Usage:
 """
 
 import os
-import time
 import secrets
 import logging
-import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -27,70 +25,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# JWT Configuration — defined early so revocation functions can reference TTL
-# ---------------------------------------------------------------------------
-TOKEN_EXPIRE_MINUTES = 60  # 1 hour — short-lived for security (revocation dict handles logout)
-
-# ---------------------------------------------------------------------------
-# In-memory JTI revocation dict (for single-process deployment)
-# key=jti, value=expiry_timestamp (Unix epoch float)
-# ---------------------------------------------------------------------------
-_revoked_jtis: dict[str, float] = {}
-_revoked_lock = threading.Lock()
-_MAX_REVOKED = 10_000
-
-
-def revoke_token(jti: str, expires_at: Optional[float] = None) -> None:
-    """Add a JTI to the revocation dict (call on logout/account deactivation).
-
-    expires_at: Unix timestamp when the token expires. If omitted, defaults to
-    TOKEN_EXPIRE_MINUTES from now — ensures TTL-based eviction works correctly.
-    """
-    if expires_at is None:
-        expires_at = time.time() + TOKEN_EXPIRE_MINUTES * 60
-
-    with _revoked_lock:
-        _revoked_jtis[jti] = expires_at
-        if len(_revoked_jtis) > _MAX_REVOKED:
-            _evict_revoked()
-
-
-def _evict_revoked() -> None:
-    """Remove expired JTIs. If still over limit, drop the oldest entries.
-
-    MUST be called while holding _revoked_lock.
-    """
-    now = time.time()
-    expired = [k for k, v in _revoked_jtis.items() if v < now]
-    for k in expired:
-        del _revoked_jtis[k]
-
-    if len(_revoked_jtis) > _MAX_REVOKED:
-        # Still over limit — remove oldest by expiry (lowest timestamp first)
-        overflow = len(_revoked_jtis) - _MAX_REVOKED
-        oldest = sorted(_revoked_jtis, key=lambda k: _revoked_jtis[k])[:overflow]
-        for k in oldest:
-            del _revoked_jtis[k]
-        logger.warning(
-            "JTI revocation dict over limit after TTL eviction — removed %d oldest entries",
-            overflow,
-        )
-
-
-def _is_revoked(jti: str) -> bool:
-    """Check if a JTI has been revoked. Auto-cleans expired entries on read."""
-    with _revoked_lock:
-        if jti not in _revoked_jtis:
-            return False
-        if _revoked_jtis[jti] < time.time():
-            # Token has expired naturally — no longer a valid revocation entry
-            del _revoked_jtis[jti]
-            return False
-        return True
-
-
-# ---------------------------------------------------------------------------
 # JWT Configuration
+# ---------------------------------------------------------------------------
+TOKEN_EXPIRE_MINUTES = 60  # 1 hour — short-lived for security
+
+# ---------------------------------------------------------------------------
+# JWT Configuration — secret key
 # ---------------------------------------------------------------------------
 
 _env_secret = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY")
@@ -107,9 +47,89 @@ if not _env_secret:
 
 SECRET_KEY = _env_secret
 ALGORITHM = "HS256"
-# TOKEN_EXPIRE_MINUTES defined above (before revocation functions)
 
 security = HTTPBearer(auto_error=False)
+
+
+# ---------------------------------------------------------------------------
+# DB-backed JTI revocation — works across multiple uvicorn workers
+# ---------------------------------------------------------------------------
+
+async def revoke_token(jti: str, expires_at: Optional[datetime] = None) -> bool:
+    """Insert a JTI into jti_revocations (call on logout/account deactivation).
+
+    expires_at: aware datetime when the token expires. If omitted, defaults to
+    TOKEN_EXPIRE_MINUTES from now.
+
+    Returns True if the revocation was persisted, False on DB failure.
+    """
+    if expires_at is None:
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
+
+    try:
+        from db.connection import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO jti_revocations (jti, expires_at)
+                VALUES ($1, $2)
+                ON CONFLICT (jti) DO NOTHING
+                """,
+                jti,
+                expires_at,
+            )
+        return True
+    except Exception:
+        logger.exception("Failed to revoke token JTI=%s — token may remain valid until expiry", jti)
+        return False
+
+
+async def is_token_revoked(jti: str) -> bool:
+    """Return True if the JTI is in the revocations table and has not yet expired.
+
+    Gracefully returns False (non-blocking) if the DB pool is unavailable.
+    """
+    try:
+        from db.connection import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT 1
+                FROM jti_revocations
+                WHERE jti = $1
+                  AND expires_at > NOW()
+                """,
+                jti,
+            )
+        return row is not None
+    except Exception:
+        logger.warning("JTI revocation check failed for JTI=%s — treating as not revoked", jti)
+        return False
+
+
+async def cleanup_expired_revocations() -> int:
+    """Delete expired rows from jti_revocations. Returns count of deleted rows.
+
+    Safe to call at startup and periodically in a background task.
+    """
+    try:
+        from db.connection import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            status = await conn.execute(
+                "DELETE FROM jti_revocations WHERE expires_at < NOW()"
+            )
+        # asyncpg returns "DELETE N" — extract N
+        parts = status.split()
+        deleted = int(parts[1]) if len(parts) == 2 and parts[1].isdigit() else 0
+        if deleted:
+            logger.info("Cleaned up %d expired JTI revocation(s)", deleted)
+        return deleted
+    except Exception:
+        logger.warning("Failed to cleanup expired JTI revocations (non-fatal)")
+        return 0
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +167,7 @@ def get_user_id(auth: Dict) -> int:
         raise HTTPException(status_code=401, detail="Token inválido: sub no numérico")
 
 
-def verify_token(
+async def verify_token(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Dict:
     """Verify and decode JWT. Returns payload dict with sub, role, etc."""
@@ -169,9 +189,13 @@ def verify_token(
     if not payload.get("sub") or not payload.get("role"):
         raise HTTPException(status_code=401, detail="Token inválido: faltan claims requeridos")
 
-    # Check JTI revocation (logout/deactivation)
+    # Require JTI claim — tokens without it cannot be revoked and must be rejected
     jti = payload.get("jti")
-    if jti and _is_revoked(jti):
+    if not jti:
+        raise HTTPException(status_code=401, detail="Token inválido: falta claim jti")
+
+    # Check JTI revocation (logout/deactivation)
+    if await is_token_revoked(jti):
         raise HTTPException(status_code=401, detail="Token revocado")
 
     # Normalize role to lowercase for consistent RBAC checks

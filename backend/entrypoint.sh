@@ -1,15 +1,15 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # ============================================================
-# TITAN POS — Container Entrypoint
+# POSVENDELO — Container Entrypoint
 # 1. Wait for PostgreSQL
 # 2. Bootstrap base schema on fresh DB
 # 3. Run migrations
 # 4. Start uvicorn
 # ============================================================
 
-echo "[ENTRYPOINT] Starting TITAN POS API..."
+echo "[ENTRYPOINT] Starting POSVENDELO API..."
 
 # -----------------------------------------------------------
 # 1. Wait for PostgreSQL (max 45 attempts × 2s = 90s; da más margen al arranque)

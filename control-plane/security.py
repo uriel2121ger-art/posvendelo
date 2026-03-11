@@ -41,7 +41,7 @@ async def verify_admin(
         provided,
         expected,
         missing_detail="Authorization requerida",
-        invalid_detail="Token admin invalido",
+        invalid_detail="Token admin inválido",
     )
     return {"role": "admin"}
 
@@ -58,7 +58,7 @@ async def verify_release_publisher(
         provided,
         expected,
         missing_detail="Authorization de release requerida",
-        invalid_detail="Token de release invalido",
+        invalid_detail="Token de release inválido",
     )
     return {"role": "release-publisher"}
 

@@ -1,7 +1,7 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-echo "[CP] Starting TITAN Control Plane..."
+echo "[CP] Starting PosVendelo Control Plane..."
 export DB_DSN="${DATABASE_URL//+asyncpg/}"
 
 python3 -c "

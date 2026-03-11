@@ -1,5 +1,5 @@
 """
-TITAN POS - Shared Module
+POSVENDELO - Shared Module
 
 Cross-cutting concerns shared across all domain modules:
 - auth.py: JWT single source of truth

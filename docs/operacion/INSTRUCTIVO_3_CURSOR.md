@@ -34,7 +34,7 @@ Si tienes menos de 2.5: Help → Check for Updates.
 
 ## Paso 2 — AGENTS.md (formato universal)
 
-En TITAN POS ya está creado: **`AGENTS.md`** en la raíz del proyecto (basado en CLAUDE.md).
+En POSVENDELO ya está creado: **`AGENTS.md`** en la raíz del proyecto (basado en CLAUDE.md).
 
 Para otros proyectos (CatálogoPro, FacturaMeEsta) ver las plantillas en el instructivo original o en Cursor docs.
 
@@ -58,7 +58,7 @@ Luego en Cursor: Settings → Tools & MCP → verificar que todos los MCPs apare
 
 ## Paso 4 — Rules de Cursor (.mdc)
 
-En TITAN POS ya están creadas en **`.cursor/rules/`**:
+En POSVENDELO ya están creadas en **`.cursor/rules/`**:
 
 - `fastapi-python.mdc` — alwaysApply, FastAPI + asyncpg para este proyecto
 - `security.mdc` — auth, token, fiscal

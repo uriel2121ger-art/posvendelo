@@ -1,4 +1,4 @@
-# Documentación — TITAN POS
+# Documentación — POSVENDELO
 
 Índice por categoría. La documentación está en subcarpetas: distribucion/, operacion/, testing/, referencia/, informes/, otros/.
 
@@ -10,7 +10,7 @@
 |-----------|--------------|
 | [INSTRUCCIONES_DISTRIBUCION.md](distribucion/INSTRUCCIONES_DISTRIBUCION.md) | Publicar release y distribuir a cajeros y sucursales. |
 | [INSTALACION_EQUIPOS.md](distribucion/INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos: Release, script de nodo o clonado. |
-| [PLAN_NUBE_TITAN.md](distribucion/PLAN_NUBE_TITAN.md) | Plan Nube TITAN: cuenta opcional, app dueño, sync y comandos remotos. |
+| [PLAN_NUBE_TITAN.md](distribucion/PLAN_NUBE_TITAN.md) | Plan Nube PosVendelo: cuenta opcional, app dueño, sync y comandos remotos. |
 | [RELEASE_CHECKLIST_WINDOWS_LINUX.md](distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md) | Checklist antes de publicar clientes (Windows/Linux). |
 
 ---

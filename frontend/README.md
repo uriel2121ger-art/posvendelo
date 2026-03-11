@@ -1,6 +1,6 @@
-# TITAN POS Desktop
+# POSVENDELO Desktop
 
-Aplicacion de escritorio de TITAN POS construida con Electron, React y TypeScript.
+Aplicacion de escritorio de POSVENDELO construida con Electron, React y TypeScript.
 
 ## Recommended IDE Setup
 
@@ -80,5 +80,5 @@ Notas:
 - `GO_NO_GO_PRODUCCION_ELECTRON.md`
 - `ESTADO_MIGRACION_PYQT6_ELECTRON.md`
 - `../docs/distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md`
-- El nombre distribuible esperado ya no debe salir como `electron_pos`, sino como `TITAN POS` / `titan-pos`.
+- El nombre distribuible esperado ya no debe salir como `electron_pos`, sino como `POSVENDELO` / `titan-pos`.
 - `verify:go-live` ahora también exige `resources/icon.png` para evitar builds con icono genérico.

@@ -1,4 +1,4 @@
--- TITAN POS - Performance Optimization Indexes
+-- POSVENDELO - Performance Optimization Indexes
 -- This migration adds critical indexes to improve query performance
 
 -- Products table indexes (most searched)

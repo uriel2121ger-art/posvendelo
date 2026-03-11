@@ -1,5 +1,5 @@
 """
-TITAN POS — ESC/POS Receipt Builder
+POSVENDELO — ESC/POS Receipt Builder
 
 Pure-bytes ESC/POS generator for 58mm and 80mm thermal printers.
 No external dependencies — outputs raw bytes for CUPS lp -o raw.
@@ -268,7 +268,7 @@ def build_shift_report(
     rb = ReceiptBuilder(char_width)
     cut_full = config.get("receipt_cut_type", "partial") == "full"
 
-    biz_name = config.get("business_name", "") or "TITAN POS"
+    biz_name = config.get("business_name", "") or "POSVENDELO"
     rb.double_size(biz_name)
     rb.line("=")
     rb.bold("CORTE DE CAJA", align="center")
@@ -350,7 +350,7 @@ def build_test_receipt(config: dict, char_width: int = 48) -> bytes:
     """Build a test receipt to verify printer setup."""
     rb = ReceiptBuilder(char_width)
 
-    biz_name = config.get("business_name", "") or "TITAN POS"
+    biz_name = config.get("business_name", "") or "POSVENDELO"
     rb.double_size(biz_name)
     rb.line("=")
     rb.bold("TICKET DE PRUEBA", align="center")

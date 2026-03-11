@@ -1,5 +1,5 @@
 """
-TITAN POS - Fiscal Module Schemas
+POSVENDELO - Fiscal Module Schemas
 Pydantic request/response models for fiscal endpoints.
 """
 
@@ -10,9 +10,9 @@ from pydantic import BaseModel, Field
 
 
 class CFDIRequest(BaseModel):
-    sale_id: int
+    sale_id: int = Field(..., ge=1)
     customer_rfc: str = Field(..., min_length=12, max_length=13, pattern=r'^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$')
-    customer_name: str = None
+    customer_name: Optional[str] = Field(default=None, max_length=300)
     customer_regime: str = Field(default="616", pattern=r'^\d{3}$')
     uso_cfdi: str = Field(default="G03", pattern=r'^[A-Z]{1,2}\d{2}$')
     forma_pago: str = Field(default="01", pattern=r'^\d{2}$')
@@ -25,13 +25,13 @@ class GlobalCFDIRequest(BaseModel):
 
 
 class ReturnItem(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     reason: Optional[str] = None
 
 
 class ProcessReturnRequest(BaseModel):
-    sale_id: int
+    sale_id: int = Field(..., ge=1)
     items: List[ReturnItem] = Field(..., min_length=1, max_length=500)
     reason: str = Field(..., min_length=1, max_length=500)
     # processed_by derived from JWT in endpoint, not from client
@@ -42,13 +42,13 @@ class GhostWalletCreateRequest(BaseModel):
 
 
 class GhostWalletAddPointsRequest(BaseModel):
-    hash_id: str
+    hash_id: str = Field(..., min_length=1, max_length=200)
     sale_amount: Decimal = Field(..., gt=0)
-    sale_id: int = None
+    sale_id: Optional[int] = None
 
 
 class GhostWalletRedeemRequest(BaseModel):
-    hash_id: str
+    hash_id: str = Field(..., min_length=1, max_length=200)
     amount: Decimal = Field(..., gt=0)
 
 
@@ -88,16 +88,16 @@ class CryptoConversionRequest(BaseModel):
 
 
 class LockdownRequest(BaseModel):
-    branch_id: int
+    branch_id: int = Field(..., ge=1)
 
 
 class ReleaseLockdownRequest(BaseModel):
-    branch_id: int
-    auth_code: str
+    branch_id: int = Field(..., ge=1)
+    auth_code: str = Field(..., min_length=1, max_length=100)
 
 
 class GhostTransferItem(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
 
 
@@ -115,20 +115,20 @@ class GhostTransferReceiveRequest(BaseModel):
 
 
 class ShadowStockAddRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     source: Optional[str] = Field(default=None, max_length=200)
     notes: Optional[str] = Field(default=None, max_length=500)
 
 
 class ShadowSellRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     serie: str = 'B'
 
 
 class ReconcileFiscalRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     fiscal_stock: Decimal = Field(..., ge=0)
 
 
@@ -161,7 +161,7 @@ class CreateExtractionRequest(BaseModel):
 
 # --- Cost Reconciliation ---
 class RegisterPurchaseRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     unit_cost: Decimal = Field(..., gt=0)
     serie: str = Field(..., pattern=r'^[AB]$')
@@ -227,7 +227,7 @@ class CalculateSmartLossRequest(BaseModel):
 
 class BatchVarianceItem(BaseModel):
     amount: Decimal = Field(..., gt=0)
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "forbid"}
 
 class GenerateBatchVarianceRequest(BaseModel):
     items: List[BatchVarianceItem] = Field(..., min_length=1, max_length=1000)
@@ -271,26 +271,26 @@ class GenerateShrinkageJustificationRequest(BaseModel):
 
 # --- Self Consumption ---
 class RegisterConsumptionRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     category: str = Field(..., min_length=1, max_length=100)
     reason: Optional[str] = Field(default=None, max_length=500)
     beneficiary: Optional[str] = Field(default=None, max_length=200)
 
 class RegisterSampleRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     recipient: str = Field(default="Cliente", max_length=200)
 
 class RegisterEmployeeConsumptionRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     employee_name: str = Field(..., min_length=1, max_length=200)
 
 
 # --- Shrinkage ---
 class RegisterLossRequest(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
     reason: str = Field(..., min_length=1, max_length=500)
     category: str = Field(default="deterioro", max_length=50)

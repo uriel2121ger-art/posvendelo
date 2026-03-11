@@ -21,7 +21,7 @@ headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json
 
 def test_math():
     print("---------------------------------------------------------")
-    print("🏦 INICIANDO AUDITORÍA CONTABLE (ARITMÉTICA TITAN POS) 🏦")
+    print("🏦 INICIANDO AUDITORÍA CONTABLE (ARITMÉTICA POSVENDELO) 🏦")
     print("---------------------------------------------------------")
     
     # 1. Traer la última venta gigante del servidor y sus renglones

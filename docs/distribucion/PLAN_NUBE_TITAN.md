@@ -1,8 +1,8 @@
-# Plan: Nube TITAN — App del Dueño + Backend Cloud
+# Plan: Nube PosVendelo — App del Dueño + Backend Cloud
 
 ## Contexto
 
-Los dueños de negocio necesitan monitorear y controlar sus sucursales/bodegas remotamente. "Nube TITAN" es una cuenta (email+password) que vincula múltiples sucursales. El dueño usa una **app separada** (Electron desktop + PWA móvil) que se conecta al control-plane vía CF Tunnel privado. No es un portal web público.
+Los dueños de negocio necesitan monitorear y controlar sus sucursales/bodegas remotamente. "Nube PosVendelo" es una cuenta (email+password) que vincula múltiples sucursales. El dueño usa una **app separada** (Electron desktop + PWA móvil) que se conecta al control-plane vía CF Tunnel privado. No es un portal web público.
 
 ### Decisiones confirmadas
 - **Registro**: Desde el instalador del POS (o después desde configuración de la app POS)
@@ -40,7 +40,7 @@ Los dueños de negocio necesitan monitorear y controlar sus sucursales/bodegas r
 ```
 
 ### Flujo del dueño
-1. Instala TITAN POS en sucursal → el instalador le invita a crear cuenta Nube TITAN (email+password)
+1. Instala POSVENDELO en sucursal → el instalador le invita a crear cuenta Nube PosVendelo (email+password)
 2. El instalador crea la cuenta, registra la sucursal y la vincula automáticamente
 3. El dueño descarga la **App Dueño** en su PC o instala la PWA en su celular
 4. Abre la app → pone email+password → la app resuelve la URL del CP vía `GET https://api.titanpos.mx/discover` → se conecta al CP
@@ -279,13 +279,13 @@ owner-app/
 
 ```
 ┌───────────────────────────────────────────────┐
-│  Instalador TITAN POS                         │
+│  Instalador POSVENDELO                         │
 │                                               │
 │  ... (instala Docker, descarga imágenes) ...  │
 │                                               │
-│  ═══ Nube TITAN ═══                           │
+│  ═══ Nube PosVendelo ═══                           │
 │  ¿Deseas vincular esta sucursal a             │
-│   una cuenta Nube TITAN?                      │
+│   una cuenta Nube PosVendelo?                      │
 │                                               │
 │  [1] Crear cuenta nueva                       │
 │      → pedir email + password + nombre negocio│
@@ -301,7 +301,7 @@ owner-app/
 │      → continúa instalación normal            │
 │                                               │
 │  [3] Omitir                                   │
-│      → instalación sin Nube TITAN             │
+│      → instalación sin Nube PosVendelo             │
 │      → muestra código de vinculación          │
 │      → se puede vincular después desde la app │
 └───────────────────────────────────────────────┘
@@ -313,17 +313,17 @@ owner-app/
 - Retorna `{branch_id, install_token}` para que el instalador continúe
 
 ### 4.3 Desde la app POS (configuración)
-- Nueva sección "Nube TITAN" en la pestaña de configuración
-- Botón "Vincular con Nube TITAN" → genera código de 6 dígitos (POST /branches/generate-link-code)
+- Nueva sección "Nube PosVendelo" en la pestaña de configuración
+- Botón "Vincular con Nube PosVendelo" → genera código de 6 dígitos (POST /branches/generate-link-code)
 - Muestra el código + instrucciones para ingresarlo en la App Dueño
 - IPC nuevo: `agent:generateLinkCode` en localAgent.ts
 
 ### Archivos a modificar
-- `installers/linux/install-titan.sh` (sección Nube TITAN interactiva)
+- `installers/linux/install-titan.sh` (sección Nube PosVendelo interactiva)
 - `installers/windows/Install-Titan.ps1` (lo mismo en PowerShell)
 - `frontend/src/main/localAgent.ts` (nuevo IPC generateLinkCode)
 - `frontend/src/preload/index.ts` (exponer método)
-- `frontend/src/renderer/src/tabs/` (sección config Nube TITAN)
+- `frontend/src/renderer/src/tabs/` (sección config Nube PosVendelo)
 
 ---
 
@@ -393,7 +393,7 @@ CP_PUBLIC_URL=https://titancloud.titanpos.mx
 | 1 | DB + Auth Backend | cloud_accounts, login, register, link-node, discover | Ninguna |
 | 2 | Cola de Comandos | command_queue, poll desde nodo, endpoints | Fase 1 |
 | 3 | App del Dueño | React app con Electron + PWA | Fases 1 y 2 |
-| 4 | Integración Instalador | Registro Nube TITAN en instalador + config tab | Fase 1 |
+| 4 | Integración Instalador | Registro Nube PosVendelo en instalador + config tab | Fase 1 |
 | 5 | Despliegue | Dominio, CF Tunnel, discover endpoint | Fase 3 |
 
 Fases 3 y 4 pueden trabajarse en paralelo ya que son frontend independientes.

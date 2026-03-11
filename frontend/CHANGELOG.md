@@ -1,4 +1,4 @@
-# Changelog - TITAN POS
+# Changelog - POSVENDELO
 
 All notable changes to this workspace are documented in this file.
 

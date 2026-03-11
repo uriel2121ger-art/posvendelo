@@ -1,4 +1,4 @@
-# TITAN POS — Instrucciones para Agentes
+# POSVENDELO — Instrucciones para Agentes
 
 ## Prioridades
 

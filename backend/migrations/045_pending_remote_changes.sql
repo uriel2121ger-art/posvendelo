@@ -16,3 +16,7 @@ CREATE TABLE IF NOT EXISTS pending_remote_changes (
 
 CREATE INDEX IF NOT EXISTS idx_pending_remote_changes_status
     ON pending_remote_changes(status, created_at DESC);
+
+INSERT INTO schema_version(version, description)
+VALUES (45, 'pending_remote_changes table')
+ON CONFLICT DO NOTHING;

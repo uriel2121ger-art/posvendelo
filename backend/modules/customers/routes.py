@@ -1,5 +1,5 @@
 """
-TITAN POS - Customers Module Routes
+POSVENDELO - Customers Module Routes
 
 CRUD completo para clientes con asyncpg directo.
 """

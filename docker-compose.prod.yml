@@ -1,4 +1,4 @@
-## TITAN POS — Production Compose
+## POSVENDELO — Production Compose
 ## Uses pre-built image from GHCR + Watchtower for auto-updates.
 ##
 ## First time:
@@ -25,6 +25,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
 
   # ── API (auto-updated by Watchtower) ────────────────────
@@ -43,12 +48,17 @@ services:
       TITAN_VERSION: "${TITAN_VERSION:-2.0.0}"
       DEBUG: "false"
     ports:
-      - "0.0.0.0:8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
 
   # ── Backups PostgreSQL (retencion local simple) ────────────

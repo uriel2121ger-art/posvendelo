@@ -1,5 +1,5 @@
 """
-TITAN POS - Products Module Schemas
+POSVENDELO - Products Module Schemas
 
 Pydantic models matching the real PostgreSQL schema for products.
 Uses Decimal for all monetary/quantity fields to match NUMERIC in DB.
@@ -36,7 +36,7 @@ class ProductCreate(BaseModel):
     def strip_name(cls, v: str) -> str:
         stripped = v.strip()
         if not stripped:
-            raise ValueError("nombre no puede estar vacio")
+            raise ValueError("nombre no puede estar vacío")
         return stripped
 
     @model_validator(mode='after')
@@ -96,7 +96,7 @@ class ProductResponse(BaseModel):
 
 
 class StockUpdateRemote(BaseModel):
-    sku: str = Field(..., max_length=100)
+    sku: str = Field(..., min_length=1, max_length=100)
     quantity: Decimal = Field(..., ge=0)
     operation: str  # 'add', 'subtract', 'set'
     reason: Optional[str] = Field(None, max_length=500)
@@ -112,5 +112,5 @@ class StockUpdateRemote(BaseModel):
 
 
 class SimplePriceUpdate(BaseModel):
-    sku: str = Field(..., max_length=100)
+    sku: str = Field(..., min_length=1, max_length=100)
     new_price: Decimal = Field(..., gt=0)

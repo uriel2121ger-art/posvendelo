@@ -1,1 +1,1 @@
-"""TITAN POS - Turns Module"""
+"""POSVENDELO - Turns Module"""

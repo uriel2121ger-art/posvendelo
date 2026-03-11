@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Checklist operativo para publicar TITAN POS con apariencia profesional y menor riesgo de regresiones en distribución.
+Checklist operativo para publicar POSVENDELO con apariencia profesional y menor riesgo de regresiones en distribución.
 
 ## Pre-release técnico
 
@@ -17,7 +17,7 @@ Checklist operativo para publicar TITAN POS con apariencia profesional y menor r
 1. Confirmar que existe `frontend/resources/icon.png`.
 1. Generar y agregar `frontend/build/icon.ico` para Windows.
 1. Generar y agregar `frontend/build/icon.icns` para macOS si se va a distribuir ahí.
-1. Verificar que el nombre comercial sea `TITAN POS` y el ejecutable `titan-pos`.
+1. Verificar que el nombre comercial sea `POSVENDELO` y el ejecutable `titan-pos`.
 
 ## Empaquetado
 

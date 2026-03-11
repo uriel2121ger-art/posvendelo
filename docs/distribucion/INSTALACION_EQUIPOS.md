@@ -1,6 +1,6 @@
 # Instalación en equipos nuevos (sucursales / cajeros)
 
-Tres formas de dejar TITAN POS listo en equipos nuevos. **No hace falta clonar el repo** para instalar en una sucursal o cajero.
+Tres formas de dejar POSVENDELO listo en equipos nuevos. **No hace falta clonar el repo** para instalar en una sucursal o cajero.
 
 ---
 

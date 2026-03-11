@@ -1,4 +1,4 @@
-# TITAN POS — Security scan (SAST, deps, secretos)
+# POSVENDELO — Security scan (SAST, deps, secretos)
 # Herramientas: Bandit, pip-audit, Semgrep, Gitleaks, npm audit
 
 name: Security

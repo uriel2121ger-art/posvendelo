@@ -1,5 +1,5 @@
 """
-TITAN POS — CUPS Printer Service
+POSVENDELO — CUPS Printer Service
 
 Discover printers, send raw ESC/POS data, open cash drawer.
 All operations run in executor to avoid blocking the async event loop.

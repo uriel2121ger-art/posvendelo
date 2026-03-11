@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not (Test-Path $InstallDir)) {
-  Write-Host "[TITAN] No existe $InstallDir"
+  Write-Host "[POSVENDELO] No existe $InstallDir"
   exit 0
 }
 
@@ -19,4 +19,4 @@ try {
 }
 
 Remove-Item -Recurse -Force $InstallDir
-Write-Host "[TITAN] Instalacion eliminada: $InstallDir"
+Write-Host "[POSVENDELO] Instalacion eliminada: $InstallDir"

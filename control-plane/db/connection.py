@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import date, datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import asyncpg
@@ -70,9 +70,19 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple[str, list[An
     args: list[Any] = []
     for name in param_order:
         value = params[name]
-        if isinstance(value, str) and re.match(r"^\d{4}-\d{2}-\d{2}(T|$)", value.strip()):
+        if isinstance(value, str) and re.match(r"^\d{4}-\d{2}-\d{2}(T| |$)", value.strip()):
             try:
-                args.append(datetime.strptime(value.strip()[:10], "%Y-%m-%d"))
+                stripped = value.strip()
+                if len(stripped) > 10 and ("T" in stripped or " " in stripped[10:11]):
+                    # Full datetime string — preserve time, normalize to naive UTC
+                    normalized = stripped.replace("Z", "+00:00")
+                    parsed = datetime.fromisoformat(normalized)
+                    if parsed.tzinfo is not None:
+                        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                    args.append(parsed)
+                else:
+                    # Date-only string — convert to date object
+                    args.append(date.fromisoformat(stripped[:10]))
                 continue
             except ValueError:
                 pass

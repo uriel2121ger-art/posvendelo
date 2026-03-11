@@ -1,5 +1,5 @@
 """
-TITAN POS - Customers Module Schemas
+POSVENDELO - Customers Module Schemas
 Uses Decimal for credit fields to match NUMERIC(12,2) in DB.
 """
 
@@ -15,7 +15,7 @@ def _validate_rfc(v: Optional[str]) -> Optional[str]:
         return v
     v = v.upper().strip()
     if not re.match(r'^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$', v):
-        raise ValueError("RFC invalido: debe ser 12 (persona moral) o 13 (persona fisica) caracteres alfanumericos")
+        raise ValueError("RFC inválido: debe ser 12 (persona moral) o 13 (persona física) caracteres alfanuméricos")
     return v
 
 
@@ -47,7 +47,7 @@ class CustomerCreate(BaseModel):
             return v
         v = v.strip()
         if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', v):
-            raise ValueError("Email invalido")
+            raise ValueError("Email inválido")
         return v
 
     @field_validator("phone")
@@ -57,7 +57,7 @@ class CustomerCreate(BaseModel):
             return v
         v = v.strip()
         if not re.match(r'^[\d\s()+\-]{7,30}$', v):
-            raise ValueError("Telefono invalido: solo digitos, espacios, parentesis, + y -")
+            raise ValueError("Teléfono inválido: solo digitos, espacios, paréntesis, + y -")
         return v
 
     @field_validator("rfc")
@@ -93,7 +93,7 @@ class CustomerUpdate(BaseModel):
             return v
         v = v.strip()
         if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$', v):
-            raise ValueError("Email invalido")
+            raise ValueError("Email inválido")
         return v
 
     @field_validator("phone")
@@ -103,7 +103,7 @@ class CustomerUpdate(BaseModel):
             return v
         v = v.strip()
         if not re.match(r'^[\d\s()+\-]{7,30}$', v):
-            raise ValueError("Telefono invalido: solo digitos, espacios, parentesis, + y -")
+            raise ValueError("Teléfono inválido: solo digitos, espacios, paréntesis, + y -")
         return v
 
     @field_validator("rfc")

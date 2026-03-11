@@ -1,4 +1,4 @@
-# LOG Testing V6 — TITAN POS V2
+# LOG Testing V6 — POSVENDELO V2
 
 Registro de ejecución de pruebas según **PLAN_TESTING_V6.md** (Chaos Engineering, Edge Cases y E2E).
 

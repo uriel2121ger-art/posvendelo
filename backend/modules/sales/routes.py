@@ -1,5 +1,5 @@
 """
-TITAN POS - Sales Module Routes
+POSVENDELO - Sales Module Routes
 
 Endpoints:
   GET  /                  — List sales with filters
@@ -724,9 +724,11 @@ async def perform_sale_cancellation(
 
     async with get_connection() as db:
         conn = db.connection
+        # Validate manager PIN BEFORE opening transaction — bcrypt is CPU-heavy
+        # and holding a transaction open during it can cause lock contention.
+        await verify_manager_pin(body.manager_pin, conn)
+
         async with conn.transaction():
-            # Validate manager PIN via shared helper
-            await verify_manager_pin(body.manager_pin, conn)
 
             # Lock the sale
             sale = await db.fetchrow(

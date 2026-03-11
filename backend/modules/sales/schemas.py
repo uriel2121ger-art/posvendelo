@@ -1,5 +1,5 @@
 """
-TITAN POS - Sales Module Schemas
+POSVENDELO - Sales Module Schemas
 
 Pydantic models matching the real PostgreSQL schema for sales and sale_items.
 Uses Decimal for all monetary fields to match NUMERIC(12,2) in DB.
@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class SaleItemCreate(BaseModel):
-    product_id: Optional[int] = None  # None or 0 = common/misc product
+    product_id: Optional[int] = Field(None, ge=0)  # None or 0 = common/misc product; negativo rechazado
     name: Optional[str] = Field(None, max_length=300)
     qty: Decimal = Field(Decimal("1"), gt=0)
     price: Decimal = Field(..., ge=0)
@@ -30,9 +30,9 @@ class SaleItemCreate(BaseModel):
                 continue
             # Check both float and Decimal for NaN/Inf
             if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
-                raise ValueError(f'{name}: valor numerico invalido')
+                raise ValueError(f'{name}: valor numérico inválido')
             if isinstance(val, Decimal) and (val.is_nan() or val.is_infinite()):
-                raise ValueError(f'{name}: valor numerico invalido')
+                raise ValueError(f'{name}: valor numérico inválido')
         return self
 
 

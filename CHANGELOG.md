@@ -1,4 +1,4 @@
-# Changelog — TITAN POS
+# Changelog — POSVENDELO
 
 Cambios notables del proyecto (backend, frontend, control-plane, owner-app, instaladores).
 
@@ -11,7 +11,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 ### Documentación
 
 - **CHANGELOG.md** (raíz): changelog unificado del proyecto con entrada 1.0.0.
-- **README.md**: estructura actualizada (owner-app, control-plane, migrations); tabla de documentación con enlaces a distribución, instalación y Nube TITAN.
+- **README.md**: estructura actualizada (owner-app, control-plane, migrations); tabla de documentación con enlaces a distribución, instalación y Nube PosVendelo.
 - **docs/README.md**: índice "Distribución e instalación" (INSTRUCCIONES_DISTRIBUCION, INSTALACION_EQUIPOS, PLAN_NUBE_TITAN).
 - **docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md**: guía para publicar release y distribuir a cajeros y sucursales.
 - **frontend/CHANGELOG.md**: sección 2026-03-10 (turnos por terminal, React hooks, lint).
@@ -23,7 +23,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 ### Añadido
 
 - **Backend**
-  - Migración `045_pending_remote_changes`: tabla para comandos remotos con confirmación local (Nube TITAN).
+  - Migración `045_pending_remote_changes`: tabla para comandos remotos con confirmación local (Nube PosVendelo).
   - Validación en ventas: rechazo 409 si `turn_id` o `branch_id` del cliente no coinciden con el turno abierto de la terminal.
   - Turnos atados a `terminal_id`: cada terminal tiene su propio turno; cierre validado por terminal.
 - **Control-plane**
@@ -39,7 +39,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 - **Instaladores**
   - Checklist de instalación limpia pre-lanzamiento en `installers/README.md`.
 - **Documentación**
-  - `docs/distribucion/PLAN_NUBE_TITAN.md`: plan Nube TITAN (cuenta opcional, app dueño, sync, comandos remotos).
+  - `docs/distribucion/PLAN_NUBE_TITAN.md`: plan Nube PosVendelo (cuenta opcional, app dueño, sync, comandos remotos).
   - `docs/distribucion/INSTALACION_EQUIPOS.md`: instalación en equipos nuevos (Release, script, clonado).
   - `docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md`: instrucciones para publicar y distribuir (release, cajeros, sucursales).
 

@@ -202,7 +202,7 @@ def export_license_file(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Administración operativa de licencias TITAN POS")
+    parser = argparse.ArgumentParser(description="Administración operativa de licencias POSVENDELO")
     parser.add_argument("--base-url", required=True, help="URL del control-plane, ej. http://localhost:9090")
     sub = parser.add_subparsers(dest="command", required=True)
 

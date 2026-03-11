@@ -1,4 +1,4 @@
-# Revisión visual exhaustiva — TITAN POS
+# Revisión visual exhaustiva — POSVENDELO
 
 Auditoría de cambios visuales/UI y estado de consistencia.
 

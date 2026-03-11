@@ -1,5 +1,5 @@
 """
-TITAN POS — Main Application Entrypoint
+POSVENDELO — Main Application Entrypoint
 
 App factory + module routers + lifespan.
 
@@ -65,10 +65,10 @@ async def _get_sales_today() -> float:
                   AND DATE("timestamp") = CURRENT_DATE
                 """
             )
-        return float(total or 0)
+        return str(total or 0)
     except Exception as exc:
         logger.warning("Heartbeat sales query failed (non-fatal): %s", exc)
-        return 0.0
+        return "0"
 
 
 async def _build_heartbeat_payload() -> dict | None:
@@ -296,12 +296,36 @@ async def lifespan(application):
     except Exception as e:
         logger.warning("SAT catalog seed failed (non-fatal): %s", e)
 
+    # Clean up expired JTI revocations from previous sessions
+    jti_cleanup_task = None
+    try:
+        from modules.shared.auth import cleanup_expired_revocations
+        await cleanup_expired_revocations()
+    except Exception as e:
+        logger.warning("JTI revocation cleanup failed (non-fatal): %s", e)
+
+    # Periodic JTI cleanup every hour (table grows with logouts)
+    async def _jti_cleanup_loop():
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                from modules.shared.auth import cleanup_expired_revocations
+                await cleanup_expired_revocations()
+            except Exception:
+                logger.warning("Periodic JTI cleanup failed (non-fatal)")
+
+    jti_cleanup_task = asyncio.create_task(_jti_cleanup_loop())
+
     if os.getenv("CONTROL_PLANE_URL", "").strip() and runtime_branch_id:
         heartbeat_task = asyncio.create_task(_heartbeat_loop())
         remote_requests_task = asyncio.create_task(_remote_requests_poll_loop())
 
     yield
 
+    if jti_cleanup_task is not None:
+        jti_cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await jti_cleanup_task
     if heartbeat_task is not None:
         heartbeat_task.cancel()
         with suppress(asyncio.CancelledError):
@@ -328,7 +352,7 @@ runtime_version = os.getenv("TITAN_VERSION", "2.0.0")
 runtime_branch_id = os.getenv("TITAN_BRANCH_ID", "").strip()
 
 app = FastAPI(
-    title="TITAN POS",
+    title="POSVENDELO",
     description="API POS Retail",
     version=runtime_version,
     docs_url="/docs" if debug else None,

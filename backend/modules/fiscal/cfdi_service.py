@@ -250,12 +250,12 @@ class CFDIService:
                     result_data["email_sent"] = True
                 except Exception as e:
                     logger.warning(f"Error enviando email: {e}")
-                    result_data["email_error"] = str(e)
+                    result_data["email_error"] = "Error al enviar email"
 
             return result_data
         except Exception as e:
             logger.error(f"Error generando CFDI: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "Error interno al generar CFDI"}
 
     async def cancel_cfdi_via_facturapi(self, uuid: str, motive: str = "02") -> Dict[str, Any]:
         try:
@@ -286,7 +286,8 @@ class CFDIService:
                 )
             return result
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error(f"Error cancelando CFDI {uuid}: {e}", exc_info=True)
+            return {"success": False, "error": "Error interno al cancelar CFDI"}
 
     async def generate_cfdi_for_sale(
         self,
@@ -380,7 +381,8 @@ class CFDIService:
 
             return {"success": True, "cfdi_id": cfdi_id, "uuid": uuid, "xml_path": xml_path, "xml_timbrado": xml_timbrado}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error(f"Error generando CFDI para venta {sale_id}: {e}", exc_info=True)
+            return {"success": False, "error": "Error interno al generar CFDI"}
 
     _CFDI_ALLOWED_COLS = frozenset({
         "sale_id", "uuid", "folio", "serie", "fecha", "rfc_emisor", "rfc_receptor",
@@ -504,7 +506,8 @@ class CFDIService:
                 )
             return result
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error(f"Error cancelando CFDI {uuid} via PAC: {e}", exc_info=True)
+            return {"success": False, "error": "Error interno al cancelar CFDI"}
 
     async def generate_credit_note(
         self,
@@ -631,4 +634,5 @@ class CFDIService:
                 "original_uuid": original_uuid,
             }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.error(f"Error generando nota de crédito para CFDI {original_uuid}: {e}", exc_info=True)
+            return {"success": False, "error": "Error interno al generar nota de crédito"}

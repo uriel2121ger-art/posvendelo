@@ -32,7 +32,7 @@ async def provision_tunnel(
             """,
             {"branch_id": branch_id, "error": str(exc)},
         )
-        raise HTTPException(status_code=502, detail=f"No se pudo provisionar tunnel: {exc}")
+        raise HTTPException(status_code=502, detail="No se pudo provisionar tunnel")
 
     tunnel_id = provisioned["tunnel_id"]
     tunnel_token = provisioned["tunnel_token"]

@@ -170,7 +170,7 @@ print((body.get("data") or {}).get("session_token") or "")
 PY
 )"
   if [[ -z "$auth_token" ]]; then
-    echo "[TITAN] No se pudo obtener sesión cloud."
+    echo "[POSVENDELO] No se pudo obtener sesión cloud."
     rm -f "$auth_json"
     exit 1
   fi
@@ -191,7 +191,7 @@ PY
 )"
   rm -f "$auth_json" "$branch_json"
   if [[ -z "$INSTALL_TOKEN" ]]; then
-    echo "[TITAN] No se pudo obtener install_token desde cloud/register-branch."
+    echo "[POSVENDELO] No se pudo obtener install_token desde cloud/register-branch."
     exit 1
   fi
 }
@@ -200,7 +200,7 @@ if [[ -z "$INSTALL_TOKEN" ]]; then
   if [[ -n "$CLOUD_EMAIL" || -n "$CLOUD_PASSWORD" || -n "$TENANT_NAME" ]]; then
     bootstrap_cloud_install_token
   else
-    read -r -p "¿Activar Nube TITAN ahora para generar el install token? [s/N] " ACTIVATE_CLOUD
+    read -r -p "¿Activar Nube PosVendelo ahora para generar el install token? [s/N] " ACTIVATE_CLOUD
     if [[ "$ACTIVATE_CLOUD" =~ ^[Ss]$ ]]; then
       read -r -p "¿Ya tienes cuenta cloud? [s/N] " HAS_ACCOUNT
       if [[ "$HAS_ACCOUNT" =~ ^[Ss]$ ]]; then
@@ -212,7 +212,7 @@ if [[ -z "$INSTALL_TOKEN" ]]; then
 fi
 
 if [[ -z "$INSTALL_TOKEN" ]]; then
-  echo "[TITAN] Se requiere install_token o activar onboarding cloud."
+  echo "[POSVENDELO] Se requiere install_token o activar onboarding cloud."
   usage
   exit 1
 fi
@@ -243,12 +243,12 @@ run_compose() {
 }
 
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
-  echo "[TITAN] Docker no encontrado. Instalando..."
+  echo "[POSVENDELO] Docker no encontrado. Instalando..."
   curl -fsSL https://get.docker.com | sh
   sudo usermod -aG docker "$USER" || true
 fi
 
-echo "[TITAN] Verificando que Docker este listo..."
+echo "[POSVENDELO] Verificando que Docker este listo..."
 for _ in $(seq 1 45); do
   if docker version >/dev/null 2>&1; then
     break
@@ -257,8 +257,8 @@ for _ in $(seq 1 45); do
 done
 
 if ! docker version >/dev/null 2>&1; then
-  echo "[TITAN] Docker no responde todavia."
-  echo "[TITAN] Si acabas de instalar Docker, cierra sesion y vuelve a entrar antes de reintentar."
+  echo "[POSVENDELO] Docker no responde todavia."
+  echo "[POSVENDELO] Si acabas de instalar Docker, cierra sesion y vuelve a entrar antes de reintentar."
   exit 1
 fi
 
@@ -270,7 +270,7 @@ BOOTSTRAP_JSON="$(mktemp)"
 REGISTER_JSON="$(mktemp)"
 
 CURRENT_STEP="descargando bootstrap"
-curl -fsSL "${CP_URL%/}/api/v1/branches/bootstrap-config?install_token=${INSTALL_TOKEN}" -o "$BOOTSTRAP_JSON"
+curl -fsSL -H "Authorization: Bearer ${INSTALL_TOKEN}" "${CP_URL%/}/api/v1/branches/bootstrap-config" -o "$BOOTSTRAP_JSON"
 
 if [[ -z "$LOCAL_API_PORT" ]]; then
   LOCAL_API_PORT="$(pick_port 8000)"
@@ -307,6 +307,7 @@ print(f"LOCAL_API_PORT={os.environ['LOCAL_API_PORT']}")
 print(f"LOCAL_POSTGRES_PORT={os.environ['LOCAL_POSTGRES_PORT']}")
 print("TITAN_LICENSE_ENFORCEMENT=true")
 PY
+chmod 600 "$INSTALL_DIR/.env"
 
 INSTALL_TOKEN="$INSTALL_TOKEN" INSTALL_DIR="$INSTALL_DIR" AGENT_JSON_PATH="$AGENT_JSON_PATH" LOCAL_API_PORT="$LOCAL_API_PORT" python3 - "$BOOTSTRAP_JSON" <<'PY'
 import json
@@ -349,12 +350,16 @@ payload = {
 with open(os.environ["AGENT_JSON_PATH"], "w", encoding="utf-8") as fh:
     json.dump(payload, fh, indent=2, ensure_ascii=False)
 PY
+chmod 600 "$INSTALL_DIR/titan-agent.json"
 
 CURRENT_STEP="descargando compose"
-curl -fsSL "${CP_URL%/}/api/v1/branches/compose-template?install_token=${INSTALL_TOKEN}" -o docker-compose.yml
+curl -fsSL -H "Authorization: Bearer ${INSTALL_TOKEN}" "${CP_URL%/}/api/v1/branches/compose-template" -o docker-compose.yml
+
+ADMIN_USER="admin"
+ADMIN_PASSWORD="$(awk -F= '$1 == "ADMIN_API_PASSWORD" {print $2}' .env | head -n1)"
 
 cat > INSTALL_SUMMARY.txt <<EOF
-TITAN POS - RESUMEN DE INSTALACION
+POSVENDELO - RESUMEN DE INSTALACION
 
 Directorio: ${INSTALL_DIR}
 Branch ID: $(python3 - "$BOOTSTRAP_JSON" <<'PY'
@@ -392,11 +397,16 @@ print(data.get("owner_api_base_url", ""))
 PY
 )
 
+Credenciales iniciales de acceso a caja:
+- Usuario: ${ADMIN_USER}
+- Contraseña: ${ADMIN_PASSWORD}
+
 Archivos clave:
 - .env
 - docker-compose.yml
 - titan-agent.json
 EOF
+chmod 600 "$INSTALL_DIR/INSTALL_SUMMARY.txt"
 
 MACHINE_ID="$(cat /etc/machine-id 2>/dev/null || hostname)"
 OS_PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -427,16 +437,16 @@ run_compose pull
 CURRENT_STEP="arrancando stack"
 run_compose up -d
 
-echo "[TITAN] Esperando health local..."
+echo "[POSVENDELO] Esperando health local..."
 CURRENT_STEP="validando health"
 for _ in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:${LOCAL_API_PORT}/health" >/dev/null 2>&1; then
     report_status "success"
-    echo "[TITAN] Instalacion completada en $INSTALL_DIR"
+    echo "[POSVENDELO] Instalacion completada en $INSTALL_DIR"
     exit 0
   fi
   sleep 2
 done
 
-echo "[TITAN] El backend no respondio a tiempo"
+echo "[POSVENDELO] El backend no respondio a tiempo"
 exit 1

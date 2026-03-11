@@ -1,5 +1,5 @@
 """
-TITAN POS - Async Database Connection (asyncpg direct)
+POSVENDELO - Async Database Connection (asyncpg direct)
 
 Provides a connection pool and a thin DB wrapper that:
 - Converts named params (:name) to positional ($N) for asyncpg
@@ -18,7 +18,7 @@ import os
 import re
 import logging
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import asyncpg
@@ -111,16 +111,27 @@ def _named_to_positional(sql: str, params: Dict[str, Any]) -> tuple:
             f"SQL param {e} not found in params dict. "
             f"Available: {list(params.keys())}, Required: {param_order}"
         ) from e
-    # asyncpg espera date para columnas DATE; si llega str 'YYYY-MM-DD' falla con toordinal
+    # asyncpg requires native Python objects for date/datetime columns.
+    # Strings like "2026-03-10" → date, "2026-03-10T14:30:00" → datetime (naive UTC).
     args = []
     for v in raw_args:
-        if isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}(T|$)", v.strip()):
+        if isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}(T| |$)", v.strip()):
             try:
-                args.append(datetime.strptime(v.strip()[:10], "%Y-%m-%d").date())
+                stripped = v.strip()
+                if len(stripped) > 10 and ("T" in stripped or " " in stripped[10:11]):
+                    # Full datetime string — preserve time, normalize to naive UTC
+                    normalized = stripped.replace("Z", "+00:00")
+                    parsed = datetime.fromisoformat(normalized)
+                    if parsed.tzinfo is not None:
+                        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                    args.append(parsed)
+                else:
+                    # Date-only string — convert to date object
+                    args.append(date.fromisoformat(stripped[:10]))
+                continue
             except ValueError:
-                args.append(v)
-        else:
-            args.append(v)
+                pass
+        args.append(v)
     return converted, args
 
 

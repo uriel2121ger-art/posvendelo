@@ -1,10 +1,12 @@
 """
-TITAN POS — Hardware Module Routes
+POSVENDELO — Hardware Module Routes
 
 Endpoints for printer/scanner/drawer configuration, discovery, and control.
 """
 
+import json
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -19,6 +21,7 @@ from modules.hardware.schemas import (
     DrawerConfigUpdate,
     PrintReceiptRequest,
     PrintShiftReportRequest,
+    InitialSetupPayload,
 )
 from modules.hardware import printer as printer_svc
 from modules.hardware.escpos import build_sale_receipt, build_test_receipt, build_shift_report
@@ -74,6 +77,34 @@ async def _get_hw_config(db) -> dict:
         return {}
     cfg = dict(row)
     return {k: cfg.get(k) for k in _HW_COLUMNS if k in cfg}
+
+
+async def _get_initial_setup_status(db) -> dict:
+    """Return first-run setup status stored in app_config."""
+    cfg = await _get_hw_config(db)
+    marker = await db.fetchrow(
+        "SELECT value, updated_at FROM app_config WHERE key = 'initial_setup' LIMIT 1"
+    )
+
+    completed = False
+    completed_at = None
+    if marker and marker.get("value"):
+        try:
+            payload = json.loads(marker["value"])
+        except (TypeError, ValueError):
+            payload = {}
+        completed = bool(payload.get("completed", False))
+        completed_at = payload.get("completed_at")
+
+    if not completed:
+        completed = bool((cfg.get("business_name") or "").strip())
+
+    return {
+        "completed": completed,
+        "completed_at": completed_at,
+        "business_name": cfg.get("business_name", ""),
+        "printer_name": cfg.get("receipt_printer_name", ""),
+    }
 
 
 def _require_admin(auth: dict):
@@ -221,6 +252,77 @@ async def update_drawer_config(
     updates["_row_id"] = row_id
     await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
     return {"success": True, "data": {"message": "Configuracion de cajon actualizada"}}
+
+
+@router.get("/setup-status")
+async def get_initial_setup_status(
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Check if initial setup wizard has been completed."""
+    status = await _get_initial_setup_status(db)
+    return {"success": True, "data": status}
+
+
+@router.post("/setup-wizard")
+async def complete_initial_setup(
+    body: InitialSetupPayload,
+    auth: dict = Depends(verify_token),
+    db=Depends(get_db),
+):
+    """Persist initial setup and mark installation as configured."""
+    _require_admin(auth)
+
+    updates = {
+        "business_name": body.business_name.strip(),
+        "business_legal_name": (body.business_legal_name or "").strip(),
+        "business_address": (body.business_address or "").strip(),
+        "business_rfc": (body.business_rfc or "").strip().upper(),
+        "business_regimen": (body.business_regimen or "").strip(),
+        "business_phone": (body.business_phone or "").strip(),
+        "business_footer": (body.business_footer or "").strip() or "Gracias por su compra",
+        "receipt_printer_name": (body.receipt_printer_name or "").strip(),
+        "receipt_printer_enabled": bool(body.receipt_printer_enabled),
+        "receipt_auto_print": bool(body.receipt_auto_print),
+        "scanner_enabled": bool(body.scanner_enabled),
+        "cash_drawer_enabled": bool(body.cash_drawer_enabled),
+    }
+
+    row_id = await _ensure_hw_row(db)
+    updates["_row_id"] = row_id
+    sets = ", ".join(f"{k} = :{k}" for k in updates if k != "_row_id")
+
+    marker = json.dumps(
+        {
+            "completed": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "completed_by": str(auth.get("sub") or ""),
+        },
+        ensure_ascii=True,
+    )
+
+    async with db.connection.transaction():
+        await db.execute(
+            f"UPDATE app_config SET {sets}, updated_at = NOW() WHERE id = :_row_id",
+            updates,
+        )
+        await db.execute(
+            """
+            INSERT INTO app_config (key, value, category, updated_at)
+            VALUES ('initial_setup', :value, 'system', NOW())
+            ON CONFLICT (key)
+            DO UPDATE SET value = :value, updated_at = NOW()
+            """,
+            {"value": marker},
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "message": "Configuracion inicial guardada",
+            "completed": True,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

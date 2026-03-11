@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# TITAN POS - Lanzador
+# POSVENDELO - Lanzador
 # ============================================
 
 # Obtener directorio del script
@@ -17,7 +17,7 @@ NC='\033[0m'
 clear
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════╗"
-echo "║         TITAN POS - Punto de Venta       ║"
+echo "║         POSVENDELO - Punto de Venta       ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -82,7 +82,7 @@ fi
 
 # Ejecutar aplicación
 echo ""
-echo -e "${GREEN}🚀 Iniciando TITAN POS...${NC}"
+echo -e "${GREEN}🚀 Iniciando POSVENDELO...${NC}"
 echo ""
 
 python3 -m app.main

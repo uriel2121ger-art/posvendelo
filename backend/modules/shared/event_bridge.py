@@ -1,5 +1,5 @@
 """
-TITAN POS - Event Bridge
+POSVENDELO - Event Bridge
 
 Bridges the legacy EventBus (app/utils/event_bus.py) with the
 DomainEvent system.

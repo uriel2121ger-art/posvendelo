@@ -1,4 +1,4 @@
-# TITAN POS Backend — API v2.0
+# POSVENDELO Backend — API v2.0
 
 Sistema de Punto de Venta para retail. Backend FastAPI con asyncpg (SQL directo) y PostgreSQL 15.
 

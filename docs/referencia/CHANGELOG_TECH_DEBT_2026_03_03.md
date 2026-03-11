@@ -1,4 +1,4 @@
-# TITAN POS — Changelog Deuda Técnica
+# POSVENDELO — Changelog Deuda Técnica
 **Fecha:** 2026-03-03
 **Sesion:** Deuda tecnica backend — integridad de datos, precision monetaria, seguridad, refactoring
 

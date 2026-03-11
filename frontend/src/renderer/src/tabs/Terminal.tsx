@@ -350,7 +350,7 @@ export default function Terminal(): ReactElement {
   const lastEnterRef = useRef<number>(0)
   const suppressSearchChangeUntilRef = useRef<number>(0)
   const lastSubmittedSearchRef = useRef<string>('')
-  const config = loadRuntimeConfig()
+  const [config] = useState(() => loadRuntimeConfig())
   const [products, setProducts] = useState<Product[]>(() => readCachedProducts())
   // Restore active ticket state from localStorage (navigation persistence)
   const [_savedActive] = useState(() => readSavedActiveState())
@@ -410,33 +410,9 @@ export default function Terminal(): ReactElement {
   const checkoutModalRef = useRef<HTMLDivElement>(null)
   useFocusTrap(checkoutModalRef, isCheckoutModalOpen)
 
-  useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
-      body: JSON.stringify({
-        sessionId: 'd100d7',
-        runId: 'dual-terminal-pre-fix',
-        hypothesisId: 'H3',
-        location: 'Terminal.tsx:385',
-        message: 'terminal mounted',
-        data: {
-          terminalId: config.terminalId,
-          activeTicketId,
-          pendingKey: getPendingStorageKey(),
-          activeKey: getActiveStorageKey(),
-          hash: window.location.hash
-        },
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-    // #endregion
-  }, [activeTicketId, config.terminalId])
 
-  useEffect((): void => {
-    saveRuntimeConfig(config)
-  }, [config])
+
+
 
   // Click-outside to close customer picker
   useEffect(() => {
@@ -499,25 +475,6 @@ export default function Terminal(): ReactElement {
       fetchProducts(config)
         .then((data) => {
           if (cancelled) return
-          // #region agent log
-          fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
-            body: JSON.stringify({
-              sessionId: 'd100d7',
-              runId: 'dual-terminal-pre-fix',
-              hypothesisId: 'H5',
-              location: 'Terminal.tsx:438',
-              message: 'products loaded',
-              data: {
-                terminalId: config.terminalId,
-                count: data.length,
-                sampleSkus: data.slice(0, 5).map((item) => item.sku)
-              },
-              timestamp: Date.now()
-            })
-          }).catch(() => {})
-          // #endregion
           writeCachedProducts(data)
           setProducts(data)
           if (!silent)
@@ -749,28 +706,6 @@ export default function Terminal(): ReactElement {
 
   const applyTicketSnapshot = useCallback(
     (snapshot: ActiveTicketSnapshot): void => {
-      // #region agent log
-      fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
-        body: JSON.stringify({
-          sessionId: 'd100d7',
-          runId: 'dual-terminal-pre-fix',
-          hypothesisId: 'H1',
-          location: 'Terminal.tsx:646',
-          message: 'apply ticket snapshot',
-          data: {
-            terminalId: config.terminalId,
-            nextCartLen: snapshot.cart.length,
-            nextCustomerId: snapshot.customerId,
-            nextPaymentMethod: snapshot.paymentMethod,
-            searchDomValue: searchInputRef.current?.value ?? '',
-            activeTicketId
-          },
-          timestamp: Date.now()
-        })
-      }).catch(() => {})
-      // #endregion
       setCart(snapshot.cart)
       setCustomerName(snapshot.customerName)
       setCustomerId(snapshot.customerId ?? null)
@@ -947,29 +882,6 @@ export default function Terminal(): ReactElement {
     const nextMeta: ActiveTicketMeta = { id: nextId, label: `Activa ${nextNumber}` }
     const snapshotToPersist = buildCurrentTicketSnapshot()
 
-    // #region agent log
-    fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
-      body: JSON.stringify({
-        sessionId: 'd100d7',
-        runId: 'dual-terminal-pre-fix',
-        hypothesisId: 'H1',
-        location: 'Terminal.tsx:792',
-        message: 'create new active ticket',
-        data: {
-          terminalId: config.terminalId,
-          activeTicketId,
-          nextId,
-          currentCartLen: snapshotToPersist.cart.length,
-          currentPaymentMethod: snapshotToPersist.paymentMethod,
-          queryState: query,
-          searchDomValue: searchInputRef.current?.value ?? ''
-        },
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-    // #endregion
 
     const snapshotsWithCurrent = {
       ...ticketSnapshots,
@@ -1415,29 +1327,6 @@ export default function Terminal(): ReactElement {
       cart,
       wholesaleMode
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'd100d7' },
-      body: JSON.stringify({
-        sessionId: 'd100d7',
-        runId: 'dual-terminal-pre-fix',
-        hypothesisId: 'H1',
-        location: 'Terminal.tsx:1329',
-        message: 'save current as pending',
-        data: {
-          terminalId: config.terminalId,
-          activeTicketId,
-          label,
-          cartLen: cart.length,
-          queryState: query,
-          searchDomValue: searchInputRef.current?.value ?? '',
-          pendingCount: pendingTickets.length
-        },
-        timestamp: Date.now()
-      })
-    }).catch(() => {})
-    // #endregion
     setPendingTickets((prev) => [pending, ...prev].slice(0, 30))
     setTicketLabel('')
     setMessage(`Pendiente guardado: ${label}`)
@@ -1726,96 +1615,14 @@ export default function Terminal(): ReactElement {
                       lastEnterRef.current = now
 
                       const currentValue = e.currentTarget.value
-                      // #region agent log
-                      fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'X-Debug-Session-Id': 'd100d7'
-                        },
-                        body: JSON.stringify({
-                          sessionId: 'd100d7',
-                          runId: 'dual-terminal-pre-fix',
-                          hypothesisId: 'H2',
-                          location: 'Terminal.tsx:1529',
-                          message: 'terminal enter pressed',
-                          data: {
-                            terminalId: config.terminalId,
-                            activeTicketId,
-                            currentValue,
-                            queryState: query,
-                            cartLen: cart.length,
-                            searchDomValue: searchInputRef.current?.value ?? ''
-                          },
-                          timestamp: Date.now()
-                        })
-                      }).catch(() => {})
-                      // #endregion
                       if (!currentValue.trim()) return
                       lastSubmittedSearchRef.current = currentValue
                       const match = findProductForSearch(currentValue, now)
                       if (!match) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'X-Debug-Session-Id': 'd100d7'
-                          },
-                          body: JSON.stringify({
-                            sessionId: 'd100d7',
-                            runId: 'dual-terminal-pre-fix',
-                            hypothesisId: 'H6',
-                            location: 'Terminal.tsx:1534',
-                            message: 'terminal enter no match',
-                            data: {
-                              terminalId: config.terminalId,
-                              activeTicketId,
-                              currentValue,
-                              queryState: query,
-                              filteredCount: filtered.length,
-                              productCount: products.length,
-                              normalizedInput: normalizeSearchInput(currentValue).trim(),
-                              exactSkuExists: products.some(
-                                (item) =>
-                                  item.sku.toLowerCase() ===
-                                  normalizeSearchInput(currentValue).trim().toLowerCase()
-                              ),
-                              sampleSkus: products.slice(0, 5).map((item) => item.sku)
-                            },
-                            timestamp: Date.now()
-                          })
-                        }).catch(() => {})
-                        // #endregion
                         return
                       }
                       addProduct(match)
                       clearSearch()
-                      // #region agent log
-                      fetch('http://127.0.0.1:7826/ingest/2012cd61-aa17-437e-aa9b-ec1930ead01a', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'X-Debug-Session-Id': 'd100d7'
-                        },
-                        body: JSON.stringify({
-                          sessionId: 'd100d7',
-                          runId: 'dual-terminal-pre-fix',
-                          hypothesisId: 'H2',
-                          location: 'Terminal.tsx:1540',
-                          message: 'terminal enter matched',
-                          data: {
-                            terminalId: config.terminalId,
-                            activeTicketId,
-                            matchedSku: match.sku,
-                            matchedName: match.name,
-                            queryStateAfter: query,
-                            searchDomValueAfter: searchInputRef.current?.value ?? ''
-                          },
-                          timestamp: Date.now()
-                        })
-                      }).catch(() => {})
-                      // #endregion
                       return
                     }
                   }}

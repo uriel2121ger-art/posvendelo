@@ -117,7 +117,7 @@ function AuthScreen(): ReactElement {
   return (
     <main className="auth-shell">
       <section className="auth-panel">
-        <div className="eyebrow">Nube TITAN</div>
+        <div className="eyebrow">Nube PosVendelo</div>
         <h1>{mode === 'login' ? 'Monitorea tus sucursales' : 'Activa tu cuenta cloud'}</h1>
         <p className="auth-copy">
           Acceso remoto multi-sucursal con confirmación local en el nodo. Mismo stack para PWA y desktop.
@@ -294,7 +294,7 @@ function OwnerShell(): ReactElement {
       <aside className="owner-sidebar">
         <div>
           <div className="eyebrow">App Dueño</div>
-          <h2>{state.me?.tenant.name ?? 'Nube TITAN'}</h2>
+          <h2>{state.me?.tenant.name ?? 'Nube PosVendelo'}</h2>
           <p>{state.me?.cloud_user.email ?? 'sin sesión'}</p>
         </div>
         <nav className="owner-nav">

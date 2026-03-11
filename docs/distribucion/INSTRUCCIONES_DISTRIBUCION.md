@@ -1,6 +1,6 @@
-# Instrucciones para distribución — TITAN POS
+# Instrucciones para distribución — POSVENDELO
 
-Guía para quien publica y distribuye TITAN POS (releases, instaladores y nodos de sucursal).
+Guía para quien publica y distribuye POSVENDELO (releases, instaladores y nodos de sucursal).
 
 ---
 
@@ -30,7 +30,7 @@ Los instaladores de la **app de caja** (Windows .exe, Linux AppImage/deb/snap) s
    git push origin v1.0.0
    ```
 
-3. **Esperar al workflow** en GitHub: **Actions** → workflow "TITAN POS Release Artifacts".  
+3. **Esperar al workflow** en GitHub: **Actions** → workflow "POSVENDELO Release Artifacts".  
    - Construye Linux y Windows.  
    - Crea el **Release** en la pestaña **Releases** con los archivos adjuntos y `SHA256SUMS.txt`.
 

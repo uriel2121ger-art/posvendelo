@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# TITAN POS - Instalador/Reinstalador
+# POSVENDELO - Instalador/Reinstalador
 # ============================================
 # Un solo script que hace todo:
 # 1. Borra BD existente (si hay)
@@ -23,7 +23,7 @@ NC='\033[0m'
 clear
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════════════╗"
-echo "║       TITAN POS - Instalador                     ║"
+echo "║       POSVENDELO - Instalador                     ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -75,28 +75,24 @@ echo ""
 echo "Configurando PostgreSQL..."
 
 # Borrar BD existente y crear nueva
-sudo -u postgres psql << EOF
--- Terminar conexiones existentes
+sudo -u postgres psql \
+  -v db_user="$DB_USER" \
+  -v db_pass="$DB_PASS" \
+  -v db_name="$DB_NAME" << 'EOSQL'
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity
-WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();
-
--- Borrar BD si existe
-DROP DATABASE IF EXISTS $DB_NAME;
-
--- Crear/actualizar usuario
-DO \$\$
+WHERE datname = :'db_name' AND pid <> pg_backend_pid();
+DROP DATABASE IF EXISTS :db_name;
+DO $$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'db_user') THEN
+        EXECUTE format('CREATE USER %I WITH PASSWORD %L', :'db_user', :'db_pass');
     ELSE
-        ALTER USER $DB_USER WITH PASSWORD '$DB_PASS';
+        EXECUTE format('ALTER USER %I WITH PASSWORD %L', :'db_user', :'db_pass');
     END IF;
-END \$\$;
-
--- Crear BD nueva
-CREATE DATABASE $DB_NAME OWNER $DB_USER;
-GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
-EOF
+END $$;
+CREATE DATABASE :db_name OWNER :db_user;
+GRANT ALL PRIVILEGES ON DATABASE :db_name TO :db_user;
+EOSQL
 
 echo -e "${GREEN}  ✓ Base de datos creada${NC}"
 
@@ -160,15 +156,15 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║   ✅ INSTALACIÓN COMPLETADA                      ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "Para iniciar TITAN POS:"
+echo "Para iniciar POSVENDELO:"
 echo "  ./titan_pos.sh"
 echo ""
 echo "O doble click en TITAN_POS.desktop"
 echo ""
 
-read -p "¿Iniciar TITAN POS ahora? [S/n]: " START_NOW
+read -p "¿Iniciar POSVENDELO ahora? [S/n]: " START_NOW
 if [ "$START_NOW" != "n" ] && [ "$START_NOW" != "N" ]; then
     echo ""
-    echo -e "${GREEN}🚀 Iniciando TITAN POS...${NC}"
+    echo -e "${GREEN}🚀 Iniciando POSVENDELO...${NC}"
     python3 -m app.main
 fi

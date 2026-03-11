@@ -1,4 +1,4 @@
-"""TITAN POS - Expenses Module Schemas"""
+"""POSVENDELO - Expenses Module Schemas"""
 
 import math
 from decimal import Decimal

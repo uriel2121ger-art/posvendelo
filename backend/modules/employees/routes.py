@@ -1,5 +1,5 @@
 """
-TITAN POS - Employees Module Routes
+POSVENDELO - Employees Module Routes
 
 CRUD completo para empleados con asyncpg directo.
 Columns: id, employee_code, name, position, hire_date, status, is_active,
@@ -9,6 +9,7 @@ Columns: id, employee_code, name, position, hire_date, status, is_active,
 
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -107,8 +108,8 @@ async def create_employee(
                 "name": body.name,
                 "position": body.position,
                 "hire_date": hire_date_val,
-                "salary": body.base_salary if body.base_salary is not None else 0.0,
-                "commission": body.commission_rate if body.commission_rate is not None else 0.0,
+                "salary": body.base_salary if body.base_salary is not None else Decimal("0"),
+                "commission": body.commission_rate if body.commission_rate is not None else Decimal("0"),
                 "phone": body.phone,
                 "email": body.email,
                 "notes": body.notes,

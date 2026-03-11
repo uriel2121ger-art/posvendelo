@@ -28,9 +28,9 @@ class SmartMerge:
                 id BIGSERIAL PRIMARY KEY,
                 product_id INTEGER NOT NULL,
                 serie TEXT NOT NULL,
-                quantity REAL NOT NULL,
-                unit_cost REAL NOT NULL,
-                total_cost REAL NOT NULL,
+                quantity NUMERIC(12,2) NOT NULL,
+                unit_cost NUMERIC(12,2) NOT NULL,
+                total_cost NUMERIC(12,2) NOT NULL,
                 supplier TEXT,
                 invoice_number TEXT,
                 purchase_date TEXT DEFAULT CURRENT_TIMESTAMP
@@ -39,7 +39,9 @@ class SmartMerge:
 
     async def register_purchase(self, product_id: int, quantity: float, unit_cost: float, serie: str,
                                  supplier: str = None, invoice: str = None) -> Dict[str, Any]:
-        total_cost = quantity * unit_cost
+        quantity = Decimal(str(quantity))
+        unit_cost = Decimal(str(unit_cost))
+        total_cost = (quantity * unit_cost).quantize(Decimal("0.01"))
 
         conn = self.db.connection
         async with conn.transaction():
@@ -83,12 +85,14 @@ class SmartMerge:
         if not p:
             return
 
-        cost_a, cost_b = money(p['cost_a']), money(p['cost_b'])
-        qty_a, qty_b = money(p['qty_from_a']), money(p['qty_from_b'])
+        cost_a = Decimal(str(p['cost_a'] or 0))
+        cost_b = Decimal(str(p['cost_b'] or 0))
+        qty_a = Decimal(str(p['qty_from_a'] or 0))
+        qty_b = Decimal(str(p['qty_from_b'] or 0))
         total_qty = qty_a + qty_b
 
         if total_qty > 0:
-            blended = (cost_a * qty_a + cost_b * qty_b) / total_qty
+            blended = ((cost_a * qty_a + cost_b * qty_b) / total_qty).quantize(Decimal("0.01"))
             await self.db.execute("UPDATE products SET cost = :cost, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", cost=blended, pid=product_id)
 
     async def get_dual_cost_view(self, product_id: int) -> Dict[str, Any]:

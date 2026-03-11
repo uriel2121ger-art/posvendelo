@@ -1,5 +1,5 @@
 """
-TITAN POS - Products Module Routes
+POSVENDELO - Products Module Routes
 
 CRUD completo para productos con asyncpg directo.
 GET endpoints existentes + POST/PUT/DELETE nuevos.
@@ -69,7 +69,7 @@ async def list_products(
 
 @router.get("/low-stock")
 async def low_stock_products(
-    threshold: Optional[float] = None,
+    threshold: Optional[Decimal] = None,
     limit: int = Query(50, ge=1, le=500),
     auth: dict = Depends(verify_token),
     db=Depends(get_db),

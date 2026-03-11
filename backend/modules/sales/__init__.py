@@ -1,4 +1,4 @@
-"""TITAN POS - Sales Module"""
+"""POSVENDELO - Sales Module"""
 from modules.sales.event_sourcing import SaleEventStore, SaleEventTypes, SaleEvent
 from modules.sales.saga import SagaOrchestrator, SagaDefinition, SagaStep, SagaResult
 

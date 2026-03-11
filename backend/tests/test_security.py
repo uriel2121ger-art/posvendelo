@@ -1,5 +1,5 @@
 """
-TITAN POS — Security Regression Tests
+POSVENDELO — Security Regression Tests
 
 Verifies fixes for vulnerabilities found in Testing V3:
 1. Price Forgery (Critica)

@@ -1,4 +1,4 @@
-# Conectar y arrancar Electron (TITAN POS)
+# Conectar y arrancar Electron (POSVENDELO)
 
 ## Orden recomendado
 

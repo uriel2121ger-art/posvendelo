@@ -1,5 +1,5 @@
 """
-TITAN POS - Turns Module Routes
+POSVENDELO - Turns Module Routes
 
 CRUD completo para turnos de caja con asyncpg directo.
 Columns: id, user_id, pos_id, branch_id, terminal_id, start_timestamp, end_timestamp,
@@ -102,7 +102,7 @@ async def close_turn(
         if not turn:
             raise HTTPException(status_code=404, detail="Turno no encontrado")
         if turn["status"] != "open":
-            raise HTTPException(status_code=400, detail="El turno ya esta cerrado")
+            raise HTTPException(status_code=400, detail="El turno ya está cerrado")
 
         requested_terminal_id = get_requested_terminal_id(request)
         turn_terminal_id = turn["terminal_id"] or 1
@@ -156,9 +156,9 @@ async def close_turn(
         "data": {
             "id": turn_id,
             "status": "closed",
-            "expected_cash": float(expected_cash),
-            "final_cash": body.final_cash,
-            "difference": float(difference),
+            "expected_cash": str(expected_cash),
+            "final_cash": str(body.final_cash),
+            "difference": str(difference),
         },
     }
 

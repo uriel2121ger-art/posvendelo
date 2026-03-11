@@ -1,4 +1,4 @@
-# Mitigación de Riesgos y Daños — TITAN POS @ 10,000 Tenants
+# Mitigación de Riesgos y Daños — POSVENDELO @ 10,000 Tenants
 
 **Documento de Planificación v1**
 **Fecha:** Marzo 2026
@@ -132,7 +132,7 @@ Tenant DBs (local):
 
 Módulo cloud backup:
   - Dump cifrado con age (clave pública del TENANT, generada en onboarding) ANTES de enviar
-  - En el homelab RAID5 se almacena como blob cifrado — TITAN POS NO puede leer los datos
+  - En el homelab RAID5 se almacena como blob cifrado — POSVENDELO NO puede leer los datos
   - El tenant conserva su clave privada localmente (en Docker secret)
   - Si el tenant pierde su clave, el backup es irrecuperable (documentar en contrato)
 ```
@@ -390,7 +390,7 @@ CREATE TABLE sync_conflicts (
 
 - Los CFDI, RFC de clientes, y datos fiscales **nunca salen de la sucursal**
 - El Control Plane no tiene acceso a datos fiscales de ningún tenant
-- Backups cifrados end-to-end — ni TITAN POS (la empresa) puede leer los datos fiscales del cliente
+- Backups cifrados end-to-end — ni POSVENDELO (la empresa) puede leer los datos fiscales del cliente
 
 #### Contrato de Servicio (SaaS)
 
@@ -512,7 +512,7 @@ Trimestralmente:
 
 ## 5. Costos Estimados de Mitigación a 10K Tenants
 
-### Costos fijos (los paga TITAN POS)
+### Costos fijos (los paga POSVENDELO)
 
 | Concepto | Costo mensual estimado |
 |----------|----------------------|

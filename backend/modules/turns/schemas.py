@@ -1,5 +1,5 @@
 """
-TITAN POS - Turns Module Schemas
+POSVENDELO - Turns Module Schemas
 Uses Decimal for all monetary fields.
 """
 
@@ -24,7 +24,7 @@ class TurnOpen(BaseModel):
     initial_cash: Decimal = Field(..., ge=0)
     branch_id: int = Field(default=1)
     terminal_id: Optional[int] = Field(default=None, ge=1)
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
     @field_validator("initial_cash")
     @classmethod
@@ -36,7 +36,7 @@ class TurnOpen(BaseModel):
 
 class TurnClose(BaseModel):
     final_cash: Decimal = Field(..., ge=0)
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
     denominations: Optional[List[DenominationItem]] = None
 
     @field_validator("final_cash")

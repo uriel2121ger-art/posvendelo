@@ -1,6 +1,6 @@
 # Patrón de bug: asyncpg y tipos fecha/hora
 
-Este documento resume **dos patrones** de error con asyncpg y parámetros de fecha/hora en TITAN POS, y cómo están mitigados.
+Este documento resume **dos patrones** de error con asyncpg y parámetros de fecha/hora en POSVENDELO, y cómo están mitigados.
 
 ---
 

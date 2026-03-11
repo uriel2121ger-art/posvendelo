@@ -1,5 +1,5 @@
 """
-TITAN POS - Sync Module Routes
+POSVENDELO - Sync Module Routes
 
 Endpoints that posApi.ts expects for pullTable() and syncTable():
   GET  /api/v1/sync/products   — Active products (paginated: ?after_id=0&limit=500)
@@ -130,7 +130,7 @@ async def sync_pull_sales(
         except (ValueError, AttributeError):
             raise HTTPException(status_code=400, detail="Formato de fecha inválido para 'since'")
         sql += " AND timestamp >= :since"
-        params["since"] = since_dt.replace(tzinfo=None)
+        params["since"] = since_dt
 
     sql += " ORDER BY id DESC LIMIT :limit"
     params["limit"] = limit
@@ -254,7 +254,7 @@ async def sync_push(
         return {
             "success": True,
             "table": table_name,
-            "message": "Sales sync is read-only. Use POST /api/v1/sales/ to create sales.",
+            "message": "Las ventas son solo lectura en sync. Usa POST /api/v1/sales/ para crear ventas.",
             "upserted": 0,
         }
 
@@ -262,7 +262,7 @@ async def sync_push(
         return {
             "success": True,
             "table": table_name,
-            "message": "Shifts are managed server-side via /api/v1/turns/.",
+            "message": "Los turnos se gestionan en el servidor con /api/v1/turns/.",
             "upserted": 0,
         }
 
@@ -303,7 +303,7 @@ async def sync_push(
                         f = money(fval)
                     except (ValueError, TypeError):
                         logger.warning(
-                            "Sync push: campo numerico invalido '%s'=%r en SKU '%s', saltando fila",
+                            "Sync push: campo numérico inválido '%s'=%r en SKU '%s', saltando fila",
                             fname, fval, row.get("sku", "?"),
                         )
                         skip_row = True

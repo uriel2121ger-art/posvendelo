@@ -1,4 +1,4 @@
-"""TITAN POS - Shared Constants & Money Helpers"""
+"""POSVENDELO - Shared Constants & Money Helpers"""
 
 from decimal import Decimal, ROUND_HALF_UP
 

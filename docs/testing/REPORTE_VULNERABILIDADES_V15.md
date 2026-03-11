@@ -10,7 +10,7 @@ Ejemplo: Un bolígrafo de $11.00 Neto de IVA.
 - IVA Desglosado: $1.5172... -> `1.52`
 Suma Real: $11.00. Pero a nivel de 50 o 100 productos, los decimales al infinito terminan cobrándole al cliente final $1,775.01 (u obligando a la tienda a perder 1 centavo).
 
-## 🔍 LA PRUEBA EN TITAN POS (SCRIPT PYTHON):
+## 🔍 LA PRUEBA EN POSVENDELO (SCRIPT PYTHON):
 Se reconstruyó matemáticamente el cobro de los 50 SKUs generados en el ticket gigante, operando la matemática individual como dictan las facturas (SAT).
 - Total exigido pagado por el cliente Neto: **$1775.00**
 - Subtotal calculado en auditoría manual (la sumatoria de bases): **$1530.17**
@@ -18,8 +18,8 @@ Se reconstruyó matemáticamente el cobro de los 50 SKUs generados en el ticket 
 
 ¡Suma teórica pura = **$1775.01**! Habría un descuadre contable frente al ticket.
 
-## ✅ EL BRILLANTE FALLO A FAVOR DEL BACKEND DE TITAN POS
-Al sacar la impresión de lo guardado en el PostgreSQL por medio del ORM `Pydantic` de **TITAN POS**, nos llevamos una grata sorpresa arquitectónica:
+## ✅ EL BRILLANTE FALLO A FAVOR DEL BACKEND DE POSVENDELO
+Al sacar la impresión de lo guardado en el PostgreSQL por medio del ORM `Pydantic` de **POSVENDELO**, nos llevamos una grata sorpresa arquitectónica:
 - Subtotal DB: **$1530.17**
 - IVA DB: **$244.83** !*(Corregido)*
 - TOTAL COBRADO / GUARDADO: **$1775.00**

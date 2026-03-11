@@ -512,7 +512,7 @@ export default function ShiftsTab(): ReactElement {
           <title>Corte de turno ${esc(shift.id)}</title>
         </head>
         <body style="font-family: Arial, sans-serif; padding: 16px;">
-          <h2 style="margin: 0 0 12px 0;">TITAN POS - Corte de turno</h2>
+          <h2 style="margin: 0 0 12px 0;">POSVENDELO - Corte de turno</h2>
           <table style="border-collapse: collapse; width: 100%; max-width: 700px;">
             <tbody>${rowsHtml}</tbody>
           </table>

@@ -1,5 +1,5 @@
 """
-TITAN POS - Event Sourcing for Sales
+POSVENDELO - Event Sourcing for Sales
 
 Stores the sequence of events that compose a sale instead of just the final state.
 This enables:

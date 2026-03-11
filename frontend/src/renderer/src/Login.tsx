@@ -392,7 +392,7 @@ export default function Login(): ReactElement {
           <div className="w-full max-w-sm">
             <div className="text-center mb-10 md:hidden">
               <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent mb-2">
-                TITAN POS
+                POSVENDELO
               </h1>
               <p className="text-zinc-400 text-sm">Inicia sesión para continuar</p>
             </div>

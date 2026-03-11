@@ -1,5 +1,5 @@
 -- =============================================================================
--- TITAN POS - SCHEMA COMPLETO v7.0.0
+-- POSVENDELO - SCHEMA COMPLETO v7.0.0
 -- Generado: 2026-03-03
 -- =============================================================================
 -- Este archivo contiene TODAS las tablas y columnas necesarias.
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS customers (
     points INTEGER DEFAULT 0,
     tier TEXT DEFAULT 'BRONZE',
     credit_limit NUMERIC(12,2) DEFAULT 0.0,
-    credit_balance NUMERIC(12,2) DEFAULT 0.0,
+    credit_balance NUMERIC(12,2) DEFAULT 0.0 CHECK (credit_balance >= 0),
     wallet_balance NUMERIC(12,2) DEFAULT 0.0,
     address TEXT,
     notes TEXT,
@@ -1016,6 +1016,18 @@ GROUP BY ((EXTRACT(dow FROM s."timestamp"))::integer),
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_heatmap_dow_hour_branch
     ON mv_hourly_sales_heatmap(day_of_week, hour_of_day, branch_id);
+
+
+-- =============================================================================
+-- 79. JTI REVOCATIONS (JWT logout / token invalidation)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS jti_revocations (
+    jti TEXT PRIMARY KEY,
+    revoked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_jti_revocations_expires ON jti_revocations(expires_at);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_product_sales_ranking AS
 SELECT si.product_id,

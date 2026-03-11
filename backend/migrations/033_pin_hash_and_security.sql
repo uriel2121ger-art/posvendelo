@@ -18,3 +18,7 @@ WHERE  pin IS NOT NULL
 -- 3. Index for PIN lookups during cash movements / cancel operations
 CREATE INDEX IF NOT EXISTS idx_users_pin_hash ON users(pin_hash)
 WHERE pin_hash IS NOT NULL;
+
+INSERT INTO schema_version(version, description)
+VALUES (33, 'pin_hash_and_security')
+ON CONFLICT DO NOTHING;

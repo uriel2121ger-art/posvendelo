@@ -1,5 +1,5 @@
 """
-TITAN POS - Remote Commands Module Routes
+POSVENDELO - Remote Commands Module Routes
 
 Remote POS control endpoints: open drawer, turn status, live sales,
 notifications, price changes, system status.
@@ -13,6 +13,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
@@ -417,13 +418,20 @@ async def resolve_pending_remote_request(
                 sku = str(payload.get("sku") or payload.get("product_sku") or "").strip()
                 if not sku:
                     raise HTTPException(status_code=400, detail="La solicitud remota no contiene SKU")
-                if payload.get("new_price") is None:
+                raw_price = payload.get("new_price")
+                if raw_price is None:
                     raise HTTPException(status_code=400, detail="La solicitud remota no contiene nuevo precio")
+                try:
+                    validated_price = Decimal(str(raw_price))
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Precio inválido en solicitud remota")
+                if validated_price <= 0:
+                    raise HTTPException(status_code=400, detail="El precio debe ser mayor a 0")
                 result_payload = await _apply_price_change_local(
                     db,
                     auth,
                     sku=sku,
-                    new_price=payload["new_price"],
+                    new_price=validated_price,
                     reason=body.notes or "Aprobado desde solicitudes remotas",
                 )
                 result_payload["approved"] = True

@@ -1,13 +1,33 @@
+import os
 from datetime import UTC, datetime
+from decimal import Decimal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from alarms.telegram import collect_alert_candidates
 from db.connection import get_db
 from license_service import get_current_license
-from security import sign_owner_session, verify_install_token, verify_owner_access
+from security import sign_owner_session, verify_admin, verify_install_token, verify_owner_access
 
 router = APIRouter()
+
+
+class PaymentRequestCreate(BaseModel):
+    amount_mxn: Decimal = Field(..., gt=Decimal("0"), decimal_places=2)
+    method: str = Field(..., min_length=2, max_length=32)
+    payer_name: str = Field(..., min_length=2, max_length=120)
+    payer_contact: str = Field(..., min_length=4, max_length=160)
+    concept: str = Field(default="Suscripción POS", min_length=2, max_length=200)
+    evidence_url: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=1000)
+
+
+class PaymentRequestReview(BaseModel):
+    status: str = Field(..., min_length=2, max_length=24)
+    notes: str | None = Field(default=None, max_length=1000)
+    activated_until: datetime | None = None
 
 
 async def _resolve_branch_and_tenant(db, install_token: str) -> dict:
@@ -342,7 +362,7 @@ async def owner_portfolio(
     _require_scope(token, "portfolio.read")
     branch = await _resolve_owner_context(db, token)
     rows = await _get_tenant_branches(db, branch["tenant_id"])
-    total_sales = sum(float(row.get("sales_today") or 0) for row in rows)
+    total_sales = sum(Decimal(str(row.get("sales_today") or 0)) for row in rows)
     online = sum(1 for row in rows if row.get("is_online"))
     alerts = collect_alert_candidates(rows)
     return {
@@ -551,3 +571,189 @@ async def owner_audit(
             for row in rows
         ],
     }
+
+
+def _payment_instructions() -> dict:
+    return {
+        "mercadopago_link": os.getenv("CP_PAYMENT_MERCADOPAGO_LINK", "").strip(),
+        "bank_account": os.getenv("CP_PAYMENT_BANK_ACCOUNT", "").strip(),
+        "bank_clabe": os.getenv("CP_PAYMENT_BANK_CLABE", "").strip(),
+        "bank_beneficiary": os.getenv("CP_PAYMENT_BANK_BENEFICIARY", "").strip(),
+        "card_reference": os.getenv("CP_PAYMENT_CARD_REFERENCE", "").strip(),
+        "codi_qr_url": os.getenv("CP_PAYMENT_CODI_QR_URL", "").strip(),
+        "contact_whatsapp": os.getenv("CP_PAYMENT_CONTACT_WHATSAPP", "").strip(),
+        "contact_email": os.getenv("CP_PAYMENT_CONTACT_EMAIL", "").strip(),
+        "notes": os.getenv("CP_PAYMENT_NOTES", "Comparte comprobante para activar tu suscripción.").strip(),
+    }
+
+
+async def _notify_payment_request(payload: dict) -> None:
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if bot_token and chat_id:
+        lines = [
+            "Nuevo pago reportado (manual)",
+            f"Tenant: {payload.get('tenant_name')} ({payload.get('tenant_id')})",
+            f"Monto: MXN {payload.get('amount_mxn')}",
+            f"Método: {payload.get('method')}",
+            f"Pagador: {payload.get('payer_name')}",
+            f"Contacto: {payload.get('payer_contact')}",
+            f"Concepto: {payload.get('concept')}",
+            f"Evidencia: {payload.get('evidence_url') or 'N/A'}",
+            f"Notas: {payload.get('notes') or 'N/A'}",
+        ]
+        msg = "\n".join(lines)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg},
+            )
+            response.raise_for_status()
+
+    webhook_url = os.getenv("CP_PAYMENT_NOTIFY_WEBHOOK", "").strip()
+    if webhook_url:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(webhook_url, json={"event": "payment.request.created", "data": payload})
+            response.raise_for_status()
+
+
+@router.get("/payments/instructions")
+async def owner_payment_instructions(
+    token: dict = Depends(verify_owner_access),
+    db=Depends(get_db),
+):
+    _require_scope(token, "commercial.read")
+    branch = await _resolve_owner_context(db, token)
+    return {
+        "success": True,
+        "data": {
+            "tenant_id": branch["tenant_id"],
+            "tenant_name": branch["tenant_name"],
+            "instructions": _payment_instructions(),
+        },
+    }
+
+
+@router.post("/payments/requests")
+async def owner_create_payment_request(
+    body: PaymentRequestCreate,
+    token: dict = Depends(verify_owner_access),
+    db=Depends(get_db),
+):
+    _require_scope(token, "commercial.read")
+    branch = await _resolve_owner_context(db, token)
+
+    method = body.method.strip().lower()
+    if method not in {"mercadopago", "transferencia", "tarjeta", "codi", "otro"}:
+        raise HTTPException(status_code=400, detail="Método inválido. Usa mercadopago, transferencia, tarjeta, codi u otro")
+
+    created = await db.fetchrow(
+        """
+        INSERT INTO payment_requests (
+            tenant_id,
+            branch_id,
+            amount_mxn,
+            method,
+            concept,
+            payer_name,
+            payer_contact,
+            evidence_url,
+            notes,
+            status
+        ) VALUES (
+            :tenant_id,
+            :branch_id,
+            :amount_mxn,
+            :method,
+            :concept,
+            :payer_name,
+            :payer_contact,
+            :evidence_url,
+            :notes,
+            'pending'
+        )
+        RETURNING id, tenant_id, branch_id, amount_mxn, method, concept, payer_name, payer_contact, evidence_url, notes, status, created_at
+        """,
+        {
+            "tenant_id": branch["tenant_id"],
+            "branch_id": branch["id"],
+            "amount_mxn": body.amount_mxn,
+            "method": method,
+            "concept": body.concept,
+            "payer_name": body.payer_name.strip(),
+            "payer_contact": body.payer_contact.strip(),
+            "evidence_url": body.evidence_url.strip() if body.evidence_url else None,
+            "notes": body.notes.strip() if body.notes else None,
+        },
+    )
+
+    payload = {
+        **created,
+        "tenant_name": branch["tenant_name"],
+    }
+    try:
+        await _notify_payment_request(payload)
+    except Exception:
+        # No rompemos flujo del dueño si falla notificación externa
+        pass
+
+    return {"success": True, "data": payload}
+
+
+@router.get("/payments/requests")
+async def owner_list_payment_requests(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    token: dict = Depends(verify_owner_access),
+    db=Depends(get_db),
+):
+    _require_scope(token, "commercial.read")
+    branch = await _resolve_owner_context(db, token)
+    sql = """
+        SELECT id, tenant_id, branch_id, amount_mxn, method, concept, payer_name, payer_contact,
+               evidence_url, notes, status, reviewed_by, reviewed_notes, activated_until, created_at, updated_at
+        FROM payment_requests
+        WHERE tenant_id = :tenant_id
+    """
+    params: dict[str, object] = {"tenant_id": branch["tenant_id"], "limit": limit}
+    if status:
+        sql += " AND status = :status"
+        params["status"] = status.strip().lower()
+    sql += " ORDER BY created_at DESC, id DESC LIMIT :limit"
+    rows = await db.fetch(sql, params)
+    return {"success": True, "data": rows}
+
+
+@router.post("/payments/requests/{request_id}/review")
+async def admin_review_payment_request(
+    request_id: int,
+    body: PaymentRequestReview,
+    _: dict = Depends(verify_admin),
+    db=Depends(get_db),
+):
+    next_status = body.status.strip().lower()
+    if next_status not in {"approved", "rejected", "pending"}:
+        raise HTTPException(status_code=400, detail="Status inválido. Usa approved, rejected o pending")
+
+    row = await db.fetchrow(
+        """
+        UPDATE payment_requests
+        SET
+            status = :status,
+            reviewed_by = 'admin',
+            reviewed_notes = :reviewed_notes,
+            activated_until = COALESCE(:activated_until, activated_until),
+            updated_at = NOW()
+        WHERE id = :id
+        RETURNING id, tenant_id, branch_id, amount_mxn, method, status, reviewed_by, reviewed_notes, activated_until, updated_at
+        """,
+        {
+            "id": request_id,
+            "status": next_status,
+            "reviewed_notes": body.notes.strip() if body.notes else None,
+            "activated_until": body.activated_until,
+        },
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Solicitud de pago no encontrada")
+    return {"success": True, "data": row}

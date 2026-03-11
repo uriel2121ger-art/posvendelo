@@ -1,5 +1,5 @@
 """
-TITAN POS — Test Configuration & Fixtures
+POSVENDELO — Test Configuration & Fixtures
 
 Per-test transaction rollback with asyncpg.  Every test runs inside a
 BEGIN…ROLLBACK block so the real dev DB stays clean.

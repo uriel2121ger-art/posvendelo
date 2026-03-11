@@ -47,8 +47,8 @@ class MaterialityEngine:
                 if Decimal(str(p['stock'] or 0)) < Decimal(str(quantity)):
                     return {'success': False, 'error': 'Stock insuficiente para merma'}
 
-                unit_cost = float((Decimal(str(p['price'] or 0)) * Decimal("0.7")).quantize(Decimal("0.01")))
-                total_value = unit_cost * quantity
+                unit_cost = (Decimal(str(p['price'] or 0)) * Decimal("0.7")).quantize(Decimal("0.01"))
+                total_value = (unit_cost * Decimal(str(quantity))).quantize(Decimal("0.01"))
                 acta_number = await self._generate_acta_number()
 
                 await self.db.execute("""
@@ -56,17 +56,10 @@ class MaterialityEngine:
                         reason, category, witness_name, acta_number, status, created_at)
                     VALUES (:pid, :name, :sku, :qty, :uc, :tv, :reason, :cat, :wit, :acta, 'pending', :ts)
                 """, pid=product_id, name=p['name'], sku=p['sku'], qty=quantity, uc=unit_cost, tv=total_value,
-                    reason=reason, cat=category, wit=witness_name, acta=acta_number, ts=datetime.now().isoformat())
+                    reason=reason, cat=category, wit=witness_name, acta=acta_number, ts=datetime.now())
 
-                await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
-
-                try:
-                    await self.db.execute("""
-                        INSERT INTO inventory_movements (product_id, movement_type, type, quantity, reason, reference_type, timestamp, synced)
-                        VALUES (:pid, 'OUT', 'loss', :qty, :reason, 'loss_record', NOW(), 0)
-                    """, pid=product_id, qty=quantity, reason=reason or "Merma")
-                except Exception:
-                    pass
+                # NOTE: Do NOT deduct stock here — stock deduction happens in /mermas/approve
+                # to prevent double-deduction. The loss_record status is 'pending' at this point.
 
             return {'success': True, 'acta_number': acta_number, 'product': p['name'], 'quantity': quantity, 'total_value': total_value, 'status': 'pending'}
         except Exception as e:

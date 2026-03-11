@@ -1,4 +1,4 @@
-# Plan de Pruebas Manuales V8 — TITAN POS
+# Plan de Pruebas Manuales V8 — POSVENDELO
 
 Guia completa de pruebas manuales: regresion, escenarios cotidianos de retail mexicano, volumen, concurrencia, caos destructivo, matematicas de descuentos y facturacion SAT.
 

@@ -1,4 +1,4 @@
-# TITAN POS
+# POSVENDELO
 
 Sistema punto de venta retail para Mexico. Backend FastAPI + Frontend Electron/React.
 
@@ -113,7 +113,7 @@ backend/          # FastAPI + asyncpg
   tests/          # Tests de integración (pytest + asyncio)
 frontend/         # Electron + React + TypeScript (app cajeros)
 control-plane/    # API central (bootstrap, licencias, tenants, cloud)
-  db/migrations/  # Schema y migraciones (002 cloud Nube TITAN)
+  db/migrations/  # Schema y migraciones (002 cloud Nube PosVendelo)
 owner-app/        # PWA/Electron para dueños (monitoreo, sucursales)
 installers/       # Scripts instalación nodo (Linux/Windows)
 scripts/          # Scripts de utilidad (api_edge_cases, test_fastapi)
@@ -135,7 +135,7 @@ _archive/         # Código legacy (rollback)
 | [CHANGELOG.md](CHANGELOG.md) | Changelog del proyecto (releases y cambios notables) |
 | [docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md](docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md) | Cómo publicar una release y distribuir (cajeros, sucursales) |
 | [docs/distribucion/INSTALACION_EQUIPOS.md](docs/distribucion/INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos (Release, script, clonado) |
-| [docs/distribucion/PLAN_NUBE_TITAN.md](docs/distribucion/PLAN_NUBE_TITAN.md) | Plan Nube TITAN: cuenta opcional, app dueño, sync, comandos remotos |
+| [docs/distribucion/PLAN_NUBE_TITAN.md](docs/distribucion/PLAN_NUBE_TITAN.md) | Plan Nube PosVendelo: cuenta opcional, app dueño, sync, comandos remotos |
 | [installers/README.md](installers/README.md) | Instalación Windows/Linux, contrato bootstrap y soporte plug-and-play |
 | [docs/operacion/SECURITY_CHECKLIST.md](docs/operacion/SECURITY_CHECKLIST.md) | Checklist de seguridad, pip-audit y controles implementados |
 | [docs/referencia/INGESTORES_CSV_XML.md](docs/referencia/INGESTORES_CSV_XML.md) | Ingestores CSV/XML: productos, clientes, inventario, historial |

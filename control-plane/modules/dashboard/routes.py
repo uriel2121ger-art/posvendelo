@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -95,7 +96,7 @@ async def dashboard_tenant_summary(
                 "branches_total": 0,
                 "online": 0,
                 "offline": 0,
-                "sales_today": 0.0,
+                "sales_today": Decimal("0"),
                 "install_errors": 0,
                 "tunnel_errors": 0,
                 "backup_missing": 0,
@@ -106,7 +107,7 @@ async def dashboard_tenant_summary(
             tenant["online"] += 1
         else:
             tenant["offline"] += 1
-        tenant["sales_today"] += float(row.get("sales_today") or 0)
+        tenant["sales_today"] += Decimal(str(row.get("sales_today") or 0))
         if row.get("install_status") == "error":
             tenant["install_errors"] += 1
         if row.get("tunnel_status") == "error":

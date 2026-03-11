@@ -25,11 +25,11 @@ class CryptoBridge:
         await self.db.execute("""
             CREATE TABLE IF NOT EXISTS crypto_conversions (
                 id BIGSERIAL PRIMARY KEY,
-                amount_mxn REAL NOT NULL,
-                amount_usd REAL NOT NULL,
+                amount_mxn NUMERIC(12,2) NOT NULL,
+                amount_usd NUMERIC(12,2) NOT NULL,
                 stablecoin TEXT NOT NULL,
                 wallet_address TEXT,
-                exchange_rate REAL,
+                exchange_rate NUMERIC(12,4),
                 cover_description TEXT,
                 status TEXT DEFAULT 'pending',
                 tx_hash TEXT,
@@ -42,7 +42,7 @@ class CryptoBridge:
                 name TEXT NOT NULL,
                 address TEXT NOT NULL,
                 stablecoin TEXT NOT NULL,
-                balance_usd REAL DEFAULT 0,
+                balance_usd NUMERIC(12,2) DEFAULT 0,
                 last_updated TIMESTAMP,
                 notes TEXT
             )
@@ -53,7 +53,7 @@ class CryptoBridge:
                 id BIGSERIAL PRIMARY KEY,
                 category TEXT,
                 description TEXT,
-                amount REAL,
+                amount NUMERIC(12,2),
                 expense_date DATE,
                 created_at TIMESTAMP
             )
@@ -104,24 +104,26 @@ class CryptoBridge:
         return max(0, self.MAX_WEEKLY_CONVERSION - float(Decimal(row['total'] or 0).quantize(Decimal("0.01"))) if row else self.MAX_WEEKLY_CONVERSION)
     
     async def create_conversion(self, amount_mxn: float, stablecoin: str = 'USDT', wallet_address: str = None, cover_description: str = None) -> Dict[str, Any]:
+        amount_mxn = Decimal(str(amount_mxn))
         await self._ensure_table()
         if stablecoin not in self.STABLECOINS: return {'success': False, 'error': f'Stablecoin no soportada: {stablecoin}'}
         if amount_mxn > self.MAX_SINGLE_TRANSACTION: return {'success': False, 'error': f'Excede límite transacción (${self.MAX_SINGLE_TRANSACTION:,.0f})'}
-        
+
         available = await self.get_available_for_conversion()
         if amount_mxn > available['max_now']: return {'success': False, 'error': f'Monto excede disponible (${available["max_now"]:,.0f})'}
-        
-        amount_usd = amount_mxn / self.USD_TO_MXN
+
+        amount_usd = (amount_mxn / Decimal(str(self.USD_TO_MXN))).quantize(Decimal("0.01"))
+        exchange_rate = Decimal(str(self.USD_TO_MXN)).quantize(Decimal("0.0001"))
         if not cover_description: cover_description = self._generate_cover_description(amount_mxn)
-        
+
         await self.db.execute("""
-            INSERT INTO crypto_conversions 
+            INSERT INTO crypto_conversions
             (amount_mxn, amount_usd, stablecoin, wallet_address, exchange_rate, cover_description, status, created_at)
             VALUES (:amount_mxn, :amount_usd, :stablecoin, :wallet_address, :ex_rate, :cover_desc, 'pending', NOW())
-        """, amount_mxn=amount_mxn, amount_usd=amount_usd, stablecoin=stablecoin, wallet_address=wallet_address, ex_rate=self.USD_TO_MXN, cover_desc=cover_description)
-        
+        """, amount_mxn=amount_mxn, amount_usd=amount_usd, stablecoin=stablecoin, wallet_address=wallet_address, ex_rate=exchange_rate, cover_desc=cover_description)
+
         await self._register_cover_expense(amount_mxn, cover_description)
-        
+
         return {'success': True, 'amount_mxn': amount_mxn, 'amount_usd': amount_usd, 'cover': cover_description, 'status': 'pending'}
     
     def _generate_cover_description(self, amount: float) -> str:
@@ -129,7 +131,8 @@ class CryptoBridge:
         idx = int(hashlib.sha256(f"{amount}{datetime.now().date()}".encode()).hexdigest(), 16) % len(covers)
         return covers[idx]
     
-    async def _register_cover_expense(self, amount: float, description: str):
+    async def _register_cover_expense(self, amount, description: str):
+        amount = Decimal(str(amount))
         try:
             await self.db.execute("""
                 INSERT INTO cash_expenses (category, description, amount, expense_date, created_at)

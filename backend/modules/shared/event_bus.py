@@ -1,5 +1,5 @@
 """
-TITAN POS - Event Bus
+POSVENDELO - Event Bus
 
 Publish-subscribe event system for decoupled component communication.
 """

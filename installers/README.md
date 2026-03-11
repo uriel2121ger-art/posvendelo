@@ -1,4 +1,4 @@
-# Instaladores TITAN POS
+# Instaladores POSVENDELO
 
 ## Linux
 

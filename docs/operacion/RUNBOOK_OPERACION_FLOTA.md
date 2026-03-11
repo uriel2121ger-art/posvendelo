@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Operar sucursales TITAN POS con un flujo repetible para soporte, releases, licencias y recuperacion.
+Operar sucursales POSVENDELO con un flujo repetible para soporte, releases, licencias y recuperacion.
 
 ## Monitoreo Diario
 

@@ -12,7 +12,13 @@ function createWindow() {
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: '#09090f',
-    autoHideMenuBar: true
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webviewTag: false
+    }
   })
 
   const devUrl = process.env.OWNER_APP_DEV_URL?.trim()
@@ -27,7 +33,7 @@ function createWindow() {
     return
   }
 
-  void window.loadURL('data:text/html,<h1>TITAN Dueño</h1><p>Ejecuta primero npm run build:web o define OWNER_APP_DEV_URL.</p>')
+  void window.loadURL('data:text/html,<h1>PosVendelo Dueño</h1><p>Ejecuta primero npm run build:web o define OWNER_APP_DEV_URL.</p>')
 }
 
 app.whenReady().then(() => {

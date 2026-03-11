@@ -174,7 +174,7 @@ Fecha Generacion:        {timestamp.isoformat()}
 
         acta_content += f"""Hash SHA-256:            {sha256_hash}
 
-Este documento fue generado automaticamente por el Sistema TITAN POS/Antigravity.
+Este documento fue generado automaticamente por el Sistema POSVENDELO/Antigravity.
 El hash SHA-256 garantiza la integridad del documento desde su creacion.
 
 ═══════════════════════════════════════════════════════════════════════════════

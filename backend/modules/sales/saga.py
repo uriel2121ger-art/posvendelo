@@ -1,5 +1,5 @@
 """
-TITAN POS - Saga Pattern for Distributed Operations
+POSVENDELO - Saga Pattern for Distributed Operations
 
 Orchestrates multi-step operations with automatic compensation (rollback)
 if any step fails. Primary use case: inventory transfers between branches.
@@ -308,7 +308,7 @@ async def _create_transfer_record(context: Dict[str, Any]):
             """,
             {
                 "pid": context["product_id"],
-                "qty": round(abs(float(context["qty"])), 2),
+                "qty": abs(Decimal(str(context["qty"])).quantize(Decimal("0.01"))),
                 "reason": f"Transfer to branch {context['dest_branch_id']}",
                 "ref": transfer_id,
             },
@@ -351,7 +351,7 @@ async def _receive_at_destination(context: Dict[str, Any]):
             """,
             {
                 "pid": context["product_id"],
-                "qty": round(abs(float(context["qty"])), 2),
+                "qty": abs(Decimal(str(context["qty"])).quantize(Decimal("0.01"))),
                 "reason": f"Transfer from branch {context['source_branch_id']}",
                 "ref": transfer_id,
             },

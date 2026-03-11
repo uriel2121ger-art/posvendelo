@@ -34,6 +34,10 @@ titan_gateway.log
 CREDENCIALES.txt
 .mcp.json
 
+# License keypair — NEVER commit private keys
+license_private.pem
+*.pem
+
 # Node (frontend)
 node_modules/
 .next/

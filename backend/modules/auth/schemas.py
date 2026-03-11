@@ -1,4 +1,4 @@
-"""TITAN POS - Auth Module Schemas"""
+"""POSVENDELO - Auth Module Schemas"""
 
 from pydantic import BaseModel, Field, field_validator
 

@@ -1,5 +1,5 @@
 """
-TITAN POS - Inventory Module Schemas
+POSVENDELO - Inventory Module Schemas
 """
 
 from decimal import Decimal
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class StockAdjustment(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., description="Positive to add, negative to subtract")
     reason: str = Field(..., min_length=1, max_length=500)
     reference_id: Optional[str] = Field(None, max_length=100)
@@ -32,11 +32,11 @@ class StockAdjustment(BaseModel):
 
 
 class InventoryTransfer(BaseModel):
-    product_id: int
+    product_id: int = Field(..., ge=1)
     quantity: Decimal = Field(..., gt=0)
-    source_branch_id: int
-    dest_branch_id: int
-    notes: Optional[str] = None
+    source_branch_id: int = Field(..., ge=1)
+    dest_branch_id: int = Field(..., ge=1)
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
     @field_validator("quantity")
     @classmethod

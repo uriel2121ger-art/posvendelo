@@ -1,1 +1,1 @@
-"""TITAN POS - Customers Module"""
+"""POSVENDELO - Customers Module"""

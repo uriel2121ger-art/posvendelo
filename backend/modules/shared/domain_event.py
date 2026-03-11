@@ -1,5 +1,5 @@
 """
-TITAN POS - Domain Event System (Phase 2)
+POSVENDELO - Domain Event System (Phase 2)
 
 Enhanced event bus with:
 - Immutable DomainEvent dataclass with aggregate tracking

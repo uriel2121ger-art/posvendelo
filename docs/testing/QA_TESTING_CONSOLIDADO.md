@@ -1,6 +1,6 @@
 # Auditoría de Calidad y Pruebas de Estrés (V10 - V17)
 
-Este documento consolida y sirve como índice maestro de todas las pruebas de pentesting, inyección de estrés, carga masiva, auditoría financiera y monkeys/caos realizadas sobre el ecosistema **TITAN POS**.
+Este documento consolida y sirve como índice maestro de todas las pruebas de pentesting, inyección de estrés, carga masiva, auditoría financiera y monkeys/caos realizadas sobre el ecosistema **POSVENDELO**.
 
 ## 📊 1. Reportes y Certificaciones de Resiliencia
 

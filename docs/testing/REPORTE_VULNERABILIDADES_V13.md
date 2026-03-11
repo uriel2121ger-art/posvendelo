@@ -27,7 +27,7 @@ Objetivo: Lograr sobre-vender el producto evadiendo el verificador de Stock, o c
 4. **Cero Deadlocks**: Ningún hilo estranguló a otro interbloqueando la base de datos. AsyncPG y el manejo de DB Commit de nivel empresarial actuaron secuenciando las peticiones concurrentes como se espera del Tier-1 de POS.
 
 ## 🏆 CONCLUSIÓN ABSOLUTA
-El núcleo de la caja registradora de **TITAN POS (V13 PENTESTADO)** es de **Robustez Certificada.**
+El núcleo de la caja registradora de **POSVENDELO (V13 PENTESTADO)** es de **Robustez Certificada.**
 Cumple rigurosamente el paradigma ACID (Atomicidad, Consistencia, Aislamiento y Durabilidad). No se puede romper ni robar efectivo de una tienda TITAN, ni intencionalmente por inyección masiva, ni accidentalmente por concurrencia multi-cajeros masiva.
 
 Su rendimiento probado (150 Transacciones pesadas por Segundo con Inventario en Vivo) es notable y se clasifica listo para un paso en caliente a Producción de Alta Demanda (Supermercados o Eventos Masivos).

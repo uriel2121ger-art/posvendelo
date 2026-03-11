@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=INSTALAR TITAN POS
-Comment=Instalador automatico de TITAN POS
+Name=INSTALAR POSVENDELO
+Comment=Instalador automatico de POSVENDELO
 Exec=bash -c "exec bash \"\$(dirname \"\$1\")/instalar.sh\"" _ %k
 Terminal=true
 Type=Application

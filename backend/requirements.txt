@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# TITAN POS - Dependencias Python (Backend Server)
+# POSVENDELO - Dependencias Python (Backend Server)
 # Versión: 2.2.0 | PostgreSQL + asyncpg
 # ═══════════════════════════════════════════════════════════════════════════════
 

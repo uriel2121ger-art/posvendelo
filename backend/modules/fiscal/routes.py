@@ -1,5 +1,5 @@
 """
-TITAN POS - Fiscal Module Routes
+POSVENDELO - Fiscal Module Routes
 Endpoints for CFDI generation, global invoices, returns, and XML parsing.
 """
 
@@ -86,7 +86,7 @@ async def generate_cfdi(
 
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail=result.get("error", "Error generating CFDI"))
+        raise HTTPException(status_code=400, detail="Error al procesar CFDI")
 
     except HTTPException:
         raise
@@ -153,7 +153,7 @@ async def generate_global_cfdi(
 
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail=result.get("error", "Error generating Global CFDI"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al generar CFDI global"))
 
     except HTTPException:
         raise
@@ -214,7 +214,7 @@ async def process_return(
 
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail=result.get("error", "Error processing return"))
+        raise HTTPException(status_code=400, detail="Error al procesar devolución")
 
     except HTTPException:
         raise
@@ -1040,7 +1040,7 @@ async def create_extraction(
         from modules.fiscal.cash_flow_manager import CashExtractionEngine
         engine = CashExtractionEngine(db)
         result = await engine.create_extraction(
-            amount=float(request.amount),
+            amount=request.amount,
             document_type=request.document_type,
             related_person_id=request.related_person_id,
             purpose=request.purpose,
@@ -1110,8 +1110,8 @@ async def register_purchase(
         engine = SmartMerge(db)
         result = await engine.register_purchase(
             product_id=request.product_id,
-            quantity=float(request.quantity),
-            unit_cost=float(request.unit_cost),
+            quantity=request.quantity,
+            unit_cost=request.unit_cost,
             serie=request.serie,
             supplier=request.supplier,
             invoice=request.invoice,
@@ -1259,7 +1259,7 @@ async def get_smart_global_selection(
         from modules.fiscal.fiscal_dashboard import FiscalDashboard
         dashboard = FiscalDashboard(db)
         result = await dashboard.get_smart_global_selection(
-            max_amount=float(max_amount) if max_amount else None
+            max_amount=max_amount
         )
         return {"success": True, "data": result}
     except HTTPException:
@@ -1285,7 +1285,7 @@ async def select_optimal_rfc(
         from modules.fiscal.intercompany_billing import CrossBranchBilling
         billing = CrossBranchBilling(db)
         result = await billing.select_optimal_rfc_with_facade(
-            amount=float(request.amount),
+            amount=request.amount,
             original_rfc=request.original_rfc,
             branch_name=request.branch_name,
         )
@@ -1426,7 +1426,7 @@ async def calculate_smart_loss(
         from modules.fiscal.price_analytics import SmartVarianceEngine
         engine = SmartVarianceEngine(db)
         result = await engine.calculate_smart_loss(
-            base_amount=float(request.base_amount),
+            base_amount=request.base_amount,
             category=request.category,
         )
         return {"success": True, "data": result}
@@ -1469,7 +1469,7 @@ async def generate_batch_variance(
         engine = SmartVarianceEngine(db)
         result = await engine.generate_batch_variance(
             items=[i.model_dump() for i in request.items],
-            total_target=float(request.total_target),
+            total_target=request.total_target,
         )
         return {"success": True, "data": result}
     except HTTPException:
@@ -1514,7 +1514,7 @@ async def register_discrepancy_expense(
         from modules.fiscal.reconciliation_monitor import DiscrepancyMonitor
         monitor = DiscrepancyMonitor(db)
         result = await monitor.register_expense(
-            amount=float(request.amount),
+            amount=request.amount,
             category=request.category,
             payment_method=request.payment_method,
             description=request.description,

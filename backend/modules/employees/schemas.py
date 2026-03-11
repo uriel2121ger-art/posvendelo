@@ -1,5 +1,5 @@
 """
-TITAN POS - Employees Module Schemas
+POSVENDELO - Employees Module Schemas
 Uses Decimal for salary/commission fields.
 """
 

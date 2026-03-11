@@ -1,8 +1,8 @@
-# Arquitectura Estratégica Móvil y Redes — TITAN POS
+# Arquitectura Estratégica Móvil y Redes — POSVENDELO
 
 **Documento de Planificación Arquitectónica v2**
 **Fecha:** Marzo 2026
-**Ecosistema:** TITAN POS (Electron + React / FastAPI / PostgreSQL)
+**Ecosistema:** POSVENDELO (Electron + React / FastAPI / PostgreSQL)
 **Topología:** Híbrida (LAN local + Cloudflare Tunnel + Control Plane centralizado)
 **Escala objetivo:** 100 → 10,000 tenants activos (~25,000 sucursales)
 
@@ -10,7 +10,7 @@
 
 ## 1. Visión del Ecosistema
 
-TITAN POS se expande de terminales Electron de escritorio hacia dispositivos móviles
+POSVENDELO se expande de terminales Electron de escritorio hacia dispositivos móviles
 (PDAs industriales y smartphones). La arquitectura debe garantizar:
 
 - **Offline-first**: ventas sin internet en sucursal
@@ -195,7 +195,7 @@ mantenimiento. El cliente no lo ve ni lo gestiona.
 
 ### Capa 3: Control Plane (Horizontal desde el diseño)
 
-El Control Plane es un servicio separado: **Titan Control Plane**, diseñado
+El Control Plane es un servicio separado: **PosVendelo Control Plane**, diseñado
 como un cluster horizontal de workers stateless desde el día uno.
 
 Responsabilidades:
@@ -379,7 +379,7 @@ Portal web: portal.example.pos/registro
    $ ./instalar-titan.sh
    → docker compose pull
    → docker compose up -d
-   → "TITAN POS listo en la URL local configurada"
+   → "POSVENDELO listo en la URL local configurada"
    → "Acceso remoto: https://tenant-demo-001.example.pos"
     │
     ▼

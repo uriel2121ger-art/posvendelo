@@ -1,5 +1,5 @@
 # ============================================================================
-# TITAN POS — Makefile
+# POSVENDELO — Makefile
 # ============================================================================
 
 .PHONY: up down logs test lint security security-backend security-frontend dev-backend dev-frontend clean setup

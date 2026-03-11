@@ -1,5 +1,5 @@
 """
-TITAN POS - Dashboard Module Routes
+POSVENDELO - Dashboard Module Routes
 
 SQL directo para resico/quick/expenses.
 Wrappers asyncio.to_thread para wealth/ai/executive (legacy classes).
@@ -7,6 +7,7 @@ Wrappers asyncio.to_thread para wealth/ai/executive (legacy classes).
 
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -195,11 +196,18 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
         serie_a = money(income["serie_a"] if income else 0)
         serie_b = money(income["serie_b"] if income else 0)
         gastos = money(expenses["total"] if expenses else 0)
-        impuestos = money(serie_a - serie_a / 1.16)  # IVA extraido de precio IVA-incluido
-        utilidad_bruta = money(ingresos - gastos)
-        utilidad_neta = money(utilidad_bruta - impuestos)
-        disponible = money(max(0.0, utilidad_neta))
-        ratio = money((utilidad_neta / ingresos * 100) if ingresos > 0 else 0.0)
+        # Use Decimal for fiscal arithmetic — money() returns float, not suitable for calculation
+        _serie_a = Decimal(str(serie_a))
+        _ingresos = Decimal(str(ingresos))
+        _gastos = Decimal(str(gastos))
+        impuestos = money(_serie_a - _serie_a / Decimal("1.16"))
+        utilidad_bruta = money(_ingresos - _gastos)
+        _ub = Decimal(str(utilidad_bruta))
+        _imp = Decimal(str(impuestos))
+        utilidad_neta = money(_ub - _imp)
+        _un = Decimal(str(utilidad_neta))
+        disponible = money(max(Decimal("0"), _un))
+        ratio = money((_un / _ingresos * 100) if _ingresos > 0 else Decimal("0"))
 
         return {
             "success": True,

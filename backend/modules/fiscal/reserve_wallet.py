@@ -30,9 +30,9 @@ class GhostWallet:
             CREATE TABLE IF NOT EXISTS ghost_wallets (
                 id BIGSERIAL PRIMARY KEY,
                 hash_id TEXT UNIQUE NOT NULL,
-                balance DOUBLE PRECISION DEFAULT 0,
-                total_earned DOUBLE PRECISION DEFAULT 0,
-                total_spent DOUBLE PRECISION DEFAULT 0,
+                balance NUMERIC(12,2) DEFAULT 0,
+                total_earned NUMERIC(12,2) DEFAULT 0,
+                total_spent NUMERIC(12,2) DEFAULT 0,
                 transactions_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT NOW(),
                 last_activity TIMESTAMP
@@ -44,7 +44,7 @@ class GhostWallet:
                 id BIGSERIAL PRIMARY KEY,
                 wallet_hash TEXT,
                 type TEXT,
-                amount DOUBLE PRECISION,
+                amount NUMERIC(12,2),
                 sale_id INTEGER,
                 timestamp TIMESTAMP DEFAULT NOW()
             )
@@ -78,8 +78,9 @@ class GhostWallet:
         5% de la compra = puntos Blue.
         """
         await self._ensure_tables()
-        points_rate = 0.05  # 5%
-        points = sale_amount * points_rate
+        sale_amount = Decimal(str(sale_amount))
+        points_rate = Decimal("0.05")  # 5%
+        points = (sale_amount * points_rate).quantize(Decimal("0.01"))
 
         try:
             conn = self.db.connection
@@ -122,6 +123,7 @@ class GhostWallet:
         Uses FOR UPDATE to prevent double-spend race conditions.
         """
         await self._ensure_tables()
+        amount = Decimal(str(amount))
         try:
             conn = self.db.connection
             async with conn.transaction():
@@ -130,7 +132,7 @@ class GhostWallet:
                     hid=hash_id,
                 )
 
-                if not row or money(row['balance']) < amount:
+                if not row or Decimal(str(row['balance'] or 0)) < amount:
                     return {'success': False, 'error': 'Saldo insuficiente'}
 
                 await self.db.execute("""
@@ -144,9 +146,9 @@ class GhostWallet:
                 await self.db.execute("""
                     INSERT INTO ghost_transactions (wallet_hash, type, amount)
                     VALUES (:hid, 'redeem', :amt)
-                """, hid=hash_id, amt=-amount)
+                """, hid=hash_id, amt=(-amount).quantize(Decimal("0.01")))
 
-                new_balance = money(row['balance']) - amount
+                new_balance = Decimal(str(row['balance'] or 0)) - amount
 
             return {
                 'success': True,

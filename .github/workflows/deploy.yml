@@ -1,4 +1,4 @@
-name: TITAN POS CI/CD
+name: POSVENDELO CI/CD
 
 on:
   push:

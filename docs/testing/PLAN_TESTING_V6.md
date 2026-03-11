@@ -1,4 +1,4 @@
-# TITAN POS V2 - Plan de Testing V6 (Chaos Engineering, Edge Cases y E2E Completo)
+# POSVENDELO V2 - Plan de Testing V6 (Chaos Engineering, Edge Cases y E2E Completo)
 
 Tras la validación de resiliencia operativa en la V5 (Disaster Recovery, Concurrencia de Inventario, Auditoría Forense), la V6 combina **Chaos Engineering** con **E2E sistemático** de todas las pestañas y subapartados, y **edge cases** por módulo.
 

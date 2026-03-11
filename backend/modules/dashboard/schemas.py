@@ -1,4 +1,4 @@
-"""TITAN POS - Dashboard Module Schemas"""
+"""POSVENDELO - Dashboard Module Schemas"""
 
 from decimal import Decimal
 from pydantic import BaseModel

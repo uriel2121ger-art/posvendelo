@@ -1,6 +1,6 @@
-# TITAN Control Plane
+# PosVendelo Control Plane
 
-Servicio central para gestionar flota de sucursales TITAN POS.
+Servicio central para gestionar flota de sucursales POSVENDELO.
 
 ## Incluye
 
@@ -180,3 +180,30 @@ curl -X POST http://localhost:9090/api/v1/branches/install-report \
 - `CP_COMPANION_URL` permite anunciar la URL del companion movil/web desde el control-plane.
 - `CP_OWNER_SESSION_SECRET` permite separar la firma de sesiones del dueño del `CP_ADMIN_TOKEN`.
 - `db/migrations/` permite aplicar cambios incrementales del schema en despliegues existentes.
+
+## Cobro manual (Mercado Pago / transferencia / CoDi)
+
+Para piloto comercial sin gateway automático, el dueño puede enviar solicitud de pago y comprobante.
+
+Endpoints:
+
+- `GET /api/v1/owner/payments/instructions`
+- `POST /api/v1/owner/payments/requests`
+- `GET /api/v1/owner/payments/requests`
+- `POST /api/v1/owner/payments/requests/{request_id}/review` (admin)
+
+Variables de entorno (ver `.env.example`):
+
+- `CP_PAYMENT_MERCADOPAGO_LINK`
+- `CP_PAYMENT_BANK_ACCOUNT`
+- `CP_PAYMENT_BANK_CLABE`
+- `CP_PAYMENT_BANK_BENEFICIARY`
+- `CP_PAYMENT_CARD_REFERENCE`
+- `CP_PAYMENT_CODI_QR_URL`
+- `CP_PAYMENT_CONTACT_WHATSAPP`
+- `CP_PAYMENT_CONTACT_EMAIL`
+- `CP_PAYMENT_NOTES`
+- `CP_PAYMENT_NOTIFY_WEBHOOK` (opcional, para notificar por n8n/WhatsApp)
+
+Si ya tienes `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`, cada solicitud nueva también manda aviso por Telegram.
+

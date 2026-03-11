@@ -165,11 +165,11 @@ class ReturnsEngine:
                         "rfolio": return_folio,
                         "pid": product_id,
                         "pname": original_item['name'],
-                        "qty": float(qty),
-                        "uprice": float(unit_price),
-                        "sub": float(subtotal),
-                        "tax": float(tax),
-                        "total": float(total),
+                        "qty": qty,
+                        "uprice": unit_price,
+                        "sub": subtotal,
+                        "tax": tax,
+                        "total": total,
                         "reason": reason,
                         "proc_by": processed_by,
                         "cust_id": sale.get('customer_id'),
@@ -180,7 +180,7 @@ class ReturnsEngine:
                 await self.db.execute(
                     "UPDATE products SET stock = stock + :qty, synced = 0, "
                     "updated_at = CURRENT_TIMESTAMP WHERE id = :pid",
-                    {"qty": float(qty), "pid": product_id},
+                    {"qty": qty, "pid": product_id},
                 )
                 try:
                     await self.db.execute(
@@ -189,14 +189,14 @@ class ReturnsEngine:
                              reference_type, reference_id, timestamp, synced)
                             VALUES (:pid, 'IN', 'return', :qty, :reason,
                              'return', :ref_id, NOW(), 0)""",
-                        {"pid": product_id, "qty": float(qty), "reason": reason or "Devolucion", "ref_id": sale_id},
+                        {"pid": product_id, "qty": qty, "reason": reason or "Devolucion", "ref_id": sale_id},
                     )
                 except Exception as e:
                     logger.debug("Could not insert inventory_movement for return: %s", e)
 
                 processed_items.append({
                     'product': original_item['name'],
-                    'quantity': float(qty),
+                    'quantity': qty,
                     'refund': money(total),
                 })
 

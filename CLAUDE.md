@@ -1,4 +1,4 @@
-# TITAN POS — Contexto
+# POSVENDELO — Contexto
 
 POS retail multi-sucursal para México. Offline-first, CFDI 4.0, inventario, turnos, crédito y operación remota.
 

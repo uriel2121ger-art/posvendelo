@@ -1,5 +1,5 @@
 """
-TITAN POS - Mermas (Loss Records) Module Routes
+POSVENDELO - Mermas (Loss Records) Module Routes
 
 Pending mermas listing + approval/rejection.
 """
@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, money
 from modules.mermas.schemas import MermaApproval
 
 logger = logging.getLogger(__name__)
@@ -44,9 +44,9 @@ async def get_pending_mermas(
                 "id": m["id"],
                 "product": m["product_name"],
                 "sku": m.get("product_sku"),
-                "quantity": round(float(m["quantity"]), 2),
-                "unit_cost": round(float(m["unit_cost"] or 0), 2),
-                "total_value": round(float(m["total_value"] or 0), 2),
+                "quantity": money(m["quantity"]),
+                "unit_cost": money(m["unit_cost"] or 0),
+                "total_value": money(m["total_value"] or 0),
                 "loss_type": m["loss_type"],
                 "reason": m["reason"],
                 "category": m["category"],
