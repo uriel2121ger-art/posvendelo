@@ -115,11 +115,12 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # ── Watchtower — polls GHCR every 30 min, only updates labeled containers ──
+  # ── Watchtower — actualiza backend automáticamente (cada 15 min por defecto) ──
+  # Para actualizar ya: en el nodo ejecutar ./actualizar.sh
   watchtower:
     image: containrrr/watchtower:latest
     environment:
-      WATCHTOWER_POLL_INTERVAL: 1800
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-900}
       WATCHTOWER_CLEANUP: "true"
       WATCHTOWER_LABEL_ENABLE: "true"
       WATCHTOWER_ROLLING_RESTART: "true"

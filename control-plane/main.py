@@ -31,6 +31,7 @@ DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", str(_default_downloads)))
 CAJERO_WINDOWS_INSTALLER = "titan-pos-setup.exe"
 CAJERO_APPIMAGE = "titan-pos.AppImage"
 CAJERO_DEB = "titan-pos_amd64.deb"
+CAJERO_DEB_ARM64 = "titan-pos_arm64.deb"
 CAJERO_APK = "titan-pos.apk"
 OWNER_WINDOWS_INSTALLER = "titan-owner-setup.exe"
 OWNER_APPIMAGE = "titan-owner.AppImage"
@@ -223,7 +224,8 @@ async def landing_page() -> str:
     <div class="actions">
       <a class="btn primary" href="/download/cajero/windows">Windows (.exe)</a>
       <a class="btn" href="/download/cajero/appimage">Linux (AppImage)</a>
-      <a class="btn" href="/download/cajero/deb">Linux (.deb)</a>
+      <a class="btn" href="/download/cajero/deb">Linux PC (.deb)</a>
+      <a class="btn" href="/download/cajero/deb/arm64">Raspberry Pi (.deb)</a>
       <a class="btn" href="/download/cajero/apk">Android (APK)</a>
     </div>
     <p style="margin:20px 0 8px;font-size:15px;color:var(--accent-soft)"><strong>App Dueño (monitoreo y sucursales)</strong></p>
@@ -281,7 +283,8 @@ async def downloads_page() -> str:
   <ul>
     <li><a href="/download/cajero/windows">Windows (.exe)</a></li>
     <li><a href="/download/cajero/appimage">Linux AppImage</a></li>
-    <li><a href="/download/cajero/deb">Linux Debian/Ubuntu (.deb)</a></li>
+    <li><a href="/download/cajero/deb">Linux PC (.deb amd64)</a></li>
+    <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb arm64)</a></li>
     <li><a href="/download/cajero/apk">Android (.apk)</a></li>
   </ul>
   <h2>App Dueño</h2>
@@ -333,6 +336,16 @@ async def download_cajero_appimage() -> FileResponse:
 async def download_cajero_deb() -> FileResponse:
     path = _require_download(CAJERO_DEB)
     return FileResponse(path=str(path), filename=CAJERO_DEB, media_type="application/vnd.debian.binary-package")
+
+
+@app.api_route("/download/cajero/deb/arm64", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_cajero_deb_arm64() -> FileResponse:
+    path = _require_download(CAJERO_DEB_ARM64)
+    return FileResponse(
+        path=str(path),
+        filename=CAJERO_DEB_ARM64,
+        media_type="application/vnd.debian.binary-package",
+    )
 
 
 @app.api_route("/download/cajero/apk", methods=["GET", "HEAD"], include_in_schema=False)

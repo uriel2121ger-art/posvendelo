@@ -91,11 +91,11 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # ── Watchtower (auto-pull new images) ───────────────────
+  # ── Watchtower — actualiza backend cada 15 min; actualización inmediata: pull + up -d api ──
   watchtower:
     image: containrrr/watchtower:latest
     environment:
-      WATCHTOWER_POLL_INTERVAL: 1800
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-900}
       WATCHTOWER_CLEANUP: "true"
       WATCHTOWER_LABEL_ENABLE: "true"
       WATCHTOWER_ROLLING_RESTART: "true"

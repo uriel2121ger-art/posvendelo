@@ -11,7 +11,8 @@ Cuando publiques un **tag** `v*` (ej. `v1.0.0`), GitHub Actions genera los artef
 **En un equipo nuevo (cajero / sucursal):**
 
 - **Windows:** Descargar desde el Release el archivo `titan-pos-X.X.X-setup.exe` y ejecutarlo. No se necesita repo ni ZIP del código.
-- **Linux:** Descargar el `.AppImage` o el `.deb` del Release, dar permisos de ejecución (AppImage) o instalar el .deb.
+- **Linux (PC):** Descargar el `.AppImage` o el `.deb` (amd64) del Release; dar permisos de ejecución (AppImage) o instalar el .deb.
+- **Raspberry Pi (64-bit):** No uses el .deb de PC (amd64). Descarga el **.deb arm64** (en la landing: "Raspberry Pi (.deb)" o desde `/download/cajero/deb/arm64`). Luego: `sudo dpkg -i titan-pos_arm64.deb` y si pide dependencias: `sudo apt -f install`. Si en la landing no aparece aún, genera el paquete con `cd frontend && npm run build:linux:arm64` y publica el `titan-pos_arm64.deb`.
 
 No se usa ZIP del repo ni clonación. Solo el instalador de la app de escritorio (POS para cajeros).
 

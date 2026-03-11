@@ -40,6 +40,13 @@ Definir como publicar fixes de `backend` y `desktop`, como desplegarlos por cana
 1. Promover a `stable`.
 1. Monitorear heartbeats, health local y errores de instalacion.
 
+## Actualización fácil para clientes
+
+- **Automática:** Watchtower en cada nodo hace pull cada **15 minutos** (`WATCHTOWER_POLL_INTERVAL=900`). Al publicar una nueva imagen en GHCR, los nodos se actualizan solos en ese margen.
+- **Inmediata (Linux):** En el nodo, ejecutar `cd ~/.titanpos && ./actualizar.sh` (o `./actualizar.sh --dir /ruta/instalacion`). El script hace `docker compose pull api` y `docker compose up -d api`.
+- **Inmediata (Windows):** En el directorio de instalación, ejecutar `docker compose --env-file .env pull api` y `docker compose --env-file .env up -d api`.
+- El instalador Linux copia `actualizar.sh` al directorio de instalación y deja el comando en `INSTALL_SUMMARY.txt`.
+
 ## Publicacion de fixes
 
 ### Rollback backend

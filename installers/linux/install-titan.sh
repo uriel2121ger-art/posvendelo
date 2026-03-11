@@ -9,6 +9,7 @@ CP_URL=""
 INSTALL_TOKEN=""
 BRANCH_NAME=""
 INSTALL_DIR="$HOME/.titanpos"
+INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 APP_VERSION="1.0.0"
 POS_VERSION="2.0.0"
 LOCAL_API_PORT=""
@@ -498,8 +499,16 @@ Archivos clave:
 - .env
 - docker-compose.yml
 - titan-agent.json
+
+Actualizar backend (cuando haya nueva versión):
+  cd ${INSTALL_DIR} && ./actualizar.sh
 EOF
 chmod 600 "$INSTALL_DIR/INSTALL_SUMMARY.txt"
+
+if [[ -f "$INSTALLER_DIR/actualizar.sh" ]]; then
+  cp "$INSTALLER_DIR/actualizar.sh" "$INSTALL_DIR/actualizar.sh"
+  chmod +x "$INSTALL_DIR/actualizar.sh"
+fi
 
 MACHINE_ID="$(cat /etc/machine-id 2>/dev/null || hostname)"
 OS_PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"

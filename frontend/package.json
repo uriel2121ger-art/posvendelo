@@ -25,6 +25,7 @@
     "build:win": "npm run build && electron-builder --win --publish never",
     "build:mac": "electron-vite build && electron-builder --mac --publish never",
     "build:linux": "electron-vite build && electron-builder --linux --publish never",
+    "build:linux:arm64": "electron-vite build && electron-builder --linux deb --arm64 --publish never",
     "dist:checksums": "node ./scripts/generate-dist-checksums.mjs",
     "dist:verify": "node ./scripts/verify-dist-artifacts.mjs",
     "test": "vitest run",

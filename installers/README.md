@@ -20,6 +20,14 @@ Desinstalacion:
 bash installers/linux/uninstall-titan.sh
 ```
 
+Actualizar el backend (cuando publiques una nueva imagen en GHCR):
+
+```bash
+cd ~/.titanpos && ./actualizar.sh
+```
+
+Si instalaste en otro directorio: `./actualizar.sh --dir /ruta/de/instalacion`. El script hace pull de la imagen y reinicia el contenedor. Watchtower también actualiza automáticamente cada 15 minutos.
+
 ## Windows
 
 Instalador Windows del nodo TITAN:
@@ -52,6 +60,8 @@ Desinstalacion:
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps1
 ```
 
+Actualizar el backend: en el directorio de instalación (p. ej. `C:\ProgramData\TitanPOS`), ejecutar `docker compose pull api` y `docker compose up -d api`, o usar la misma secuencia desde PowerShell con `--env-file .env`.
+
 ## Notas
 
 - Los instaladores consumen `bootstrap-config` y `compose-template` del `control-plane`.
@@ -82,7 +92,8 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps
 - `.env`: secretos locales, puertos y `BACKEND_IMAGE`
 - `docker-compose.yml`: compose cliente servido por el `control-plane`
 - `titan-agent.json`: contrato compartido entre instalador, agente local y app desktop
-- `INSTALL_SUMMARY.txt`: resumen de soporte con branch, health local, manifest y companion
+- `INSTALL_SUMMARY.txt`: resumen de soporte con branch, health local, manifest y comando de actualización
+- `actualizar.sh` (Linux): script para actualizar el backend con un solo comando (`./actualizar.sh`)
 
 ## Checklist instalación limpia pre-lanzamiento
 
