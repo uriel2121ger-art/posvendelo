@@ -51,8 +51,9 @@ gateway_data/
 # Archives (keep separate)
 _archive/
 
-# Zip files
+# Zip files (except installers in control-plane)
 *.zip
+!control-plane/downloads/*.zip
 
 # Large/generated files
 *.csv
@@ -77,10 +78,17 @@ SERVIDOR/
 titan-server/
 titan-client/
 
+# Control-plane: instaladores grandes (GitHub limita 100 MB; usar LFS o servir desde Releases)
+control-plane/downloads/*.exe
+control-plane/downloads/*.AppImage
+control-plane/downloads/*.deb
+control-plane/downloads/*.apk
+
 # Frontend generated
 frontend/lint_output.txt
 frontend/audit-report*.json
 frontend/src/renderer/dist-browser/
+frontend/dist-browser/
 
 # Frontend out (Electron build)
 frontend/out/

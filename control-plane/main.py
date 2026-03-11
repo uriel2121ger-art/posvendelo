@@ -219,16 +219,22 @@ async def landing_page() -> str:
       Plataforma POS para México con sincronización de sucursales, operación offline-first y control centralizado.
       Esta instancia está activa y preparada para onboarding de clientes.
     </p>
+    <p style="margin-bottom:8px;font-size:15px;color:var(--accent-soft)"><strong>App Cajeros (punto de venta)</strong></p>
     <div class="actions">
-      <a class="btn primary" href="/download/cajero/windows">Cajero Windows</a>
-      <a class="btn" href="/download/cajero/appimage">Cajero AppImage</a>
-      <a class="btn" href="/download/cajero/deb">Cajero .deb</a>
-      <a class="btn" href="/download/cajero/apk">Cajero Android (APK)</a>
-      <a class="btn" href="/download/owner/windows">Dueño Windows</a>
-      <a class="btn" href="/download/owner/appimage">Dueño AppImage</a>
-      <a class="btn" href="/download/owner/deb">Dueño .deb</a>
-      <a class="btn" href="/download/owner/web">Dueño Web (zip)</a>
-      <a class="btn" href="/download/owner/apk">Dueño Android (APK)</a>
+      <a class="btn primary" href="/download/cajero/windows">Windows (.exe)</a>
+      <a class="btn" href="/download/cajero/appimage">Linux (AppImage)</a>
+      <a class="btn" href="/download/cajero/deb">Linux (.deb)</a>
+      <a class="btn" href="/download/cajero/apk">Android (APK)</a>
+    </div>
+    <p style="margin:20px 0 8px;font-size:15px;color:var(--accent-soft)"><strong>App Dueño (monitoreo y sucursales)</strong></p>
+    <div class="actions">
+      <a class="btn" href="/download/owner/windows">Windows (.exe)</a>
+      <a class="btn" href="/download/owner/appimage">Linux (AppImage)</a>
+      <a class="btn" href="/download/owner/deb">Linux (.deb)</a>
+      <a class="btn" href="/download/owner/apk">Android (APK)</a>
+      <a class="btn" href="/download/owner/web">Web/PWA (.zip)</a>
+    </div>
+    <div class="actions" style="margin-top:18px">
       <a class="btn" href="/downloads">Ver todos los instaladores</a>
       <a class="btn" href="/health">Estado del servicio</a>
       <a class="btn" href="mailto:ventas@posvendelo.com">Contactar ventas</a>

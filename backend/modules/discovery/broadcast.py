@@ -63,6 +63,10 @@ async def start_discovery_broadcast():
     """
     logger.info("Iniciando broadcast LAN discovery en puerto %d", DISCOVERY_PORT)
 
+    # Build payload once — IPs don't change at runtime; avoids blocking DNS
+    # resolution (socket.getaddrinfo) on every broadcast tick.
+    payload = _build_discovery_payload()
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.setblocking(False)
@@ -70,7 +74,6 @@ async def start_discovery_broadcast():
     try:
         while True:
             try:
-                payload = _build_discovery_payload()
                 sock.sendto(payload, ("255.255.255.255", DISCOVERY_PORT))
             except Exception as exc:
                 logger.debug("Discovery broadcast error: %s", exc)
