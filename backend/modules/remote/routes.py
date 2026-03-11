@@ -291,6 +291,7 @@ async def get_pending_notifications(
                FROM remote_notifications
                WHERE sent = 0
                ORDER BY created_at DESC
+               LIMIT 100
                FOR UPDATE"""
         )
 

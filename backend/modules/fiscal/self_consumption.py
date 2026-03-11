@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +90,12 @@ class SelfConsumptionEngine:
         """, year=year, month=month)
 
         by_category = {}
-        total_value = 0.0
+        total_value = Decimal('0')
         for r in result:
             by_category[r['category']] = {'registros': r['registros'], 'unidades': r['unidades'], 'valor': money(r['valor'])}
-            total_value += money(r['valor'])
+            total_value += dec(r['valor'])
 
-        return {'year': year, 'month': month, 'by_category': by_category, 'total_value': total_value, 'total_registros': sum(c['registros'] for c in by_category.values())}
+        return {'year': year, 'month': month, 'by_category': by_category, 'total_value': money(total_value), 'total_registros': sum(c['registros'] for c in by_category.values())}
 
     async def generate_monthly_voucher(self, year: int = None, month: int = None) -> Dict[str, Any]:
         year = year or datetime.now().year

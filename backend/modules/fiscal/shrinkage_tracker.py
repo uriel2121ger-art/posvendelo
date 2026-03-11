@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import money, sanitize_row, sanitize_rows
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +100,8 @@ Autorizado: {r.get('authorized_by') or 'Pendiente'}
 Estado: {r['status'].upper()}"""
 
     async def get_pending_losses(self) -> List[Dict]:
-        result = await self.db.fetch("SELECT * FROM loss_records WHERE status = 'pending' ORDER BY created_at DESC")
-        return [dict(r) for r in result]
+        result = await self.db.fetch("SELECT * FROM loss_records WHERE status = 'pending' ORDER BY created_at DESC LIMIT 500")
+        return sanitize_rows(result)
 
     async def get_loss_summary(self, year: int = None) -> Dict[str, Any]:
         year = year or datetime.now().year
@@ -110,6 +110,6 @@ Estado: {r['status'].upper()}"""
             FROM loss_records WHERE EXTRACT(YEAR FROM created_at::timestamp) = :year GROUP BY category
         """, year=year)
 
-        by_category = {r['category']: dict(r) for r in result}
+        by_category = {r['category']: sanitize_row(r) for r in result}
         total_valor = money(sum(Decimal(str(r['valor'] or 0)) for r in result))
         return {'year': year, 'by_category': by_category, 'total_value': total_valor, 'total_records': sum(r['registros'] for r in result)}

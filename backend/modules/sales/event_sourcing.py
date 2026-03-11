@@ -160,6 +160,7 @@ class SaleEventStore:
                 FROM sale_events
                 WHERE sale_id = :sale_id AND sequence > :after_seq
                 ORDER BY sequence ASC
+                LIMIT 1000
                 """,
                 {"sale_id": sale_id, "after_seq": after_sequence},
             )

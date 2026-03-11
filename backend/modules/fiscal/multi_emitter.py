@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from decimal import Decimal
 import logging
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT
+from ..shared.constants import RESICO_ANNUAL_LIMIT, sanitize_row, sanitize_rows
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class MultiEmitterManager:
             FROM rfc_emitters WHERE is_active = true AND current_resico_amount < :limit
             ORDER BY current_resico_amount ASC LIMIT 1
         """, limit=self.RESICO_ANNUAL_LIMIT)
-        return dict(row) if row else None
+        return sanitize_row(row) if row else None
 
     async def get_accumulated_amount(self, rfc: str) -> Decimal:
         row = await self.db.fetchrow("SELECT current_resico_amount FROM rfc_emitters WHERE rfc = :rfc", rfc=rfc)
@@ -48,11 +48,11 @@ class MultiEmitterManager:
             FROM rfc_emitters WHERE is_active = true AND (current_resico_amount + :amt) <= :limit
             ORDER BY current_resico_amount ASC LIMIT 1
         """, amt=amount, limit=self.RESICO_ANNUAL_LIMIT)
-        return dict(row) if row else None
+        return sanitize_row(row) if row else None
 
     async def list_emitters(self) -> List[Dict[str, Any]]:
         rows = await self.db.fetch("SELECT id, rfc, legal_name, is_active, current_resico_amount FROM rfc_emitters ORDER BY rfc")
-        return [dict(r) for r in rows]
+        return sanitize_rows(rows)
 
     async def update_accumulated_amount(self, rfc: str, additional_amount: Decimal) -> bool:
         await self.db.execute("""

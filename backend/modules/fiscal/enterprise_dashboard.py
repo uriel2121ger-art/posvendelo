@@ -10,7 +10,7 @@ import logging
 import os
 import secrets
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT, money
+from ..shared.constants import RESICO_ANNUAL_LIMIT, money, sanitize_rows
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ class FederationDashboard:
     async def get_inventory_alerts(self) -> List[Dict]:
         try:
             rows = await self.db.fetch("SELECT sku, name, stock, min_stock FROM products WHERE stock <= min_stock AND is_active = 1 ORDER BY (stock - min_stock) ASC LIMIT 50")
-            return [dict(r) for r in rows]
+            return sanitize_rows(rows)
         except Exception as e:
             logger.warning("Failed to fetch inventory alerts: %s", e)
             return []

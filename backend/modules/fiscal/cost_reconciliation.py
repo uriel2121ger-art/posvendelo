@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import money, dec
 
 logger = logging.getLogger(__name__)
 
@@ -100,27 +100,27 @@ class SmartMerge:
         if not p:
             return {'found': False}
 
-        cost_a, cost_b, cost_real, price = money(p['cost_a']), money(p['cost_b']), money(p['cost']), money(p['price'])
+        cost_a, cost_b, cost_real, price = dec(p['cost_a']), dec(p['cost_b']), dec(p['cost']), dec(p['price'])
 
         return {
             'found': True, 'name': p['name'], 'sku': p['sku'], 'stock': money(p['stock']),
-            'cost_a': cost_a, 'cost_b': cost_b, 'cost_blended': cost_real,
+            'cost_a': money(cost_a), 'cost_b': money(cost_b), 'cost_blended': money(cost_real),
             'qty_from_a': money(p['qty_from_a']), 'qty_from_b': money(p['qty_from_b']),
             'margin_fiscal': ((price - cost_a) / price * 100) if price > 0 else 0,
             'margin_real': ((price - cost_real) / price * 100) if price > 0 else 0,
-            'savings': cost_a - cost_b if cost_a > cost_b else 0
+            'savings': money(cost_a - cost_b) if cost_a > cost_b else 0
         }
 
-    async def get_fiscal_cost(self, product_id: int) -> float:
+    async def get_fiscal_cost(self, product_id: int) -> Decimal:
         p = await self.db.fetchrow("SELECT cost_a, cost FROM products WHERE id = :pid", pid=product_id)
         if not p:
-            return 0
-        cost_a = money(p['cost_a'])
-        return cost_a if cost_a > 0 else money(p['cost'])
+            return Decimal('0')
+        cost_a = dec(p['cost_a'])
+        return cost_a if cost_a > 0 else dec(p['cost'])
 
-    async def get_real_cost(self, product_id: int) -> float:
+    async def get_real_cost(self, product_id: int) -> Decimal:
         p = await self.db.fetchrow("SELECT cost FROM products WHERE id = :pid", pid=product_id)
-        return money(p['cost']) if p else 0
+        return dec(p['cost']) if p else Decimal('0')
 
     async def calculate_fiscal_vs_real_profit(self, sale_id: int) -> Dict[str, Any]:
         items = await self.db.fetch("""
@@ -128,11 +128,11 @@ class SmartMerge:
             FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = :sid
         """, sid=sale_id)
 
-        total_revenue, total_cost_fiscal, total_cost_real = 0.0, 0.0, 0.0
+        total_revenue, total_cost_fiscal, total_cost_real = Decimal('0'), Decimal('0'), Decimal('0')
         for item in items:
-            qty, price = money(item['qty']), money(item['price'])
-            cost_real = money(item['cost'])
-            cost_a = money(item['cost_a'] if item['cost_a'] else cost_real)
+            qty, price = dec(item['qty']), dec(item['price'])
+            cost_real = dec(item['cost'])
+            cost_a = dec(item['cost_a'] if item['cost_a'] else item['cost'])
             total_revenue += qty * price
             total_cost_fiscal += qty * cost_a
             total_cost_real += qty * cost_real
@@ -146,13 +146,13 @@ class SmartMerge:
         }
 
     async def get_global_cost_report(self) -> Dict[str, Any]:
-        products = await self.db.fetch("SELECT id, name, stock, cost, cost_a, cost_b, qty_from_a, qty_from_b, price FROM products WHERE (qty_from_a > 0 OR qty_from_b > 0)")
+        products = await self.db.fetch("SELECT id, name, stock, cost, cost_a, cost_b, qty_from_a, qty_from_b, price FROM products WHERE (qty_from_a > 0 OR qty_from_b > 0) LIMIT 5000")
 
-        total_fiscal, total_real = 0.0, 0.0
+        total_fiscal, total_real = Decimal('0'), Decimal('0')
         for p in products:
-            stock = money(p['stock'])
-            total_fiscal += stock * money(p['cost_a'])
-            total_real += stock * money(p['cost'])
+            stock = dec(p['stock'])
+            total_fiscal += stock * dec(p['cost_a'])
+            total_real += stock * dec(p['cost'])
 
         return {
             'products_with_dual_cost': len(products),

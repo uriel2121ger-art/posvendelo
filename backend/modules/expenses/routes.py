@@ -42,24 +42,21 @@ async def get_expense_summary(
         year_start = datetime(target_year, 1, 1)
         year_end = datetime(target_year + 1, 1, 1)
 
-        month_row = await db.fetchrow(
-            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-               WHERE type = 'expense'
-               AND "timestamp" >= :month_start AND "timestamp" < :month_end""",
-            {"month_start": month_start, "month_end": month_end},
-        )
-        year_row = await db.fetchrow(
-            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
+        totals_row = await db.fetchrow(
+            """SELECT
+                COALESCE(SUM(CASE WHEN "timestamp" >= :month_start AND "timestamp" < :month_end THEN amount ELSE 0 END), 0) as month_total,
+                COALESCE(SUM(CASE WHEN "timestamp" >= :year_start AND "timestamp" < :year_end THEN amount ELSE 0 END), 0) as year_total
+               FROM cash_movements
                WHERE type = 'expense'
                AND "timestamp" >= :year_start AND "timestamp" < :year_end""",
-            {"year_start": year_start, "year_end": year_end},
+            {"month_start": month_start, "month_end": month_end, "year_start": year_start, "year_end": year_end},
         )
 
         return {
             "success": True,
             "data": {
-                "month": money(month_row["total"]) if month_row else 0,
-                "year": money(year_row["total"]) if year_row else 0,
+                "month": money(totals_row["month_total"]) if totals_row else 0,
+                "year": money(totals_row["year_total"]) if totals_row else 0,
             },
         }
     except Exception as e:

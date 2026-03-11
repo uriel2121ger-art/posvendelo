@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import money, dec
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +41,14 @@ class ShadowInventory:
         if not p:
             return {'found': False}
 
-        real = money(p['stock'])
-        shadow = money(p['shadow_stock'])
-        fiscal = money(Decimal(str(p['stock'] or 0)) - Decimal(str(p['shadow_stock'] or 0)))
+        real = dec(p['stock'])
+        shadow = dec(p['shadow_stock'])
+        fiscal = real - shadow
 
         return {
             'found': True, 'product_id': product_id, 'name': p['name'],
-            'real_stock': real, 'shadow_stock': shadow,
-            'fiscal_stock': max(0, fiscal), 'discrepancy': shadow
+            'real_stock': money(real), 'shadow_stock': money(shadow),
+            'fiscal_stock': money(max(Decimal('0'), fiscal)), 'discrepancy': money(shadow)
         }
 
     async def add_shadow_stock(self, product_id: int, quantity: float, source: str = None, notes: str = None) -> Dict[str, Any]:
@@ -90,8 +90,8 @@ class ShadowInventory:
             if not p:
                 return {'success': False, 'error': 'Producto no encontrado'}
 
-            real_stock = money(p['stock'])
-            shadow_stock = money(p['shadow_stock'])
+            real_stock = dec(p['stock'])
+            shadow_stock = dec(p['shadow_stock'])
 
             if real_stock < quantity:
                 return {'success': False, 'error': 'Stock insuficiente'}
@@ -125,20 +125,20 @@ class ShadowInventory:
         await self.ensure_schema()
         products = await self.db.fetch("""
             SELECT id, sku, name, (stock - COALESCE(shadow_stock, 0)) as stock_auditable, price
-            FROM products WHERE is_active = 1 ORDER BY name
+            FROM products WHERE is_active = 1 ORDER BY name LIMIT 5000
         """)
-        return [{'sku': p['sku'], 'name': p['name'], 'stock': max(0, money(p['stock_auditable'])), 'price': money(p['price'])} for p in products]
+        return [{'sku': p['sku'], 'name': p['name'], 'stock': money(max(Decimal('0'), dec(p['stock_auditable']))), 'price': money(p['price'])} for p in products]
 
     async def get_real_view(self) -> List[Dict]:
         await self.ensure_schema()
         products = await self.db.fetch("""
             SELECT id, sku, name, stock as stock_real, COALESCE(shadow_stock, 0) as shadow, price
-            FROM products WHERE is_active = 1 ORDER BY name
+            FROM products WHERE is_active = 1 ORDER BY name LIMIT 5000
         """)
         return [{
             'sku': p['sku'], 'name': p['name'],
             'stock_real': money(p['stock_real']), 'stock_shadow': money(p['shadow']),
-            'stock_fiscal': max(0.0, money(Decimal(str(p['stock_real'] or 0)) - Decimal(str(p['shadow'] or 0)))),
+            'stock_fiscal': money(max(Decimal('0'), dec(p['stock_real']) - dec(p['shadow']))),
             'price': money(p['price'])
         } for p in products]
 
@@ -152,10 +152,10 @@ class ShadowInventory:
             if not row:
                 return {'success': False, 'error': 'Producto no encontrado'}
 
-            real_stock = money(row['stock'])
-            new_shadow = max(0, real_stock - fiscal_stock)
+            real_stock = dec(row['stock'])
+            new_shadow = max(Decimal('0'), real_stock - Decimal(str(fiscal_stock)))
             await self.db.execute("UPDATE products SET shadow_stock = :sh, synced = 0 WHERE id = :pid", sh=new_shadow, pid=product_id)
-        return {'success': True, 'real_stock': real_stock, 'new_fiscal': fiscal_stock, 'new_shadow': new_shadow}
+        return {'success': True, 'real_stock': money(real_stock), 'new_fiscal': fiscal_stock, 'new_shadow': money(new_shadow)}
 
     async def get_discrepancy_report(self) -> Dict[str, Any]:
         products = await self.db.fetch("""

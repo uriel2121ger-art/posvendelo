@@ -11,7 +11,7 @@ import logging
 import hashlib
 import secrets
 
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -180,16 +180,16 @@ class GhostWallet:
                     'total_spent': 0.0, 'total_transactions': 0, 'retention_rate': 0
                 }
 
-            total_earned = money(row.get('total_earned', 0))
-            total_spent = money(row.get('total_spent', 0))
+            total_earned = dec(row.get('total_earned', 0))
+            total_spent = dec(row.get('total_spent', 0))
 
             return {
                 'total_wallets': int(row.get('total_wallets', 0) or 0),
                 'total_balance': money(row.get('total_balance', 0)),
-                'total_earned': total_earned,
-                'total_spent': total_spent,
+                'total_earned': money(total_earned),
+                'total_spent': money(total_spent),
                 'total_transactions': int(row.get('total_transactions', 0) or 0),
-                'retention_rate': round((total_spent / total_earned * 100), 2) if total_earned > 0 else 0
+                'retention_rate': round(float(total_spent / total_earned * 100), 2) if total_earned > 0 else 0
             }
         except Exception as e:
             logger.error(f"Error ghost wallet stats: {e}")

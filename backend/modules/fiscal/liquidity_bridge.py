@@ -9,7 +9,7 @@ from decimal import Decimal
 import logging
 import hashlib
 
-from modules.shared.constants import money
+from modules.shared.constants import money, dec
 
 logger = logging.getLogger(__name__)
 
@@ -98,12 +98,12 @@ class CryptoBridge:
     async def _get_remaining_daily_limit(self) -> float:
         today = datetime.now().strftime('%Y-%m-%d')
         row = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at::date = :today", today=datetime.strptime(today, '%Y-%m-%d').date())
-        return max(0, self.MAX_DAILY_CONVERSION - money(Decimal(row['total'] or 0)) if row else self.MAX_DAILY_CONVERSION)
+        return max(Decimal('0'), Decimal(str(self.MAX_DAILY_CONVERSION)) - dec(row['total'] or 0) if row else Decimal(str(self.MAX_DAILY_CONVERSION)))
     
     async def _get_remaining_weekly_limit(self) -> float:
         week_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
         row = await self.db.fetchrow("SELECT COALESCE(SUM(amount_mxn), 0) as total FROM crypto_conversions WHERE created_at::date >= :week_start", week_start=datetime.strptime(week_start, '%Y-%m-%d').date())
-        return max(0, self.MAX_WEEKLY_CONVERSION - money(Decimal(row['total'] or 0)) if row else self.MAX_WEEKLY_CONVERSION)
+        return max(Decimal('0'), Decimal(str(self.MAX_WEEKLY_CONVERSION)) - dec(row['total'] or 0) if row else Decimal(str(self.MAX_WEEKLY_CONVERSION)))
     
     async def create_conversion(self, amount_mxn: float, stablecoin: str = 'USDT', wallet_address: str = None, cover_description: str = None) -> Dict[str, Any]:
         amount_mxn = Decimal(str(amount_mxn))

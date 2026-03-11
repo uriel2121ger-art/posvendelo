@@ -7,6 +7,7 @@ Modified to use aiosqlite for async operations.
 Dependencies: aiosqlite (pip install aiosqlite) - required for catalog storage
 """
 from typing import List, Optional, Tuple
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -48,7 +49,7 @@ class SATCatalogManager:
     
     async def _ensure_db(self):
         if not HAS_AIOSQLITE: return
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        await asyncio.to_thread(os.makedirs, os.path.dirname(self.db_path), exist_ok=True)
         
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute("""
@@ -126,25 +127,32 @@ class SATCatalogManager:
         import csv
         if not HAS_AIOSQLITE: return 0
         await self._ensure_db()
-        
+
+        def _read_csv(path: str):
+            rows = []
+            with open(path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                next(reader, None)
+                for row in reader:
+                    if len(row) >= 2:
+                        clave = row[0].strip()
+                        descripcion = row[1].strip()
+                        if clave and descripcion:
+                            rows.append((clave, descripcion))
+            return rows
+
         count = 0
         try:
+            csv_rows = await asyncio.to_thread(_read_csv, csv_path)
             async with aiosqlite.connect(self.db_path) as conn:
-                with open(csv_path, 'r', encoding='utf-8') as f:
-                    reader = csv.reader(f)
-                    next(reader, None)
-                    for row in reader:
-                        if len(row) >= 2:
-                            clave = row[0].strip()
-                            descripcion = row[1].strip()
-                            if clave and descripcion:
-                                await conn.execute("""
-                                    INSERT INTO c_ClaveProdServ (clave, descripcion)
-                                    VALUES (?, ?)
-                                    ON CONFLICT (clave) DO UPDATE SET
-                                        descripcion = EXCLUDED.descripcion
-                                """, (clave, descripcion))
-                                count += 1
+                for clave, descripcion in csv_rows:
+                    await conn.execute("""
+                        INSERT INTO c_ClaveProdServ (clave, descripcion)
+                        VALUES (?, ?)
+                        ON CONFLICT (clave) DO UPDATE SET
+                            descripcion = EXCLUDED.descripcion
+                    """, (clave, descripcion))
+                    count += 1
                 await conn.commit()
                 logger.info(f"Imported {count} SAT codes")
         except Exception as e:

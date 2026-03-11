@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT, money
+from ..shared.constants import RESICO_ANNUAL_LIMIT, money, dec, sanitize_row, sanitize_rows
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +106,10 @@ class FiscalDashboard:
             GROUP BY s.id ORDER BY s.timestamp ASC LIMIT 100
         """)
         if max_amount:
-            selected, acc = [], 0.0
+            selected, acc = [], Decimal('0')
             for s in rows:
-                if acc + money(s['total']) <= max_amount:
-                    selected.append(dict(s))
-                    acc += money(s['total'])
+                if acc + dec(s['total']) <= max_amount:
+                    selected.append(sanitize_row(s))
+                    acc += dec(s['total'])
             return selected
-        return [dict(r) for r in rows]
+        return sanitize_rows(rows)

@@ -133,7 +133,8 @@ async def list_categories(auth: dict = Depends(verify_token), db=Depends(get_db)
     rows = await db.fetch(
         """SELECT DISTINCT category FROM products
            WHERE category IS NOT NULL AND category != '' AND is_active = 1
-           ORDER BY category"""
+           ORDER BY category
+           LIMIT 500"""
     )
     return {
         "success": True,

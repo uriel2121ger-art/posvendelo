@@ -760,13 +760,14 @@ async def perform_sale_cancellation(
 
             # Lock all products (including kit components) before restoring stock
             revert_pids = [item["product_id"] for item in items if item["product_id"]]
+            kit_comp_rows_cancel = []
             comp_pids = []
             if revert_pids:
-                comp_rows = await conn.fetch(
-                    "SELECT component_product_id FROM kit_components WHERE kit_product_id = ANY($1)",
+                kit_comp_rows_cancel = await conn.fetch(
+                    "SELECT kit_product_id, component_product_id, quantity FROM kit_components WHERE kit_product_id = ANY($1)",
                     list(set(revert_pids)),
                 )
-                comp_pids = [r["component_product_id"] for r in comp_rows]
+                comp_pids = [r["component_product_id"] for r in kit_comp_rows_cancel]
             all_lock_pids = list(set(revert_pids + comp_pids))
 
             locked_map: Dict = {}
@@ -782,14 +783,6 @@ async def perform_sale_cancellation(
                         detail="Productos bloqueados por otra operación en proceso. Intenta de nuevo.",
                     )
                 locked_map = {r["id"]: dict(r) for r in locked_rows}
-
-            # Pre-fetch kit components for stock restoration
-            kit_comp_rows_cancel = []
-            if revert_pids:
-                kit_comp_rows_cancel = await conn.fetch(
-                    "SELECT kit_product_id, component_product_id, quantity FROM kit_components WHERE kit_product_id = ANY($1)",
-                    list(set(revert_pids)),
-                )
 
             # Build aggregated stock restorations using sale_items data
             branch_id = sale.get("branch_id", 1)

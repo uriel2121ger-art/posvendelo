@@ -20,32 +20,32 @@ from decimal import Decimal, ROUND_HALF_UP
 # Queries internas
 # ---------------------------------------------------------------------------
 
-_CASH_SALES_QUERY = """
-    SELECT COALESCE(SUM(
-        CASE WHEN payment_method = 'cash' THEN total
-             WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
-             ELSE 0
-        END
-    ), 0)
+_SALES_QUERY = """
+    SELECT
+        COALESCE(SUM(
+            CASE WHEN payment_method = 'cash' THEN total
+                 WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
+                 ELSE 0
+            END
+        ), 0) AS cash_sales,
+        COALESCE(SUM(total), 0) AS total_sales
     FROM sales
     WHERE turn_id = $1 AND status = 'completed'
 """
-
-_MOV_IN_QUERY = (
-    "SELECT COALESCE(SUM(amount), 0) FROM cash_movements "
-    "WHERE turn_id = $1 AND type = 'in'"
-)
-
-_MOV_OUT_QUERY = (
-    "SELECT COALESCE(SUM(amount), 0) FROM cash_movements "
-    "WHERE turn_id = $1 AND type IN ('out', 'expense')"
-)
 
 _SALES_BY_METHOD_QUERY = (
     "SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total "
     "FROM sales WHERE turn_id = $1 AND status = 'completed' "
     "GROUP BY payment_method"
 )
+
+_MOVEMENTS_QUERY = """
+    SELECT
+        COALESCE(SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END), 0) AS mov_in,
+        COALESCE(SUM(CASE WHEN type IN ('out', 'expense') THEN amount ELSE 0 END), 0) AS mov_out
+    FROM cash_movements
+    WHERE turn_id = $1
+"""
 
 
 def _q(v) -> Decimal:
@@ -76,26 +76,23 @@ async def calculate_turn_summary(turn_id: int, initial_cash, conn) -> dict:
             - total_sales     Decimal  Suma total de ventas (todos los métodos)
             - sales_by_method list     Lista de dicts {payment_method, count, total}
     """
-    # Queries paralelas donde el ORM permitiría gather — aquí asyncpg es secuencial
-    # pero se mantiene la misma semántica que las implementaciones actuales.
-    cash_sales_raw = await conn.fetchval(_CASH_SALES_QUERY, turn_id)
-    movements_in_raw = await conn.fetchval(_MOV_IN_QUERY, turn_id)
-    movements_out_raw = await conn.fetchval(_MOV_OUT_QUERY, turn_id)
+    # 2 queries instead of 4: one for sales aggregates, one for cash movement aggregates
+    sales_row = await conn.fetchrow(_SALES_QUERY, turn_id)
+    movements_row = await conn.fetchrow(_MOVEMENTS_QUERY, turn_id)
     sales_by_method_rows = await conn.fetch(_SALES_BY_METHOD_QUERY, turn_id)
 
     # Convertir a Decimal con precisión monetaria
     initial = _q(initial_cash or 0)
-    cash_sales = _q(cash_sales_raw)
-    mov_in = _q(movements_in_raw)
-    mov_out = _q(movements_out_raw)
+    cash_sales = _q(sales_row["cash_sales"])
+    total_sales_raw = _q(sales_row["total_sales"])
+    mov_in = _q(movements_row["mov_in"])
+    mov_out = _q(movements_row["mov_out"])
     expected_cash = (initial + cash_sales + mov_in - mov_out).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
 
-    # Calcular totales globales de ventas
-    total_sales = sum(
-        (_q(row["total"]) for row in sales_by_method_rows), Decimal("0")
-    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # Calcular totales globales de ventas desde sales_by_method (para sales_count)
+    total_sales = total_sales_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     sales_count = sum(int(row["count"]) for row in sales_by_method_rows)
 
     return {

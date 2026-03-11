@@ -17,7 +17,7 @@ from starlette.requests import Request
 
 from db.connection import get_db
 from modules.shared.auth import verify_token, get_user_id
-from modules.shared.constants import PRIVILEGED_ROLES, OWNER_ROLES
+from modules.shared.constants import PRIVILEGED_ROLES, OWNER_ROLES, sanitize_rows
 from modules.shared.rate_limit import check_pin_rate_limit
 from modules.fiscal.schemas import (
     CFDIRequest, GlobalCFDIRequest, ReturnItem, ProcessReturnRequest,
@@ -119,7 +119,7 @@ async def get_sales_pending_invoice(
             """,
             {"branch_id": branch_id, "limit": min(limit, 200)},
         )
-        return {"success": True, "data": [dict(r) for r in (rows or [])]}
+        return {"success": True, "data": sanitize_rows(rows or [])}
     except Exception as e:
         err_msg = str(e).lower()
         if "requiere_factura" in err_msg or "column" in err_msg and "does not exist" in err_msg:
@@ -296,9 +296,9 @@ async def parse_cfdi_xml(
         logger.error(f"Error parsing XML: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno al parsear XML")
     finally:
-        if os.path.exists(temp_path):
+        if await asyncio.to_thread(os.path.exists, temp_path):
             try:
-                os.remove(temp_path)
+                await asyncio.to_thread(os.remove, temp_path)
             except OSError:
                 pass
 

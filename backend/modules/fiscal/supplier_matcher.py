@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import money, dec, sanitize_row
 
 logger = logging.getLogger(__name__)
 
@@ -96,25 +96,25 @@ class SupplierMatcher:
                     FROM cash_expenses
                     WHERE expense_date >= CURRENT_DATE - INTERVAL '30 days'
                 """)
-                gastos_b = money(row_exp['total']) if row_exp else 0
+                gastos_b = dec(row_exp['total']) if row_exp else Decimal('0')
             except Exception:
-                gastos_b = 0
+                gastos_b = Decimal('0')
 
-            cash_b = (money(row_b['total']) if row_b else 0) - gastos_b
+            cash_b = (dec(row_b['total']) if row_b else Decimal('0')) - gastos_b
 
             row_a = await self.db.fetchrow("""
                 SELECT COALESCE(SUM(total), 0) as total
                 FROM sales WHERE serie = 'A' AND timestamp::date >= CURRENT_DATE - INTERVAL '30 days'
             """)
-            cash_a = money(row_a['total']) if row_a else 0
-            
+            cash_a = dec(row_a['total']) if row_a else Decimal('0')
+
             total = cash_a + cash_b
             ratio_b = (cash_b / total * 100) if total > 0 else 0
-            
+
             return {
-                'serie_a_available': cash_a,
-                'serie_b_available': cash_b,
-                'total': total,
+                'serie_a_available': money(cash_a),
+                'serie_b_available': money(cash_b),
+                'total': money(total),
                 'ratio_b_percentage': round(ratio_b, 1),
                 'excess_cash_b': cash_b > 50000,
                 'status': 'excess_b' if ratio_b > 60 else 'balanced' if ratio_b > 40 else 'excess_a'
@@ -136,15 +136,15 @@ class SupplierMatcher:
     
     async def _get_product(self, product_id: int) -> Dict:
         row = await self.db.fetchrow("SELECT * FROM products WHERE id = :pid", pid=product_id)
-        return dict(row) if row else {}
+        return sanitize_row(row) if row else {}
     
     def _calculate_margin_impact(self, product: Dict, quantity: int, price_a: float, price_b: float) -> Dict[str, Any]:
-        sale_price = money(product.get('price', 0))
+        sale_price = dec(product.get('price', 0))
         if sale_price == 0: return {'current_margin': 0, 'margin_if_a': 0, 'margin_if_b': 0}
 
-        current_cost = money(product.get('cost', 0))
+        current_cost = dec(product.get('cost', 0))
         return {
             'current_margin': ((sale_price - current_cost) / sale_price) * 100,
-            'margin_if_a': ((sale_price - price_a) / sale_price) * 100,
-            'margin_if_b': ((sale_price - price_b) / sale_price) * 100
+            'margin_if_a': ((sale_price - dec(price_a)) / sale_price) * 100,
+            'margin_if_b': ((sale_price - dec(price_b)) / sale_price) * 100
         }

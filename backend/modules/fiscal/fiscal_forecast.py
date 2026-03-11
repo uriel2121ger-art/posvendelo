@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import logging
 
-from ..shared.constants import RESICO_ANNUAL_LIMIT, money
+from ..shared.constants import RESICO_ANNUAL_LIMIT, dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -172,16 +172,18 @@ class NostradamusFiscal:
                 rfc_data.append({
                     'rfc': emp['rfc'],
                     'invoiced': money(amount),
+                    'remaining_decimal': remaining,  # keep as Decimal for arithmetic
                     'remaining': money(remaining),
                     'percentage': money(percentage),
                 })
-            
-            best_rfc = max(rfc_data, key=lambda x: x['remaining']) if rfc_data else None
-            
+
+            best_rfc = max(rfc_data, key=lambda x: x['remaining_decimal']) if rfc_data else None
+            total_remaining_dec = sum((r['remaining_decimal'] for r in rfc_data), Decimal("0")) if rfc_data else self.RESICO_ANNUAL_LIMIT
+
             return {
                 'rfcs': rfc_data,
                 'total_invoiced': money(total_invoiced),
-                'total_remaining': sum(r['remaining'] for r in rfc_data) if rfc_data else money(self.RESICO_ANNUAL_LIMIT),
+                'total_remaining': money(total_remaining_dec),
                 'best_rfc': best_rfc,
                 'days_remaining_year': (datetime.now().replace(month=12, day=31) - datetime.now()).days
             }
@@ -194,11 +196,12 @@ class NostradamusFiscal:
         today = datetime.now().strftime('%A')
         
         # PRESCRIPCIÓN 1: Aprovechar excedente de deducciones (Optimización Automática)
-        if deductions.get('has_opportunity') and deductions['excess_deductions'] > 500:
-            excess = deductions['excess_deductions']
-            optimal_move = min(excess, balance.get('serie_b', 0))
+        excess = dec(deductions.get('excess_deductions', 0))
+        if deductions.get('has_opportunity') and excess > 500:
+            serie_b = dec(balance.get('serie_b', 0))
+            optimal_move = min(excess, serie_b)
             if optimal_move > 0:
-                tax_saving = optimal_move * self.ISR_RATE_RESICO
+                tax_saving = optimal_move * Decimal(str(self.ISR_RATE_RESICO))
                 self.prescriptions.append({
                     'priority': 'high',
                     'type': 'move_b_to_a',

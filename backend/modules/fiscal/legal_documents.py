@@ -5,7 +5,7 @@ Conforme al Art. 32-F CFF y Art. 25 fracc. VI LISR
 Refactored: receives `db` (DB wrapper, optional) instead of `core`.
 - Removed create_task from __init__; uses os.makedirs synchronously.
 - Fixed missing awaits on config fetches (now direct DB queries).
-- File I/O remains sync (text generation is fast).
+- File I/O uses aiofiles (non-blocking async writes).
 """
 
 from typing import Any, Dict, List, Optional
@@ -14,6 +14,8 @@ import hashlib
 import logging
 import os
 from pathlib import Path
+
+import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -185,8 +187,8 @@ El hash SHA-256 garantiza la integridad del documento desde su creacion.
         filename = f"ACTA_{folio}_{timestamp.strftime('%Y%m%d')}.txt"
         filepath = self.DOCS_PATH / 'destruccion' / filename
 
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(acta_content)
+        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+            await f.write(acta_content)
 
         return {
             'success': True,
@@ -285,8 +287,8 @@ Hash: {hashlib.sha256(folio.encode()).hexdigest()[:32]}
         filename = f"DEVOLUCION_{folio}.txt"
         filepath = self.DOCS_PATH / 'devoluciones' / filename
 
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(doc_content)
+        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+            await f.write(doc_content)
 
         return {
             'success': True,
@@ -368,8 +370,8 @@ Hash: {hashlib.sha256(f'{folio}|{total_value}'.encode()).hexdigest()[:32]}
         filename = f"AUTOCONSUMO_{folio}.txt"
         filepath = self.DOCS_PATH / 'autoconsumo' / filename
 
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(doc_content)
+        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+            await f.write(doc_content)
 
         return {
             'success': True,

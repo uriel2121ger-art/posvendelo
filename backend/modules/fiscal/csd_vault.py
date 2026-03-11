@@ -18,12 +18,14 @@ Uso:
     password = await vault.decrypt_password(encrypted_pass)
 """
 from typing import Optional, Tuple
+import asyncio
 import base64
 from datetime import datetime
 import hashlib
 import logging
 import os
 from pathlib import Path
+import aiofiles
 
 logger = logging.getLogger("CSD_VAULT")
 
@@ -217,19 +219,19 @@ class CSDVault:
             }
         """
         # Leer original
-        with open(source_path, 'rb') as f:
-            original = f.read()
-        
+        async with aiofiles.open(source_path, 'rb') as f:
+            original = await f.read()
+
         # Hash del original para verificación
         original_hash = hashlib.sha256(original).hexdigest()
-        
+
         await self._ensure_initialized()
         # Encriptar
         encrypted = self._fernet.encrypt(original)
-        
+
         # Guardar
-        with open(dest_path, 'wb') as f:
-            f.write(encrypted)
+        async with aiofiles.open(dest_path, 'wb') as f:
+            await f.write(encrypted)
         
         return {
             'success': True,
@@ -312,9 +314,9 @@ class CSDManager:
             return {'success': False, 'error': f'Ruta de archivo inválida: {e}'}
 
         # Validar que los archivos existen
-        if not os.path.exists(key_path):
+        if not await asyncio.to_thread(os.path.exists, key_path):
             return {'success': False, 'error': 'Archivo .key no encontrado'}
-        if not os.path.exists(cer_path):
+        if not await asyncio.to_thread(os.path.exists, cer_path):
             return {'success': False, 'error': 'Archivo .cer no encontrado'}
         
         # Validar que la contraseña es correcta

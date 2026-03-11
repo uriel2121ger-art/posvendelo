@@ -9,6 +9,7 @@ Uses :name params and db.fetch/db.fetchrow/db.execute.
 """
 
 from typing import Any, Dict, List, Optional
+import asyncio
 import csv
 from datetime import datetime, timedelta
 import logging
@@ -59,7 +60,7 @@ class CFDISyncService:
 
             year, month = fecha[:4], fecha[5:7]
             cfdi_dir = self.sync_base_path / year / month
-            cfdi_dir.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(cfdi_dir.mkdir, parents=True, exist_ok=True)
 
             result = {'success': True, 'cfdi_id': cfdi_id, 'uuid': uuid, 'files': {}}
 
@@ -151,7 +152,7 @@ class CFDISyncService:
 
         if not output_path:
             reports_dir = self.sync_base_path / 'reportes'
-            reports_dir.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(reports_dir.mkdir, parents=True, exist_ok=True)
             output_path = reports_dir / f"cfdis_{date_from}_{date_to}.csv"
         else:
             output_path = Path(output_path)

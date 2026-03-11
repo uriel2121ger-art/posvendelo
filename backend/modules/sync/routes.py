@@ -157,7 +157,8 @@ async def sync_pull_shifts(
                   start_timestamp, end_timestamp
            FROM turns
            WHERE status = 'open'
-           ORDER BY id DESC"""
+           ORDER BY id DESC
+           LIMIT 50"""
     )
     data = _serialize_rows(rows)
     return {

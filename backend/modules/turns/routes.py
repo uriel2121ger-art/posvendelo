@@ -250,7 +250,11 @@ async def get_turn_summary(
 
     sales_by_method = await db.fetch(
         """
-        SELECT payment_method, COUNT(*) as count, COALESCE(SUM(total), 0) as total
+        SELECT
+            payment_method,
+            COUNT(*) AS count,
+            COALESCE(SUM(total), 0) AS total,
+            COALESCE(SUM(mixed_cash), 0) AS mixed_cash_sum
         FROM sales
         WHERE turn_id = :tid AND status = 'completed'
         GROUP BY payment_method
@@ -274,20 +278,16 @@ async def get_turn_summary(
 
     initial = Decimal(str(turn["initial_cash"] or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    # Cash in register = pure cash sales + mixed_cash component (must match close_turn logic)
-    cash_from_sales = await db.fetchval(
-        """
-        SELECT COALESCE(SUM(
-            CASE WHEN payment_method = 'cash' THEN total
-                 WHEN payment_method = 'mixed' THEN COALESCE(mixed_cash, 0)
-                 ELSE 0
-            END
-        ), 0) FROM sales
-        WHERE turn_id = :tid AND status = 'completed'
-        """,
-        {"tid": turn_id},
-    )
-    cash_sales_dec = Decimal(str(cash_from_sales)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # Derive cash_sales from already-fetched sales_by_method rows (avoids a redundant DB query).
+    # For 'cash' rows: full total counts as cash.
+    # For 'mixed' rows: only the mixed_cash_sum portion landed in the drawer (matches close_turn).
+    cash_sales_dec = Decimal("0")
+    for s in sales_by_method:
+        if s["payment_method"] == "cash":
+            cash_sales_dec += Decimal(str(s["total"]))
+        elif s["payment_method"] == "mixed":
+            cash_sales_dec += Decimal(str(s["mixed_cash_sum"]))
+    cash_sales_dec = cash_sales_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     mov_in = movements_dict.get("in", Decimal("0"))
     mov_out = movements_dict.get("out", Decimal("0")) + movements_dict.get("expense", Decimal("0"))
     expenses = movements_dict.get("expense", Decimal("0"))

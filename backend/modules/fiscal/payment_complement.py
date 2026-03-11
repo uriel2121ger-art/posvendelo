@@ -15,7 +15,7 @@ import logging
 import aiofiles
 
 from modules.fiscal.constants import IVA_RATE
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class PaymentReceiptService:
         """Build payment complement XML following SAT Pagos 2.0 specification."""
         pago_ns = "http://www.sat.gob.mx/Pagos20"
 
-        total_amount = money(payment_data.get("amount", 0))
+        total_amount = dec(payment_data.get("amount", 0))
         currency = xml_escape(payment_data.get("currency", "MXN"))
 
         xml = f'<pago20:Pagos xmlns:pago20="{pago_ns}" Version="2.0">\n'
@@ -160,9 +160,9 @@ class PaymentReceiptService:
                 {"uuid": uuid},
             )
             if cfdi_row:
-                cfdi_total = money(cfdi_row.get("total", 0))
+                cfdi_total = dec(cfdi_row.get("total", 0))
                 paid_amount = min(total_amount, cfdi_total)
-                remaining = max(0, cfdi_total - paid_amount)
+                remaining = max(Decimal("0"), cfdi_total - paid_amount)
 
                 xml += f'    <pago20:DoctoRelacionado IdDocumento="{xml_escape(uuid)}" '
                 xml += f'MonedaDR="{currency}" '

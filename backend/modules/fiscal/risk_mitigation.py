@@ -4,6 +4,7 @@ Datos climáticos configurables anexados a registros de merma
 """
 
 from typing import Any, Dict
+import asyncio
 from datetime import datetime
 import json
 import logging
@@ -48,8 +49,12 @@ class ClimateShield:
             url = (f"https://api.open-meteo.com/v1/forecast?latitude={self.LATITUDE}&longitude={self.LONGITUDE}"
                    f"&current=temperature_2m,relative_humidity_2m,uv_index&timezone={self.TIMEZONE}")
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
+
+            def _fetch():
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    return json.loads(response.read().decode())
+
+            data = await asyncio.to_thread(_fetch)
             current = data.get('current', {})
             climate = {'temperature': current.get('temperature_2m', 35), 'humidity': current.get('relative_humidity_2m', 70),
                        'uv_index': current.get('uv_index', 6), 'city': self.CITY, 'timestamp': datetime.now().isoformat(), 'source': 'Open-Meteo API'}

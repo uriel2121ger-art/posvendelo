@@ -123,28 +123,23 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
     year_end = datetime(now.year + 1, 1, 1)
 
     try:
-        month_row = await db.fetchrow(
-            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-               WHERE type = 'expense'
-               AND timestamp >= :month_start AND timestamp < :month_end""",
-            {"month_start": month_start, "month_end": month_end},
-        )
-        year_row = await db.fetchrow(
-            """SELECT COALESCE(SUM(amount), 0) as total FROM cash_movements
-               WHERE type = 'expense'
-               AND timestamp >= :year_start AND timestamp < :year_end""",
-            {"year_start": year_start, "year_end": year_end},
+        combined_row = await db.fetchrow(
+            """SELECT
+               COALESCE(SUM(CASE WHEN timestamp >= :month_start AND timestamp < :month_end THEN amount ELSE 0 END), 0) as month_total,
+               COALESCE(SUM(CASE WHEN timestamp >= :year_start AND timestamp < :year_end THEN amount ELSE 0 END), 0) as year_total
+               FROM cash_movements
+               WHERE type = 'expense' AND timestamp >= :year_start AND timestamp < :year_end""",
+            {"month_start": month_start, "month_end": month_end, "year_start": year_start, "year_end": year_end},
         )
     except Exception as e:
         logger.warning("Error consultando gastos: %s", e)
-        month_row = None
-        year_row = None
+        combined_row = None
 
     return {
         "success": True,
         "data": {
-            "month": money(month_row["total"]) if month_row else 0.0,
-            "year": money(year_row["total"]) if year_row else 0.0,
+            "month": money(combined_row["month_total"]) if combined_row else 0.0,
+            "year": money(combined_row["year_total"]) if combined_row else 0.0,
         },
     }
 
@@ -192,35 +187,28 @@ async def get_wealth_dashboard(auth: dict = Depends(verify_token), db=Depends(ge
             logger.warning("Error consultando gastos wealth: %s", e)
             expenses = None
 
-        ingresos = money(income["total"] if income else 0)
-        serie_a = money(income["serie_a"] if income else 0)
-        serie_b = money(income["serie_b"] if income else 0)
-        gastos = money(expenses["total"] if expenses else 0)
-        # Use Decimal for fiscal arithmetic — money() returns float, not suitable for calculation
-        _serie_a = Decimal(str(serie_a))
-        _ingresos = Decimal(str(ingresos))
-        _gastos = Decimal(str(gastos))
-        impuestos = money(_serie_a - _serie_a / Decimal("1.16"))
-        utilidad_bruta = money(_ingresos - _gastos)
-        _ub = Decimal(str(utilidad_bruta))
-        _imp = Decimal(str(impuestos))
-        utilidad_neta = money(_ub - _imp)
-        _un = Decimal(str(utilidad_neta))
-        disponible = money(max(Decimal("0"), _un))
-        ratio = money((_un / _ingresos * 100) if _ingresos > 0 else Decimal("0"))
+        _ingresos = dec(income["total"] if income else 0)
+        _serie_a = dec(income["serie_a"] if income else 0)
+        _serie_b = dec(income["serie_b"] if income else 0)
+        _gastos = dec(expenses["total"] if expenses else 0)
+        _impuestos = _serie_a - _serie_a / Decimal("1.16")
+        _utilidad_bruta = _ingresos - _gastos
+        _utilidad_neta = _utilidad_bruta - _impuestos
+        _disponible = max(Decimal("0"), _utilidad_neta)
+        _ratio = (_utilidad_neta / _ingresos * 100) if _ingresos > 0 else Decimal("0")
 
         return {
             "success": True,
             "data": {
-                "ingresos_total": ingresos,
-                "serie_a": serie_a,
-                "serie_b": serie_b,
-                "gastos": gastos,
-                "impuestos": impuestos,
-                "utilidad_bruta": utilidad_bruta,
-                "utilidad_neta": utilidad_neta,
-                "disponible_retiro": disponible,
-                "ratio": ratio,
+                "ingresos_total": money(_ingresos),
+                "serie_a": money(_serie_a),
+                "serie_b": money(_serie_b),
+                "gastos": money(_gastos),
+                "impuestos": money(_impuestos),
+                "utilidad_bruta": money(_utilidad_bruta),
+                "utilidad_neta": money(_utilidad_neta),
+                "disponible_retiro": money(_disponible),
+                "ratio": money(_ratio),
             },
         }
     except Exception as e:
@@ -239,13 +227,11 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
                   COALESCE(SUM(si.qty), 0) as sold_30d
            FROM products p
            LEFT JOIN sale_items si ON si.product_id = p.id
-               AND si.sale_id IN (
-                   SELECT id FROM sales WHERE status = 'completed' AND timestamp >= :since
-               )
+           LEFT JOIN sales s ON si.sale_id = s.id AND s.status = 'completed' AND s.timestamp >= :since_date
            WHERE p.stock <= p.min_stock AND p.stock >= 0 AND p.is_active = 1
            GROUP BY p.id, p.name, p.stock, p.min_stock
            ORDER BY p.stock ASC LIMIT 10""",
-        {"since": thirty_days_ago},
+        {"since_date": thirty_days_ago},
     )
 
     top_products = await db.fetch(

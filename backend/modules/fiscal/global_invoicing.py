@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 import logging
 from modules.fiscal.constants import IVA_RATE
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -209,9 +209,9 @@ class GlobalInvoicingService:
         for sale in sales:
             method = sale.get('payment_method', 'cash')
             if method not in by_payment:
-                by_payment[method] = {'count': 0, 'total': 0}
+                by_payment[method] = {'count': 0, 'total': Decimal('0')}
             by_payment[method]['count'] += 1
-            by_payment[method]['total'] += money(sale.get('total', 0))
+            by_payment[method]['total'] += dec(sale.get('total', 0))
 
         if format == 'text':
             return self._format_report_text(start_date, end_date, sales, aggregated, by_payment)
@@ -316,7 +316,8 @@ class GlobalInvoicingService:
                  AND CAST(s.timestamp AS DATE) BETWEEN :d1 AND :d2
                  AND s.status != 'cancelled'
                  AND NOT EXISTS (SELECT 1 FROM cfdis c WHERE c.sale_id = s.id)
-               ORDER BY s.timestamp""",
+               ORDER BY s.timestamp
+               LIMIT 10000""",
             {"d1": d1, "d2": d2},
         )
         return rows if rows else []
@@ -403,9 +404,9 @@ class GlobalInvoicingService:
             items = []
             if len(aggregated['items']) <= 50:
                 for item in aggregated['items']:
-                    qty = money(item.get('qty', 1)) or 1
-                    total_val = money(item.get('total', 0))
-                    unit_price = round(total_val / qty, 2) if qty else total_val
+                    qty = dec(item.get('qty', 1)) or Decimal('1')
+                    total_val = dec(item.get('total', 0))
+                    unit_price = (total_val / qty).quantize(Decimal('0.01')) if qty else total_val
 
                     sat_code_raw = item.get('sat_code', '01010101')
                     sat_code_normalized = normalize_sat_key(sat_code_raw)

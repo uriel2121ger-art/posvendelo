@@ -292,7 +292,7 @@ async def list_paired_devices(
     if branch_id:
         sql += " AND branch_id = :branch_id"
         params["branch_id"] = branch_id
-    sql += " ORDER BY paired_at DESC"
+    sql += " ORDER BY paired_at DESC LIMIT 200"
     rows = await db.fetch(sql, params)
     return {"success": True, "data": rows}
 

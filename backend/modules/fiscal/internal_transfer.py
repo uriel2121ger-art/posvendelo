@@ -141,9 +141,9 @@ class GhostCarrier:
     async def get_pending_transfers(self, branch: str = None) -> List[Dict]:
         await self.ensure_table()
         if branch:
-            rows = await self.db.fetch("SELECT * FROM ghost_transfers WHERE status = 'pending' AND destination_branch = :branch", branch=branch)
+            rows = await self.db.fetch("SELECT * FROM ghost_transfers WHERE status = 'pending' AND destination_branch = :branch ORDER BY created_at DESC LIMIT 500", branch=branch)
         else:
-            rows = await self.db.fetch("SELECT * FROM ghost_transfers WHERE status = 'pending'")
+            rows = await self.db.fetch("SELECT * FROM ghost_transfers WHERE status = 'pending' ORDER BY created_at DESC LIMIT 500")
         return [dict(r) for r in rows]
 
     async def _get_product_tech(self, product_id: int) -> Dict:

@@ -239,6 +239,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_synced_from ON sales(synced_from_terminal) 
 CREATE INDEX IF NOT EXISTS idx_sales_branch_pos_date ON sales(branch_id, pos_id, created_at) WHERE pos_id IS NOT NULL AND status = 'completed';
 CREATE INDEX IF NOT EXISTS idx_sales_origin_pc ON sales(origin_pc) WHERE origin_pc IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at) WHERE status = 'completed';
+CREATE INDEX IF NOT EXISTS idx_sales_folio_visible ON sales(folio_visible text_pattern_ops);
 
 -- =============================================================================
 -- 8. ITEMS DE VENTA
@@ -515,6 +516,7 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
 );
 
 CREATE INDEX IF NOT EXISTS idx_inv_movements_timestamp ON inventory_movements(timestamp);
+CREATE INDEX IF NOT EXISTS idx_inv_movements_product_id ON inventory_movements(product_id);
 
 ALTER TABLE inventory_movements
     ADD CONSTRAINT fk_inv_movements_product
@@ -848,6 +850,7 @@ CREATE TABLE IF NOT EXISTS credit_history (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_credit_history_customer_id ON credit_history(customer_id);
 
 -- =============================================================================
 -- 64. FACTURAS/INVOICES

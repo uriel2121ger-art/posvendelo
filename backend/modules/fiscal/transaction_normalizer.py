@@ -11,7 +11,7 @@ import secrets
 import threading
 import time
 
-from modules.shared.constants import money
+from modules.shared.constants import money, dec
 
 _rng = secrets.SystemRandom()
 
@@ -112,7 +112,7 @@ class FiscalNoiseGenerator:
         
         product = _rng.choice(products)
         qty = _rng.choice([1, 1, 1, 2, 2, 3])
-        total = money(product['price']) * qty
+        total = dec(product['price']) * qty
         
         hour = await self._select_weighted_hour()
         

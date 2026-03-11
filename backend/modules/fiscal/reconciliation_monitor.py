@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 import logging
 
-from modules.shared.constants import money
+from modules.shared.constants import dec, money
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +114,13 @@ class DiscrepancyMonitor:
         breakdown = {}
         for r in result:
             cat = r['category']
-            if cat not in breakdown: breakdown[cat] = {'total': 0, 'by_method': {}}
-            breakdown[cat]['total'] += money(r['total'])
+            if cat not in breakdown: breakdown[cat] = {'total': Decimal('0'), 'by_method': {}}
+            breakdown[cat]['total'] += dec(r['total'])
             breakdown[cat]['by_method'][r['payment_method']] = money(r['total'])
 
-        return {'period': f'{year}-{month:02d}' if month else str(year), 'by_category': breakdown, 'total': sum(c['total'] for c in breakdown.values())}
+        total_sum = sum((c['total'] for c in breakdown.values()), Decimal('0'))
+        # Serialize totals to money strings for JSON response
+        for cat in breakdown:
+            breakdown[cat]['total'] = money(breakdown[cat]['total'])
+
+        return {'period': f'{year}-{month:02d}' if month else str(year), 'by_category': breakdown, 'total': money(total_sum)}
