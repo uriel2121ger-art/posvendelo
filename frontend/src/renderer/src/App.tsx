@@ -25,6 +25,7 @@ import OwnerPortfolioTab from './tabs/OwnerPortfolioTab'
 import ExpensesTab from './tabs/ExpensesTab'
 import HistoryTab from './tabs/HistoryTab'
 import InventoryTab from './tabs/InventoryTab'
+import ConfigurarServidor from './ConfigurarServidor'
 import Login from './Login'
 import MermasTab from './tabs/MermasTab'
 import ProductsTab from './tabs/ProductsTab'
@@ -670,6 +671,7 @@ function RoutedApp(): ReactElement {
       {priceCheckModal && <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />}
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/configurar-servidor" element={<ConfigurarServidor />} />
         <Route
           element={
             <RequireAuth>

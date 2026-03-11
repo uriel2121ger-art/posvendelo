@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, User, LogIn, RefreshCw, Server, Wifi } from 'lucide-react'
+import { Lock, User, LogIn, RefreshCw, Server, Settings, Wifi } from 'lucide-react'
 import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 import { TITAN_APP_LABEL, TITAN_RELEASE_LABEL } from './runtimeEnv'
 
@@ -670,10 +670,27 @@ export default function Login(): ReactElement {
                     className="w-full rounded-xl border-2 border-zinc-700 bg-zinc-900/50 py-3.5 pl-12 pr-4 text-xl font-mono tracking-widest focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-white placeholder:text-zinc-600"
                   />
                 </div>
-                {error && (
-                  <p className="mt-2 text-sm text-rose-400 font-medium animate-pulse">{error}</p>
+{error && (
+                <p className="mt-2 text-sm text-rose-400 font-medium animate-pulse">{error}</p>
                 )}
+                <p className="mt-3 text-xs text-zinc-500">
+                  Usuario por defecto: <strong className="text-zinc-400">admin</strong>. La
+                  contraseña la tiene quien instaló el nodo (en la PC, archivo INSTALL_SUMMARY.txt).
+                </p>
               </div>
+
+              {(error?.includes('servidor') || !agentStatus?.backendHealthy) && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/configurar-servidor')}
+                    className="inline-flex items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-800/80 py-2.5 px-4 text-sm font-medium text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Configurar dirección del servidor (IP o nombre de la PC)
+                  </button>
+                </div>
+              )}
 
               <button
                 data-testid="login-submit"
@@ -694,7 +711,16 @@ export default function Login(): ReactElement {
               </button>
             </form>
 
-            <p className="mt-8 text-center text-xs text-zinc-400 font-medium">
+            <p className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => navigate('/configurar-servidor')}
+                className="text-sm text-zinc-500 hover:text-blue-400 underline underline-offset-2"
+              >
+                Configurar servidor (IP de la PC del negocio)
+              </button>
+            </p>
+            <p className="mt-4 text-center text-xs text-zinc-400 font-medium">
               {discovering ? (
                 <span className="text-blue-400 animate-pulse">Buscando servidor...</span>
               ) : (

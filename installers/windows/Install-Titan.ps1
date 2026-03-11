@@ -377,6 +377,11 @@ Archivos clave:
 - docker-compose.yml
 - titan-agent.json
 
+Como abrir el punto de venta (POS):
+  - Si ya instalo la app: ejecute "POSVENDELO" o "titan-pos" desde el menu Inicio.
+  - Si aun no tiene la app: descargue el instalador .exe desde la web e instalelo.
+  - Si la app no inicia: ejecutela desde Ejecutar (Win+R) o desde una consola para ver mensajes de error.
+
 Si necesitas continuar instalacion despues de Docker Desktop:
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Continue-Install.ps1 -StateFile "$statePath"
 "@ | Set-Content -Encoding UTF8 (Join-Path $InstallDir "INSTALL_SUMMARY.txt")
@@ -421,6 +426,18 @@ $PublisherCertPath
         Remove-Item -Force $statePath
       }
       Write-Step "Instalacion completada en $InstallDir"
+      Write-Host ""
+      Write-Host "Para abrir el punto de venta (POS): busque 'POSVENDELO' en el menu Inicio o ejecute titan-pos." -ForegroundColor Green
+      Write-Host "Si aun no instalo la app, descargue el .exe desde la web." -ForegroundColor Green
+      Write-Host ""
+      $posExe = $null
+      if (Get-Command titan-pos -ErrorAction SilentlyContinue) { $posExe = "titan-pos" }
+      if (-not $posExe -and (Test-Path "$env:LOCALAPPDATA\Programs\POSVENDELO\titan-pos.exe")) { $posExe = "$env:LOCALAPPDATA\Programs\POSVENDELO\titan-pos.exe" }
+      if (-not $posExe -and (Test-Path "$env:ProgramFiles\POSVENDELO\titan-pos.exe")) { $posExe = "$env:ProgramFiles\POSVENDELO\titan-pos.exe" }
+      if ($posExe) {
+        Write-Step "Iniciando la aplicacion POS..."
+        Start-Process -FilePath $posExe -ErrorAction SilentlyContinue
+      }
       exit 0
     } catch {
       Start-Sleep -Seconds 2

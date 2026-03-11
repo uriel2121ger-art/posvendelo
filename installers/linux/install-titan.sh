@@ -502,6 +502,11 @@ Archivos clave:
 
 Actualizar backend (cuando haya nueva versión):
   cd ${INSTALL_DIR} && ./actualizar.sh
+
+Cómo abrir el punto de venta (POS):
+  - Con la app instalada: busque "POSVENDELO" en el menú de aplicaciones o ejecute: titan-pos
+  - Si no tiene la app: descargue el .deb (Linux/Raspberry Pi) desde la web e instale (dpkg -i ...)
+  - Si la app no inicia: ejecute desde terminal "titan-pos" para ver mensajes de error.
 EOF
 chmod 600 "$INSTALL_DIR/INSTALL_SUMMARY.txt"
 
@@ -565,7 +570,18 @@ CURRENT_STEP="validando health"
 for _ in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:${LOCAL_API_PORT}/health" >/dev/null 2>&1; then
     report_status "success"
+    echo ""
     echo "[POSVENDELO] Instalacion completada en $INSTALL_DIR"
+    echo ""
+    echo "Para abrir el punto de venta (POS):"
+    echo "  - Si ya instalaste la app: busque 'POSVENDELO' en el menu o ejecute: titan-pos"
+    echo "  - Si aun no tiene la app: descargue el .deb desde la web e instalelo (dpkg -i ...)"
+    echo ""
+    if [[ -n "${DISPLAY:-}" ]] && command -v titan-pos >/dev/null 2>&1; then
+      echo "[POSVENDELO] Iniciando la aplicacion POS..."
+      nohup titan-pos >/dev/null 2>&1 &
+      sleep 1
+    fi
     exit 0
   fi
   sleep 2

@@ -62,6 +62,12 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps
 
 Actualizar el backend: en el directorio de instalación (p. ej. `C:\ProgramData\TitanPOS`), ejecutar `docker compose pull api` y `docker compose up -d api`, o usar la misma secuencia desde PowerShell con `--env-file .env`.
 
+## Si el POS no inicia tras instalar
+
+- **Linux / Raspberry Pi:** El instalador solo levanta el backend (Docker). Para usar el punto de venta hay que instalar la app: descargue el .deb desde la web (en Raspberry Pi use el .deb para **arm64**, no el de amd64). Luego abra "POSVENDELO" desde el menú o ejecute `titan-pos`. Si la app no abre, ejecútela desde terminal (`titan-pos`) para ver mensajes de error.
+- **Windows:** Instale la app desde el .exe de la web si aún no lo hizo. Ejecute "POSVENDELO" o "titan-pos" desde el menú Inicio. Si no inicia, ejecútela desde una consola para ver errores.
+- En ambos casos, el archivo `INSTALL_SUMMARY.txt` en el directorio de instalación indica cómo abrir el POS y las credenciales iniciales (usuario `admin` y contraseña generada).
+
 ## Notas
 
 - Los instaladores consumen `bootstrap-config` y `compose-template` del `control-plane`.
