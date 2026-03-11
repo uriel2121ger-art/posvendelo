@@ -4,6 +4,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Quitar acceso directo del escritorio creado por el instalador
+$desktopPath = [Environment]::GetFolderPath("Desktop")
+$shortcutPath = Join-Path $desktopPath "POSVENDELO - Punto de venta.lnk"
+if (Test-Path $shortcutPath) {
+  Remove-Item -Force $shortcutPath
+  Write-Host "[POSVENDELO] Acceso directo del escritorio eliminado."
+}
+
 if (-not (Test-Path $InstallDir)) {
   Write-Host "[POSVENDELO] No existe $InstallDir"
   exit 0

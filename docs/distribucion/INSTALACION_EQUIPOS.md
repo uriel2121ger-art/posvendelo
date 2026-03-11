@@ -49,7 +49,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/<ORG>/<REPO>/master/in
 powershell -ExecutionPolicy Bypass -File .\Install-Titan.ps1 -CpUrl https://tu-control-plane.ejemplo.com -InstallToken TOKEN_QUE_TE_DIERON
 ```
 
-El script descarga del control-plane el `docker-compose` y la configuración; genera `.env`, `titan-agent.json` e `INSTALL_SUMMARY.txt`. En esa máquina no necesitas el código fuente.
+El script descarga del control-plane el `docker-compose` y la configuración; genera `.env`, `titan-agent.json` e `INSTALL_SUMMARY.txt`. Además crea un icono en el escritorio (y en el menú en Linux) para abrir el POS o la página de descargas. En esa máquina no necesitas el código fuente.
 
 ### Opción B – Clonar solo para tener los scripts
 

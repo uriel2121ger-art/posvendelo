@@ -1,5 +1,9 @@
 # Instaladores POSVENDELO
 
+**Estado: funcionales.** Los instaladores Linux y Windows están listos para uso: instalan el nodo (backend + Docker), crean icono/acceso directo en escritorio para abrir el POS o la página de descargas, generan `INSTALL_SUMMARY.txt` con credenciales y URLs, y los desinstaladores eliminan también los accesos directos.
+
+---
+
 ## Linux
 
 Instalador Linux del nodo TITAN:
@@ -14,10 +18,12 @@ Opcional:
 bash installers/linux/install-titan.sh --cp-url http://localhost:9090 --install-token TOKEN --api-port 8002 --db-port 15434
 ```
 
-Desinstalacion:
+Desinstalacion (quita el nodo, el icono del escritorio y la entrada del menú):
 
 ```bash
 bash installers/linux/uninstall-titan.sh
+# Si instalaste en otro directorio:
+bash installers/linux/uninstall-titan.sh /ruta/instalacion
 ```
 
 Actualizar el backend (cuando publiques una nueva imagen en GHCR):
@@ -54,18 +60,25 @@ Si el script instala Docker Desktop por primera vez, despues de abrir Docker Des
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Continue-Install.ps1 -StateFile "C:\ProgramData\TitanPOS\install-state.json"
 ```
 
-Desinstalacion:
+Desinstalacion (quita el nodo y el acceso directo del escritorio):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps1
+# Si instalaste en otro directorio:
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps1 -InstallDir "C:\Ruta\Personalizada"
 ```
 
-Actualizar el backend: en el directorio de instalación (p. ej. `C:\ProgramData\TitanPOS`), ejecutar `docker compose pull api` y `docker compose up -d api`, o usar la misma secuencia desde PowerShell con `--env-file .env`.
+Actualizar el backend: en el directorio de instalación (por defecto `%LOCALAPPDATA%\TitanPOS`), ejecutar `docker compose pull api` y `docker compose up -d api`, o usar la misma secuencia desde PowerShell con `--env-file .env`.
+
+## Icono / acceso directo tras instalar
+
+- **Linux / Raspberry Pi:** El instalador crea un icono **"POSVENDELO - Punto de venta"** en el escritorio y en el menú de aplicaciones. Doble clic abre la app si está instalada o la página de descargas si aún no tiene el .deb.
+- **Windows:** El instalador crea un acceso directo **"POSVENDELO - Punto de venta"** en el escritorio. Doble clic abre la app si está instalada o la página de descargas si aún no tiene el .exe.
 
 ## Si el POS no inicia tras instalar
 
-- **Linux / Raspberry Pi:** El instalador solo levanta el backend (Docker). Para usar el punto de venta hay que instalar la app: descargue el .deb desde la web (en Raspberry Pi use el .deb para **arm64**, no el de amd64). Luego abra "POSVENDELO" desde el menú o ejecute `titan-pos`. Si la app no abre, ejecútela desde terminal (`titan-pos`) para ver mensajes de error.
-- **Windows:** Instale la app desde el .exe de la web si aún no lo hizo. Ejecute "POSVENDELO" o "titan-pos" desde el menú Inicio. Si no inicia, ejecútela desde una consola para ver errores.
+- **Linux / Raspberry Pi:** El instalador solo levanta el backend (Docker). Use el icono del escritorio o del menú; si la app no está instalada, descargue el .deb desde la web (en Raspberry Pi use el .deb para **arm64**, no el de amd64). Luego abra "POSVENDELO" desde el menú o ejecute `titan-pos`. Si la app no abre, ejecútela desde terminal (`titan-pos`) para ver mensajes de error.
+- **Windows:** Use el icono del escritorio; si la app no está instalada, descargue el .exe desde la web. Ejecute "POSVENDELO" o "titan-pos" desde el menú Inicio. Si no inicia, ejecútela desde una consola para ver errores.
 - En ambos casos, el archivo `INSTALL_SUMMARY.txt` en el directorio de instalación indica cómo abrir el POS y las credenciales iniciales (usuario `admin` y contraseña generada).
 
 ## Notas
@@ -93,13 +106,14 @@ Actualizar el backend: en el directorio de instalación (p. ej. `C:\ProgramData\
 3. Abrir la app desktop y verificar que la pantalla de acceso muestre nodo local saludable.
 4. Verificar que el acceso del dueño aparezca como listo o en preparacion, sin pedir rutas ni tokens manuales.
 
-## Archivos Que Deben Quedar
+## Archivos Que Deben Quedar Tras Instalar
 
 - `.env`: secretos locales, puertos y `BACKEND_IMAGE`
 - `docker-compose.yml`: compose cliente servido por el `control-plane`
 - `titan-agent.json`: contrato compartido entre instalador, agente local y app desktop
-- `INSTALL_SUMMARY.txt`: resumen de soporte con branch, health local, manifest y comando de actualización
+- `INSTALL_SUMMARY.txt`: resumen de soporte con branch, health local, manifest, credenciales y comando de actualización
 - `actualizar.sh` (Linux): script para actualizar el backend con un solo comando (`./actualizar.sh`)
+- `abrir-pos.sh` (Linux) / `Abrir-POS.ps1` (Windows): lanzador usado por el icono del escritorio
 
 ## Checklist instalación limpia pre-lanzamiento
 
@@ -120,3 +134,14 @@ Antes de distribuir una release, ejecutar al menos una vez una instalación limp
 3. Opcional: comprobar health del API local
 
 Si no hay CI para instaladores, este checklist debe ejecutarse de forma manual antes de cada distribución.
+
+## Resumen de scripts
+
+| Script | Uso |
+|--------|-----|
+| `linux/install-titan.sh` | Instalar nodo (Docker, backend, compose). Crea icono escritorio + menú. |
+| `linux/actualizar.sh` | Actualizar backend (pull + restart). Copiado a `INSTALL_DIR` al instalar. |
+| `linux/uninstall-titan.sh` | Desinstalar nodo y quitar iconos. |
+| `windows/Install-Titan.ps1` | Instalar nodo. Crea acceso directo en escritorio. |
+| `windows/Continue-Install.ps1` | Continuar instalación tras instalar Docker Desktop. |
+| `windows/Uninstall-Titan.ps1` | Desinstalar nodo y quitar acceso directo. |

@@ -378,6 +378,7 @@ Archivos clave:
 - titan-agent.json
 
 Como abrir el punto de venta (POS):
+  - Doble clic en el icono "POSVENDELO - Punto de venta" del escritorio (abre la app o la pagina de descargas).
   - Si ya instalo la app: ejecute "POSVENDELO" o "titan-pos" desde el menu Inicio.
   - Si aun no tiene la app: descargue el instalador .exe desde la web e instalelo.
   - Si la app no inicia: ejecutela desde Ejecutar (Win+R) o desde una consola para ver mensajes de error.
@@ -385,6 +386,40 @@ Como abrir el punto de venta (POS):
 Si necesitas continuar instalacion despues de Docker Desktop:
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Continue-Install.ps1 -StateFile "$statePath"
 "@ | Set-Content -Encoding UTF8 (Join-Path $InstallDir "INSTALL_SUMMARY.txt")
+
+  $downloadPage = $CpUrl.TrimEnd('/')
+  $abrirPosScript = @"
+# Abre el POS si esta instalado; si no, abre la pagina de descargas
+`$exe = `$null
+try { `$exe = Get-Command titan-pos -ErrorAction SilentlyContinue } catch {}
+if (`$exe) { Start-Process `$exe.Source; exit }
+`$paths = @(
+  "`$env:LOCALAPPDATA\Programs\POSVENDELO\titan-pos.exe",
+  "`$env:ProgramFiles\POSVENDELO\titan-pos.exe"
+)
+foreach (`$p in `$paths) {
+  if (Test-Path `$p) { Start-Process `$p; exit }
+}
+Start-Process "$downloadPage"
+"@
+  $abrirPosPath = Join-Path $InstallDir "Abrir-POS.ps1"
+  $abrirPosScript | Set-Content -Encoding UTF8 -Path $abrirPosPath
+
+  $desktopPath = [Environment]::GetFolderPath("Desktop")
+  if ($desktopPath) {
+    try {
+      $wsh = New-Object -ComObject WScript.Shell
+      $shortcut = $wsh.CreateShortcut((Join-Path $desktopPath "POSVENDELO - Punto de venta.lnk"))
+      $shortcut.TargetPath = "powershell.exe"
+      $shortcut.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$abrirPosPath`""
+      $shortcut.WorkingDirectory = $InstallDir
+      $shortcut.Description = "Abrir punto de venta POSVENDELO"
+      $shortcut.Save()
+      [System.Runtime.Interopservices.Marshal]::ReleaseComObject($wsh) | Out-Null
+    } catch {
+      Write-Warning "No se pudo crear el acceso directo en el escritorio: $_"
+    }
+  }
 
   if ($PublisherCertPath) {
 @"

@@ -504,7 +504,8 @@ Actualizar backend (cuando haya nueva versión):
   cd ${INSTALL_DIR} && ./actualizar.sh
 
 Cómo abrir el punto de venta (POS):
-  - Con la app instalada: busque "POSVENDELO" en el menú de aplicaciones o ejecute: titan-pos
+  - Doble clic en el icono "POSVENDELO" del escritorio o del menú de aplicaciones (abre la app o la página de descargas).
+  - Con la app instalada: busque "POSVENDELO" en el menú o ejecute: titan-pos
   - Si no tiene la app: descargue el .deb (Linux/Raspberry Pi) desde la web e instale (dpkg -i ...)
   - Si la app no inicia: ejecute desde terminal "titan-pos" para ver mensajes de error.
 EOF
@@ -513,6 +514,43 @@ chmod 600 "$INSTALL_DIR/INSTALL_SUMMARY.txt"
 if [[ -f "$INSTALLER_DIR/actualizar.sh" ]]; then
   cp "$INSTALLER_DIR/actualizar.sh" "$INSTALL_DIR/actualizar.sh"
   chmod +x "$INSTALL_DIR/actualizar.sh"
+fi
+
+# Script para abrir el POS (o la pagina de descargas si aun no esta instalada la app)
+DOWNLOAD_PAGE="${CP_URL%/}/"
+cat > "$INSTALL_DIR/abrir-pos.sh" <<ABRIRPOS
+#!/usr/bin/env bash
+if command -v titan-pos >/dev/null 2>&1; then
+  exec titan-pos "\$@"
+fi
+echo "[POSVENDELO] La app de escritorio no esta instalada. Descargue el .deb desde: $DOWNLOAD_PAGE"
+if command -v xdg-open >/dev/null 2>&1 && [[ -n "\${DISPLAY:-}" ]]; then
+  xdg-open "$DOWNLOAD_PAGE" 2>/dev/null &
+fi
+ABRIRPOS
+chmod +x "$INSTALL_DIR/abrir-pos.sh"
+
+# Icono en escritorio y en el menu de aplicaciones (doble clic para abrir el POS)
+DESKTOP_NAME="POSVENDELO"
+DESKTOP_FILE="[Desktop Entry]
+Version=1.0
+Type=Application
+Name=POSVENDELO - Punto de venta
+Comment=Abrir el punto de venta
+Exec=\"$INSTALL_DIR/abrir-pos.sh\"
+Icon=utilities-terminal
+Categories=Utility;
+Terminal=false
+"
+mkdir -p "$HOME/.local/share/applications"
+echo "$DESKTOP_FILE" > "$HOME/.local/share/applications/posvendelo-nodo.desktop"
+chmod +x "$HOME/.local/share/applications/posvendelo-nodo.desktop"
+if [[ -d "$HOME/Desktop" ]]; then
+  echo "$DESKTOP_FILE" > "$HOME/Desktop/$DESKTOP_NAME.desktop"
+  chmod +x "$HOME/Desktop/$DESKTOP_NAME.desktop"
+  if command -v gio >/dev/null 2>&1; then
+    gio set "$HOME/Desktop/$DESKTOP_NAME.desktop" metadata::trusted true 2>/dev/null || true
+  fi
 fi
 
 MACHINE_ID="$(cat /etc/machine-id 2>/dev/null || hostname)"
