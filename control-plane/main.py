@@ -27,10 +27,6 @@ debug = os.getenv("DEBUG", "false").lower() == "true"
 # Ruta por defecto: carpeta downloads junto a main.py (funciona en local y en Docker /app)
 _default_downloads = Path(__file__).resolve().parent / "downloads"
 DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", str(_default_downloads)))
-# Ruta al script de instalación del nodo (desde repo; en prod puede estar en DOWNLOADS_DIR)
-_installer_script_name = "install-titan.sh"
-NODO_INSTALLER_PATH = DOWNLOADS_DIR / _installer_script_name
-NODO_INSTALLER_REPO_PATH = Path(__file__).resolve().parent.parent / "installers" / "linux" / _installer_script_name
 
 CAJERO_WINDOWS_INSTALLER = "titan-pos-setup.exe"
 CAJERO_APPIMAGE = "titan-pos.AppImage"
@@ -242,11 +238,6 @@ async def landing_page() -> str:
       <a class="btn" href="/download/owner/deb">Linux (.deb)</a>
       <a class="btn" href="/download/owner/apk">Android (APK)</a>
     </div>
-    <p style="margin:20px 0 8px;font-size:15px;color:var(--accent-soft)"><strong>Instalador del nodo (servidor/sucursal)</strong></p>
-    <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">Script para instalar el backend en esta PC (Linux). Tras descargar: <code>bash install-titan.sh --cp-url URL --install-token TOKEN</code></p>
-    <div class="actions">
-      <a class="btn" href="/download/nodo/install.sh">Descargar script (Linux)</a>
-    </div>
     <div class="actions" style="margin-top:18px">
       <a class="btn" href="/downloads">Ver todos los instaladores</a>
       <a class="btn" href="/health">Estado del servicio</a>
@@ -363,10 +354,6 @@ async def downloads_page() -> str:
       <li><a href="/download/owner/deb">Linux Debian/Ubuntu (.deb)</a></li>
       <li><a href="/download/owner/apk">Android (APK)</a></li>
     </ul>
-    <h2>Instalador del nodo (servidor/sucursal)</h2>
-    <ul>
-      <li><a href="/download/nodo/install.sh">Script Linux (install-titan.sh)</a> — instala el backend en esta PC. Ejecute: <code>bash install-titan.sh --cp-url URL --install-token TOKEN</code></li>
-    </ul>
     <a class="back" href="/">Volver al inicio</a>
   </div>
 </body>
@@ -473,22 +460,6 @@ async def download_owner_apk() -> FileResponse | HTMLResponse:
         OWNER_APK,
         "application/vnd.android.package-archive",
         "App dueño Android (APK)",
-    )
-
-
-@app.api_route("/download/nodo/install.sh", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_nodo_install_sh() -> FileResponse:
-    """Sirve el script de instalación del nodo (Linux). Busca en downloads/ o en repo installers/linux/."""
-    for path in (NODO_INSTALLER_PATH, NODO_INSTALLER_REPO_PATH):
-        if path.exists() and path.is_file():
-            return FileResponse(
-                path=str(path),
-                filename=_installer_script_name,
-                media_type="application/x-sh",
-            )
-    raise HTTPException(
-        status_code=404,
-        detail="Script de instalación no disponible. Ejecute desde el repo: bash installers/linux/install-titan.sh --cp-url URL --install-token TOKEN",
     )
 
 
