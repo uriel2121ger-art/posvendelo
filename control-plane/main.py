@@ -319,47 +319,65 @@ async def downloads_page() -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Descargas | PosVendelo</title>
   <style>
-    :root { --bg: #040614; --card: rgba(14, 20, 48, 0.78); --line: rgba(125, 147, 255, 0.35); --text: #f5f7ff; --muted: #b8c3ff; --accent: #5675ff; }
+    :root { --bg: #040614; --card: rgba(14, 20, 48, 0.78); --line: rgba(125, 147, 255, 0.35); --text: #f5f7ff; --muted: #b8c3ff; --accent: #5675ff; --green: #34d399; }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Inter, Segoe UI, Arial, sans-serif; color: var(--text); background: var(--bg); min-height: 100vh; padding: 28px; }
-    .wrap { max-width: 720px; margin: 0 auto; }
-    h1 { font-size: 1.75rem; margin-bottom: 8px; }
-    h2 { font-size: 1.1rem; color: var(--muted); margin: 24px 0 12px; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { margin: 8px 0; }
-    a { color: var(--accent); text-decoration: none; font-weight: 500; }
-    a:hover { text-decoration: underline; }
-    .back { display: inline-block; margin-top: 24px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
+    .wrap { max-width: 780px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin-bottom: 4px; }
+    .subtitle { color: var(--muted); margin-bottom: 28px; font-size: 0.95rem; }
+    h2 { font-size: 1.15rem; color: var(--text); margin: 32px 0 8px; }
+    h2 small { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; margin: 12px 0; }
+    .downloads { list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .downloads li a { display: block; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--accent); text-decoration: none; font-weight: 500; font-size: 0.95rem; transition: border-color 0.2s; }
+    .downloads li a:hover { border-color: var(--accent); }
+    .downloads li a .size { font-size: 0.8rem; color: var(--muted); font-weight: 400; }
+    .tag { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+    .tag-rec { background: rgba(52,211,153,0.15); color: var(--green); }
+    .tag-mobile { background: rgba(86,117,255,0.15); color: var(--accent); }
+    .desc { font-size: 0.85rem; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }
+    .back { display: inline-block; margin-top: 28px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); text-decoration: none; }
     .back:hover { color: var(--text); }
-    .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
+    .divider { border: none; border-top: 1px solid var(--line); margin: 32px 0; }
+    @media (max-width: 540px) { .downloads { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Descargas PosVendelo</h1>
-    <p class="note">Elija la app y su plataforma. Si un instalador no está disponible, use la versión Web del dueño.</p>
-    <h2>Instalador de nodo (servidor)</h2>
-    <ul>
-      <li><a href="/download/nodo/linux">Linux (script bash)</a> — <code>curl ... | bash</code></li>
-      <li><a href="/download/nodo/windows">Windows (PowerShell)</a></li>
-    </ul>
-    <p class="note">El nodo instala Docker, el backend y la base de datos en la PC del negocio.</p>
-    <h2>App Cajeros (punto de venta)</h2>
-    <ul>
-      <li><a href="/download/cajero/windows">Windows (.exe)</a></li>
-      <li><a href="/download/cajero/appimage">Linux (AppImage)</a></li>
-      <li><a href="/download/cajero/deb">Linux PC (.deb amd64)</a></li>
-      <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb arm64)</a></li>
-      <li><a href="/download/cajero/apk">Android (APK)</a></li>
-    </ul>
-    <h2>App Dueño (monitoreo y sucursales)</h2>
-    <ul>
-      <li><a href="/download/owner/web">Web/PWA (.zip)</a> — use esta versión en PC o en el navegador del móvil (Android)</li>
-      <li><a href="/download/owner/windows">Windows (.exe)</a></li>
-      <li><a href="/download/owner/appimage">Linux (AppImage)</a></li>
-      <li><a href="/download/owner/deb">Linux Debian/Ubuntu (.deb)</a></li>
-      <li><a href="/download/owner/apk">Android (APK)</a></li>
-    </ul>
+    <p class="subtitle">Descarga, instala y listo. Todo incluido.</p>
+
+    <div class="card">
+      <h2>Punto de Venta <small>— para la PC del negocio</small></h2>
+      <p class="desc">Instala la app y el servidor en un solo paso. Incluye todo: base de datos, backend y punto de venta. Solo abre el archivo y sigue las instrucciones.</p>
+      <ul class="downloads">
+        <li><a href="/download/cajero/deb">Linux (.deb) <span class="tag tag-rec">recomendado</span><br><span class="size">Ubuntu / Debian — 128 MB</span></a></li>
+        <li><a href="/download/cajero/appimage">Linux (AppImage)<br><span class="size">Cualquier distro — 163 MB</span></a></li>
+        <li><a href="/download/cajero/windows">Windows (.exe)<br><span class="size">Windows 10/11 — instalador</span></a></li>
+        <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb)<br><span class="size">ARM64 — 108 MB</span></a></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Terminal extra <small>— cajeros adicionales en la misma red</small></h2>
+      <p class="desc">Para agregar mas puntos de cobro. Se conectan al servidor principal que ya instalaste arriba. No necesitan base de datos propia.</p>
+      <ul class="downloads">
+        <li><a href="/download/cajero/apk">Android (APK) <span class="tag tag-mobile">celular/tablet</span><br><span class="size">Instalar en el dispositivo</span></a></li>
+        <li><a href="/download/cajero/appimage">PC extra (AppImage)<br><span class="size">Abrir y apuntar al servidor</span></a></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>App del Propietario <small>— monitorea tu negocio</small></h2>
+      <p class="desc">Revisa ventas, sucursales y empleados desde cualquier lugar. No necesitas estar en el negocio.</p>
+      <ul class="downloads">
+        <li><a href="/download/owner/apk">Android (APK) <span class="tag tag-mobile">celular</span><br><span class="size">Instalar en el dispositivo</span></a></li>
+        <li><a href="/download/owner/deb">Linux (.deb)<br><span class="size">Ubuntu / Debian</span></a></li>
+        <li><a href="/download/owner/appimage">Linux (AppImage)<br><span class="size">Cualquier distro</span></a></li>
+        <li><a href="/download/owner/windows">Windows (.exe)<br><span class="size">Windows 10/11</span></a></li>
+      </ul>
+    </div>
+
     <a class="back" href="/">Volver al inicio</a>
   </div>
 </body>
