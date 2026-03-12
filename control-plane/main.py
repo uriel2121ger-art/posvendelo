@@ -40,6 +40,19 @@ OWNER_WEB_ZIP = "titan-owner-web.zip"
 OWNER_APK = "titan-owner.apk"
 
 
+def _file_size_mb(filename: str) -> str:
+    """Return human-readable file size or empty string if missing."""
+    p = DOWNLOADS_DIR / filename
+    if not p.exists():
+        return ""
+    size_bytes = p.stat().st_size
+    size_mb = size_bytes / (1024 * 1024)
+    if size_mb >= 1:
+        return f"{size_mb:.0f} MB"
+    size_kb = size_bytes / 1024
+    return f"{size_kb:.0f} KB"
+
+
 def _cors_origins() -> list[str]:
     raw = os.getenv(
         "CP_CORS_ALLOWED_ORIGINS",
@@ -307,39 +320,65 @@ def _serve_download(
     path = DOWNLOADS_DIR / filename
     if not path.exists() or not path.is_file():
         return _installer_no_disponible_html(display_name or filename)
-    return FileResponse(path=str(path), filename=filename, media_type=media_type)
+    stat = path.stat()
+    etag = f'"{filename}-{int(stat.st_mtime)}-{stat.st_size}"'
+    return FileResponse(
+        path=str(path),
+        filename=filename,
+        media_type=media_type,
+        headers={
+            "Cache-Control": "no-cache, must-revalidate",
+            "ETag": etag,
+        },
+    )
 
 
 @app.get("/downloads", response_class=HTMLResponse, include_in_schema=False)
 async def downloads_page() -> str:
-    return """<!doctype html>
+    # Compute sizes dynamically from actual files
+    s = {
+        "deb": _file_size_mb(CAJERO_DEB),
+        "appimage": _file_size_mb(CAJERO_APPIMAGE),
+        "exe": _file_size_mb(CAJERO_WINDOWS_INSTALLER),
+        "arm64": _file_size_mb(CAJERO_DEB_ARM64),
+        "apk": _file_size_mb(CAJERO_APK),
+        "owner_apk": _file_size_mb(OWNER_APK),
+        "owner_deb": _file_size_mb(OWNER_DEB),
+        "owner_appimage": _file_size_mb(OWNER_APPIMAGE),
+        "owner_exe": _file_size_mb(OWNER_WINDOWS_INSTALLER),
+    }
+
+    def sz(key: str, fallback: str = "") -> str:
+        return f" — {s[key]}" if s.get(key) else (f" — {fallback}" if fallback else "")
+
+    return f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Descargas | PosVendelo</title>
   <style>
-    :root { --bg: #040614; --card: rgba(14, 20, 48, 0.78); --line: rgba(125, 147, 255, 0.35); --text: #f5f7ff; --muted: #b8c3ff; --accent: #5675ff; --green: #34d399; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, Segoe UI, Arial, sans-serif; color: var(--text); background: var(--bg); min-height: 100vh; padding: 28px; }
-    .wrap { max-width: 780px; margin: 0 auto; }
-    h1 { font-size: 1.75rem; margin-bottom: 4px; }
-    .subtitle { color: var(--muted); margin-bottom: 28px; font-size: 0.95rem; }
-    h2 { font-size: 1.15rem; color: var(--text); margin: 32px 0 8px; }
-    h2 small { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; margin: 12px 0; }
-    .downloads { list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .downloads li a { display: block; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--accent); text-decoration: none; font-weight: 500; font-size: 0.95rem; transition: border-color 0.2s; }
-    .downloads li a:hover { border-color: var(--accent); }
-    .downloads li a .size { font-size: 0.8rem; color: var(--muted); font-weight: 400; }
-    .tag { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
-    .tag-rec { background: rgba(52,211,153,0.15); color: var(--green); }
-    .tag-mobile { background: rgba(86,117,255,0.15); color: var(--accent); }
-    .desc { font-size: 0.85rem; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }
-    .back { display: inline-block; margin-top: 28px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); text-decoration: none; }
-    .back:hover { color: var(--text); }
-    .divider { border: none; border-top: 1px solid var(--line); margin: 32px 0; }
-    @media (max-width: 540px) { .downloads { grid-template-columns: 1fr; } }
+    :root {{ --bg: #040614; --card: rgba(14, 20, 48, 0.78); --line: rgba(125, 147, 255, 0.35); --text: #f5f7ff; --muted: #b8c3ff; --accent: #5675ff; --green: #34d399; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; font-family: Inter, Segoe UI, Arial, sans-serif; color: var(--text); background: var(--bg); min-height: 100vh; padding: 28px; }}
+    .wrap {{ max-width: 780px; margin: 0 auto; }}
+    h1 {{ font-size: 1.75rem; margin-bottom: 4px; }}
+    .subtitle {{ color: var(--muted); margin-bottom: 28px; font-size: 0.95rem; }}
+    h2 {{ font-size: 1.15rem; color: var(--text); margin: 32px 0 8px; }}
+    h2 small {{ font-weight: 400; color: var(--muted); font-size: 0.85rem; }}
+    .card {{ background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; margin: 12px 0; }}
+    .downloads {{ list-style: none; padding: 0; margin: 8px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
+    .downloads li a {{ display: block; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--accent); text-decoration: none; font-weight: 500; font-size: 0.95rem; transition: border-color 0.2s; }}
+    .downloads li a:hover {{ border-color: var(--accent); }}
+    .downloads li a .size {{ font-size: 0.8rem; color: var(--muted); font-weight: 400; }}
+    .tag {{ display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-left: 6px; vertical-align: middle; }}
+    .tag-rec {{ background: rgba(52,211,153,0.15); color: var(--green); }}
+    .tag-mobile {{ background: rgba(86,117,255,0.15); color: var(--accent); }}
+    .desc {{ font-size: 0.85rem; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }}
+    .back {{ display: inline-block; margin-top: 28px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); text-decoration: none; }}
+    .back:hover {{ color: var(--text); }}
+    .divider {{ border: none; border-top: 1px solid var(--line); margin: 32px 0; }}
+    @media (max-width: 540px) {{ .downloads {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
@@ -351,10 +390,10 @@ async def downloads_page() -> str:
       <h2>Punto de Venta <small>— para la PC del negocio</small></h2>
       <p class="desc">Instala la app y el servidor en un solo paso. Incluye todo: base de datos, backend y punto de venta. Solo abre el archivo y sigue las instrucciones.</p>
       <ul class="downloads">
-        <li><a href="/download/cajero/deb">Linux (.deb) <span class="tag tag-rec">recomendado</span><br><span class="size">Ubuntu / Debian — 128 MB</span></a></li>
-        <li><a href="/download/cajero/appimage">Linux (AppImage)<br><span class="size">Cualquier distro — 163 MB</span></a></li>
-        <li><a href="/download/cajero/windows">Windows (.exe)<br><span class="size">Windows 10/11 — instalador</span></a></li>
-        <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb)<br><span class="size">ARM64 — 108 MB</span></a></li>
+        <li><a href="/download/cajero/deb">Linux (.deb) <span class="tag tag-rec">recomendado</span><br><span class="size">Ubuntu / Debian{sz("deb")}</span></a></li>
+        <li><a href="/download/cajero/appimage">Linux (AppImage)<br><span class="size">Cualquier distro{sz("appimage")}</span></a></li>
+        <li><a href="/download/cajero/windows">Windows (.exe)<br><span class="size">Windows 10/11{sz("exe", "instalador")}</span></a></li>
+        <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb)<br><span class="size">ARM64{sz("arm64")}</span></a></li>
       </ul>
     </div>
 
@@ -362,8 +401,8 @@ async def downloads_page() -> str:
       <h2>Terminal extra <small>— cajeros adicionales en la misma red</small></h2>
       <p class="desc">Para agregar mas puntos de cobro. Se conectan al servidor principal que ya instalaste arriba. No necesitan base de datos propia.</p>
       <ul class="downloads">
-        <li><a href="/download/cajero/apk">Android (APK) <span class="tag tag-mobile">celular/tablet</span><br><span class="size">Instalar en el dispositivo</span></a></li>
-        <li><a href="/download/cajero/appimage">PC extra (AppImage)<br><span class="size">Abrir y apuntar al servidor</span></a></li>
+        <li><a href="/download/cajero/apk">Android (APK) <span class="tag tag-mobile">celular/tablet</span><br><span class="size">Instalar en el dispositivo{sz("apk")}</span></a></li>
+        <li><a href="/download/cajero/appimage">PC extra (AppImage)<br><span class="size">Abrir y apuntar al servidor{sz("appimage")}</span></a></li>
       </ul>
     </div>
 
@@ -371,10 +410,10 @@ async def downloads_page() -> str:
       <h2>App del Propietario <small>— monitorea tu negocio</small></h2>
       <p class="desc">Revisa ventas, sucursales y empleados desde cualquier lugar. No necesitas estar en el negocio.</p>
       <ul class="downloads">
-        <li><a href="/download/owner/apk">Android (APK) <span class="tag tag-mobile">celular</span><br><span class="size">Instalar en el dispositivo</span></a></li>
-        <li><a href="/download/owner/deb">Linux (.deb)<br><span class="size">Ubuntu / Debian</span></a></li>
-        <li><a href="/download/owner/appimage">Linux (AppImage)<br><span class="size">Cualquier distro</span></a></li>
-        <li><a href="/download/owner/windows">Windows (.exe)<br><span class="size">Windows 10/11</span></a></li>
+        <li><a href="/download/owner/apk">Android (APK) <span class="tag tag-mobile">celular</span><br><span class="size">Instalar en el dispositivo{sz("owner_apk")}</span></a></li>
+        <li><a href="/download/owner/deb">Linux (.deb)<br><span class="size">Ubuntu / Debian{sz("owner_deb")}</span></a></li>
+        <li><a href="/download/owner/appimage">Linux (AppImage)<br><span class="size">Cualquier distro{sz("owner_appimage")}</span></a></li>
+        <li><a href="/download/owner/windows">Windows (.exe)<br><span class="size">Windows 10/11{sz("owner_exe", "instalador")}</span></a></li>
       </ul>
     </div>
 
