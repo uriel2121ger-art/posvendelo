@@ -273,7 +273,14 @@ describe('Login', () => {
     })
   })
 
-  it('muestra estado de licencia del nodo en login', async () => {
+  it('muestra indicador simple de servidor conectado (sin detalles técnicos)', async () => {
+    // Mock agent refresh to return backendHealthy: true
+    ;(window as Window & { api?: unknown }).api = {
+      agent: {
+        refresh: () => Promise.resolve({ backendHealthy: true })
+      }
+    }
+
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -284,12 +291,12 @@ describe('Login', () => {
     renderLogin()
 
     await waitFor(() => {
-      expect(screen.getByText('Nodo local')).toBeInTheDocument()
-      expect(
-        screen.getByText(
-          'Estado de licencia disponible. Inicia sesión para revisar el detalle administrativo.'
-        )
-      ).toBeInTheDocument()
+      expect(screen.getByText('Servidor conectado')).toBeInTheDocument()
     })
+
+    // No technical jargon should appear
+    expect(screen.queryByText(/bootstrap/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/licencia/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/firma local/i)).not.toBeInTheDocument()
   })
 })

@@ -23,7 +23,11 @@
   Var /GLOBAL HEALTH_ATTEMPTS
   Var /GLOBAL HEALTH_RESULT
 
-  StrCpy $TITAN_DATA_DIR "$PROGRAMDATA\POSVENDELO"
+  ; NSIS no tiene $PROGRAMDATA built-in — leer de variable de entorno
+  ReadEnvStr $TITAN_DATA_DIR PROGRAMDATA
+  StrCmp $TITAN_DATA_DIR "" 0 +2
+    StrCpy $TITAN_DATA_DIR "C:\ProgramData"
+  StrCpy $TITAN_DATA_DIR "$TITAN_DATA_DIR\POSVENDELO"
   StrCpy $TITAN_COMPOSE  "$TITAN_DATA_DIR\docker-compose.yml"
   StrCpy $TITAN_ENV      "$TITAN_DATA_DIR\.env"
   StrCpy $TITAN_SUMMARY  "$TITAN_DATA_DIR\INSTALL_SUMMARY.txt"
@@ -95,24 +99,22 @@
     DetailPrint ".env existente conservado."
   ${Else}
     DetailPrint "Generando .env con credenciales seguras..."
-    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command \
-      "& { \
-        $jwtSecret = -join ((1..64) | ForEach-Object { \
-          '{0:x}' -f (Get-Random -Maximum 16) \
-        }); \
-        $dbPass = -join ((1..32) | ForEach-Object { \
-          [char](Get-Random -InputObject ([char[]]([char]''a''..[char]''z'' + [char]''A''..[char]''Z'' + [char]''0''..[char]''9''))) \
-        }); \
-        $content = @( \
-          ''POSTGRES_PASSWORD='' + $dbPass, \
-          ''DATABASE_URL=postgresql+asyncpg://posvendelo_user:'' + $dbPass + ''@postgres:5432/posvendelo'', \
-          ''JWT_SECRET='' + $jwtSecret, \
-          ''ADMIN_API_USER='', \
-          ''ADMIN_API_PASSWORD='', \
-          ''DEBUG=false'' \
-        ) -join [Environment]::NewLine; \
-        Set-Content -Encoding UTF8 -Path ''$TITAN_ENV'' -Value $content \
-      }"'
+    ; Escribir script PS1 temporal para evitar escaping NSIS/PowerShell
+    FileOpen $1 "$TEMP\posvendelo-genenv.ps1" w
+    FileWrite $1 '$$jwtSecret = -join ((1..64) | ForEach-Object { "{0:x}" -f (Get-Random -Maximum 16) })$\r$\n'
+    FileWrite $1 '$$dbPass = -join ((1..32) | ForEach-Object { [char](Get-Random -Minimum 65 -Maximum 123) })$\r$\n'
+    FileWrite $1 '$$envPath = [System.Environment]::GetCommandLineArgs()[-1]$\r$\n'
+    FileWrite $1 '$$lines = @($\r$\n'
+    FileWrite $1 '  "POSTGRES_PASSWORD=$$dbPass",$\r$\n'
+    FileWrite $1 '  ("DATABASE_URL=postgresql+asyncpg://posvendelo_user:" + $$dbPass + "@postgres:5432/posvendelo"),$\r$\n'
+    FileWrite $1 '  "JWT_SECRET=$$jwtSecret",$\r$\n'
+    FileWrite $1 '  "ADMIN_API_USER=",$\r$\n'
+    FileWrite $1 '  "ADMIN_API_PASSWORD=",$\r$\n'
+    FileWrite $1 '  "DEBUG=false"$\r$\n'
+    FileWrite $1 ')$\r$\n'
+    FileWrite $1 '$$lines -join [Environment]::NewLine | Set-Content -Encoding UTF8 -Path $$envPath$\r$\n'
+    FileClose $1
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$TEMP\posvendelo-genenv.ps1" "$TITAN_ENV"'
     Pop $0
     ${If} $0 != 0
       DetailPrint "ADVERTENCIA: Fallo generación de .env via PowerShell. Usando fallback básico..."
@@ -232,10 +234,10 @@
   FileWrite $1 "por primera vez.$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "Backend: http://127.0.0.1:8000$\r$\n"
-  FileWrite $1 "Datos en: C:\ProgramData\POSVENDELO\$\r$\n"
+  FileWrite $1 "Datos en: $TITAN_DATA_DIR$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "Para detener los servicios:$\r$\n"
-  FileWrite $1 "  cd C:\ProgramData\POSVENDELO$\r$\n"
+  FileWrite $1 "  cd $TITAN_DATA_DIR$\r$\n"
   FileWrite $1 "  docker compose down$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "Los datos de la base de datos se conservan en el$\r$\n"
@@ -253,16 +255,20 @@
 
 !macro customUnInstall
 
+  ; Re-leer PROGRAMDATA (las variables de customInstall no persisten en uninstall)
+  ReadEnvStr $0 PROGRAMDATA
+  StrCmp $0 "" 0 +2
+    StrCpy $0 "C:\ProgramData"
+
   DetailPrint "Deteniendo servicios POSVENDELO..."
-  nsExec::ExecToLog \
-    'cmd /c cd /d "$PROGRAMDATA\POSVENDELO" && docker compose down'
-  Pop $0
-  ${If} $0 == 0
+  nsExec::ExecToLog 'cmd /c cd /d "$0\POSVENDELO" && docker compose down'
+  Pop $1
+  ${If} $1 == 0
     DetailPrint "Contenedores detenidos."
   ${Else}
     DetailPrint "No se pudieron detener los contenedores (puede que Docker no esté corriendo)."
   ${EndIf}
-  DetailPrint "Los datos en C:\ProgramData\POSVENDELO\ se conservan."
+  DetailPrint "Los datos en $0\POSVENDELO se conservan."
   DetailPrint "Elimínalos manualmente si no los necesitas."
 
 !macroend
