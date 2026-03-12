@@ -3,6 +3,7 @@ import {
   Component,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -504,6 +505,18 @@ function RoutedApp(): ReactElement {
   const [shiftResolved, setShiftResolved] = useState(false)
   const [setupRequired, setSetupRequired] = useState(false)
   const [setupChecked, setSetupChecked] = useState(false)
+
+  // Wizard inicial obligatorio: si no hay servidor configurado, ir a Configurar servidor antes de cualquier otra pantalla (evita que el cliente vea login sin poder configurar)
+  useLayoutEffect(() => {
+    if (location.pathname === '/configurar-servidor') return
+    try {
+      const saved = localStorage.getItem('titan.baseUrl')
+      if (saved != null && saved.trim() !== '') return
+      navigate('/configurar-servidor', { replace: true })
+    } catch {
+      navigate('/configurar-servidor', { replace: true })
+    }
+  }, [location.pathname, navigate])
 
   // Idle timeout — auto-logout after 30 min of inactivity
   useEffect((): (() => void) => {
