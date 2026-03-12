@@ -76,7 +76,7 @@ jobs:
           PYTHONPATH: "."
         run: pytest tests/ -v --tb=short
 
-  # ─── Job 3: Build & Push (canary on master, stable on v tags) ────────
+  # ─── Job 3: Build & Push (latest+canary on master, stable on v tags) ───
   build-push:
     if: github.event_name == 'push'
     needs: [lint, test]
@@ -101,7 +101,7 @@ jobs:
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           SHA_TAG="${IMAGE}:sha-${GITHUB_SHA::7}"
           if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
-            echo "tags=${IMAGE}:canary,${SHA_TAG}" >> "$GITHUB_OUTPUT"
+            echo "tags=${IMAGE}:latest,${IMAGE}:canary,${SHA_TAG}" >> "$GITHUB_OUTPUT"
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
             echo "tags=${IMAGE}:latest,${IMAGE}:${VERSION},${SHA_TAG}" >> "$GITHUB_OUTPUT"
@@ -115,3 +115,11 @@ jobs:
           context: ./backend
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+
+      - name: Watchtower auto-deploy note
+        if: github.ref == 'refs/heads/master'
+        run: |
+          echo "Image pushed as :latest — Watchtower on homelab (192.168.10.90) will"
+          echo "auto-pull and redeploy within 30 min (poll interval configured there)."
+          echo "To force an immediate update via Tailscale SSH, run:"
+          echo "  ssh prod 'docker exec titan-pos-watchtower-1 /watchtower --run-once'"

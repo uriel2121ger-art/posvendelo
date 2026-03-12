@@ -338,6 +338,12 @@ async def downloads_page() -> str:
   <div class="wrap">
     <h1>Descargas PosVendelo</h1>
     <p class="note">Elija la app y su plataforma. Si un instalador no está disponible, use la versión Web del dueño.</p>
+    <h2>Instalador de nodo (servidor)</h2>
+    <ul>
+      <li><a href="/download/nodo/linux">Linux (script bash)</a> — <code>curl ... | bash</code></li>
+      <li><a href="/download/nodo/windows">Windows (PowerShell)</a></li>
+    </ul>
+    <p class="note">El nodo instala Docker, el backend y la base de datos en la PC del negocio.</p>
     <h2>App Cajeros (punto de venta)</h2>
     <ul>
       <li><a href="/download/cajero/windows">Windows (.exe)</a></li>
@@ -443,6 +449,16 @@ async def download_owner_apk() -> FileResponse | HTMLResponse:
         "application/vnd.android.package-archive",
         "App dueño Android (APK)",
     )
+
+
+@app.api_route("/download/nodo/linux", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_nodo_linux() -> FileResponse | HTMLResponse:
+    return _serve_download("install-titan.sh", "application/x-sh", "Instalador nodo Linux (bash)")
+
+
+@app.api_route("/download/nodo/windows", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_nodo_windows() -> FileResponse | HTMLResponse:
+    return _serve_download("Install-Titan.ps1", "application/octet-stream", "Instalador nodo Windows (PowerShell)")
 
 
 @app.get("/health", tags=["system"])
