@@ -1,7 +1,7 @@
 const DEFAULT_CP_URL =
   (import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined)?.trim() || 'http://127.0.0.1:9090'
 
-const TOKEN_KEY = 'titan.owner.cloudToken'
+const TOKEN_KEY = 'pos.owner.cloudToken'
 
 export type CloudAuthResponse = {
   session_token: string

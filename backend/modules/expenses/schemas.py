@@ -1,6 +1,5 @@
 """POSVENDELO - Expenses Module Schemas"""
 
-import math
 from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator, model_validator

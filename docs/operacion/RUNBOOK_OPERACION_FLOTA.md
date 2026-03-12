@@ -83,7 +83,7 @@ Despues:
 
 1. Resolver licencia otra vez con install token.
 2. Verificar clave publica/privada persistente.
-3. Exportar `titan-license.json` si el nodo opera offline.
+3. Exportar `posvendelo-license.json` si el nodo opera offline.
 4. Revisar eventos de licencia.
 
 ### Update fallido

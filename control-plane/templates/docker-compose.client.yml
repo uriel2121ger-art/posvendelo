@@ -62,6 +62,8 @@ services:
       # Mount only the agent config — do NOT mount the entire install dir (.env, CREDENCIALES.txt)
       - ./titan-agent.json:/runtime/titan-agent.json:ro
       - ./backups:/backups
+      # CUPS socket for host printer access (discovery + printing)
+      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
     depends_on:
       postgres:
         condition: service_healthy

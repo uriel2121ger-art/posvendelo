@@ -24,27 +24,27 @@ export function makeTestJwt(sub = 'test-user', role = 'admin'): string {
 
 /** Simula un usuario autenticado con token y rol. */
 export function setAuthToken(token?: string, role = 'admin', user = 'admin'): void {
-  localStorage.setItem('titan.token', token ?? makeTestJwt(user, role))
-  localStorage.setItem('titan.role', role)
-  localStorage.setItem('titan.user', user)
-  localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')
+  localStorage.setItem('pos.token', token ?? makeTestJwt(user, role))
+  localStorage.setItem('pos.role', role)
+  localStorage.setItem('pos.user', user)
+  localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8090')
 }
 
-/** Limpia todo localStorage de titan (incluye borradores por usuario para evitar fugas entre tests). */
+/** Limpia todo localStorage de pos (incluye borradores por usuario para evitar fugas entre tests). */
 export function clearAuth(): void {
-  const user = localStorage.getItem('titan.user')
-  const prefixes = ['titan.currentShift', 'titan.shiftHistory']
+  const user = localStorage.getItem('pos.user')
+  const prefixes = ['pos.currentShift', 'pos.shiftHistory']
   const keys = [
-    'titan.token',
-    'titan.role',
-    'titan.user',
-    'titan.baseUrl',
-    'titan.currentShift',
-    'titan.shiftHistory',
-    'titan.pendingTickets',
-    'titan.activeTickets',
-    'titan.terminalId',
-    'titan.hwConfig'
+    'pos.token',
+    'pos.role',
+    'pos.user',
+    'pos.baseUrl',
+    'pos.currentShift',
+    'pos.shiftHistory',
+    'pos.pendingTickets',
+    'pos.activeTickets',
+    'pos.terminalId',
+    'pos.hwConfig'
   ]
   keys.forEach((k) => localStorage.removeItem(k))
   for (let index = localStorage.length - 1; index >= 0; index -= 1) {
@@ -54,8 +54,8 @@ export function clearAuth(): void {
     }
   }
   if (user) {
-    localStorage.removeItem(`titan.pendingTickets.${user}`)
-    localStorage.removeItem(`titan.activeTickets.${user}`)
+    localStorage.removeItem(`pos.pendingTickets.${user}`)
+    localStorage.removeItem(`pos.activeTickets.${user}`)
   }
 }
 

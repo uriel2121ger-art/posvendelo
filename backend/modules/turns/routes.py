@@ -319,16 +319,21 @@ async def create_cash_movement(
 ):
     """Register a cash movement (in/out) for a turn. No PIN required."""
     user_id = get_user_id(auth)
+    role = auth.get("role", "")
     conn = db.connection
     async with conn.transaction():
         turn = await conn.fetchrow(
-            "SELECT id, status FROM turns WHERE id = $1 FOR UPDATE",
+            "SELECT id, user_id, status FROM turns WHERE id = $1 FOR UPDATE",
             turn_id,
         )
         if not turn:
             raise HTTPException(status_code=404, detail="Turno no encontrado")
         if turn["status"] != "open":
             raise HTTPException(status_code=400, detail="El turno esta cerrado")
+
+        # Ownership check: only the turn owner or privileged roles can add movements
+        if turn["user_id"] != user_id and role not in PRIVILEGED_ROLES:
+            raise HTTPException(status_code=403, detail="No puedes registrar movimientos en el turno de otro usuario")
 
         # Patrón seguro: usar NOW() de PostgreSQL para columnas TIMESTAMP (evita bug asyncpg naive/aware)
         row = await conn.fetchrow(

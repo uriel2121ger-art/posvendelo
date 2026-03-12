@@ -364,9 +364,6 @@ async def cloud_discover():
 @router.post("/register")
 async def cloud_register(body: CloudRegisterRequest, request: Request, db=Depends(get_db)):
     _assert_cloud_registration_enabled()
-    existing_user = await db.fetchrow("SELECT id FROM cloud_users WHERE email = :email", {"email": body.email})
-    if existing_user:
-        raise HTTPException(status_code=409, detail="Ese correo ya está registrado")
 
     if body.link_code:
         link_code = await db.fetchrow(
@@ -440,36 +437,111 @@ async def cloud_register(body: CloudRegisterRequest, request: Request, db=Depend
     else:
         if not body.business_name:
             raise HTTPException(status_code=400, detail="El nombre del negocio es requerido")
+        # Resolve slug and branch slug BEFORE entering the transaction so
+        # these helper queries use db.fetchval (named params) outside the tx.
         tenant_slug = await _unique_tenant_slug(db, body.business_name)
-        tenant = await db.fetchrow(
-            """
-            INSERT INTO tenants (name, slug)
-            VALUES (:name, :slug)
-            RETURNING id, name, slug, status, created_at
-            """,
-            {"name": body.business_name, "slug": tenant_slug},
-        )
-        branch = await _insert_branch(
-            db,
-            tenant_id=tenant["id"],
-            tenant_slug=tenant["slug"],
-            branch_name=body.branch_name,
-            branch_slug=body.branch_slug,
-        )
+        install_token = secrets.token_urlsafe(24)
+        resolved_branch_slug = body.branch_slug or await _unique_branch_slug(db, tenant_slug, body.branch_name)
+
+        async with db.connection.transaction():
+            existing_user = await db.connection.fetchrow("SELECT id FROM cloud_users WHERE email = $1", body.email)
+            if existing_user:
+                raise HTTPException(status_code=409, detail="Ese correo ya está registrado")
+
+            tenant = await db.connection.fetchrow(
+                """
+                INSERT INTO tenants (name, slug)
+                VALUES ($1, $2)
+                RETURNING id, name, slug, status, created_at
+                """,
+                body.business_name,
+                tenant_slug,
+            )
+            branch_name = body.branch_name or "Sucursal Principal"
+            branch = await db.connection.fetchrow(
+                """
+                INSERT INTO branches (tenant_id, name, branch_slug, install_token, release_channel)
+                VALUES ($1, $2, $3, $4, 'stable')
+                RETURNING id, tenant_id, name, branch_slug, install_token, release_channel, created_at
+                """,
+                tenant["id"],
+                branch_name,
+                resolved_branch_slug,
+                install_token,
+            )
+            user = await db.connection.fetchrow(
+                """
+                INSERT INTO cloud_users (email, password_hash, full_name, status, email_verified)
+                VALUES ($1, $2, $3, 'active', 0)
+                RETURNING id, email, full_name, status, email_verified, session_version, created_at
+                """,
+                body.email,
+                hash_password(body.password),
+                body.full_name,
+            )
+            membership = await db.connection.fetchrow(
+                """
+                INSERT INTO cloud_user_memberships (cloud_user_id, tenant_id, role, status)
+                VALUES ($1, $2, 'owner', 'active')
+                RETURNING id, cloud_user_id, tenant_id, role, status, created_at
+                """,
+                user["id"],
+                tenant["id"],
+            )
+
+        # ensure_trial_license uses db.fetchrow (named params) — called outside
+        # the transaction intentionally because it is idempotent and uses the
+        # :name param style that is incompatible with asyncpg raw connections.
         await ensure_trial_license(db, tenant_id=tenant["id"])
 
-    user = await db.fetchrow(
-        """
-        INSERT INTO cloud_users (email, password_hash, full_name, status, email_verified)
-        VALUES (:email, :password_hash, :full_name, 'active', 0)
-        RETURNING id, email, full_name, status, email_verified, session_version, created_at
-        """,
-        {
-            "email": body.email,
-            "password_hash": hash_password(body.password),
-            "full_name": body.full_name,
-        },
-    )
+        membership["tenant_name"] = tenant["name"]
+        membership["tenant_slug"] = tenant["slug"]
+
+        session = await _create_cloud_session(db, user=user, membership=membership, request=request)
+        await log_audit_event(
+            db,
+            actor=f"cloud-user:{user['id']}",
+            action="cloud.register",
+            entity_type="tenant",
+            entity_id=tenant["id"],
+            payload={"email": user["email"], "branch_id": branch["id"], "source": "register"},
+        )
+        await _create_cloud_notification(
+            db,
+            tenant_id=tenant["id"],
+            branch_id=branch["id"],
+            cloud_user_id=user["id"],
+            notification_type="success",
+            title="Cuenta Nube PosVendelo activada",
+            body=f"La cuenta cloud quedó vinculada a {branch['name']}.",
+        )
+        return {
+            "success": True,
+            "data": {
+                "tenant_id": tenant["id"],
+                "tenant_slug": tenant["slug"],
+                "branch_id": branch["id"],
+                "branch_name": branch["name"],
+                "install_token": branch.get("install_token"),
+                **session,
+            },
+        }
+
+    # --- link_code / install_token paths: create cloud_user + membership ---
+    async with db.connection.transaction():
+        existing_user = await db.connection.fetchrow("SELECT id FROM cloud_users WHERE email = $1", body.email)
+        if existing_user:
+            raise HTTPException(status_code=409, detail="Ese correo ya está registrado")
+        user = await db.connection.fetchrow(
+            """
+            INSERT INTO cloud_users (email, password_hash, full_name, status, email_verified)
+            VALUES ($1, $2, $3, 'active', 0)
+            RETURNING id, email, full_name, status, email_verified, session_version, created_at
+            """,
+            body.email,
+            hash_password(body.password),
+            body.full_name,
+        )
     membership = await db.fetchrow(
         """
         INSERT INTO cloud_user_memberships (cloud_user_id, tenant_id, role, status)
@@ -529,7 +601,11 @@ async def cloud_login(body: CloudLoginRequest, request: Request, db=Depends(get_
         """,
         {"email": body.email},
     )
-    if not user or not verify_password(body.password, user.get("password_hash") or ""):
+    if not user:
+        # Simulate bcrypt work to prevent timing oracle (email enumeration)
+        verify_password("dummy-timing-pad", "$2b$12$LJ3m4ys3Lg3aIm1XhWN5j.INVALID.HASH.PADDING.00")
+        raise HTTPException(status_code=401, detail="Correo o contraseña inválidos")
+    if not verify_password(body.password, user.get("password_hash") or ""):
         raise HTTPException(status_code=401, detail="Correo o contraseña inválidos")
     if user.get("status") != "active":
         raise HTTPException(status_code=403, detail="La cuenta cloud está inactiva")

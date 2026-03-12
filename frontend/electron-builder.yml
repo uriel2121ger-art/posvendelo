@@ -1,4 +1,4 @@
-appId: com.titanpos.pos
+appId: com.posvendelo.pos
 productName: POSVENDELO
 icon: resources/icon.png
 directories:

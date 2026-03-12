@@ -104,6 +104,8 @@ export default function OwnerPortfolioTab(): ReactElement {
         setTimeline([])
         setTimelineError(null)
       }
+    } catch (err) {
+      setData((prev) => prev ? { ...prev, lastError: err instanceof Error ? err.message : String(err) } : null)
     } finally {
       setLoading(false)
     }
@@ -117,9 +119,14 @@ export default function OwnerPortfolioTab(): ReactElement {
       setTimelineError('El agente local no expone timeline por sucursal.')
       return
     }
-    const result = await agent.getOwnerBranchTimeline(branchId)
-    setTimeline(result.timeline ?? [])
-    setTimelineError(result.lastError)
+    try {
+      const result = await agent.getOwnerBranchTimeline(branchId)
+      setTimeline(result.timeline ?? [])
+      setTimelineError(result.lastError)
+    } catch (err) {
+      setTimeline([])
+      setTimelineError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   useEffect(() => {

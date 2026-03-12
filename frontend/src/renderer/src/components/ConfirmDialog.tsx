@@ -192,9 +192,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div
               ref={confirmModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirm-dialog-title"
               className={`w-full max-w-sm rounded-2xl border ${confirmStyle.border} bg-zinc-900 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150`}
             >
-              <h3 className={`text-lg font-bold ${confirmStyle.title} mb-3`}>
+              <h3 id="confirm-dialog-title" className={`text-lg font-bold ${confirmStyle.title} mb-3`}>
                 {dialog.options.title ?? 'Confirmar'}
               </h3>
               <p className="text-zinc-300 text-sm mb-6 whitespace-pre-wrap">{dialog.message}</p>
@@ -223,9 +226,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
             <form
               ref={promptModalRef}
               onSubmit={handlePromptSubmit}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="prompt-dialog-title"
               className={`w-full max-w-sm rounded-2xl border ${promptStyle.border} bg-zinc-900 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150`}
             >
-              <h3 className={`text-lg font-bold ${promptStyle.title} mb-3`}>
+              <h3 id="prompt-dialog-title" className={`text-lg font-bold ${promptStyle.title} mb-3`}>
                 {promptDialog.options.title ?? 'Ingresa un valor'}
               </h3>
               <p className="text-zinc-300 text-sm mb-4 whitespace-pre-wrap">

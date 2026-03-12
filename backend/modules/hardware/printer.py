@@ -54,6 +54,7 @@ def _list_printers_sync() -> list[dict]:
                     is_disabled = "disabled" in low or "deshabilitada" in low
                     printers.append({
                         "name": name,
+                        "display_name": name,
                         "enabled": is_enabled and not is_disabled,
                         "status": "idle" if (is_enabled and not is_disabled) else "disabled",
                         "is_default": False,

@@ -5,7 +5,7 @@
 set -euo pipefail
 
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-INSTALL_DIR="$HOME/.titanpos"
+INSTALL_DIR="$HOME/.posvendelo"
 
 # Extraer --dir de los argumentos para desinstalar en el mismo sitio
 ARGS=()

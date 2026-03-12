@@ -55,13 +55,13 @@ export default function ShiftStartupModal({
 
   useFocusTrap(modalRef as React.RefObject<HTMLElement | null>, phase !== 'checking')
 
-  const operator = (() => {
+  const [operator] = useState(() => {
     try {
-      return localStorage.getItem('titan.user') ?? 'admin'
+      return localStorage.getItem('pos.user') ?? 'admin'
     } catch {
       return 'admin'
     }
-  })()
+  })
 
   // Block F-keys while modal is open (capture phase)
   useEffect(() => {

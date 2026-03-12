@@ -493,9 +493,9 @@ export default function RemoteTab(): ReactElement {
               </div>
               <button
                 onClick={() => {
-                  loadTurnStatus()
-                  loadLiveSales()
-                  loadNotifications()
+                  void loadTurnStatus()
+                  void loadLiveSales()
+                  void loadNotifications()
                 }}
                 disabled={busy}
                 className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-zinc-800 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"

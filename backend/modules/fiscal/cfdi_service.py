@@ -164,11 +164,12 @@ class CFDIService:
                 payment_method = sale_data.get("payment_method", "cash")
                 payment_form_map = {
                     "cash": "01", "card": "04", "debit": "28", "transfer": "03",
-                    "check": "02", "mixed": "01", "wallet": "05", "voucher": "08",
+                    "check": "02", "mixed": "99", "wallet": "05", "voucher": "08",
                     "usd": "01", "credit": "99",
                 }
                 payment_form = payment_form_map.get(payment_method, "01")
-                cfdi_payment_method = "PPD" if payment_method == "credit" else "PUE"
+                # SAT: credit/mixed → PPD+99; everything else → PUE
+                cfdi_payment_method = "PPD" if payment_method in ("credit", "mixed") else "PUE"
 
             invoice_data = {
                 "customer": {
@@ -290,6 +291,34 @@ class CFDIService:
             logger.error(f"Error cancelando CFDI {uuid}: {e}", exc_info=True)
             return {"success": False, "error": "Error interno al cancelar CFDI"}
 
+    async def _reserve_folio(self) -> int:
+        """
+        CFDI-021: Atomically reserve the next folio for the current branch.
+
+        Uses UPDATE ... RETURNING to increment the counter and return the value
+        that was just consumed in a single round-trip, eliminating the race
+        condition that occurs when two concurrent requests both read the same
+        folio_actual before either has incremented it.
+
+        Returns the folio number to embed in the CFDI (the pre-increment value).
+        """
+        if not self.branch_id:
+            raise ValueError("branch_id no establecido — no se puede reservar folio")
+        folio_row = await self.db.fetchrow(
+            "UPDATE fiscal_config "
+            "SET folio_actual = folio_actual + 1 "
+            "WHERE branch_id = :bid "
+            "RETURNING folio_actual - 1 AS reserved_folio",
+            {"bid": self.branch_id},
+        )
+        if not folio_row:
+            raise ValueError(
+                f"No se encontro configuracion fiscal para la sucursal {self.branch_id}"
+            )
+        reserved = folio_row.get("reserved_folio")
+        logger.debug(f"Folio reservado: {reserved} (proximo sera {reserved + 1})")
+        return reserved
+
     async def generate_cfdi_for_sale(
         self,
         sale_id: int,
@@ -323,6 +352,11 @@ class CFDIService:
                     uso_cfdi, None, resolved_customer_zip, forma_pago,
                 )
 
+            # CFDI-021: Reserve folio atomically BEFORE building XML so that no
+            # two concurrent requests can produce the same folio number.
+            reserved_folio = await self._reserve_folio()
+            fiscal_config_with_folio = {**fiscal_config, "folio_actual": reserved_folio}
+
             customer_data = {
                 "rfc": customer_rfc.upper(),
                 "nombre": customer_name or "PUBLICO EN GENERAL",
@@ -332,14 +366,14 @@ class CFDIService:
             }
 
             from modules.fiscal.cfdi_builder import CFDIBuilder
-            builder = CFDIBuilder(fiscal_config)
+            builder = CFDIBuilder(fiscal_config_with_folio)
             xml_unsigned = builder.build(sale_data, customer_data)
 
             from modules.fiscal.signature import sign_cfdi_xml
-            xml_signed = sign_cfdi_xml(xml_unsigned, fiscal_config)
+            xml_signed = sign_cfdi_xml(xml_unsigned, fiscal_config_with_folio)
 
             from modules.fiscal.pac_connector import create_pac_connector
-            pac = create_pac_connector(fiscal_config)
+            pac = create_pac_connector(fiscal_config_with_folio)
             timbrado_result = await pac.timbrar_cfdi(xml_signed)
 
             if not timbrado_result.get("success"):
@@ -351,7 +385,7 @@ class CFDIService:
             cfdi_record = {
                 "sale_id": sale_id,
                 "uuid": uuid,
-                "folio": fiscal_config.get("folio_actual", 1),
+                "folio": reserved_folio,
                 "serie": fiscal_config.get("serie_factura", "F"),
                 "rfc_receptor": customer_rfc,
                 "nombre_receptor": customer_data["nombre"],
@@ -367,16 +401,6 @@ class CFDIService:
             }
 
             cfdi_id = await self._save_cfdi(cfdi_record)
-
-            # Atomic folio increment to prevent race conditions
-            folio_row = await self.db.fetchrow(
-                "UPDATE fiscal_config SET folio_actual = folio_actual + 1 "
-                "WHERE branch_id = :bid RETURNING folio_actual",
-                {"bid": self.branch_id},
-            )
-            if folio_row:
-                logger.debug(f"Folio incremented to {folio_row.get('folio_actual')}")
-
             xml_path = await self._save_xml_file(uuid, xml_timbrado)
             await self._promote_sale_to_serie_a(sale_id, uuid, sale_data)
 
@@ -559,6 +583,10 @@ class CFDIService:
             )
             total = subtotal + tax
 
+            # CFDI-021: Reserve folio atomically BEFORE building XML.
+            reserved_folio = await self._reserve_folio()
+            fiscal_config_with_folio = {**fiscal_config, "folio_actual": reserved_folio}
+
             credit_note_data = {
                 "tipo_comprobante": "E",
                 "subtotal": subtotal,
@@ -578,14 +606,14 @@ class CFDIService:
             }
 
             from modules.fiscal.cfdi_builder import CFDIBuilder
-            builder = CFDIBuilder(fiscal_config)
+            builder = CFDIBuilder(fiscal_config_with_folio)
             xml_unsigned = builder.build_credit_note(credit_note_data, customer_data)
 
             from modules.fiscal.signature import sign_cfdi_xml
-            xml_signed = sign_cfdi_xml(xml_unsigned, fiscal_config)
+            xml_signed = sign_cfdi_xml(xml_unsigned, fiscal_config_with_folio)
 
             from modules.fiscal.pac_connector import create_pac_connector
-            pac = create_pac_connector(fiscal_config)
+            pac = create_pac_connector(fiscal_config_with_folio)
             timbrado_result = await pac.timbrar_cfdi(xml_signed)
 
             if not timbrado_result.get("success"):
@@ -597,7 +625,7 @@ class CFDIService:
             cfdi_record = {
                 "sale_id": None,
                 "uuid": uuid,
-                "folio": fiscal_config.get("folio_actual", 1),
+                "folio": reserved_folio,
                 "serie": fiscal_config.get("serie_nota_credito", "NC"),
                 "tipo_comprobante": "E",
                 "rfc_receptor": customer_rfc,
@@ -614,15 +642,6 @@ class CFDIService:
             }
 
             cfdi_id = await self._save_cfdi(cfdi_record)
-
-            # Atomic folio increment to prevent race conditions
-            folio_row = await self.db.fetchrow(
-                "UPDATE fiscal_config SET folio_actual = folio_actual + 1 "
-                "WHERE branch_id = :bid RETURNING folio_actual",
-                {"bid": self.branch_id},
-            )
-            if folio_row:
-                logger.debug(f"Credit note folio incremented to {folio_row.get('folio_actual')}")
 
             xml_path = await self._save_xml_file(uuid, xml_timbrado)
 

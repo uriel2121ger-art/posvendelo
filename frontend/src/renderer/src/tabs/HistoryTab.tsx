@@ -72,7 +72,7 @@ export default function HistoryTab(): ReactElement {
   const requestIdRef = useRef(0)
   const detailRequestId = useRef(0)
   const drawerRef = useRef<HTMLDivElement>(null)
-  const role = getUserRole()
+  const [role] = useState(() => getUserRole())
 
   useFocusTrap(drawerRef, isDrawerOpen)
   const canManage = role === 'manager' || role === 'owner' || role === 'admin'
@@ -125,13 +125,14 @@ export default function HistoryTab(): ReactElement {
     setSelectedId(saleId)
     setDetail(null)
     setShowTechnical(false)
+    // Load events independently of detail — both are useful on their own
+    void loadEvents(saleId)
     try {
       const cfg = loadRuntimeConfig()
       const payload = await getSaleDetail(cfg, saleId)
       if (detailRequestId.current !== reqId) return
       setDetail(payload)
       setMessage(`Detalle cargado: ${saleId}`)
-      void loadEvents(saleId)
     } catch {
       if (detailRequestId.current !== reqId) return
       setDetail(null)

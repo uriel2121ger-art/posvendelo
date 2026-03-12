@@ -1,6 +1,6 @@
 # POSVENDELO — Checklist de seguridad
 
-Referencia rápida para revisión y despliegue seguro. Ver también `.cursor/rules/security.mdc`.
+Referencia rápida para revisión y despliegue seguro. Ver también `CLAUDE.md`.
 
 ## Herramientas de seguridad (SAST, dependencias, secretos)
 

@@ -8,7 +8,7 @@ export function toCsvCell(value: string): string {
 
 /** Create and trigger download of a CSV file with BOM for Excel compatibility. */
 export function downloadCsv(filename: string, headers: string[], rows: string[][]): void {
-  const csv = [headers.join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
+  const csv = [headers.map(toCsvCell).join(','), ...rows.map((r) => r.map(toCsvCell).join(','))].join('\n')
   const blob = new Blob([`\uFEFF${csv}\n`], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

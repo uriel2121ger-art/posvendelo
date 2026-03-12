@@ -5,6 +5,7 @@ WORKDIR /app
 # System deps for lxml/signxml (CFDI)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev libxslt1-dev gcc \
+    cups-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user

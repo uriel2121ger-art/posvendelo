@@ -1,8 +1,8 @@
 import {
-  TITAN_API_URL,
-  TITAN_BROWSER_PORT,
-  TITAN_DISCOVER_HOSTS,
-  TITAN_DISCOVER_PORTS
+  POS_API_URL,
+  POS_BROWSER_PORT,
+  POS_DISCOVER_HOSTS,
+  POS_DISCOVER_PORTS
 } from './runtimeEnv'
 
 export type RuntimeConfig = {
@@ -47,9 +47,12 @@ function acquireSlot(): Promise<void> {
 }
 
 function releaseSlot(): void {
-  _activeRequests--
   const next = _requestQueue.shift()
-  if (next) next()
+  if (next) {
+    next() // callback increments _activeRequests — counter stays the same
+  } else {
+    _activeRequests--
+  }
 }
 
 const FALLBACKS: Record<string, string> = {
@@ -60,7 +63,7 @@ const FALLBACKS: Record<string, string> = {
 
 function getDiscoverPorts(): number[] {
   try {
-    const custom = localStorage.getItem('titan.discoverPorts')
+    const custom = localStorage.getItem('pos.discoverPorts')
     if (custom) {
       const parsed = JSON.parse(custom) as number[]
       if (
@@ -73,11 +76,11 @@ function getDiscoverPorts(): number[] {
   } catch {
     /* use defaults */
   }
-  return TITAN_DISCOVER_PORTS
+  return POS_DISCOVER_PORTS
 }
 
 export async function autoDiscoverBackend(): Promise<string | null> {
-  const saved = localStorage.getItem('titan.baseUrl')
+  const saved = localStorage.getItem('pos.baseUrl')
   if (saved && _isValidBaseUrl(saved)) {
     try {
       const r = await fetch(`${saved}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1500) })
@@ -87,12 +90,12 @@ export async function autoDiscoverBackend(): Promise<string | null> {
     }
   }
   for (const port of getDiscoverPorts()) {
-    for (const host of TITAN_DISCOVER_HOSTS) {
+    for (const host of POS_DISCOVER_HOSTS) {
       const url = `http://${host}:${port}`
       try {
         const r = await fetch(`${url}/api/v1/auth/verify`, { signal: AbortSignal.timeout(1200) })
         if (r.status === 401 || r.ok) {
-          safeSetItem('titan.baseUrl', url)
+          safeSetItem('pos.baseUrl', url)
           return url
         }
       } catch {
@@ -116,42 +119,73 @@ function _isTokenExpired(token: string): boolean {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) return false // Not a JWT — skip expiry check
-    const payload = JSON.parse(atob(parts[1]))
+    // Normalize base64url → base64 standard (JWTs use - and _ instead of + and /)
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(
+      Math.ceil(parts[1].length / 4) * 4, '='
+    )
+    const payload = JSON.parse(atob(b64)) as Record<string, unknown>
     if (!payload.exp) return false
-    return payload.exp * 1000 < Date.now()
+    return (payload.exp as number) * 1000 < Date.now()
   } catch {
     // Malformed base64 or invalid JSON — treat as expired for safety
     return true
   }
 }
 
-const DEFAULT_BASE_URL = TITAN_API_URL
+/** Migrate localStorage keys from legacy titan.* prefix to pos.* (runs once) */
+let _storageMigrated = false
+function migrateStorageKeys(): void {
+  if (_storageMigrated) return
+  _storageMigrated = true
+  try {
+    const fixed = ['token', 'baseUrl', 'user', 'role', 'terminalId', 'hwConfig',
+      'currentShift', 'shiftHistory', 'pendingTickets', 'activeTickets',
+      'productsCache', 'configProfiles', 'remoteActionQueue', 'discoverPorts']
+    for (const key of fixed) {
+      if (!localStorage.getItem(`pos.${key}`)) {
+        const old = localStorage.getItem(`titan.${key}`)
+        if (old) { localStorage.setItem(`pos.${key}`, old); localStorage.removeItem(`titan.${key}`) }
+      }
+    }
+    // Migrate dynamic keys (per-terminal shifts, per-user tickets)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k?.startsWith('titan.') && !localStorage.getItem(k.replace('titan.', 'pos.'))) {
+        localStorage.setItem(k.replace('titan.', 'pos.'), localStorage.getItem(k)!)
+        localStorage.removeItem(k)
+      }
+    }
+  } catch { /* storage inaccessible */ }
+}
+
+const DEFAULT_BASE_URL = POS_API_URL
 
 /** En modo navegador (Vite dev puerto 5173) usar '' para que las peticiones pasen por el proxy a 8000. */
 function getEffectiveBaseUrl(saved: string): string {
   if (typeof window === 'undefined') return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
   const origin = window.location.origin
   const isViteDev =
-    window.location.port === TITAN_BROWSER_PORT &&
-    TITAN_DISCOVER_HOSTS.some((host) => origin.startsWith(`http://${host}:`))
+    window.location.port === POS_BROWSER_PORT &&
+    POS_DISCOVER_HOSTS.some((host) => origin.startsWith(`http://${host}:`))
   const pointsToLocal8000 = saved === DEFAULT_BASE_URL || saved === ''
   if (isViteDev && pointsToLocal8000) return ''
   return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
 }
 
 export function loadRuntimeConfig(): RuntimeConfig {
+  migrateStorageKeys()
   try {
-    const baseUrl = localStorage.getItem('titan.baseUrl') ?? DEFAULT_BASE_URL
-    let token = localStorage.getItem('titan.token') ?? ''
+    const baseUrl = localStorage.getItem('pos.baseUrl') ?? DEFAULT_BASE_URL
+    let token = localStorage.getItem('pos.token') ?? ''
     // Auto-clear expired tokens to force re-login
     if (token && _isTokenExpired(token)) {
-      localStorage.removeItem('titan.token')
+      localStorage.removeItem('pos.token')
       token = ''
     }
     return {
       baseUrl: getEffectiveBaseUrl(baseUrl),
       token,
-      terminalId: Math.max(1, parseInt(localStorage.getItem('titan.terminalId') ?? '1', 10) || 1)
+      terminalId: Math.max(1, parseInt(localStorage.getItem('pos.terminalId') ?? '1', 10) || 1)
     }
   } catch {
     return { baseUrl: DEFAULT_BASE_URL, token: '', terminalId: 1 }
@@ -159,9 +193,9 @@ export function loadRuntimeConfig(): RuntimeConfig {
 }
 
 export function saveRuntimeConfig(cfg: RuntimeConfig): void {
-  safeSetItem('titan.baseUrl', cfg.baseUrl)
-  safeSetItem('titan.token', cfg.token)
-  safeSetItem('titan.terminalId', String(cfg.terminalId))
+  safeSetItem('pos.baseUrl', cfg.baseUrl)
+  safeSetItem('pos.token', cfg.token)
+  safeSetItem('pos.terminalId', String(cfg.terminalId))
 }
 
 function headers(cfg: RuntimeConfig): HeadersInit {
@@ -193,11 +227,14 @@ function inDateRange(row: Record<string, unknown>, dateFrom?: string, dateTo?: s
   return true
 }
 
+let _sessionExpired = false
+
 function handleExpiredSession(): never {
+  _sessionExpired = true
   try {
-    localStorage.removeItem('titan.token')
-    localStorage.removeItem('titan.user')
-    localStorage.removeItem('titan.currentShift')
+    localStorage.removeItem('pos.token')
+    localStorage.removeItem('pos.user')
+    localStorage.removeItem('pos.currentShift')
   } catch {
     /* storage inaccessible — proceed with redirect */
   }
@@ -263,11 +300,13 @@ function assertSuccess(body: Record<string, unknown>, fallbackMessage: string): 
 }
 
 async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  if (_sessionExpired) throw new Error('Sesión expirada. Inicia sesión de nuevo.')
   await acquireSlot()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(url, { ...init, signal: controller.signal })
+    if (_sessionExpired) throw new Error('Sesión expirada. Inicia sesión de nuevo.')
     if (res.status === 401) handleExpiredSession()
     return res
   } catch (err) {
@@ -314,7 +353,7 @@ async function apiFetchLong(url: string, init: RequestInit): Promise<Response> {
 
 export function getUserRole(): string {
   try {
-    return localStorage.getItem('titan.role') ?? 'cashier'
+    return localStorage.getItem('pos.role') ?? 'cashier'
   } catch {
     return 'cashier'
   }
@@ -354,7 +393,10 @@ export async function pullTable(
 
   if (primary.ok) {
     const body = (await primary.json()) as Record<string, unknown> | null
-    if (!body || typeof body !== 'object') return []
+    if (!body || typeof body !== 'object') {
+      console.warn(`pullTable(${table}): respuesta malformada del servidor`, body)
+      return []
+    }
     const candidate = body.data ?? body[table] ?? []
     return Array.isArray(candidate) ? (candidate as Record<string, unknown>[]) : []
   }
@@ -365,7 +407,10 @@ export async function pullTable(
       const fallback = await apiFetch(`${cfg.baseUrl}${fallbackPath}`, { headers: headers(cfg) })
       if (fallback.ok) {
         const body = (await fallback.json()) as Record<string, unknown> | null
-        if (!body || typeof body !== 'object') return []
+        if (!body || typeof body !== 'object') {
+          console.warn(`pullTable(${table}) fallback: respuesta malformada del servidor`, body)
+          return []
+        }
         const fallbackCandidate = body[table] ?? body.data ?? body.products ?? body.customers ?? []
         return Array.isArray(fallbackCandidate)
           ? (fallbackCandidate as Record<string, unknown>[])
@@ -470,7 +515,7 @@ export async function getSaleDetail(
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     return data as Record<string, unknown>
   }
-  return body
+  throw new Error(`Respuesta inesperada al obtener venta ${saleId}`)
 }
 
 export async function getSyncStatus(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
@@ -2434,7 +2479,8 @@ export async function getInitialSetupStatus(cfg: RuntimeConfig): Promise<Initial
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error consultando setup inicial'))
-  const json = (await res.json()) as { data: InitialSetupStatus }
+  const json = (await res.json()) as { data?: InitialSetupStatus }
+  if (!json?.data) throw new Error('Respuesta inesperada del servidor en setup-status')
   return json.data
 }
 
@@ -2453,6 +2499,7 @@ export async function completeInitialSetup(
 
 export type CupsPrinter = {
   name: string
+  display_name: string
   enabled: boolean
   status: string
   is_default: boolean
@@ -2498,7 +2545,8 @@ export async function getHardwareConfig(cfg: RuntimeConfig): Promise<HardwareCon
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error cargando config hardware'))
-  const json = (await res.json()) as { data: HardwareConfig }
+  const json = (await res.json()) as { data?: HardwareConfig }
+  if (!json?.data) throw new Error('Respuesta inesperada del servidor en hardware config')
   return json.data
 }
 
@@ -2517,12 +2565,25 @@ export async function updateHardwareConfig(
 }
 
 export async function discoverPrinters(cfg: RuntimeConfig): Promise<CupsPrinter[]> {
+  // Prefer Electron IPC (host-level CUPS/WinPrint) over backend API (Docker container)
+  const api = (window as Window & { api?: { hardware?: { listPrinters?: () => Promise<Array<{ name: string; displayName: string; description: string; status: number; isDefault: boolean }>> } } }).api
+  if (typeof api?.hardware?.listPrinters === 'function') {
+    const raw = await api.hardware.listPrinters()
+    return raw.map((p) => ({
+      name: p.name,
+      display_name: p.displayName || p.name,
+      enabled: p.status === 0,
+      status: p.isDefault ? 'idle (default)' : `status ${p.status}`,
+      is_default: p.isDefault
+    }))
+  }
+  // Fallback: backend API (works when backend has CUPS access, e.g., bare-metal install)
   const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/hardware/printers`, {
     headers: headers(cfg)
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error detectando impresoras'))
-  const json = (await res.json()) as { data: { printers: CupsPrinter[] } }
-  return json.data.printers
+  const json = (await res.json()) as { data?: { printers?: CupsPrinter[] } }
+  return json?.data?.printers ?? []
 }
 
 export async function testPrint(cfg: RuntimeConfig): Promise<Record<string, unknown>> {
@@ -2597,7 +2658,7 @@ export async function checkNeedsFirstUser(cfg: RuntimeConfig): Promise<boolean> 
   } finally {
     clearTimeout(timeout)
   }
-  if (!res.ok) return false
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const body = (await res.json()) as { success: boolean; data: { needs_first_user: boolean } }
   return Boolean(body.data?.needs_first_user)
 }

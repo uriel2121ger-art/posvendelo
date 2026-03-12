@@ -21,8 +21,8 @@ export type ShiftRecord = {
   notes?: string
 }
 
-export const CURRENT_SHIFT_KEY = 'titan.currentShift'
-export const SHIFT_HISTORY_KEY = 'titan.shiftHistory'
+export const CURRENT_SHIFT_KEY = 'pos.currentShift'
+export const SHIFT_HISTORY_KEY = 'pos.shiftHistory'
 
 function normalizeTerminalId(terminalId?: number | null): number {
   return Math.max(1, Number.parseInt(String(terminalId ?? 1), 10) || 1)
@@ -52,16 +52,30 @@ export function readCurrentShift(expectedTerminalId?: number | null): ShiftRecor
       localStorage.getItem(getCurrentShiftStorageKey(terminalId)) ??
       localStorage.getItem(CURRENT_SHIFT_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as ShiftRecord
+    const parsed = JSON.parse(raw) as Record<string, unknown>
     if (parsed?.status !== 'open') return null
     if (
       expectedTerminalId != null &&
       Number.isFinite(expectedTerminalId) &&
-      (parsed.terminalId ?? 1) !== expectedTerminalId
+      (Number(parsed.terminalId ?? 1)) !== expectedTerminalId
     ) {
       return null
     }
-    return parsed
+    // Normalize numeric fields to prevent NaN propagation from corrupt localStorage
+    const safeNum = (v: unknown): number => { const n = Number(v ?? 0); return Number.isFinite(n) ? n : 0 }
+    return {
+      ...parsed,
+      terminalId: safeNum(parsed.terminalId) || 1,
+      openingCash: safeNum(parsed.openingCash),
+      salesCount: safeNum(parsed.salesCount),
+      totalSales: safeNum(parsed.totalSales),
+      cashSales: safeNum(parsed.cashSales),
+      cardSales: safeNum(parsed.cardSales),
+      transferSales: safeNum(parsed.transferSales),
+      closingCash: parsed.closingCash != null ? safeNum(parsed.closingCash) : undefined,
+      expectedCash: parsed.expectedCash != null ? safeNum(parsed.expectedCash) : undefined,
+      cashDifference: parsed.cashDifference != null ? safeNum(parsed.cashDifference) : undefined
+    } as ShiftRecord
   } catch {
     return null
   }

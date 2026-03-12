@@ -79,24 +79,18 @@ async def register_expense(
     conn = db.connection
     async with conn.transaction():
         # Lock open turn to prevent race with close_turn
-        turn = await db.fetchrow(
-            "SELECT id FROM turns WHERE user_id = :uid AND status = 'open' ORDER BY id LIMIT 1 FOR UPDATE",
-            {"uid": user_id},
+        turn = await conn.fetchrow(
+            "SELECT id FROM turns WHERE user_id = $1 AND status = 'open' ORDER BY id LIMIT 1 FOR UPDATE",
+            user_id,
         )
         turn_id = turn["id"] if turn else None
 
         # Patrón seguro: usar NOW() de PostgreSQL para timestamp (evita bug asyncpg naive/aware)
-        row = await db.fetchrow(
+        row = await conn.fetchrow(
             """INSERT INTO cash_movements (turn_id, type, amount, description, reason, user_id, timestamp)
-               VALUES (:turn_id, 'expense', :amount, :desc, :reason, :uid, NOW())
+               VALUES ($1, 'expense', $2, $3, $4, $5, NOW())
                RETURNING id""",
-            {
-                "turn_id": turn_id,
-                "amount": body.amount,
-                "desc": body.description,
-                "reason": body.reason,
-                "uid": user_id,
-            },
+            turn_id, body.amount, body.description, body.reason, user_id,
         )
 
     if not row:

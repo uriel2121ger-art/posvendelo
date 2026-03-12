@@ -1,6 +1,6 @@
 # Verificación en 20 rondas — Bugs e issues
 
-Informe de 20 rondas de verificación y búsqueda de bugs/issues sobre el proyecto POSVENDELO (TITAN POS).
+Informe de 20 rondas de verificación y búsqueda de bugs/issues sobre el proyecto POSVENDELO.
 
 ---
 

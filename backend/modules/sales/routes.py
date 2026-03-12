@@ -679,13 +679,18 @@ async def search_sales(
     folio: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    status: Optional[str] = Query("completed", description="Filtrar por estado (completed, cancelled, all)"),
     limit: int = Query(100, ge=1, le=1000),
     auth: dict = Depends(verify_token),
     db=Depends(get_db),
 ):
-    """Search sales by folio and/or date range."""
+    """Search sales by folio and/or date range. Excludes cancelled sales by default."""
     sql = "SELECT id, uuid, folio_visible AS folio, subtotal, tax, total, discount, payment_method, status, customer_id, user_id, turn_id, timestamp FROM sales WHERE 1=1"
     params: dict = {}
+
+    if status and status != "all":
+        sql += " AND status = :status"
+        params["status"] = status
 
     if folio:
         sql += " AND folio_visible ILIKE :folio"
@@ -962,7 +967,7 @@ async def daily_sales_summary(
     params["limit"] = limit
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/reports/product-ranking")
@@ -980,7 +985,7 @@ async def product_sales_ranking(
         " FROM mv_product_sales_ranking ORDER BY total_revenue DESC LIMIT :limit",
         {"limit": limit}
     )
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/reports/hourly-heatmap")
@@ -1003,7 +1008,7 @@ async def hourly_heatmap(
     sql += " ORDER BY day_of_week, hour_of_day"
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 # ── GET /{sale_id} — Get sale detail ──────────────────────────────
@@ -1012,7 +1017,7 @@ async def hourly_heatmap(
 async def get_sale(sale_id: int, auth: dict = Depends(verify_token), db=Depends(get_db)):
     """Get sale by ID with items. Cashiers can only see their own sales."""
     role = auth.get("role", "")
-    user_id = auth.get("sub")
+    user_id = get_user_id(auth)
     _SALES_COLS = (
         "id, uuid, timestamp, subtotal, tax, total, discount, payment_method,"
         " customer_id, user_id, cashier_id, turn_id, serie, folio, folio_visible,"

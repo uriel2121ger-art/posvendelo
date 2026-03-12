@@ -131,11 +131,12 @@ async def adjust_stock(
         mov_type = "IN" if adjustment >= 0 else "OUT"
         user_id = get_user_id(auth)
 
+        branch_id = auth.get("branch_id", 1)
         await conn.execute(
             """
             INSERT INTO inventory_movements
-                (product_id, movement_type, type, quantity, reason, reference_type, user_id, timestamp, synced)
-            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, NOW(), 0)
+                (product_id, movement_type, type, quantity, reason, reference_type, user_id, branch_id, timestamp, synced)
+            VALUES ($1, $2, 'adjust', $3, $4, $5, $6, $7, NOW(), 0)
             """,
             body.product_id,
             mov_type,
@@ -143,6 +144,7 @@ async def adjust_stock(
             body.reason,
             body.reference_id or "manual_adjust",
             user_id,
+            branch_id,
         )
 
     return {

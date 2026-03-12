@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, type PrinterInfo } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -84,7 +84,7 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.titanpos.pos')
+  electronApp.setAppUserModelId('com.posvendelo.pos')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -106,8 +106,9 @@ app.whenReady().then(async () => {
 
   // Cerrar ventana desde el renderer (botón "Cerrar programa" en ShiftStartupModal)
   ipcMain.handle('app:close', () => {
-    const win = BrowserWindow.getFocusedWindow()
+    const win = BrowserWindow.getAllWindows()[0]
     if (win) win.close()
+    else app.quit()
   })
 
   ipcMain.handle('agent:get-status', async () => localAgent.getStatus())
@@ -122,15 +123,26 @@ app.whenReady().then(async () => {
   )
   ipcMain.handle('agent:get-owner-portfolio', async () => localAgent.getOwnerPortfolio())
   ipcMain.handle('agent:get-owner-events', async () => localAgent.getOwnerEvents())
-  ipcMain.handle('agent:get-owner-branch-timeline', async (_, branchId: number) =>
-    localAgent.getOwnerBranchTimeline(branchId)
-  )
+  ipcMain.handle('agent:get-owner-branch-timeline', async (_, branchId: unknown) => {
+    const id = Number(branchId)
+    if (!Number.isInteger(id) || id < 1) return { success: false, error: 'branchId inválido' }
+    return localAgent.getOwnerBranchTimeline(id)
+  })
   ipcMain.handle('agent:get-owner-commercial', async () => localAgent.getOwnerCommercial())
   ipcMain.handle('agent:get-owner-health-summary', async () => localAgent.getOwnerHealthSummary())
   ipcMain.handle('agent:get-owner-audit', async () => localAgent.getOwnerAudit())
-  ipcMain.handle('agent:generate-link-code', async (_, ttlMinutes?: number) =>
-    localAgent.generateLinkCode(ttlMinutes)
-  )
+  ipcMain.handle('agent:generate-link-code', async (_, ttlMinutes?: unknown) => {
+    const ttl = Number(ttlMinutes)
+    const safeTtl = Number.isInteger(ttl) && ttl >= 1 && ttl <= 1440 ? ttl : 15
+    return localAgent.generateLinkCode(safeTtl)
+  })
+
+  // Hardware: list system printers via Electron (host-level, not Docker)
+  ipcMain.handle('hardware:list-printers', async (): Promise<PrinterInfo[]> => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return []
+    return win.webContents.getPrintersAsync()
+  })
 
   localAgent.start()
 

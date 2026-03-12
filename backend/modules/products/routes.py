@@ -123,7 +123,7 @@ async def scan_product(sku: str, auth: dict = Depends(verify_token), db=Depends(
     )
     return {
         "success": True,
-        "data": {"found": False, "suggestions": suggestions},
+        "data": {"found": False, "suggestions": sanitize_rows(suggestions)},
     }
 
 
@@ -420,7 +420,7 @@ async def update_price_remote(
             await conn.execute(
                 """INSERT INTO price_history (product_id, field_changed, old_value, new_value, changed_by, changed_at)
                    VALUES ($1, 'price', $2, $3, $4, NOW())""",
-                product["id"], old_price, body.new_price, get_user_id(auth),
+                product["id"], old_price, money(body.new_price), get_user_id(auth),
             )
 
     return {

@@ -27,13 +27,13 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Create-SelfSigned-
 
 1. Guardar fuera del repositorio:
 
-- `titan-selfsigned-codesign.pfx`
-- `titan-selfsigned-codesign.cer`
+- `posvendelo-selfsigned-codesign.pfx`
+- `posvendelo-selfsigned-codesign.cer`
 
 1. Para maquinas piloto, importar confianza:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installers\windows\Trust-TitanPublisher.ps1 -CertPath ".\artifacts\codesign\titan-selfsigned-codesign.cer"
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Trust-PosvendeloPublisher.ps1 -CertPath ".\artifacts\codesign\posvendelo-selfsigned-codesign.cer"
 ```
 
 1. Para instalacion guiada con confianza previa, usar:
@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Trust-TitanPublish
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 `
   -CpUrl https://control-plane.example.com `
   -InstallToken TOKEN `
-  -PublisherCertPath ".\artifacts\codesign\titan-selfsigned-codesign.cer"
+  -PublisherCertPath ".\artifacts\codesign\posvendelo-selfsigned-codesign.cer"
 ```
 
 1. Para CI Windows:
@@ -60,6 +60,6 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 
 ## Archivos relevantes
 
 - `installers/windows/Create-SelfSigned-CodeSigningCert.ps1`
-- `installers/windows/Trust-TitanPublisher.ps1`
+- `installers/windows/Trust-PosvendeloPublisher.ps1`
 - `installers/windows/Install-Titan.ps1`
 - `.github/workflows/release.yml`

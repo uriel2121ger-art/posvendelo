@@ -2,9 +2,11 @@
 
 ## Resumen
 
-TITAN POS se instala sin necesidad de crear una cuenta. El instalador recolecta
+POSVENDELO se instala sin necesidad de crear una cuenta. El instalador recolecta
 un fingerprint de hardware, se pre-registra en el control plane, y el POS
 queda operativo en minutos. La nube es opcional y se activa después.
+
+> **Implementación de referencia:** ver [CHANGELOG_INSTALL_FLOW_2026_03_12.md](CHANGELOG_INSTALL_FLOW_2026_03_12.md)
 
 ## Fases
 

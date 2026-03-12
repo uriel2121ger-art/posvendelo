@@ -196,27 +196,11 @@ class CFDISignature:
             except Exception as e:
                 logger.warning("XSLT transform failed, using fallback: %s", e)
 
-        # Fallback: simplified cadena original (concatenate key elements)
-        logger.info("Using simplified cadena original — place cadenaoriginal_4_0.xslt in backend/resources/ for production")
-
-        def get_attr(elem, attr, default=''):
-            return elem.get(attr, default)
-
-        parts = [
-            "||",
-            f"{get_attr(xml_tree, 'Version')}|",
-            f"{get_attr(xml_tree, 'Serie')}|",
-            f"{get_attr(xml_tree, 'Folio')}|",
-            f"{get_attr(xml_tree, 'Fecha')}|",
-            f"{get_attr(xml_tree, 'FormaPago')}|",
-            f"{get_attr(xml_tree, 'SubTotal')}|",
-            f"{get_attr(xml_tree, 'Total')}|",
-        ]
-
-        cadena = ''.join(parts)
-        logger.debug("Cadena original (simplified): %s", cadena)
-
-        return cadena
+        raise FileNotFoundError(
+            "cadenaoriginal_4_0.xslt no encontrado. Descargar de SAT: "
+            "http://www.sat.gob.mx/sitio_internet/cfd/4/cadenaoriginal_4_0.xslt "
+            "y colocar en backend/resources/cadenaoriginal_4_0.xslt"
+        )
 
 def sign_cfdi_xml(xml_string: str, fiscal_config: Optional[Dict[str, Any]]) -> str:
     """

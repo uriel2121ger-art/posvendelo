@@ -8,7 +8,7 @@ export type QueuedRemoteAction = {
   payload: Record<string, unknown>
 }
 
-const STORAGE_KEY = 'titan.remoteActionQueue'
+const STORAGE_KEY = 'pos.remoteActionQueue'
 
 function safeRead(): QueuedRemoteAction[] {
   try {
@@ -41,7 +41,9 @@ export function enqueueRemoteAction(
     ...current,
     {
       ...action,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       createdAt: new Date().toISOString()
     }
   ]

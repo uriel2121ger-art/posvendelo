@@ -1,5 +1,5 @@
 param(
-  [string]$InstallDir = "$env:LOCALAPPDATA\TitanPOS"
+  [string]$InstallDir = "$env:LOCALAPPDATA\POSVENDELO"
 )
 
 $ErrorActionPreference = "Stop"

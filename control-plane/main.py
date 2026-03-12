@@ -8,7 +8,6 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from db.connection import close_pool, get_pool
 from license_service import verify_license_key_at_startup
@@ -122,9 +121,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-from slowapi import Limiter  # noqa: E402
+from rate_limiter import limiter  # noqa: E402
 
-app.state.limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(

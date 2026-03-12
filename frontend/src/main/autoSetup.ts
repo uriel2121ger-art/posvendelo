@@ -1,6 +1,6 @@
 import { app, dialog } from 'electron'
 import { execSync, spawn } from 'child_process'
-import { existsSync, writeFileSync } from 'fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import http from 'http'
 
@@ -130,11 +130,13 @@ async function tryStartExisting(): Promise<void> {
           stdio: 'ignore'
         })
       } catch {
-        // Fallback: ask for elevation via polkit
-        execSync(`pkexec bash -c 'docker compose -f "${COMPOSE_FILE}" up -d'`, {
+        // Fallback: ask for elevation via polkit (spawn with array to avoid shell injection)
+        const { spawnSync } = require('node:child_process') as typeof import('node:child_process')
+        const result = spawnSync('pkexec', ['docker', 'compose', '-f', COMPOSE_FILE, 'up', '-d'], {
           timeout: 60000,
           stdio: 'ignore'
         })
+        if (result.status !== 0) throw new Error('pkexec docker compose failed')
       }
     }
   } catch {
@@ -156,12 +158,15 @@ function runSetup(): Promise<boolean> {
 
     // No bundled script → generate an inline one
     const script = generateSetupScript()
+    // Use mkdtemp with 0o700 to prevent TOCTOU attacks in /tmp
+    const { tmpdir } = require('node:os') as typeof import('node:os')
+    const tmpDir = mkdtempSync(join(tmpdir(), 'posvendelo-'))
     const tmpScript =
       process.platform === 'win32'
-        ? join(process.env.TEMP ?? 'C:\\Temp', 'posvendelo-setup.ps1')
-        : '/tmp/posvendelo-setup.sh'
+        ? join(tmpDir, 'posvendelo-setup.ps1')
+        : join(tmpDir, 'setup.sh')
 
-    writeFileSync(tmpScript, script, { mode: 0o755 })
+    writeFileSync(tmpScript, script, { mode: 0o700 })
     runElevated(tmpScript, resolve)
   })
 }
@@ -178,7 +183,7 @@ function getBundledScriptPath(): string | null {
     process.platform === 'win32'
       ? [
           join(resourcesPath, 'posvendelo-setup.ps1'),
-          join(app.getAppPath(), '..', 'installers', 'windows', 'Install-Titan.ps1')
+          join(app.getAppPath(), '..', 'installers', 'windows', 'Install-Posvendelo.ps1')
         ]
       : [
           join(resourcesPath, 'posvendelo-setup.sh'),
@@ -189,7 +194,7 @@ function getBundledScriptPath(): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Inline setup scripts (mirrors postinst.sh / Install-Titan.ps1 but without
+// Inline setup scripts (mirrors postinst.sh / Install-Posvendelo.ps1 but without
 // control-plane calls — pure offline-first first-run setup)
 // ---------------------------------------------------------------------------
 function generateSetupScript(): string {

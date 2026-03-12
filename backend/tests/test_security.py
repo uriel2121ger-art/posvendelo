@@ -108,8 +108,8 @@ async def test_null_byte_json_body_safe(client, seed_all, admin_token):
 # ── 3. Cash movements — no PIN required ───────────────────────────
 
 
-async def test_cash_movement_without_pin(client, seed_all, cashier_token):
-    """Cashier can create cash movement without manager PIN."""
+async def test_cash_movement_without_pin(client, seed_all, admin_token):
+    """Admin (turn owner) can create cash movement without manager PIN."""
     resp = await client.post(
         f"/api/v1/turns/{TURN_ID}/movements",
         json={
@@ -117,7 +117,7 @@ async def test_cash_movement_without_pin(client, seed_all, cashier_token):
             "movement_type": "out",
             "reason": "Test retiro sin PIN",
         },
-        headers=auth_header(cashier_token),
+        headers=auth_header(admin_token),
     )
     assert resp.status_code == 200, f"Cash movement rejected: {resp.text}"
 

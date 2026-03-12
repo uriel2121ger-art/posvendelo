@@ -190,8 +190,27 @@ class CFDIBuilder:
         # VALIDACIÓN SAT CRÍTICA: PPD requiere 99, PUE no puede ser 99
         validate_payment_logic(metodo_pago, forma_pago)
         
-        subtotal = Decimal(str(sale_data.get('subtotal', 0)))
-        total = Decimal(str(sale_data.get('total', 0)))
+        # SAT rule: SubTotal = Σ(Concepto.Importe) = sum of qty*price per item (pre-discount).
+        # Never trust sale_data['subtotal'] — it may already have discount applied.
+        items = sale_data.get('items', [])
+        subtotal = Decimal('0')
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            item_price = Decimal(str(item.get('price', 0)))
+            subtotal += (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        discount = Decimal(str(sale_data.get('discount', 0)))
+
+        # Recompute IVA from items (must match _build_impuestos exactly)
+        total_iva = Decimal('0')
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            item_price = Decimal(str(item.get('price', 0)))
+            item_importe = (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_iva += (item_importe * Decimal(str(IVA_RATE))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # SAT formula: Total = SubTotal - Descuento + TotalImpuestosTrasladados
+        total = subtotal - discount + total_iva
 
         attrs = {
             'Version': '4.0',
@@ -210,7 +229,6 @@ class CFDIBuilder:
         }
 
         # Add Descuento if applicable
-        discount = Decimal(str(sale_data.get('discount', 0)))
         if discount > 0:
             attrs['Descuento'] = f"{discount:.2f}"
         
@@ -240,8 +258,18 @@ class CFDIBuilder:
     
     def _build_conceptos(self, items: List[Dict[str, Any]]) -> etree.Element:
         """Build Conceptos (line items) element."""
+        # CFDI-002: reject items with qty <= 0 before building XML
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            if item_qty <= Decimal('0'):
+                raise ValueError(
+                    f"Cantidad inválida ({item_qty}) para el producto "
+                    f"'{item.get('product_name', item.get('name', 'desconocido'))}'. "
+                    "La cantidad debe ser mayor que cero."
+                )
+
         conceptos = etree.Element('{' + CFDI_NS + '}Conceptos')
-        
+
         for item in items:
             # Get SAT codes from product or use defaults
             clave_prod_serv = item.get('sat_clave_prod_serv', '01010101')
@@ -300,8 +328,8 @@ class CFDIBuilder:
         traslados = etree.Element('{' + CFDI_NS + '}Traslados')
 
         # IVA 16% — recompute base from qty*price to match document-level _build_impuestos
-        item_qty = Decimal(str(item.get('qty', item.get('cantidad', 1))))
-        item_price = Decimal(str(item.get('unit_price', item.get('precio_unitario', item.get('price', 0)))))
+        item_qty = Decimal(str(item.get('qty', 1)))
+        item_price = Decimal(str(item.get('price', 0)))
         item_subtotal = (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         iva_amount = (item_subtotal * Decimal(str(IVA_RATE))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
@@ -470,11 +498,31 @@ class CFDIBuilder:
         return xml_bytes.decode('utf-8')
     
     def _build_comprobante_egreso(self, credit_data: Dict[str, Any]) -> etree.Element:
-        """Build root Comprobante element for Egreso (Credit Note)."""
+        """Build root Comprobante element for Egreso (Credit Note).
+
+        CFDI-003: SubTotal and Total are recomputed from items so that the egreso
+        CFDI is self-consistent, regardless of what the original invoice carried.
+        """
         # Credit notes use PPD + 99 (refund method is deferred/undefined)
         # SAT rule: PPD requires FormaPago 99, PUE cannot use 99
-        subtotal = Decimal(str(credit_data.get('subtotal', 0)))
-        total = Decimal(str(credit_data.get('total', 0)))
+        items = credit_data.get('items', [])
+
+        # Recompute subtotal from items (qty * price per line, rounded per item)
+        subtotal = Decimal('0')
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            item_price = Decimal(str(item.get('price', 0)))
+            subtotal += (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # Recompute IVA to derive total (must match _build_impuestos exactly)
+        total_iva = Decimal('0')
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            item_price = Decimal(str(item.get('price', 0)))
+            item_importe = (item_qty * item_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_iva += (item_importe * Decimal(str(IVA_RATE))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        total = subtotal + total_iva
 
         attrs = {
             'Version': '4.0',
@@ -491,7 +539,7 @@ class CFDIBuilder:
             'Exportacion': '01',  # No aplica
             '{' + XSI_NS + '}schemaLocation': SCHEMA_LOCATION
         }
-        
+
         return etree.Element('{' + CFDI_NS + '}Comprobante', nsmap=NSMAP, **attrs)
     
     def _build_cfdi_relacionados(self, uuid_relacionado: str, tipo_relacion: str = '01') -> etree.Element:
@@ -517,8 +565,18 @@ class CFDIBuilder:
     
     def _build_conceptos_credit_note(self, items: List[Dict[str, Any]], descripcion: str = 'Nota de crédito') -> etree.Element:
         """Build Conceptos for credit note."""
+        # CFDI-002: reject items with qty <= 0 before building XML
+        for item in items:
+            item_qty = Decimal(str(item.get('qty', 1)))
+            if item_qty <= Decimal('0'):
+                raise ValueError(
+                    f"Cantidad inválida ({item_qty}) para el producto "
+                    f"'{item.get('product_name', item.get('name', 'desconocido'))}' "
+                    "en la nota de crédito. La cantidad debe ser mayor que cero."
+                )
+
         conceptos = etree.Element('{' + CFDI_NS + '}Conceptos')
-        
+
         for item in items:
             qty = Decimal(str(item.get('qty', 1)))
             price = Decimal(str(item.get('price', 0)))

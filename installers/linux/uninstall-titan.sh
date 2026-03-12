@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="${1:-$HOME/.titanpos}"
+INSTALL_DIR="${1:-$HOME/.posvendelo}"
 
 # Quitar icono del escritorio y entrada del menú creados por el instalador
 rm -f "$HOME/Desktop/POSVENDELO.desktop" 2>/dev/null || true

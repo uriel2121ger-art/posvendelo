@@ -130,19 +130,19 @@ export default function TopNavbar(): ReactElement {
     }
   }, [])
 
-  const userName = (() => {
+  const [userName] = useState(() => {
     try {
-      return localStorage.getItem('titan.user') || 'Usuario'
+      return localStorage.getItem('pos.user') || 'Usuario'
     } catch {
       return 'Usuario'
     }
-  })()
+  })
 
   const handleLogout = async (): Promise<void> => {
     const hasPending = (() => {
       try {
-        const user = localStorage.getItem('titan.user')
-        const key = user ? `titan.pendingTickets.${user}` : 'titan.pendingTickets'
+        const user = localStorage.getItem('pos.user')
+        const key = user ? `pos.pendingTickets.${user}` : 'pos.pendingTickets'
         const raw = localStorage.getItem(key)
         if (!raw) return false
         const arr = JSON.parse(raw)
@@ -165,14 +165,14 @@ export default function TopNavbar(): ReactElement {
     await serverLogout()
 
     try {
-      // No borrar titan.pendingTickets ni titan.activeTickets (ni sus variantes por usuario):
+      // No borrar pos.pendingTickets ni pos.activeTickets (ni sus variantes por usuario):
       // así los borradores y tickets pendientes persisten al cerrar sesión y al expirar el token.
       ;[
-        'titan.token',
-        'titan.user',
-        'titan.role',
-        'titan.currentShift',
-        'titan.shiftHistory'
+        'pos.token',
+        'pos.user',
+        'pos.role',
+        'pos.currentShift',
+        'pos.shiftHistory'
       ].forEach((k) => localStorage.removeItem(k))
     } catch {
       /* ignore */

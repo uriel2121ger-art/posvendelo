@@ -17,7 +17,7 @@ Checklist operativo para publicar POSVENDELO con apariencia profesional y menor 
 1. Confirmar que existe `frontend/resources/icon.png`.
 1. Generar y agregar `frontend/build/icon.ico` para Windows.
 1. Generar y agregar `frontend/build/icon.icns` para macOS si se va a distribuir ahí.
-1. Verificar que el nombre comercial sea `POSVENDELO` y el ejecutable `titan-pos`.
+1. Verificar que el nombre comercial sea `POSVENDELO` y el ejecutable `posvendelo`.
 
 ## Empaquetado
 

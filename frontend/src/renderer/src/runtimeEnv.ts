@@ -28,20 +28,21 @@ const currentProtocol =
     : 'http:'
 const currentHost =
   typeof window !== 'undefined' ? window.location.hostname || '127.0.0.1' : '127.0.0.1'
-const browserPort = readString(import.meta.env.VITE_TITAN_BROWSER_PORT) ?? '5173'
+// Backward compat: accept both VITE_POS_* and legacy VITE_TITAN_*
+const browserPort = readString(import.meta.env.VITE_POS_BROWSER_PORT ?? import.meta.env.VITE_TITAN_BROWSER_PORT) ?? '5173'
 const isDevBrowser =
   typeof window !== 'undefined' && import.meta.env.DEV && window.location.port === browserPort
 const defaultDiscoverPorts = isDevBrowser ? [8000, 8080, 8090, 3000] : [8000, 8080]
 
-export const TITAN_API_URL =
-  readString(import.meta.env.VITE_TITAN_API_URL) ?? `${currentProtocol}//${currentHost}:8000`
-export const TITAN_DISCOVER_HOSTS = readStringList(import.meta.env.VITE_TITAN_DISCOVER_HOSTS, [
+export const POS_API_URL =
+  readString(import.meta.env.VITE_POS_API_URL ?? import.meta.env.VITE_TITAN_API_URL) ?? `${currentProtocol}//${currentHost}:8000`
+export const POS_DISCOVER_HOSTS = readStringList(import.meta.env.VITE_POS_DISCOVER_HOSTS ?? import.meta.env.VITE_TITAN_DISCOVER_HOSTS, [
   currentHost
 ])
-export const TITAN_DISCOVER_PORTS = readPortList(
-  import.meta.env.VITE_TITAN_DISCOVER_PORTS,
+export const POS_DISCOVER_PORTS = readPortList(
+  import.meta.env.VITE_POS_DISCOVER_PORTS ?? import.meta.env.VITE_TITAN_DISCOVER_PORTS,
   defaultDiscoverPorts
 )
-export const TITAN_BROWSER_PORT = browserPort
-export const TITAN_APP_LABEL = readString(import.meta.env.VITE_TITAN_APP_LABEL) ?? 'POSVENDELO'
-export const TITAN_RELEASE_LABEL = readString(import.meta.env.VITE_TITAN_RELEASE_LABEL)
+export const POS_BROWSER_PORT = browserPort
+export const POS_APP_LABEL = readString(import.meta.env.VITE_POS_APP_LABEL ?? import.meta.env.VITE_TITAN_APP_LABEL) ?? 'POSVENDELO'
+export const POS_RELEASE_LABEL = readString(import.meta.env.VITE_POS_RELEASE_LABEL ?? import.meta.env.VITE_TITAN_RELEASE_LABEL)

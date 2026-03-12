@@ -5,7 +5,11 @@ import { checkNeedsFirstUser, loadRuntimeConfig, saveRuntimeConfig, setupOwnerUs
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,50}$/
 
-export default function FirstUserSetup(): ReactElement {
+type FirstUserSetupProps = {
+  onUserCreated?: () => void
+}
+
+export default function FirstUserSetup({ onUserCreated }: FirstUserSetupProps): ReactElement {
   const navigate = useNavigate()
   const [checking, setChecking] = useState(true)
 
@@ -73,11 +77,14 @@ export default function FirstUserSetup(): ReactElement {
       // Persist token using the same pattern as Login.tsx
       saveRuntimeConfig({ ...cfg, token })
       try {
-        localStorage.setItem('titan.user', username.trim())
-        localStorage.setItem('titan.role', role)
+        localStorage.setItem('pos.user', username.trim())
+        localStorage.setItem('pos.role', role)
       } catch {
         /* storage full — non-critical */
       }
+      // Notificar a RoutedApp que el usuario fue creado ANTES de navegar,
+      // para que el guard de redirect no vuelva a redirigir aqui.
+      onUserCreated?.()
       navigate('/setup-inicial', { replace: true })
     } catch (err) {
       if (err instanceof Error && err.name === 'ConflictError') {

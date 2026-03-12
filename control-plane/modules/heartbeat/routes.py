@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db.connection import get_db
 from modules.heartbeat.schemas import HeartbeatRequest
+from security import verify_install_token
 
 router = APIRouter()
 
@@ -11,14 +12,17 @@ router = APIRouter()
 @router.post("/")
 async def create_heartbeat(
     body: HeartbeatRequest,
+    token: dict = Depends(verify_install_token),
     db=Depends(get_db),
 ):
     branch = await db.fetchrow(
-        "SELECT id FROM branches WHERE id = :branch_id",
-        {"branch_id": body.branch_id},
+        "SELECT id FROM branches WHERE install_token = :install_token",
+        {"install_token": token["install_token"]},
     )
     if not branch:
         raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+
+    branch_id = branch["id"]
 
     await db.execute(
         """
@@ -43,7 +47,7 @@ async def create_heartbeat(
         )
         """,
         {
-            "branch_id": body.branch_id,
+            "branch_id": branch_id,
             "status": body.status,
             "pos_version": body.pos_version,
             "app_version": body.app_version,
@@ -68,7 +72,7 @@ async def create_heartbeat(
         WHERE id = :branch_id
         """,
         {
-            "branch_id": body.branch_id,
+            "branch_id": branch_id,
             "pos_version": body.pos_version,
             "app_version": body.app_version,
             "disk_used_pct": body.disk_used_pct,
@@ -76,4 +80,4 @@ async def create_heartbeat(
             "last_backup": body.last_backup_at,
         },
     )
-    return {"success": True, "data": {"branch_id": body.branch_id, "accepted": True}}
+    return {"success": True, "data": {"branch_id": branch_id, "accepted": True}}

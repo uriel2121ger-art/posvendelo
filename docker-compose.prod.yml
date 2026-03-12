@@ -49,6 +49,8 @@ services:
       DEBUG: "false"
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
     depends_on:
       postgres:
         condition: service_healthy

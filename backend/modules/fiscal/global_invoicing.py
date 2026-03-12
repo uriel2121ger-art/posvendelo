@@ -14,7 +14,7 @@ Removed dead PERIODICIDADES dict and stub schedule_automatic_generation.
 
 from typing import Any, Dict, List, Optional
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 from modules.fiscal.constants import IVA_RATE
 from modules.shared.constants import dec, money
@@ -406,7 +406,7 @@ class GlobalInvoicingService:
                 for item in aggregated['items']:
                     qty = dec(item.get('qty', 1)) or Decimal('1')
                     total_val = dec(item.get('total', 0))
-                    unit_price = (total_val / qty).quantize(Decimal('0.01')) if qty else total_val
+                    unit_price = (total_val / qty).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if qty else total_val
 
                     sat_code_raw = item.get('sat_code', '01010101')
                     sat_code_normalized = normalize_sat_key(sat_code_raw)
@@ -418,7 +418,7 @@ class GlobalInvoicingService:
                             'product_key': product_key,
                             'unit_key': item.get('sat_unit', 'H87'),
                             'unit_name': 'Pieza',
-                            'price': round(unit_price, 2),
+                            'price': dec(unit_price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
                             'taxes': [{'type': 'IVA', 'rate': IVA_RATE}],
                         },
                         'quantity': qty,
@@ -430,7 +430,7 @@ class GlobalInvoicingService:
                         'product_key': '01010101',
                         'unit_key': 'ACT',
                         'unit_name': 'Actividad',
-                        'price': round(aggregated['subtotal'], 2),
+                        'price': dec(aggregated['subtotal']).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
                         'taxes': [{'type': 'IVA', 'rate': IVA_RATE}],
                     },
                     'quantity': 1,

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Server } from 'lucide-react'
 import { loadRuntimeConfig, saveRuntimeConfig } from './posApi'
-import { TITAN_API_URL } from './runtimeEnv'
+import { POS_API_URL } from './runtimeEnv'
 
 export default function ConfigurarServidor(): ReactElement {
   const navigate = useNavigate()
@@ -24,7 +24,7 @@ export default function ConfigurarServidor(): ReactElement {
     try {
       new URL(url)
     } catch {
-      setError(`Dirección inválida. Ejemplo: ${TITAN_API_URL}`)
+      setError(`Dirección inválida. Ejemplo: ${POS_API_URL}`)
       return
     }
     if ((url.match(/https?:\/\//g) || []).length > 1) {

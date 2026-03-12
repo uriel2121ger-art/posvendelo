@@ -40,7 +40,11 @@ const DEFAULT_FORM: SetupForm = {
   cash_drawer_enabled: false
 }
 
-export default function InitialSetupWizard(): ReactElement {
+type InitialSetupWizardProps = {
+  onSetupCompleted?: () => void
+}
+
+export default function InitialSetupWizard({ onSetupCompleted }: InitialSetupWizardProps): ReactElement {
   const navigate = useNavigate()
   const [cfg] = useState<RuntimeConfig>(loadRuntimeConfig)
   const [form, setForm] = useState<SetupForm>(DEFAULT_FORM)
@@ -74,7 +78,7 @@ export default function InitialSetupWizard(): ReactElement {
       } finally {
         if (!cancelled) setChecking(false)
       }
-      await loadPrinters()
+      if (!cancelled) await loadPrinters()
     }
     void run()
     return () => {
@@ -111,6 +115,7 @@ export default function InitialSetupWizard(): ReactElement {
     try {
       await completeInitialSetup(cfg, payload)
       setMessage('Configuración inicial guardada. Ya puedes operar el POS.')
+      onSetupCompleted?.()
       navigate('/terminal', { replace: true })
     } catch (err) {
       setError((err as Error).message)

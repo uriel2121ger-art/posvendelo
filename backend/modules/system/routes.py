@@ -158,7 +158,9 @@ async def build_restore_plan(body: RestorePlanRequest, auth: dict = Depends(veri
         raise HTTPException(status_code=403, detail="Sin permisos para preparar restore")
 
     backup_dir = _backup_dir()
-    target = backup_dir / body.backup_file
+    target = (backup_dir / body.backup_file).resolve()
+    if not str(target).startswith(str(backup_dir.resolve())):
+        raise HTTPException(status_code=400, detail="Nombre de archivo no válido")
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="Respaldo no encontrado")
 

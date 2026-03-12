@@ -27,7 +27,7 @@ describe('Login', () => {
   beforeEach(() => {
     clearAuth()
     // Set a base URL so Login doesn't redirect to /configurar-servidor
-    localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8000')
+    localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8000')
     mockNavigate.mockReset()
     vi.restoreAllMocks()
     ;(
@@ -176,9 +176,9 @@ describe('Login', () => {
     })
 
     // Token guardado en localStorage
-    expect(localStorage.getItem('titan.token')).toBe('jwt-mock-123')
-    expect(localStorage.getItem('titan.user')).toBe('admin')
-    expect(localStorage.getItem('titan.role')).toBe('admin')
+    expect(localStorage.getItem('pos.token')).toBe('jwt-mock-123')
+    expect(localStorage.getItem('pos.user')).toBe('admin')
+    expect(localStorage.getItem('pos.role')).toBe('admin')
   })
 
   it('login fallido muestra error', async () => {

@@ -30,7 +30,7 @@ Los dueños de negocio necesitan monitorear y controlar sus sucursales/bodegas r
 │  (homelab)          │◄───│  (sucursal) │
 │                     │    │  heartbeat  │
 │  CF Tunnel privado  │    │  poll cmds  │
-│  titancloud.dominio │    └─────────────┘
+│  cloud.posvendelo.com │    └─────────────┘
 │                     │
 │  - cloud auth       │
 │  - owner portfolio  │
@@ -43,7 +43,7 @@ Los dueños de negocio necesitan monitorear y controlar sus sucursales/bodegas r
 1. Instala POSVENDELO en sucursal → el instalador le invita a crear cuenta Nube PosVendelo (email+password)
 2. El instalador crea la cuenta, registra la sucursal y la vincula automáticamente
 3. El dueño descarga la **App Dueño** en su PC o instala la PWA en su celular
-4. Abre la app → pone email+password → la app resuelve la URL del CP vía `GET https://api.titanpos.mx/discover` → se conecta al CP
+4. Abre la app → pone email+password → la app resuelve la URL del CP vía `GET https://api.posvendelo.com/discover` → se conecta al CP
 5. Ve todas sus sucursales, ventas, alertas, y puede enviar comandos remotos
 
 ### Flujo LAN (sin cambios)
@@ -130,7 +130,7 @@ El instalador recibe el `install_token` y lo usa para el bootstrap normal del no
 
 ### 1.7 Endpoint de discovery
 - `GET /api/v1/cloud/discover` — público, sin auth
-- Retorna `{cp_url: "https://titancloud.dominio.com", version: "1.0", status: "ok"}`
+- Retorna `{cp_url: "https://cloud.posvendelo.com", version: "1.0", status: "ok"}`
 - Este endpoint también se puede servir desde un dominio público mínimo (DNS o static site)
 
 ### Archivos a modificar
@@ -256,7 +256,7 @@ owner-app/
 - Sin más dependencias pesadas
 
 ### 3.3 Conexión al CP
-- Al abrir la app: `GET https://api.titanpos.mx/discover` → obtiene `cp_url`
+- Al abrir la app: `GET https://api.posvendelo.com/discover` → obtiene `cp_url`
 - Guarda `cp_url` en localStorage
 - Todas las llamadas van a `{cp_url}/api/v1/cloud/*` y `{cp_url}/api/v1/owner/*`
 - Headers: `Authorization: Bearer {session_token}`
@@ -330,12 +330,12 @@ owner-app/
 ## Fase 5: Despliegue
 
 ### 5.1 Dominio
-- Comprar dominio en Cloudflare (ej: `titanpos.mx`, ~$10/año)
-- Subdominio `api.titanpos.mx` → endpoint `/api/v1/cloud/discover` (puede ser Cloudflare Worker o Pages con JSON estático)
+- Comprar dominio en Cloudflare (ej: `posvendelo.com`, ~$10/año)
+- Subdominio `api.posvendelo.com` → endpoint `/api/v1/cloud/discover` (puede ser Cloudflare Worker o Pages con JSON estático)
 
 ### 5.2 CF Tunnel para el control-plane
 - Crear tunnel `titan-cloud` en Zero Trust
-- Ruta: `titancloud.titanpos.mx` → `http://control-plane-api-1:9090`
+- Ruta: `cloud.posvendelo.com` → `http://control-plane-api-1:9090`
 - En `control-plane/docker-compose.yml` agregar servicio `cloudflared`:
   ```yaml
   cloudflared:
@@ -353,13 +353,13 @@ owner-app/
 ```env
 CP_CLOUD_SESSION_TTL_SECONDS=86400
 CP_CLOUD_REGISTRATION_ENABLED=true
-CP_PUBLIC_URL=https://titancloud.titanpos.mx
+CP_PUBLIC_URL=https://cloud.posvendelo.com
 ```
 
 ### 5.4 Discover endpoint
-- `api.titanpos.mx/discover` retorna:
+- `api.posvendelo.com/discover` retorna:
   ```json
-  {"cp_url": "https://titancloud.titanpos.mx", "version": "1.0"}
+  {"cp_url": "https://cloud.posvendelo.com", "version": "1.0"}
   ```
 - Esto puede ser un Cloudflare Worker (gratis) o un JSON en Cloudflare Pages
 

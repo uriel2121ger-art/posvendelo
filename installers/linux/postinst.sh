@@ -44,7 +44,11 @@ fi
 
 # ---------------------------------------------------------------------------
 # 1. Backend setup — Docker + PostgreSQL + API
+#    From here on we disable set -e: network/Docker failures must NOT abort
+#    the package installation. The app installs fine, backend starts later.
 # ---------------------------------------------------------------------------
+set +e
+
 INSTALL_DIR="/opt/posvendelo"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 ENV_FILE="$INSTALL_DIR/.env"
@@ -55,10 +59,63 @@ log() {
 }
 
 # ---------------------------------------------------------------------------
-# Upgrade path: if backend is already running just pull + restart and exit
+# Ensure CUPS is available for printer discovery/printing
 # ---------------------------------------------------------------------------
-if [ -f "$COMPOSE_FILE" ] && docker compose -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | grep -q .; then
-    log "Backend ya en ejecución — actualizando imagen..."
+if ! command -v lpstat &>/dev/null; then
+    log "Instalando soporte de impresión (cups)..."
+    apt-get install -y --no-install-recommends cups-client 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
+# Upgrade path: regenerate compose, pull image and restart
+# ---------------------------------------------------------------------------
+_write_compose() {
+    mkdir -p "$INSTALL_DIR"
+    cat > "$COMPOSE_FILE" << 'DCEOF'
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: posvendelo
+      POSTGRES_USER: posvendelo_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/uriel2121ger-art/posvendelo:latest
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_API_USER: ${ADMIN_API_USER:-}
+      ADMIN_API_PASSWORD: ${ADMIN_API_PASSWORD:-}
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+DCEOF
+}
+
+if [ -f "$ENV_FILE" ] && docker compose -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | grep -q .; then
+    log "Backend ya en ejecución — actualizando..."
+    _write_compose
     docker compose -f "$COMPOSE_FILE" pull --quiet 2>/dev/null || true
     docker compose -f "$COMPOSE_FILE" up -d 2>/dev/null || true
     log "Actualización completada."
@@ -119,44 +176,7 @@ fi
 # ---------------------------------------------------------------------------
 # 5. Create docker-compose.yml (always overwritten to pick up image updates)
 # ---------------------------------------------------------------------------
-cat > "$COMPOSE_FILE" << 'DCEOF'
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: posvendelo
-      POSTGRES_USER: posvendelo_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  api:
-    image: ghcr.io/uriel2121ger-art/posvendelo:latest
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      ADMIN_API_USER: ${ADMIN_API_USER:-}
-      ADMIN_API_PASSWORD: ${ADMIN_API_PASSWORD:-}
-      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
-      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
-    ports:
-      - "127.0.0.1:8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-volumes:
-  pgdata:
-DCEOF
+_write_compose
 
 # ---------------------------------------------------------------------------
 # 6. Create systemd service for auto-start on boot
@@ -188,19 +208,19 @@ log "Servicio systemd registrado."
 # ---------------------------------------------------------------------------
 log "Descargando backend (puede tardar unos minutos en la primera instalación)..."
 cd "$INSTALL_DIR"
-docker compose pull 2>&1 | tail -5 || {
-    log "ADVERTENCIA: No se pudo descargar la imagen. El servicio iniciará cuando haya internet."
-    exit 0
-}
-docker compose up -d
-log "Contenedores iniciados."
+if docker compose pull 2>&1; then
+    docker compose up -d && log "Contenedores iniciados." || log "ADVERTENCIA: No se pudieron iniciar los contenedores. Reinicia el equipo o ejecuta: sudo systemctl start posvendelo"
+else
+    log "ADVERTENCIA: No se pudo descargar la imagen. El servicio iniciará automáticamente cuando haya internet."
+    log "Para iniciar manualmente: sudo systemctl start posvendelo"
+fi
 
 # ---------------------------------------------------------------------------
 # 8. Wait for the API health endpoint (up to 60 s)
 # ---------------------------------------------------------------------------
 log "Esperando que el servidor esté listo..."
 READY=0
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
     if curl -sf http://127.0.0.1:8000/health >/dev/null 2>&1; then
         READY=1
         break
@@ -235,3 +255,6 @@ cat > "$INSTALL_DIR/INSTALL_SUMMARY.txt" << 'SUMEOF'
 SUMEOF
 
 log "¡Instalación completada! Abre POSVENDELO desde el menú de aplicaciones."
+
+# Always exit 0 — backend issues must never fail dpkg
+exit 0

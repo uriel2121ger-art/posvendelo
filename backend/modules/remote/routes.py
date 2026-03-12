@@ -397,7 +397,11 @@ async def resolve_pending_remote_request(
             raise HTTPException(status_code=404, detail="Solicitud remota no encontrada")
         if existing["status"] not in {"pending_confirmation", "delivered"}:
             raise HTTPException(status_code=400, detail="La solicitud remota ya fue procesada")
-        if existing.get("expires_at") and existing["expires_at"] < datetime.now(timezone.utc).replace(tzinfo=None):
+        exp_at = existing.get("expires_at")
+        if exp_at is not None:
+            if isinstance(exp_at, datetime) and exp_at.tzinfo is None:
+                exp_at = exp_at.replace(tzinfo=timezone.utc)
+        if exp_at is not None and exp_at < datetime.now(timezone.utc):
             await db.execute(
                 """
                 UPDATE pending_remote_changes

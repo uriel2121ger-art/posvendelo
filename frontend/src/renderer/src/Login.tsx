@@ -2,8 +2,8 @@ import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, LogIn, RefreshCw, Server, Settings, Wifi } from 'lucide-react'
-import { autoDiscoverBackend, checkNeedsFirstUser, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
-import { TITAN_APP_LABEL, TITAN_RELEASE_LABEL } from './runtimeEnv'
+import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
+import { POS_APP_LABEL, POS_RELEASE_LABEL } from './runtimeEnv'
 
 type AgentStatusView = {
   configLoaded: boolean
@@ -80,44 +80,30 @@ export default function Login(): ReactElement {
   const [error, setError] = useState('')
   const [agentStatus, setAgentStatus] = useState<AgentStatusView | null>(null)
   const navigate = useNavigate()
-  const footerLabel = TITAN_RELEASE_LABEL
-    ? `V ${TITAN_RELEASE_LABEL} • ${TITAN_APP_LABEL}`
-    : TITAN_APP_LABEL
+  const footerLabel = POS_RELEASE_LABEL
+    ? `V ${POS_RELEASE_LABEL} • ${POS_APP_LABEL}`
+    : POS_APP_LABEL
 
-  // Redirigir al wizard si nunca se ha guardado una URL (primera vez o instalador antiguo sin este flujo)
+  // Redirigir al wizard si nunca se ha guardado una URL y estamos en APK/móvil.
+  // En desktop, App.tsx ya auto-configura el default.
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('titan.baseUrl')
+      const saved = localStorage.getItem('pos.baseUrl')
       if (saved != null && saved.trim() !== '') return
+      // Desktop: auto-set default URL instead of redirecting
+      const cap = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+      if (cap?.isNativePlatform?.() !== true) {
+        localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8000')
+        return
+      }
       navigate('/configurar-servidor', { replace: true })
     } catch {
       navigate('/configurar-servidor', { replace: true })
     }
   }, [navigate])
 
-  // Si no hay token y el sistema no tiene usuarios, redirigir al wizard de primer usuario
-  useEffect(() => {
-    let cancelled = false
-    try {
-      const token = localStorage.getItem('titan.token')
-      if (token) return // Already logged in — no redirect needed
-    } catch {
-      /* ignore storage errors */
-    }
-    const cfg = loadRuntimeConfig()
-    checkNeedsFirstUser(cfg)
-      .then((needed) => {
-        if (!cancelled && needed) {
-          navigate('/setup-inicial-usuario', { replace: true })
-        }
-      })
-      .catch(() => {
-        /* best-effort — if check fails, stay on login */
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [navigate])
+  // La verificacion de primer usuario (checkNeedsFirstUser) se maneja
+  // centralizadamente en RoutedApp. Login no necesita duplicar esa logica.
 
   const refreshAgentStatus = async (): Promise<void> => {
     const api = (window as Window & { api?: { agent?: { refresh?: () => Promise<unknown> } } }).api
@@ -401,9 +387,9 @@ export default function Login(): ReactElement {
 
       saveRuntimeConfig({ ...cfg, token })
       try {
-        localStorage.setItem('titan.user', username.trim())
+        localStorage.setItem('pos.user', username.trim())
         const role = String(body.role ?? body.data?.role ?? 'cashier')
-        localStorage.setItem('titan.role', role)
+        localStorage.setItem('pos.role', role)
       } catch {
         /* storage full — non-critical, config already saved */
       }
@@ -649,7 +635,7 @@ export default function Login(): ReactElement {
                   )}
                   {!agentStatus.configLoaded && (
                     <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-300">
-                      El agente local no tiene bootstrap cargado. Revisa `titan-agent.json` o el
+                      El agente local no tiene bootstrap cargado. Revisa `posvendelo-agent.json` o el
                       instalador.
                     </p>
                   )}
@@ -709,8 +695,7 @@ export default function Login(): ReactElement {
                 <p className="mt-2 text-sm text-rose-400 font-medium animate-pulse">{error}</p>
                 )}
                 <p className="mt-3 text-xs text-zinc-500">
-                  Usuario por defecto: <strong className="text-zinc-400">admin</strong>. La
-                  contraseña la tiene quien instaló el nodo (en la PC, archivo INSTALL_SUMMARY.txt).
+                  Si es la primera vez, crea tu usuario en la pantalla de configuración inicial.
                 </p>
               </div>
 

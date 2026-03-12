@@ -58,15 +58,15 @@ python3 scripts/license_admin.py \
   export-file \
   --install-token TOKEN \
   --machine-id EQUIPO-001 \
-  --output titan-license.json
+  --output posvendelo-license.json
 ```
 
-Entrega `titan-license.json` al cliente para colocarlo junto a `titan-agent.json`.
+Entrega `posvendelo-license.json` al cliente para colocarlo junto a `titan-agent.json`.
 
 ## Ubicaciones Del Archivo Offline
 
 - Linux típico: mismo directorio del `titan-agent.json`
-- Backend cliente Docker: `/runtime/titan-license.json`
+- Backend cliente Docker: `/runtime/posvendelo-license.json`
 - Wrapper local: archivo hermano del `titan-agent.json`
 
 ## Reinstalación En El Mismo Equipo
@@ -74,7 +74,7 @@ Entrega `titan-license.json` al cliente para colocarlo junto a `titan-agent.json
 1. Conservar `install_token`.
 2. Reinstalar el nodo.
 3. Verificar que el `machine_id` no cambió materialmente.
-4. Si el nodo no recupera la licencia por red, volver a exportar `titan-license.json`.
+4. Si el nodo no recupera la licencia por red, volver a exportar `posvendelo-license.json`.
 
 ## Cambio Menor De Hardware
 
@@ -105,7 +105,7 @@ Comportamiento esperado:
 - Confirmar `tenant_id`, `branch_id`, `install_token` y `machine_id`.
 - Verificar estado en `Login` o `Ajustes`.
 - Confirmar si el backend local responde en `/health`.
-- Confirmar si la licencia está en `titan-agent.json` o `titan-license.json`.
+- Confirmar si la licencia está en `titan-agent.json` o `posvendelo-license.json`.
 - Si la firma no valida, reemitir desde control-plane.
 - Si la mensual venció, renovar y exportar nuevamente.
 

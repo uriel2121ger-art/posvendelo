@@ -1,4 +1,4 @@
-# Auditoría completa del proyecto — TITAN POS
+# Auditoría completa del proyecto — POSVENDELO
 
 Revisión exhaustiva de backend, control-plane, frontend, instaladores, DB, tests y documentación.
 

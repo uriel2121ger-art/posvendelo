@@ -6,12 +6,12 @@ En la raíz del proyecto:
 
 ```bash
 # Rebuild local + recreate del backend real
-export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/titan-pos/titan-pos:latest}"
+export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/uriel2121ger-art/posvendelo:latest}"
 docker build -t "$BACKEND_IMAGE" backend
 docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api
 
 # Si solo quieres reiniciar el contenedor ya desplegado:
-docker restart puntodeventa-api-1
+docker restart posvendelo-api-1
 ```
 
 ## Verificación mínima post-deploy
@@ -25,7 +25,7 @@ curl http://127.0.0.1:8000/health
 Comprobar que el runtime cargó el rate-limit esperado:
 
 ```bash
-docker exec puntodeventa-api-1 /bin/sh -lc 'cd /app && python - <<'"'"'PY'"'"'
+docker exec posvendelo-api-1 /bin/sh -lc 'cd /app && python - <<'"'"'PY'"'"'
 from modules.auth import routes
 print(routes._login_rate)
 PY'
@@ -68,7 +68,7 @@ En un nodo ya instalado, validar además:
 Para que la app cargue la última versión del frontend sin caché antigua:
 
 - **Electron (app de escritorio):** Cerrar la app por completo y volver a abrirla. Si sigue usando código viejo, eliminar datos de la aplicación:
-  - Linux: `~/.config/titan-pos/` (o el nombre de la app) y volver a abrir.
+  - Linux: `~/.config/posvendelo/` (o el nombre de la app) y volver a abrir.
 - **Navegador (dev con Vite):** Recarga forzada: `Ctrl+Shift+R` (o `Cmd+Shift+R` en Mac). O en DevTools (F12) → pestaña Application/Storage → "Clear site data" / "Borrar datos del sitio".
 - **Chrome/Chromium:** `Ctrl+Shift+Delete` → marcar "Imágenes y archivos en caché" → Borrar datos.
 

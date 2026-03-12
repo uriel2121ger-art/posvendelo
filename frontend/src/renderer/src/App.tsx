@@ -17,9 +17,10 @@ import {
   openDrawerForSale,
   pullTable,
   getInitialSetupStatus,
+  checkNeedsFirstUser,
   serverLogout
 } from './posApi'
-import { TITAN_API_URL } from './runtimeEnv'
+import { POS_API_URL } from './runtimeEnv'
 import CustomersTab from './tabs/CustomersTab'
 import DashboardStatsTab from './tabs/DashboardStatsTab'
 import CompanionDevicesTab from './tabs/CompanionDevicesTab'
@@ -162,29 +163,35 @@ function needServerConfigFirst(): boolean {
   let token: string | null = null
   let saved: string | null = null
   try {
-    token = localStorage.getItem('titan.token')
-    saved = localStorage.getItem('titan.baseUrl')
+    token = localStorage.getItem('pos.token')
+    saved = localStorage.getItem('pos.baseUrl')
   } catch {
     return true
   }
   if (token && _isTokenStructureValid(token)) return false
-  // En app nativa (APK) siempre mostrar configurar servidor primero; en desktop si no hay URL configurada
-  if (isNativePlatform()) return true
-  const defaultUrl = TITAN_API_URL ?? 'http://127.0.0.1:8000'
-  return !saved || saved === defaultUrl || saved === 'http://127.0.0.1:8000' || saved === 'http://localhost:8000'
+  // En app nativa (APK) siempre mostrar configurar servidor primero si no hay URL guardada
+  if (isNativePlatform()) return !saved || !saved.trim()
+  // Desktop: auto-asignar default sincronamente si no hay URL.
+  // Esto DEBE pasar aqui (no en useLayoutEffect) porque RequireAuth evalua
+  // durante el render, antes de que los effects corran.
+  if (!saved || !saved.trim()) {
+    const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
+    localStorage.setItem('pos.baseUrl', defaultUrl)
+  }
+  return false
 }
 
 function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   let token: string | null = null
   try {
-    token = localStorage.getItem('titan.token')
+    token = localStorage.getItem('pos.token')
   } catch {
     /* storage error */
   }
   if (!token || !_isTokenStructureValid(token)) {
     try {
-      localStorage.removeItem('titan.token')
-      localStorage.removeItem('titan.role')
+      localStorage.removeItem('pos.token')
+      localStorage.removeItem('pos.role')
     } catch {
       /* ignore */
     }
@@ -237,7 +244,9 @@ function CashMovementModal({
   const [success, setSuccess] = useState(false)
   const amountRef = useRef<HTMLInputElement>(null)
   const modalRef = useRef<HTMLFormElement>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }, [])
   useFocusTrap(modalRef, !success)
 
   useEffect(() => {
@@ -279,7 +288,7 @@ function CashMovementModal({
         })
         // Auto-open cash drawer (fire-and-forget)
         try {
-          const hwRaw = localStorage.getItem('titan.hwConfig')
+          const hwRaw = localStorage.getItem('pos.hwConfig')
           if (hwRaw) {
             const hwCfg = JSON.parse(hwRaw) as { drawer?: { enabled?: boolean } }
             if (hwCfg.drawer?.enabled) {
@@ -291,7 +300,7 @@ function CashMovementModal({
         }
         // Show success briefly before closing
         setSuccess(true)
-        setTimeout(() => onClose(), 1500)
+        closeTimerRef.current = setTimeout(() => onClose(), 1500)
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -506,18 +515,92 @@ function RoutedApp(): ReactElement {
   const [shiftResolved, setShiftResolved] = useState(false)
   const [setupRequired, setSetupRequired] = useState(false)
   const [setupChecked, setSetupChecked] = useState(false)
+  const [firstUserChecked, setFirstUserChecked] = useState(false)
+  const [firstUserNeeded, setFirstUserNeeded] = useState(false)
+  // hasToken como estado React — no como IIFE local que se vuelve obsoleta
+  const [hasToken, setHasToken] = useState<boolean>(() => {
+    try { return Boolean(localStorage.getItem('pos.token')) } catch { return false }
+  })
 
-  // Wizard inicial obligatorio: si no hay servidor configurado, ir a Configurar servidor antes de cualquier otra pantalla (evita que el cliente vea login sin poder configurar)
+  // Wizard inicial obligatorio: si no hay servidor configurado, ir a Configurar servidor.
+  // En desktop (Electron), needServerConfigFirst() ya auto-asigna el default.
+  // Solo en APK/móvil (nativo) se fuerza la pantalla de configurar servidor.
   useLayoutEffect(() => {
     if (location.pathname === '/configurar-servidor') return
     try {
-      const saved = localStorage.getItem('titan.baseUrl')
+      const saved = localStorage.getItem('pos.baseUrl')
       if (saved != null && saved.trim() !== '') return
+      // Solo redirigir en nativo (APK). Desktop se auto-configura en needServerConfigFirst().
       navigate('/configurar-servidor', { replace: true })
     } catch {
       navigate('/configurar-servidor', { replace: true })
     }
   }, [location.pathname, navigate])
+
+  // Si no hay token, verificar si necesita crear el primer usuario ANTES de mostrar login.
+  // Reintenta con backoff porque el backend puede estar arrancando post-install.
+  // Al resolver, navega directamente al wizard (sin necesidad de un segundo effect).
+  useEffect(() => {
+    let cancelled = false
+    try {
+      const token = localStorage.getItem('pos.token')
+      if (token) {
+        setFirstUserChecked(true)
+        setFirstUserNeeded(false)
+        return
+      }
+    } catch {
+      setFirstUserChecked(true)
+      return
+    }
+    const cfg = loadRuntimeConfig()
+    if (!cfg.baseUrl) {
+      setFirstUserChecked(true)
+      return
+    }
+    const MAX_RETRIES = 10
+    const RETRY_DELAY_MS = 2000
+    let attempt = 0
+    const tryCheck = (): void => {
+      if (cancelled) return
+      checkNeedsFirstUser(cfg)
+        .then((needed) => {
+          if (cancelled) return
+          setFirstUserNeeded(needed)
+          setFirstUserChecked(true)
+          // Navegar directamente aqui — evita un render intermedio donde el splash
+          // desaparece pero la ruta aun no cambió (causa flicker).
+          if (needed && location.pathname !== '/setup-inicial-usuario') {
+            navigate('/setup-inicial-usuario', { replace: true })
+          }
+        })
+        .catch(() => {
+          if (cancelled) return
+          attempt++
+          if (attempt < MAX_RETRIES) {
+            setTimeout(tryCheck, RETRY_DELAY_MS)
+          } else {
+            // Backend inalcanzable tras reintentos — mostrar login como fallback seguro.
+            // Solo forzar wizard cuando el backend CONFIRMA needed=true (en .then).
+            setFirstUserNeeded(false)
+            setFirstUserChecked(true)
+          }
+        })
+    }
+    tryCheck()
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- solo al montar
+
+  // Callback para cuando FirstUserSetup crea el usuario exitosamente
+  const handleFirstUserCreated = useCallback(() => {
+    setFirstUserNeeded(false)
+    setHasToken(true)
+  }, [])
+
+  // Callback para cuando InitialSetupWizard completa la configuracion
+  const handleSetupCompleted = useCallback(() => {
+    setSetupRequired(false)
+  }, [])
 
   // Idle timeout — auto-logout after 30 min of inactivity
   useEffect((): (() => void) => {
@@ -526,13 +609,14 @@ function RoutedApp(): ReactElement {
       clearTimeout(timer)
       timer = setTimeout(() => {
         try {
-          const hasToken = localStorage.getItem('titan.token')
-          if (!hasToken) return
+          const tokenExists = localStorage.getItem('pos.token')
+          if (!tokenExists) return
           // Fire-and-forget server-side JWT revocation before clearing local state
           serverLogout().catch(() => {})
-          localStorage.removeItem('titan.token')
-          localStorage.removeItem('titan.role')
-          localStorage.removeItem('titan.shiftHistory')
+          localStorage.removeItem('pos.token')
+          localStorage.removeItem('pos.role')
+          localStorage.removeItem('pos.shiftHistory')
+          setHasToken(false)
           setShiftResolved(false)
           navigate('/login')
         } catch {
@@ -549,10 +633,13 @@ function RoutedApp(): ReactElement {
     }
   }, [navigate])
 
-  // Reset shiftResolved when user logs out (token removed)
+  // Sincronizar hasToken + shiftResolved cuando otra pestaña modifica el storage
   useEffect((): (() => void) => {
     const onStorage = (e: StorageEvent): void => {
-      if (e.key === 'titan.token' && !e.newValue) setShiftResolved(false)
+      if (e.key === 'pos.token') {
+        setHasToken(Boolean(e.newValue))
+        if (!e.newValue) setShiftResolved(false)
+      }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -561,17 +648,13 @@ function RoutedApp(): ReactElement {
   // Abrir modal consulta precios (F9) desde Terminal u otros componentes
   useEffect((): (() => void) => {
     const onOpen = (): void => setPriceCheckModal(true)
-    window.addEventListener('titan-open-price-check', onOpen)
-    return () => window.removeEventListener('titan-open-price-check', onOpen)
+    window.addEventListener('pos-open-price-check', onOpen)
+    return () => window.removeEventListener('pos-open-price-check', onOpen)
   }, [])
 
   useEffect((): (() => void) => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      try {
-        if (!localStorage.getItem('titan.token')) return
-      } catch {
-        return
-      }
+      if (!hasToken) return
       if (!shiftResolved) return
       // F-keys don't produce text — always handle them even when input is focused
       switch (event.key) {
@@ -608,21 +691,21 @@ function RoutedApp(): ReactElement {
         case 'F7':
           event.preventDefault()
           event.stopPropagation()
-          if (window.location.hash === '#/terminal') {
+          if (location.pathname === '/terminal') {
             setCashMovModal('in')
           }
           break
         case 'F8':
           event.preventDefault()
           event.stopPropagation()
-          if (window.location.hash === '#/terminal') {
+          if (location.pathname === '/terminal') {
             setCashMovModal('out')
           }
           break
         case 'F9':
           event.preventDefault()
           event.stopPropagation()
-          if (window.location.hash === '#/terminal') {
+          if (location.pathname === '/terminal') {
             setPriceCheckModal(true)
           }
           break
@@ -633,16 +716,10 @@ function RoutedApp(): ReactElement {
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [navigate, shiftResolved])
+  }, [navigate, shiftResolved, hasToken, location.pathname])
 
-  const hasToken = (() => {
-    try {
-      return Boolean(localStorage.getItem('titan.token'))
-    } catch {
-      return false
-    }
-  })()
-  const isCompanionRoute = window.location.hash.startsWith('#/companion')
+  // Derivar isCompanionRoute desde el router (no window.location.hash)
+  const isCompanionRoute = location.pathname.startsWith('/companion')
 
   useEffect((): (() => void) => {
     let cancelled = false
@@ -710,10 +787,22 @@ function RoutedApp(): ReactElement {
         <CashMovementModal mode={cashMovModal} onClose={() => setCashMovModal('hidden')} />
       )}
       {priceCheckModal && <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />}
+      {/* Splash: visible mientras verificamos first-user Y mientras el redirect esta pendiente.
+          Cubre el gap entre "respuesta recibida" y "ruta actualizada" para evitar flash. */}
+      {!hasToken && (!firstUserChecked || (firstUserNeeded && location.pathname !== '/setup-inicial-usuario')) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950">
+          <div className="text-center">
+            <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent mb-4">
+              POSVENDELO
+            </h1>
+            <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto" />
+          </div>
+        </div>
+      )}
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={firstUserNeeded && !hasToken ? <Navigate to="/setup-inicial-usuario" replace /> : <Login />} />
         <Route path="/configurar-servidor" element={<ConfigurarServidor />} />
-        <Route path="/setup-inicial-usuario" element={<FirstUserSetup />} />
+        <Route path="/setup-inicial-usuario" element={<FirstUserSetup onUserCreated={handleFirstUserCreated} />} />
         <Route
           element={
             <RequireAuth>
@@ -826,7 +915,7 @@ function RoutedApp(): ReactElement {
             path="/setup-inicial"
             element={
               <TabErrorBoundary tabName="Setup inicial">
-                <InitialSetupWizard />
+                <InitialSetupWizard onSetupCompleted={handleSetupCompleted} />
               </TabErrorBoundary>
             }
           />

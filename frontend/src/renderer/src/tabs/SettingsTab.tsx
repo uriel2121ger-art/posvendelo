@@ -20,7 +20,7 @@ import {
   testPrint,
   testDrawer
 } from '../posApi'
-import { TITAN_API_URL } from '../runtimeEnv'
+import { POS_API_URL } from '../runtimeEnv'
 
 import {
   Server,
@@ -64,8 +64,8 @@ type ConfigProfile = {
   terminalId: number
 }
 
-const CONFIG_PROFILES_KEY = 'titan.configProfiles'
-const HW_CACHE_KEY = 'titan.hwConfig'
+const CONFIG_PROFILES_KEY = 'pos.configProfiles'
+const HW_CACHE_KEY = 'pos.hwConfig'
 
 function saveToCache(cfg: HardwareConfig): void {
   try {
@@ -252,9 +252,15 @@ export default function SettingsTab({
   }, [loadHwData])
 
   useEffect(() => {
+    let cancelled = false
     void getLicenseStatus(loadRuntimeConfig())
-      .then((body) => setLicenseState((body.data as Record<string, unknown>) ?? body))
-      .catch(() => setLicenseState(null))
+      .then((body) => {
+        if (!cancelled) setLicenseState((body.data as Record<string, unknown>) ?? body)
+      })
+      .catch(() => {
+        if (!cancelled) setLicenseState(null)
+      })
+    return () => { cancelled = true }
   }, [])
 
   function showMessage(msg: string, isError = false): void {
@@ -268,7 +274,7 @@ export default function SettingsTab({
     try {
       new URL(url)
     } catch {
-      return showMessage(`Dirección inválida. Ejemplo: ${TITAN_API_URL}`, true)
+      return showMessage(`Dirección inválida. Ejemplo: ${POS_API_URL}`, true)
     }
     // Reject URLs with multiple protocol schemes (concatenation bug)
     if ((url.match(/https?:\/\//g) || []).length > 1) {
@@ -596,7 +602,7 @@ export default function SettingsTab({
                       <input
                         className="w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-zinc-600"
                         value={form.baseUrl}
-                        placeholder={TITAN_API_URL}
+                        placeholder={POS_API_URL}
                         onChange={(e) => setForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
                         onFocus={(e) => e.target.select()}
                       />
@@ -604,7 +610,7 @@ export default function SettingsTab({
                         type="button"
                         className="mt-2 text-xs text-zinc-500 hover:text-rose-400 transition-colors"
                         onClick={() => {
-                          setForm((prev) => ({ ...prev, baseUrl: TITAN_API_URL }))
+                          setForm((prev) => ({ ...prev, baseUrl: POS_API_URL }))
                           showMessage(
                             'URL restablecida al valor por defecto. Haz clic en "Guardar conexión" para aplicar.'
                           )

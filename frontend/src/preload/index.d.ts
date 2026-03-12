@@ -133,11 +133,22 @@ type BranchLinkCodeStatus = {
   lastError: string | null
 }
 
+type ElectronPrinterInfo = {
+  name: string
+  displayName: string
+  description: string
+  status: number
+  isDefault: boolean
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
     api: {
       closeApp: () => Promise<void>
+      hardware: {
+        listPrinters: () => Promise<ElectronPrinterInfo[]>
+      }
       agent: {
         getStatus: () => Promise<LocalAgentStatus>
         refresh: () => Promise<LocalAgentStatus>

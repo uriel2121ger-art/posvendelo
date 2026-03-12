@@ -97,7 +97,7 @@ describe('App Routing', () => {
   })
 
   it('redirige a /login sin token cuando ya hay servidor configurado', async () => {
-    localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')
+    localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8090')
     window.location.hash = '#/'
     render(<App />)
 
@@ -106,13 +106,14 @@ describe('App Routing', () => {
     })
   })
 
-  it('redirige a /configurar-servidor sin token ni URL configurada (primera vez / APK)', async () => {
-    localStorage.removeItem('titan.baseUrl')
+  it('auto-configura URL y redirige a /login en desktop sin URL configurada', async () => {
+    localStorage.removeItem('pos.baseUrl')
     window.location.hash = '#/'
     render(<App />)
 
     await waitFor(() => {
-      expect(window.location.hash).toBe('#/configurar-servidor')
+      expect(window.location.hash).toBe('#/login')
+      expect(localStorage.getItem('pos.baseUrl')).toBeTruthy()
     })
   })
 
@@ -307,7 +308,7 @@ describe('App Routing', () => {
   })
 
   it('ruta protegida sin token redirige a /login cuando hay baseUrl', async () => {
-    localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')
+    localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8090')
     window.location.hash = '#/productos'
     render(<App />)
 

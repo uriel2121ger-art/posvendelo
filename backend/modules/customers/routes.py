@@ -5,6 +5,7 @@ CRUD completo para clientes con asyncpg directo.
 """
 
 import logging
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -132,7 +133,7 @@ async def create_customer(
                 "rfc": body.rfc,
                 "address": body.address,
                 "notes": body.notes,
-                "credit_limit": body.credit_limit if body.credit_limit is not None else 0.0,
+                "credit_limit": body.credit_limit if body.credit_limit is not None else Decimal("0"),
                 "postal_code": body.codigo_postal,
                 "razon_social": body.razon_social,
                 "regimen_fiscal": body.regimen_fiscal,
@@ -228,8 +229,10 @@ async def get_customer_credit(
     db=Depends(get_db),
 ):
     """Get credit info for a customer: limit, balance, pending credit sales."""
+    if auth.get("role") not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para ver crédito de cliente")
     customer = await db.fetchrow(
-        "SELECT id, name, credit_limit, credit_balance FROM customers WHERE id = :id",
+        "SELECT id, name, credit_limit, credit_balance FROM customers WHERE id = :id AND is_active = 1",
         {"id": customer_id},
     )
     if not customer:

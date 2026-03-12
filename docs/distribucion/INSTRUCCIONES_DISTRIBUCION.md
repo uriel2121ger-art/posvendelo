@@ -52,13 +52,13 @@ Si tienes configurados los secrets del repo (`CP_RELEASES_PUBLISH_URL`, `CP_RELE
 
 | Plataforma | Archivo (ej. v1.0.0) | Enlace |
 |------------|----------------------|--------|
-| Windows    | `titan-pos-1.0.0-setup.exe` | Descargar desde el Release de GitHub |
-| Linux      | `titan-pos-1.0.0.AppImage` o `titan-pos_1.0.0_amd64.deb` | Idem |
+| Windows    | `posvendelo-1.0.0-setup.exe` | Descargar desde el Release de GitHub |
+| Linux      | `posvendelo-1.0.0.AppImage` o `posvendelo_1.0.0_amd64.deb` | Idem |
 
 **Instrucciones para el cajero:**
 
 - **Windows:** Descargar el `.exe`, ejecutarlo y seguir el asistente. La app se conecta al nodo de la sucursal (IP/puerto o URL que ya esté configurada en la red).
-- **Linux:** Descargar el AppImage, `chmod +x titan-pos-1.0.0.AppImage`, ejecutarlo. O instalar el `.deb` con el gestor de paquetes.
+- **Linux:** Descargar el AppImage, `chmod +x posvendelo-1.0.0.AppImage`, ejecutarlo. O instalar el `.deb` con el gestor de paquetes.
 
 No hace falta clonar el repo ni tener el código. Solo el instalador.
 

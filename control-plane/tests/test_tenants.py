@@ -4,6 +4,47 @@ from modules.tenants.routes import onboard_tenant
 from modules.tenants.schemas import TenantOnboardRequest
 
 
+class _DummyConnection:
+    """Fake asyncpg connection for transaction support in tests."""
+
+    def __init__(self, db: "DummyDb") -> None:
+        self._db = db
+
+    class _NoopTx:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            pass
+
+    def transaction(self):
+        return self._NoopTx()
+
+    async def fetchrow(self, query: str, *args):
+        """Positional-parameter fetchrow for raw asyncpg style queries."""
+        # Map $N queries to the DummyDb named-param style
+        if "SELECT id FROM tenants WHERE slug" in query:
+            return self._db._tenants.get(args[0])
+        if "SELECT id FROM branches WHERE branch_slug" in query:
+            return self._db._branches.get(args[0])
+        if "INSERT INTO tenants" in query:
+            return await self._db.fetchrow(query, {"name": args[0], "slug": args[1]})
+        if "INSERT INTO branches" in query:
+            # $1=tenant_id, $2=name, $3=branch_slug, $4=install_token, $5=release_channel (optional)
+            release_channel = args[4] if len(args) > 4 else "stable"
+            return await self._db.fetchrow(
+                query,
+                {
+                    "tenant_id": args[0],
+                    "name": args[1],
+                    "branch_slug": args[2],
+                    "install_token": args[3],
+                    "release_channel": release_channel,
+                },
+            )
+        return None
+
+
 class DummyDb:
     def __init__(self) -> None:
         self._tenant_id = 10
@@ -13,6 +54,7 @@ class DummyDb:
         self._branches: dict[str, dict] = {}
         self._licenses: list[dict] = []
         self.audit_events: list[dict] = []
+        self.connection = _DummyConnection(self)
 
     async def fetchrow(self, query: str, params: dict):
         if "SELECT id FROM tenants WHERE slug" in query:

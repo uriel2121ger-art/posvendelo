@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'com.titanpos.pos',
+  appId: 'com.posvendelo.pos',
   appName: 'POSVENDELO Cajero',
   webDir: 'dist-browser',
   server: {

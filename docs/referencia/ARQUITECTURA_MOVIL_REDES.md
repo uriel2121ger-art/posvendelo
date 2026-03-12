@@ -117,7 +117,7 @@ cada sucursal ejecuta `cloudflared` dentro de su Docker Compose.
 # docker-compose.yml del cliente (autogenerado por el Control Plane)
 services:
   api:
-    image: ghcr.io/titan-pos/backend:stable
+    image: ghcr.io/uriel2121ger-art/posvendelo:latest
     ports:
       - "8090:8090"         # LAN local
     environment:
@@ -169,7 +169,7 @@ services:
       - DOCKER_CONTENT_TRUST=1
       - WATCHTOWER_LABEL_ENABLE=true
       - WATCHTOWER_POLL_INTERVAL=3600
-      - WATCHTOWER_SCOPE=titan
+      - WATCHTOWER_SCOPE=posvendelo
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
@@ -189,7 +189,7 @@ volumes:
 | DDoS protection | No | Sí (gratis) |
 | Costo (100 tenants) | Gratis | Gratis (free tier: hasta 1,000 túneles; Enterprise si >1,000) |
 
-**Tailscale se mantiene para uso interno:** el equipo de soporte de TITAN usa
+**Tailscale se mantiene para uso interno:** el equipo de soporte de POSVENDELO usa
 Tailscale para acceder a los servidores de clientes para diagnóstico y
 mantenimiento. El cliente no lo ve ni lo gestiona.
 
@@ -248,7 +248,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: ghcr.io/titan-pos/control-plane:stable
+    image: ghcr.io/uriel2121ger-art/posvendelo-cp:latest
     deploy:
       replicas: 2                    # escalar según carga
     environment:
@@ -412,7 +412,7 @@ Ambas llamadas se encapsulan en un endpoint del Control Plane:
 |------|-----------|---------------|
 | Framework | React Native + Expo (EAS) | Reusar React Hooks, TypeScript y lógica del frontend Electron |
 | Navegación | React Navigation v7+ | Stack nativo Android/iOS, deep linking |
-| Red / API | `@titan/api-client` (extraído de posApi.ts) | Reusar `apiFetch`, `apiFetchLong`, semáforo, error handling. Sin Axios. Requiere adapter pattern para storage (localStorage → AsyncStorage) |
+| Red / API | `@posvendelo/api-client` (extraído de posApi.ts) | Reusar `apiFetch`, `apiFetchLong`, semáforo, error handling. Sin Axios. Requiere adapter pattern para storage (localStorage → AsyncStorage) |
 | Validación | Pydantic en backend (ya existe) | No duplicar con Zod — validar en la frontera del servidor |
 | Hardware | react-native-ble-manager / expo-print | ESC/POS via Bluetooth para impresoras térmicas |
 | Escáner | expo-camera + expo-barcode-scanner | Cámara para QR pairing + códigos de barras |
@@ -429,7 +429,7 @@ El frontend Electron ya tiene `posApi.ts` con 2,300+ líneas de lógica probada:
 - Manejo de errores en español
 
 Reescribir esto con Axios + interceptores duplica esfuerzo y diverge. La estrategia
-correcta es extraer `posApi.ts` a un paquete compartido `@titan/api-client`
+correcta es extraer `posApi.ts` a un paquete compartido `@posvendelo/api-client`
 importable tanto por Electron (Vite) como por React Native (Metro).
 
 ---
@@ -454,14 +454,14 @@ Cambios necesarios en el backend actual para soportar multi-tenant:
 
 ### HITO 1: Control Plane + Cloudflare Automation
 
-1. Crear servicio `titan-control-plane` (FastAPI separado) en el homelab
+1. Crear servicio `posvendelo-control-plane` (FastAPI separado) en el homelab
 2. DB central PostgreSQL con tablas: `tenants`, `branches`, `licenses`, `tunnel_configs`
 3. API de onboarding: `POST /admin/tenants` → crea tunnel CF + DNS + instalador
 4. Dashboard web admin para gestionar tenants (React simple)
 
 > **Nota:** Hito 1 y Hito 2 son independientes — pueden ejecutarse en paralelo.
 
-### HITO 2: Paquete Compartido `@titan/api-client`
+### HITO 2: Paquete Compartido `@posvendelo/api-client`
 
 1. Crear monorepo o carpeta `/packages/api-client`
 2. Extraer de posApi.ts: tipos, funciones API, auth helpers, error handling

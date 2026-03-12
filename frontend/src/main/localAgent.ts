@@ -1,6 +1,6 @@
 import { app, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash, createVerify } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -381,6 +381,49 @@ function normalizeUrl(value: string | undefined): string | null {
   }
 }
 
+/** Allowed file extensions for downloaded artifacts opened via shell.openPath. */
+const ALLOWED_ARTIFACT_EXTENSIONS = new Set([
+  '.deb', '.rpm', '.exe', '.msi', '.appimage', '.zip', '.tar.gz', '.snap',
+])
+
+function assertSafeArtifactExtension(filePath: string): void {
+  const lower = filePath.toLowerCase()
+  for (const ext of ALLOWED_ARTIFACT_EXTENSIONS) {
+    if (lower.endsWith(ext)) return
+  }
+  throw new Error(`Tipo de archivo no permitido para instalación: ${basename(filePath)}`)
+}
+
+/** Trusted domains for binary downloads (defense-in-depth). */
+const TRUSTED_DOWNLOAD_DOMAINS = new Set([
+  'github.com',
+  'objects.githubusercontent.com',
+  'ghcr.io',
+  'pkg-containers.githubusercontent.com',
+])
+
+/**
+ * Validate that a download URL points to a trusted domain or to the configured
+ * control-plane. Throws if the domain is untrusted.
+ */
+function assertTrustedDownloadUrl(url: string, controlPlaneUrl: string | null): void {
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname.toLowerCase()
+  } catch {
+    throw new Error(`URL de descarga inválida: ${url}`)
+  }
+  if (TRUSTED_DOWNLOAD_DOMAINS.has(hostname)) return
+  // Allow control-plane domain (e.g. cp.posvendelo.com)
+  if (controlPlaneUrl) {
+    try {
+      const cpHost = new URL(controlPlaneUrl).hostname.toLowerCase()
+      if (hostname === cpHost) return
+    } catch { /* ignore */ }
+  }
+  throw new Error(`Dominio no confiable para descarga de binarios: ${hostname}`)
+}
+
 function buildManifestUrl(config: AgentConfig): string | null {
   const explicit = normalizeUrl(config.releaseManifestUrl)
   if (explicit) {
@@ -420,7 +463,9 @@ function buildOwnerSessionHeaders(ownerToken: string | null): HeadersInit | unde
 
 function decodeOwnerSessionExpiry(ownerToken: string | null): number | null {
   if (!ownerToken) return null
-  const [payload] = ownerToken.split('.', 1)
+  const parts = ownerToken.split('.')
+  if (parts.length < 2) return null
+  const payload = parts[1] // index 1 = JWT payload (not header)
   if (!payload) return null
   try {
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
@@ -575,10 +620,11 @@ export class LocalNodeAgent {
       if (!existsSync(candidate)) continue
       const next = parseJsonFile<AgentConfig>(candidate)
       if (!next) continue
-      const externalLicensePath = join(
-        candidate.replace(/titan-agent\.json$/i, ''),
-        'titan-license.json'
-      )
+      const configDir = candidate.replace(/(?:posvendelo|titan)-agent\.json$/i, '')
+      // Buscar licencia con nombre nuevo, fallback al legacy
+      const externalLicensePath = existsSync(join(configDir, 'posvendelo-license.json'))
+        ? join(configDir, 'posvendelo-license.json')
+        : join(configDir, 'titan-license.json')
       if (existsSync(externalLicensePath)) {
         const externalLicense = parseJsonFile<AgentLicenseEnvelope>(externalLicensePath)
         if (externalLicense?.payload) {
@@ -636,9 +682,11 @@ export class LocalNodeAgent {
 
     const updatesDir = this.desktopUpdatesDir()
     mkdirSync(updatesDir, { recursive: true })
-    const filename =
+    const rawFilename =
       basename(new URL(release.target_ref).pathname) || `posvendelo-${release.version}`
+    const filename = rawFilename.replace(/[^a-zA-Z0-9._\-]/g, '_')
     const destination = join(updatesDir, filename)
+    if (!destination.startsWith(updatesDir)) throw new Error('Path traversal detectado en artefacto')
     const rollbackExecutablePath = app.isPackaged ? app.getPath('exe') : process.execPath
 
     this.desktopUpdateState = {
@@ -661,6 +709,7 @@ export class LocalNodeAgent {
     this.saveDesktopUpdateState()
 
     try {
+      assertTrustedDownloadUrl(release.target_ref, this.config?.controlPlaneUrl ?? null)
       const response = await fetch(release.target_ref, { signal: AbortSignal.timeout(120_000) })
       if (!response.ok) {
         throw new Error(`No se pudo descargar update app (${response.status})`)
@@ -680,10 +729,14 @@ export class LocalNodeAgent {
       if (expectedSha) {
         const actualSha = this.computeSha256(destination)
         if (actualSha !== expectedSha) {
+          // Remove the untrusted file before throwing
+          try { rmSync(destination, { force: true }) } catch { /* best effort */ }
           throw new Error('SHA256 del update app no coincide con el manifest publicado')
         }
         checksumVerified = true
         checksumSource = release.checksums_manifest_url ?? this.buildChecksumUrl(release.target_ref)
+      } else {
+        console.warn('[localAgent] ADVERTENCIA: No se pudo obtener checksum SHA256 para verificar la descarga.')
       }
 
       this.desktopUpdateState = {
@@ -804,6 +857,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
         return this.getStatus()
       }
     }
+    assertSafeArtifactExtension(stagedPath)
     const openError = await shell.openPath(stagedPath)
     if (openError) {
       this.desktopUpdateState = {
@@ -924,10 +978,13 @@ nohup "$TARGET" >/dev/null 2>&1 &
       try {
         const updatesDir = this.desktopUpdatesDir()
         mkdirSync(updatesDir, { recursive: true })
-        const filename =
+        const rawRbFilename =
           basename(new URL(remoteRollback.target_ref).pathname) ||
           `posvendelo-rollback-${remoteRollback.version}`
-        const destination = join(updatesDir, `rollback-${filename}`)
+        const rbFilename = rawRbFilename.replace(/[^a-zA-Z0-9._\-]/g, '_')
+        const destination = join(updatesDir, `rollback-${rbFilename}`)
+        if (!destination.startsWith(updatesDir)) throw new Error('Path traversal detectado en rollback')
+        assertTrustedDownloadUrl(remoteRollback.target_ref, this.config?.controlPlaneUrl ?? null)
         const response = await fetch(remoteRollback.target_ref, {
           signal: AbortSignal.timeout(120_000)
         })
@@ -949,6 +1006,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
             throw new Error('SHA256 del rollback remoto no coincide con el manifest publicado')
           }
         }
+        assertSafeArtifactExtension(destination)
         const openError = await shell.openPath(destination)
         if (openError) {
           throw new Error(openError)
@@ -1606,13 +1664,21 @@ nohup "$TARGET" >/dev/null 2>&1 &
   }
 
   private configCandidates(): string[] {
-    const custom = process.env.TITAN_AGENT_CONFIG_PATH?.trim()
-    const userData = join(app.getPath('userData'), 'titan-agent.json')
-    const home = join(homedir(), '.posvendelo', 'titan-agent.json')
+    // Soportar ambos: POSVENDELO_AGENT_CONFIG_PATH (nuevo) y TITAN_AGENT_CONFIG_PATH (legacy)
+    const custom = (process.env.POSVENDELO_AGENT_CONFIG_PATH ?? process.env.TITAN_AGENT_CONFIG_PATH)?.trim()
+    const userData = join(app.getPath('userData'), 'posvendelo-agent.json')
+    const userDataLegacy = join(app.getPath('userData'), 'titan-agent.json')
+    const home = join(homedir(), '.posvendelo', 'posvendelo-agent.json')
+    const homeLegacy = join(homedir(), '.posvendelo', 'titan-agent.json')
     const localAppData = process.env.LOCALAPPDATA
+      ? join(process.env.LOCALAPPDATA, 'POSVENDELO', 'posvendelo-agent.json')
+      : null
+    const localAppDataLegacy = process.env.LOCALAPPDATA
       ? join(process.env.LOCALAPPDATA, 'POSVENDELO', 'titan-agent.json')
       : null
-    return [custom, userData, home, localAppData].filter((value): value is string => Boolean(value))
+    // Nuevo nombre primero, fallback al legacy para migracion gradual
+    return [custom, userData, userDataLegacy, home, homeLegacy, localAppData, localAppDataLegacy]
+      .filter((value): value is string => Boolean(value))
   }
 
   private async refreshBackendHealth(): Promise<void> {
@@ -1702,7 +1768,10 @@ nohup "$TARGET" >/dev/null 2>&1 &
         if (body.data.license.public_key) {
           this.config.bootstrap.bootstrapPublicKey = body.data.license.public_key
         }
-        writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf8')
+        // Atomic write: tmp + rename to prevent corruption on crash/power loss
+        const tmpCfg = `${this.configPath}.tmp`
+        writeFileSync(tmpCfg, JSON.stringify(this.config, null, 2), 'utf8')
+        renameSync(tmpCfg, this.configPath)
       }
       this.lastLicenseError = body.success === false ? 'license rejected' : null
     } catch (error) {

@@ -68,12 +68,12 @@
 ```
 CI/CD Pipeline (GitHub Actions)
     │
-    ├─ Build + Tests (181 backend + 69 frontend)
+    ├─ Build + Tests (204 backend + 85 frontend)
     │
     ├─ SAST scan (Trivy container + Bandit python + ESLint security)
     │
     ├─ Firma con cosign (Sigstore keyless)
-    │   └─ cosign sign --yes ghcr.io/titan-pos/backend:${SHA}
+    │   └─ cosign sign --yes ghcr.io/uriel2121ger-art/posvendelo:${SHA}
     │
     ├─ Push tag: `canary`
     │   └─ 10 tenants beta (~25 sucursales) actualizan
@@ -100,7 +100,7 @@ Watchtower se incluye en el `docker-compose.yml` canónico (ver ARQ sección 2) 
 
 #### Supply Chain
 
-- Imagen base: `python:3.12-slim` pinneado por digest (no por tag)
+- Imagen base: `python:3.13-slim` pinneado por digest (no por tag)
 - Dependencias Python: `pip install --require-hashes -r requirements.txt`
 - Dependencias Node: `npm ci` con `package-lock.json` commiteado
 - Escaneo Trivy en cada PR + bloqueo si vulnerabilidad Critical/High

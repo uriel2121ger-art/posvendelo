@@ -7,7 +7,10 @@ import logging
 import os
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from modules.shared.auth import verify_token
+from modules.shared.constants import PRIVILEGED_ROLES
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
@@ -52,12 +55,16 @@ class CloudActivateRequest(BaseModel):
 
 
 @router.post("/activate")
-async def activate_cloud(body: CloudActivateRequest):
+async def activate_cloud(body: CloudActivateRequest, auth: dict = Depends(verify_token)):
     """
     Proxy al control plane (cloud/register) con el install_token local.
     Activa la nube para esta sucursal vinculando el tenant anónimo a una
-    cuenta de nube real.
+    cuenta de nube real. Solo roles privilegiados.
     """
+    role = auth.get("role", "")
+    if role not in PRIVILEGED_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permisos para activar la nube")
+
     cp_url = _cp_url()
     install_token = _install_token()
 

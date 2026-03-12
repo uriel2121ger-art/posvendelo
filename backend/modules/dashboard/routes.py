@@ -100,7 +100,7 @@ async def get_quick_status(auth: dict = Depends(verify_token), db=Depends(get_db
         "success": True,
         "data": {
             "ventas_hoy": sales["count"] if sales else 0,
-            "total_hoy": money(sales["total"]) if sales else 0.0,
+            "total_hoy": money(sales["total"] if sales else None),
             "mermas_pendientes": mermas["c"] if mermas else 0,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
@@ -138,8 +138,8 @@ async def get_expenses_dashboard(auth: dict = Depends(verify_token), db=Depends(
     return {
         "success": True,
         "data": {
-            "month": money(combined_row["month_total"]) if combined_row else 0.0,
-            "year": money(combined_row["year_total"]) if combined_row else 0.0,
+            "month": money(combined_row["month_total"] if combined_row else None),
+            "year": money(combined_row["year_total"] if combined_row else None),
         },
     }
 
@@ -224,12 +224,16 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     low_stock = await db.fetch(
         """SELECT p.id, p.name, p.stock, p.min_stock,
-                  COALESCE(SUM(si.qty), 0) as sold_30d
+                  COALESCE(sub.sold_30d, 0) as sold_30d
            FROM products p
-           LEFT JOIN sale_items si ON si.product_id = p.id
-           LEFT JOIN sales s ON si.sale_id = s.id AND s.status = 'completed' AND s.timestamp >= :since_date
+           LEFT JOIN (
+               SELECT si.product_id, SUM(si.qty) as sold_30d
+               FROM sale_items si
+               JOIN sales s ON si.sale_id = s.id
+               WHERE s.status = 'completed' AND s.timestamp >= :since_date
+               GROUP BY si.product_id
+           ) sub ON sub.product_id = p.id
            WHERE p.stock <= p.min_stock AND p.stock >= 0 AND p.is_active = 1
-           GROUP BY p.id, p.name, p.stock, p.min_stock
            ORDER BY p.stock ASC LIMIT 10""",
         {"since_date": thirty_days_ago},
     )
@@ -241,7 +245,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
            JOIN sales s ON si.sale_id = s.id
            WHERE s.status = 'completed'
            AND s.timestamp >= :since_date
-           GROUP BY p.name
+           GROUP BY p.id, p.name
            ORDER BY sales_count DESC
            LIMIT 5""",
         {"since_date": thirty_days_ago},
@@ -253,7 +257,7 @@ async def get_ai_dashboard(auth: dict = Depends(verify_token), db=Depends(get_db
             "alerts": [{
                 "product_name": p["name"],
                 "urgency": "CRITICAL" if dec(p.get("stock") or 0) <= 2 else "WARNING",
-                "current_stock": money(p.get("stock") or 0),
+                "current_stock": str(dec(p.get("stock") or 0)),
                 "days_until_stockout": max(1, int(dec(p.get("stock") or 0) / max(dec(p.get("sold_30d") or 0) / 30, Decimal("0.01")))),
                 "recommended_order": int(dec(p.get("min_stock") or 5) * 2),
             } for p in low_stock],
@@ -302,7 +306,7 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
            JOIN products p ON si.product_id = p.id
            JOIN sales s ON si.sale_id = s.id
            WHERE s.timestamp >= :today AND s.timestamp < :tomorrow AND s.status = 'completed'
-           GROUP BY p.name ORDER BY qty DESC LIMIT 5""",
+           GROUP BY p.id, p.name ORDER BY qty DESC LIMIT 5""",
         {"today": today_start, "tomorrow": tomorrow_start},
     )
 
@@ -312,8 +316,8 @@ async def get_executive_dashboard(auth: dict = Depends(verify_token), db=Depends
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "kpis": {
                 "transactions": kpis["transactions"] if kpis else 0,
-                "revenue": money(kpis["revenue"]) if kpis else 0.0,
-                "avg_ticket": money(kpis["avg_ticket"]) if kpis else 0.0,
+                "revenue": money(kpis["revenue"] if kpis else None),
+                "avg_ticket": money(kpis["avg_ticket"] if kpis else None),
             },
             "hourly_sales": [{"hour": h["hour"], "count": h["count"], "total": money(h["total"])} for h in hourly],
             "top_products": [{"name": t["name"], "qty": t["qty"], "revenue": money(t["revenue"])} for t in top],

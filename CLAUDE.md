@@ -1,59 +1,85 @@
 # POSVENDELO — Contexto
 
-POS retail multi-sucursal para México. Offline-first, CFDI 4.0, inventario, turnos, crédito y operación remota.
+POS retail multi-sucursal para Mexico. Offline-first, CFDI 4.0, inventario, turnos, credito y operacion remota.
 
 ## Norte del producto
 
-- POS tipo RustDesk: **multiplataforma**, **plug-and-play** y usable por gente no técnica.
-- La instalación debe dejar el nodo operativo sin editar archivos manualmente.
-- El dueño debe entrar vía agente local y `owner-session`, no con tokens crudos visibles.
-- La UI visible al cliente final debe quedar en español.
+- POS tipo RustDesk: **multiplataforma**, **plug-and-play** y usable por gente no tecnica.
+- La instalacion debe dejar el nodo operativo sin editar archivos manualmente.
+- El dueno entra via agente local y `owner-session`, no con tokens crudos visibles.
+- UI visible al cliente final en espanol.
 
 ## Stack
 
 - Backend: Python 3.13, FastAPI, asyncpg, Pydantic v2, PostgreSQL 15.
 - Frontend: Electron, React 19, Vite, TypeScript strict, TailwindCSS.
-- Deploy: Docker Compose, GHCR, rollout con updates y rollback.
+- Deploy: Docker Compose, GHCR, Watchtower, rollout con updates y rollback.
 
-## Arquitectura útil
+## Arquitectura
 
 - `backend/`: API local y reglas de negocio.
-- `frontend/`: app desktop, preload y renderer.
-- `control-plane/`: bootstrap, releases, licencias, owner platform y fleet ops.
-- `owner-app/`: app desktop del propietario para gestión remota de fleet.
-- `installers/`: instalación Windows/Linux del nodo.
+- `frontend/`: app desktop Electron (preload + renderer). Agente local en `src/main/localAgent.ts`.
+- `control-plane/`: bootstrap-config, compose-template, releases, licencias, owner platform, fleet ops.
+- `owner-app/`: app desktop del propietario para gestion remota de fleet.
+- `installers/`: postinst.sh (Linux .deb), Install-Titan.ps1 (Windows), NSIS.
+
+## Flujo primera ejecucion (desktop)
+
+```
+dpkg -i → postinst (Docker + backend) → abrir app → splash
+→ /setup-inicial-usuario (wizard first-user) → auto-login
+→ /setup-inicial (wizard negocio) → /terminal
+```
+
+- Desktop auto-configura `titan.baseUrl` = `127.0.0.1:8000` (no muestra "configurar servidor").
+- Mobile (APK) muestra `/configurar-servidor` para IP del servidor LAN.
+- `checkNeedsFirstUser()` decide si mostrar wizard o login.
 
 ## Contrato plug-and-play
 
 - `control-plane` publica `bootstrap-config` y `compose-template`.
 - El instalador genera `.env`, `docker-compose.yml`, `titan-agent.json` e `INSTALL_SUMMARY.txt`.
-- Pre-registro por fingerprint de hardware (sin cuenta); trial 120 días vinculado al hardware.
-- Nube opcional: se activa desde UI, túnel CF solo al activar nube.
-- Discovery LAN: UDP broadcast `:41520` cada 2s para autodescubrimiento de terminales.
-- El agente local resuelve health, licencia, manifest, companion y owner access.
-- El bootstrap debe exponer `owner_session_url`, `owner_api_base_url`, `companion_entry_url` y `quick_links`.
+- Pre-registro por fingerprint de hardware (sin cuenta); trial 120 dias vinculado al hardware.
+- Nube opcional: se activa desde UI, tunel CF solo al activar nube.
+- Discovery LAN: UDP broadcast `:41520` cada 2s (`backend/modules/discovery/broadcast.py`).
+- Agente local (`localAgent.ts`): health, licencia, manifest, companion, owner access, Docker manage.
+- Bootstrap expone `owner_session_url`, `owner_api_base_url`, `companion_entry_url`, `quick_links`.
 
 ## No romper
 
 - Precios: nunca confiar en `item.price` del cliente si hay `product_id`.
-- PINs: bcrypt (rounds=12) para hashes nuevos; sha256 hex legacy soportado via `pin_auth.py`.
+- PINs: bcrypt (rounds=12) para hashes nuevos; sha256 hex legacy via `pin_auth.py`.
 - Cancelaciones: siempre requieren `manager_pin`.
 - Null bytes: `NullByteSanitizer` debe seguir activo.
-- Sync: después de sync, corregir sequences con `setval()` cuando aplique.
-- Dinero: `money()` retorna `str` para JSON; `dec()` para aritmética Decimal. Nunca float.
+- Sync: despues de sync, corregir sequences con `fix_all_sequences()`.
+- Dinero: `money()` retorna `str` para JSON; `dec()` para aritmetica Decimal. Nunca float.
+- postinst.sh: `set -e` solo seccion 0 (Electron); `set +e` seccion 1+ (Docker) — dpkg nunca falla por red.
 
 ## Convenciones clave
 
 - Respuestas API: `{"success": true, "data": {...}}`.
-- Errores: `HTTPException(detail="español")`.
+- Errores: `HTTPException(detail="espanol")`.
 - SQL: `:nombre` con wrapper `DB`; `$N` con asyncpg directo en transacciones.
 - Lock ordering: `TURNS -> SALES -> PRODUCTS -> CUSTOMERS`.
-- Para timestamps actuales en DB usar `NOW()` en SQL, no `datetime` desde Python.
-- Serialización: `sanitize_row()`/`sanitize_rows()` para convertir Records asyncpg a dict (Decimal a str).
+- Timestamps en DB: `NOW()` en SQL, no `datetime` desde Python.
+- Serializacion: `sanitize_row()`/`sanitize_rows()` para Records asyncpg a dict (Decimal a str).
 - Auth: `auth: dict = Depends(verify_token)` → `get_user_id(auth)` para ID, `auth["role"]` para rol.
-- Roles: `PRIVILEGED_ROLES = ("admin", "manager", "owner")` para checks de permisos.
+- Roles: `PRIVILEGED_ROLES = ("admin", "manager", "owner")`.
+- asyncpg: `datetime` para TIMESTAMP, `date` para DATE, `Decimal` para NUMERIC. Nunca strings.
 
-## Suites críticas
+## Error Playbook (ingenieria de contexto agentico)
+
+Cuando un error se encuentra y se resuelve, documentarlo en `memory/error-playbook.md` con:
+1. **ID secuencial** (ERR-NNN)
+2. **Sintoma**: que ve el usuario o que falla
+3. **Causa raiz**: por que pasa realmente
+4. **Solucion**: pasos exactos que lo corrigieron
+5. **Resultado**: estado final verificado
+6. **Leccion**: regla generalizable para evitar recurrencia
+
+Consultar el playbook ANTES de investigar un error nuevo — puede estar resuelto.
+
+## Suites criticas
 
 ```bash
 cd backend && export $(grep -v '^#' ../.env | grep -v '^$' | xargs) && python3 -m pytest tests/test_auth.py tests/test_remote.py tests/test_sales.py tests/test_turns.py tests/test_system.py tests/test_security.py tests/test_products.py tests/test_customers.py tests/test_inventory.py tests/test_expenses.py -q

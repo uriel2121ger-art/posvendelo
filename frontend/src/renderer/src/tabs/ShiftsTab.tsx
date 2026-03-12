@@ -57,7 +57,7 @@ type BackendShiftTotals = {
 }
 
 export default function ShiftsTab(): ReactElement {
-  const runtimeConfig = loadRuntimeConfig()
+  const [runtimeConfig] = useState(() => loadRuntimeConfig())
   const confirm = useConfirm()
   const [currentShift, setCurrentShift] = useState<ShiftRecord | null>(() =>
     readCurrentShift(runtimeConfig.terminalId)

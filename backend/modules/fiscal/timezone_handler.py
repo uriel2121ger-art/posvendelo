@@ -26,13 +26,14 @@ TIMEZONE_ZONES = {
     
     # Zona Sonora (no observa horario de verano) - UTC-7
     'America/Hermosillo': [
-        (80000, 85999),  # Sonora
+        (83000, 85999),  # Sonora
     ],
 
     # Zona Pacífico (Sinaloa, Nayarit, BCS) - UTC-7/-6
     'America/Mazatlan': [
         (23000, 23999),  # Baja California Sur
         (63000, 63999),  # Nayarit (parte)
+        (80000, 82999),  # Sinaloa
     ],
     
     # Zona Montaña (Chihuahua) - UTC-7/-6
@@ -116,8 +117,11 @@ def get_cfdi_timestamp(codigo_postal: str = None,
 
         logger.debug(f"Timestamp para CP {codigo_postal} ({tz_name}): {local_dt}")
     else:
-        # Sin CP, usar hora local del sistema
-        local_dt = dt
+        # Sin CP: usar America/Mexico_City como fallback seguro
+        if dt.tzinfo is not None:
+            local_dt = dt.astimezone(ZoneInfo('America/Mexico_City'))
+        else:
+            local_dt = dt.replace(tzinfo=ZoneInfo('America/Mexico_City'))
 
     # Formato SAT (sin timezone info)
     return local_dt.strftime('%Y-%m-%dT%H:%M:%S')
@@ -220,7 +224,7 @@ if __name__ == "__main__":
             ("06600", "CDMX"),
             ("77500", "Cancun"),
             ("31000", "Chihuahua"),
-            ("80000", "Sonora"),
+            ("80000", "Sinaloa"),
         ]
 
         for cp, city in test_cps:

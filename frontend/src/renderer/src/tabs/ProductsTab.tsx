@@ -230,11 +230,13 @@ export default function ProductsTab(): ReactElement {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     void handleLoad()
     void (async () => {
       try {
         const cfg = loadRuntimeConfig()
         const raw = await getProductCategories(cfg)
+        if (cancelled) return
         const data = (raw.data ?? raw.categories ?? []) as unknown[]
         setCategories(
           data.map((c) => String((c as Record<string, unknown>)?.name ?? c)).filter(Boolean)
@@ -247,6 +249,7 @@ export default function ProductsTab(): ReactElement {
       try {
         const cfg = loadRuntimeConfig()
         const units = await getSatUnits(cfg)
+        if (cancelled) return
         if (units.length > 0) setSatUnits(units)
       } catch {
         /* sat units are optional */
@@ -254,6 +257,7 @@ export default function ProductsTab(): ReactElement {
     })()
     const reqRef = requestIdRef
     return () => {
+      cancelled = true
       reqRef.current++
     }
   }, [handleLoad])

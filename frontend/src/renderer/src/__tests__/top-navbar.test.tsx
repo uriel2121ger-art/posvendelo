@@ -64,7 +64,7 @@ describe('TopNavbar', () => {
   })
 
   it('muestra "Us" si no hay user en localStorage', () => {
-    localStorage.removeItem('titan.user')
+    localStorage.removeItem('pos.user')
     renderTopNavbar()
     expect(screen.getByText('Us')).toBeInTheDocument()
   })
@@ -87,9 +87,9 @@ describe('TopNavbar', () => {
 
     await user.click(screen.getByText('Aceptar'))
 
-    expect(localStorage.getItem('titan.token')).toBeNull()
-    expect(localStorage.getItem('titan.user')).toBeNull()
-    expect(localStorage.getItem('titan.role')).toBeNull()
+    expect(localStorage.getItem('pos.token')).toBeNull()
+    expect(localStorage.getItem('pos.user')).toBeNull()
+    expect(localStorage.getItem('pos.role')).toBeNull()
     expect(window.location.hash).toBe('#/login')
   })
 
@@ -105,12 +105,12 @@ describe('TopNavbar', () => {
 
     await user.click(screen.getByText('Cancelar'))
 
-    expect(localStorage.getItem('titan.token')).not.toBeNull()
+    expect(localStorage.getItem('pos.token')).not.toBeNull()
   })
 
   it('logout con tickets pendientes muestra advertencia en el dialogo', async () => {
     // Clave por usuario: el usuario en beforeEach es 'cajero1' (setAuthToken(..., 'cajero1'))
-    localStorage.setItem('titan.pendingTickets.cajero1', JSON.stringify([{ id: 1 }]))
+    localStorage.setItem('pos.pendingTickets.cajero1', JSON.stringify([{ id: 1 }]))
 
     renderTopNavbar()
     const user = userEvent.setup()

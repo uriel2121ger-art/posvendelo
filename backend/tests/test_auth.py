@@ -120,6 +120,7 @@ class TestDevicePairing:
 
         pair_response = await client.post(
             "/api/v1/auth/pair",
+            headers=auth_header(admin_token),
             json={
                 "pairing_token": pairing_token,
                 "device_id": "device-xyz",
@@ -136,6 +137,7 @@ class TestDevicePairing:
 
         used_again = await client.post(
             "/api/v1/auth/pair",
+            headers=auth_header(admin_token),
             json={"pairing_token": pairing_token, "device_id": "device-xyz"},
         )
         assert used_again.status_code == 409
@@ -160,6 +162,7 @@ class TestDevicePairing:
         pairing_token = token_response.json()["data"]["pairing_token"]
         paired = await client.post(
             "/api/v1/auth/pair",
+            headers=auth_header(admin_token),
             json={"pairing_token": pairing_token, "device_id": "device-revoke"},
         )
         pairing_id = paired.json()["data"]["pairing_id"]

@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db.connection import get_db, escape_like
 from modules.shared.auth import verify_token
+from modules.shared.constants import sanitize_row, sanitize_rows
 from modules.employees.schemas import EmployeeCreate, EmployeeUpdate
 from modules.shared.constants import PRIVILEGED_ROLES
 
@@ -50,7 +51,7 @@ async def list_employees(
     params["offset"] = offset
 
     rows = await db.fetch(sql, params)
-    return {"success": True, "data": rows}
+    return {"success": True, "data": sanitize_rows(rows)}
 
 
 @router.get("/{employee_id}")
@@ -68,7 +69,7 @@ async def get_employee(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
-    return {"success": True, "data": row}
+    return {"success": True, "data": sanitize_row(row)}
 
 
 @router.post("/")

@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 from audit import log_audit_event
 from db.connection import get_db
+from rate_limiter import limiter
 from license_service import (
     append_license_event,
     build_signed_license,
@@ -151,7 +152,9 @@ async def _issue_for_branch(
 
 
 @router.get("/resolve")
+@limiter.limit("20/minute")
 async def resolve_license(
+    request: Request,
     install_token: str | None = Query(default=None, min_length=8),
     x_install_token: str | None = Header(default=None, alias="X-Install-Token"),
     machine_id: str | None = Query(default=None),
@@ -178,7 +181,9 @@ async def resolve_license(
 
 
 @router.post("/activate-device")
+@limiter.limit("20/minute")
 async def activate_device(
+    request: Request,
     body: LicenseActivateRequest,
     db=Depends(get_db),
 ):
@@ -203,7 +208,9 @@ async def activate_device(
 
 
 @router.post("/refresh")
+@limiter.limit("20/minute")
 async def refresh_license(
+    request: Request,
     body: LicenseRefreshRequest,
     db=Depends(get_db),
 ):

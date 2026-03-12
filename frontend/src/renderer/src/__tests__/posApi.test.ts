@@ -33,9 +33,9 @@ describe('loadRuntimeConfig', () => {
   })
 
   it('lee valores de localStorage', () => {
-    localStorage.setItem('titan.baseUrl', 'http://pos-sucursal.local:8090')
-    localStorage.setItem('titan.token', 'jwt-xyz')
-    localStorage.setItem('titan.terminalId', '3')
+    localStorage.setItem('pos.baseUrl', 'http://pos-sucursal.local:8090')
+    localStorage.setItem('pos.token', 'jwt-xyz')
+    localStorage.setItem('pos.terminalId', '3')
 
     const cfg = loadRuntimeConfig()
     expect(cfg.baseUrl).toBe('http://pos-sucursal.local:8090')
@@ -44,13 +44,13 @@ describe('loadRuntimeConfig', () => {
   })
 
   it('terminalId mínimo es 1', () => {
-    localStorage.setItem('titan.terminalId', '0')
+    localStorage.setItem('pos.terminalId', '0')
     expect(loadRuntimeConfig().terminalId).toBe(1)
 
-    localStorage.setItem('titan.terminalId', '-5')
+    localStorage.setItem('pos.terminalId', '-5')
     expect(loadRuntimeConfig().terminalId).toBe(1)
 
-    localStorage.setItem('titan.terminalId', 'abc')
+    localStorage.setItem('pos.terminalId', 'abc')
     expect(loadRuntimeConfig().terminalId).toBe(1)
   })
 })
@@ -61,9 +61,9 @@ describe('saveRuntimeConfig', () => {
 
   it('guarda config en localStorage', () => {
     saveRuntimeConfig({ baseUrl: 'http://test:9000', token: 'tok123', terminalId: 2 })
-    expect(localStorage.getItem('titan.baseUrl')).toBe('http://test:9000')
-    expect(localStorage.getItem('titan.token')).toBe('tok123')
-    expect(localStorage.getItem('titan.terminalId')).toBe('2')
+    expect(localStorage.getItem('pos.baseUrl')).toBe('http://test:9000')
+    expect(localStorage.getItem('pos.token')).toBe('tok123')
+    expect(localStorage.getItem('pos.terminalId')).toBe('2')
   })
 })
 
@@ -76,7 +76,7 @@ describe('getUserRole', () => {
   })
 
   it('devuelve rol guardado', () => {
-    localStorage.setItem('titan.role', 'manager')
+    localStorage.setItem('pos.role', 'manager')
     expect(getUserRole()).toBe('manager')
   })
 })
@@ -93,7 +93,7 @@ describe('autoDiscoverBackend', () => {
   })
 
   it('usa URL guardada si responde 401', async () => {
-    localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8090')
+    localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8090')
 
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -113,8 +113,8 @@ describe('autoDiscoverBackend', () => {
   })
 
   it('descubre por puertos si URL guardada no responde', async () => {
-    localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:9999')
-    localStorage.setItem('titan.discoverPorts', JSON.stringify([8000, 8080, 8090]))
+    localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:9999')
+    localStorage.setItem('pos.discoverPorts', JSON.stringify([8000, 8080, 8090]))
 
     let callIdx = 0
     global.fetch = vi.fn().mockImplementation(() => {
@@ -135,7 +135,7 @@ describe('autoDiscoverBackend', () => {
 
     const result = await autoDiscoverBackend()
     expect(result).toBe(`http://${DEFAULT_HOST}:8090`)
-    expect(localStorage.getItem('titan.baseUrl')).toBe(`http://${DEFAULT_HOST}:8090`)
+    expect(localStorage.getItem('pos.baseUrl')).toBe(`http://${DEFAULT_HOST}:8090`)
   })
 
   it('devuelve null si ningún puerto responde', async () => {
@@ -164,7 +164,7 @@ describe('autoDiscoverBackend', () => {
 
     const result = await autoDiscoverBackend()
     expect(result).toBe(DEFAULT_BASE_URL)
-    expect(localStorage.getItem('titan.baseUrl')).toBe(DEFAULT_BASE_URL)
+    expect(localStorage.getItem('pos.baseUrl')).toBe(DEFAULT_BASE_URL)
   })
 })
 
@@ -172,7 +172,7 @@ describe('system recovery API helpers', () => {
   beforeEach(() => {
     clearAuth()
     vi.restoreAllMocks()
-    localStorage.setItem('titan.token', 'jwt-xyz')
+    localStorage.setItem('pos.token', 'jwt-xyz')
   })
 
   afterEach(() => {
@@ -244,7 +244,7 @@ describe('system recovery API helpers', () => {
       body: { cancel: () => Promise.resolve() }
     })
 
-    localStorage.setItem('titan.terminalId', '7')
+    localStorage.setItem('pos.terminalId', '7')
     const cfg = loadRuntimeConfig()
     const body = await getCurrentTurn(cfg)
     expect(body).toEqual({ id: 17, status: 'open' })
@@ -259,7 +259,7 @@ describe('sales API helpers', () => {
   beforeEach(() => {
     clearAuth()
     vi.restoreAllMocks()
-    localStorage.setItem('titan.token', 'jwt-xyz')
+    localStorage.setItem('pos.token', 'jwt-xyz')
   })
 
   afterEach(() => {

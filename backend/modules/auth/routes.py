@@ -89,11 +89,11 @@ router.get("/needs-setup")(_do_needs_setup)
 
 
 async def _do_setup_owner(request: Request, body: SetupOwnerRequest, db=Depends(get_db)):
-    """Create the first admin user. Only works when there are 0 users in DB."""
-    count = await db.fetchval("SELECT COUNT(*) FROM users")
-    if int(count or 0) > 0:
-        raise HTTPException(status_code=409, detail="El sistema ya tiene usuarios registrados")
+    """Create the first admin user. Only works when there are 0 users in DB.
 
+    Uses atomic INSERT...WHERE NOT EXISTS to prevent TOCTOU race condition
+    where two concurrent requests both pass a separate COUNT(*) check.
+    """
     password_hash = bcrypt.hashpw(
         body.password.encode("utf-8"), bcrypt.gensalt(rounds=12)
     ).decode("utf-8")
@@ -101,7 +101,8 @@ async def _do_setup_owner(request: Request, body: SetupOwnerRequest, db=Depends(
     row = await db.fetchrow(
         """
         INSERT INTO users (username, password_hash, role, name, is_active, branch_id, created_at, updated_at)
-        VALUES (:username, :password_hash, 'admin', :name, 1, 1, NOW(), NOW())
+        SELECT :username, :password_hash, 'admin', :name, 1, 1, NOW(), NOW()
+        WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1)
         RETURNING id, role, branch_id
         """,
         {
@@ -110,6 +111,9 @@ async def _do_setup_owner(request: Request, body: SetupOwnerRequest, db=Depends(
             "name": body.name or body.username,
         },
     )
+
+    if not row:
+        raise HTTPException(status_code=409, detail="El sistema ya tiene usuarios registrados")
 
     user_id = row["id"]
     role = row["role"]
@@ -166,6 +170,11 @@ async def create_pair_token(
     role = auth.get("role", "")
     if role not in (*PRIVILEGED_ROLES, "cashier"):
         raise HTTPException(status_code=403, detail="Sin permisos para vincular dispositivos")
+
+    # Cashiers can only create tokens for their own branch
+    caller_branch = auth.get("branch_id")
+    if role == "cashier" and caller_branch and body.branch_id != caller_branch:
+        raise HTTPException(status_code=403, detail="No puedes vincular dispositivos a otra sucursal")
 
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
     pairing_token = secrets.token_urlsafe(24)
@@ -234,82 +243,82 @@ async def get_pair_qr_payload(
 
 
 @router.post("/pair")
-async def pair_device(body: PairRequest, db=Depends(get_db)):
-    token_row = await db.fetchrow(
-        """
-        SELECT pairing_token, branch_id, terminal_id, user_id, expires_at, used_at
-        FROM device_pairing_tokens
-        WHERE pairing_token = :token
-        LIMIT 1
-        """,
-        {"token": body.pairing_token},
-    )
-    if not token_row:
-        raise HTTPException(status_code=404, detail="Token de vinculación no encontrado")
-
-    if token_row.get("used_at"):
-        raise HTTPException(status_code=409, detail="El token de vinculación ya fue utilizado")
-
-    expires_at = token_row.get("expires_at")
-    if isinstance(expires_at, datetime) and expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=410, detail="El token de vinculación ya expiró")
-
-    existing = await db.fetchrow(
-        """
-        SELECT id FROM device_pairings
-        WHERE device_id = :device_id AND branch_id = :branch_id
-        LIMIT 1
-        """,
-        {"device_id": body.device_id, "branch_id": token_row["branch_id"]},
-    )
-    params = {
-        "device_id": body.device_id,
-        "device_name": body.device_name,
-        "platform": body.platform,
-        "app_version": body.app_version,
-        "hardware_fingerprint": body.hardware_fingerprint,
-        "branch_id": token_row["branch_id"],
-        "terminal_id": token_row["terminal_id"],
-        "user_id": token_row["user_id"],
-    }
-    if existing:
-        await db.execute(
+async def pair_device(body: PairRequest, auth: dict = Depends(verify_token), db=Depends(get_db)):
+    conn = db.connection
+    async with conn.transaction():
+        # Lock the token row to prevent concurrent pairing with the same token
+        token_row = await conn.fetchrow(
             """
-            UPDATE device_pairings SET
-                device_name = COALESCE(:device_name, device_name),
-                platform = COALESCE(:platform, platform),
-                app_version = COALESCE(:app_version, app_version),
-                hardware_fingerprint = COALESCE(:hardware_fingerprint, hardware_fingerprint),
-                terminal_id = :terminal_id,
-                user_id = :user_id,
-                revoked_at = NULL,
-                last_seen = NOW(),
-                updated_at = NOW()
-            WHERE id = :id
+            SELECT pairing_token, branch_id, terminal_id, user_id, expires_at, used_at
+            FROM device_pairing_tokens
+            WHERE pairing_token = $1
+            LIMIT 1
+            FOR UPDATE
             """,
-            {**params, "id": existing["id"]},
+            body.pairing_token,
         )
-        pairing_id = existing["id"]
-    else:
-        row = await db.fetchrow(
+        if not token_row:
+            raise HTTPException(status_code=404, detail="Token de vinculación no encontrado")
+
+        if token_row.get("used_at"):
+            raise HTTPException(status_code=409, detail="El token de vinculación ya fue utilizado")
+
+        expires_at = token_row.get("expires_at")
+        if isinstance(expires_at, datetime):
+            # Normalize: if naive (TIMESTAMP), treat as UTC; if aware (TIMESTAMPTZ), use as-is
+            exp_aware = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+            if exp_aware < datetime.now(timezone.utc):
+                raise HTTPException(status_code=410, detail="El token de vinculación ya expiró")
+
+        existing = await conn.fetchrow(
             """
-            INSERT INTO device_pairings (
-                device_id, device_name, platform, app_version, hardware_fingerprint,
-                branch_id, terminal_id, user_id, paired_at, last_seen, created_at, updated_at
-            ) VALUES (
-                :device_id, :device_name, :platform, :app_version, :hardware_fingerprint,
-                :branch_id, :terminal_id, :user_id, NOW(), NOW(), NOW(), NOW()
+            SELECT id FROM device_pairings
+            WHERE device_id = $1 AND branch_id = $2
+            LIMIT 1
+            """,
+            body.device_id, token_row["branch_id"],
+        )
+        if existing:
+            await conn.execute(
+                """
+                UPDATE device_pairings SET
+                    device_name = COALESCE($1, device_name),
+                    platform = COALESCE($2, platform),
+                    app_version = COALESCE($3, app_version),
+                    hardware_fingerprint = COALESCE($4, hardware_fingerprint),
+                    terminal_id = $5,
+                    user_id = $6,
+                    revoked_at = NULL,
+                    last_seen = NOW(),
+                    updated_at = NOW()
+                WHERE id = $7
+                """,
+                body.device_name, body.platform, body.app_version,
+                body.hardware_fingerprint, token_row["terminal_id"],
+                token_row["user_id"], existing["id"],
             )
-            RETURNING id
-            """,
-            params,
-        )
-        pairing_id = row["id"]
+            pairing_id = existing["id"]
+        else:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO device_pairings (
+                    device_id, device_name, platform, app_version, hardware_fingerprint,
+                    branch_id, terminal_id, user_id, paired_at, last_seen, created_at, updated_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW(), NOW()
+                )
+                RETURNING id
+                """,
+                body.device_id, body.device_name, body.platform, body.app_version,
+                body.hardware_fingerprint, token_row["branch_id"],
+                token_row["terminal_id"], token_row["user_id"],
+            )
+            pairing_id = row["id"]
 
-    await db.execute(
-        "UPDATE device_pairing_tokens SET used_at = NOW() WHERE pairing_token = :token",
-        {"token": body.pairing_token},
-    )
+        await conn.execute(
+            "UPDATE device_pairing_tokens SET used_at = NOW() WHERE pairing_token = $1",
+            body.pairing_token,
+        )
 
     return {
         "success": True,
@@ -357,13 +366,21 @@ async def revoke_paired_device(
     if role not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Sin permisos para revocar dispositivos")
 
+    branch_id = auth.get("branch_id")
+    # Owner can revoke any branch; admin/manager only their own
+    params: dict = {"id": pairing_id}
+    branch_filter = ""
+    if role != "owner" and branch_id:
+        branch_filter = " AND branch_id = :branch_id"
+        params["branch_id"] = branch_id
+
     result = await db.execute(
-        """
+        f"""
         UPDATE device_pairings
         SET revoked_at = NOW(), updated_at = NOW()
-        WHERE id = :id AND revoked_at IS NULL
+        WHERE id = :id AND revoked_at IS NULL{branch_filter}
         """,
-        {"id": pairing_id},
+        params,
     )
     if result.endswith("0"):
         raise HTTPException(status_code=404, detail="Dispositivo no encontrado")

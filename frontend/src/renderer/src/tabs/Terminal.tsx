@@ -94,20 +94,20 @@ type ActiveTicketSnapshot = {
 }
 
 const TAX_RATE = 0.16
-const PENDING_TICKETS_STORAGE_KEY = 'titan.pendingTickets'
+const PENDING_TICKETS_STORAGE_KEY = 'pos.pendingTickets'
 import {
   type ShiftRecord as ShiftState,
   isShiftStorageKey,
   saveCurrentShift,
   readCurrentShift
 } from '../types/shiftTypes'
-const ACTIVE_TICKETS_STORAGE_KEY = 'titan.activeTickets'
-const PRODUCT_CACHE_STORAGE_KEY = 'titan.productsCache'
+const ACTIVE_TICKETS_STORAGE_KEY = 'pos.activeTickets'
+const PRODUCT_CACHE_STORAGE_KEY = 'pos.productsCache'
 
 /** Sufijo por usuario para que los borradores persistan entre sesiones y no se mezclen entre usuarios. */
 function getDraftsSuffix(): string {
   try {
-    const u = localStorage.getItem('titan.user')
+    const u = localStorage.getItem('pos.user')
     return u ? `.${u}` : ''
   } catch {
     return ''
@@ -395,15 +395,15 @@ export default function Terminal(): ReactElement {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [currentShift, setCurrentShift] = useState<ShiftState | null>(() =>
-    readCurrentShift(loadRuntimeConfig().terminalId)
+    readCurrentShift(config.terminalId)
   )
   const [wholesaleMode, setWholesaleMode] = useState(false)
   const [, setMessage] = useState('Cargando productos...')
   const chargingRef = useRef(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
-  const [isDiscountModalOpen] = useState(false)
-  const [isCommonModalOpen] = useState(false)
-  const [isNoteModalOpen] = useState(false)
+  const isDiscountModalOpen = false
+  const isCommonModalOpen = false
+  const isNoteModalOpen = false
   const shouldClearSearchAfterAddRef = useRef(false)
 
   const checkoutModalRef = useRef<HTMLDivElement>(null)
@@ -503,12 +503,12 @@ export default function Terminal(): ReactElement {
     }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('titan-products-changed', onProductChange)
+    window.addEventListener('pos-products-changed', onProductChange)
     return (): void => {
       cancelled = true
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('titan-products-changed', onProductChange)
+      window.removeEventListener('pos-products-changed', onProductChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -564,11 +564,12 @@ export default function Terminal(): ReactElement {
 
   // Poll backend every 60s to sync shift counters (multi-terminal visibility)
   useEffect(() => {
+    const tid = config.terminalId
     const poll = setInterval(() => {
-      const shift = readCurrentShift(config.terminalId)
+      const shift = readCurrentShift(tid)
       if (!shift?.backendTurnId) return
-      const cfg = loadRuntimeConfig()
-      getTurnSummary(cfg, shift.backendTurnId)
+      // Use config consistently — not loadRuntimeConfig() which could return a different terminalId
+      getTurnSummary(config, shift.backendTurnId)
         .then((raw) => {
           const data = (raw.data ?? raw) as Record<string, unknown>
           const backendCount = Number(data.sales_count ?? 0)
@@ -583,7 +584,7 @@ export default function Terminal(): ReactElement {
               totalSales: Math.round(backendTotal * 100) / 100
             }
             try {
-              saveCurrentShift(updated, config.terminalId)
+              saveCurrentShift(updated, tid)
             } catch {
               /* storage full */
             }
@@ -595,7 +596,7 @@ export default function Terminal(): ReactElement {
         })
     }, 60_000)
     return () => clearInterval(poll)
-  }, [config.terminalId])
+  }, [config])
 
   const searchableProducts = useMemo(
     (): Product[] => (products.length > 0 ? products : readCachedProducts()),
@@ -719,7 +720,8 @@ export default function Terminal(): ReactElement {
       setMixedTransfer(snapshot.mixedTransfer ?? '')
       setQuery('')
     },
-    [activeTicketId, config.terminalId]
+    // setState functions are stable — no deps needed
+    []
   )
 
   const focusSearchInput = useCallback((): void => {
@@ -777,7 +779,7 @@ export default function Terminal(): ReactElement {
       let scannerSuffix = ''
       let isScanner = false
       try {
-        const hwRaw = localStorage.getItem('titan.hwConfig')
+        const hwRaw = localStorage.getItem('pos.hwConfig')
         if (hwRaw) {
           const hwCfg = JSON.parse(hwRaw) as HardwareConfig
           if (!hwCfg || typeof hwCfg !== 'object') throw new Error('invalid hwConfig')
@@ -899,9 +901,7 @@ export default function Terminal(): ReactElement {
     activeTickets,
     applyTicketSnapshot,
     buildCurrentTicketSnapshot,
-    config.terminalId,
     focusSearchInput,
-    query,
     ticketSnapshots
   ])
 
@@ -1254,7 +1254,7 @@ export default function Terminal(): ReactElement {
 
       // Auto-print receipt + auto-open drawer (fire-and-forget)
       try {
-        const hwRaw = localStorage.getItem('titan.hwConfig')
+        const hwRaw = localStorage.getItem('pos.hwConfig')
         if (hwRaw) {
           const parsed = JSON.parse(hwRaw)
           if (!parsed || typeof parsed !== 'object') throw new Error('invalid hwConfig')
@@ -1413,7 +1413,7 @@ export default function Terminal(): ReactElement {
 
         if (key === 'delete' || key === 'backspace') {
           event.preventDefault()
-          deleteSelectedItem()
+          void deleteSelectedItem()
           return
         }
       }
@@ -1433,7 +1433,7 @@ export default function Terminal(): ReactElement {
       if (isInputFocused || isAnyModalOpen) return
 
       if (key === 'p') {
-        addCommonProduct()
+        void addCommonProduct()
         return
       }
 
@@ -1677,7 +1677,7 @@ export default function Terminal(): ReactElement {
               </div>
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('titan-open-price-check'))}
+                onClick={() => window.dispatchEvent(new CustomEvent('pos-open-price-check'))}
                 className="hidden sm:flex items-center justify-center gap-1.5 min-h-[40px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-5 py-2.5 rounded-xl transition-colors shrink-0 whitespace-nowrap text-sm"
                 title="Consulta de precios y unidades (F9)"
               >
