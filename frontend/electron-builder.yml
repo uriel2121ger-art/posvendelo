@@ -19,6 +19,10 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  include: ../installers/windows/nsis-postinstall.nsh
+  oneClick: false
+  perMachine: true
+  allowElevation: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -36,6 +40,12 @@ linux:
     - deb
   maintainer: POSVENDELO
   category: Utility
+deb:
+  depends:
+    - curl
+    - openssl
+  afterInstall: ../installers/linux/postinst.sh
+  afterRemove: ../installers/linux/prerm.sh
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
