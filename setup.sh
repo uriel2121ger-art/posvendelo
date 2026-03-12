@@ -54,7 +54,7 @@ die() {
 # --- Inicio ---------------------------------------------------------------
 banner
 
-AGENT_DIR="${HOME}/.titanpos"
+AGENT_DIR="${HOME}/.posvendelo"
 AGENT_JSON_PATH="${AGENT_DIR}/titan-agent.json"
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -169,7 +169,7 @@ else
     sed -i "s|^ADMIN_API_PASSWORD=.*|ADMIN_API_PASSWORD=${ADMIN_PASS}|" .env
 
     # DATABASE_URL: insertar password real y apuntar a hostname Docker
-    sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://titan_user:${PG_PASS}@postgres:5432/titan_pos|" .env
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://posvendelo_user:${PG_PASS}@postgres:5432/posvendelo|" .env
 
     # Standalone mode: ensure license enforcement is disabled (no control plane)
     if grep -q "^TITAN_LICENSE_ENFORCEMENT=" .env; then
@@ -190,7 +190,7 @@ else
 Generado: $(date '+%Y-%m-%d %H:%M')
 
 Base de datos:
-  Usuario:    titan_user
+  Usuario:    posvendelo_user
   Contraseña: ${PG_PASS}
 
 API Admin:
@@ -383,7 +383,7 @@ fi
 
 mkdir -p "$DESKTOP_DIR"
 
-cat > "$DESKTOP_DIR/TITAN-POS.desktop" <<DESK
+cat > "$DESKTOP_DIR/POSVENDELO.desktop" <<DESK
 [Desktop Entry]
 Name=POSVENDELO
 Comment=Punto de Venta
@@ -394,10 +394,10 @@ Icon=accessories-calculator
 Categories=Office;Finance;
 DESK
 
-chmod +x "$DESKTOP_DIR/TITAN-POS.desktop"
+chmod +x "$DESKTOP_DIR/POSVENDELO.desktop"
 
 # Marcar como confiable (GNOME) — ignorar si falla
-gio set "$DESKTOP_DIR/TITAN-POS.desktop" metadata::trusted true 2>/dev/null || true
+gio set "$DESKTOP_DIR/POSVENDELO.desktop" metadata::trusted true 2>/dev/null || true
 
 ok "Acceso directo creado en $DESKTOP_DIR"
 

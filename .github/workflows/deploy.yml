@@ -47,6 +47,7 @@ jobs:
 
     env:
       DATABASE_URL: "postgresql+asyncpg://titan_user:ci_test_password@localhost:5432/titan_pos"
+      # NOTE: CI uses the existing dev DB (titan_user/titan_pos) — solo templates nuevos usan posvendelo_user/posvendelo
       JWT_SECRET: "ci-test-secret-not-for-production"
       ADMIN_API_USER: "admin"
       ADMIN_API_PASSWORD: "ci_admin_pass"
@@ -122,4 +123,4 @@ jobs:
           echo "Image pushed as :latest — Watchtower on homelab (192.168.10.90) will"
           echo "auto-pull and redeploy within 30 min (poll interval configured there)."
           echo "To force an immediate update via Tailscale SSH, run:"
-          echo "  ssh prod 'docker exec titan-pos-watchtower-1 /watchtower --run-once'"
+          echo "  ssh prod 'docker exec posvendelo-watchtower-1 /watchtower --run-once'"

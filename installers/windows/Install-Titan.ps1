@@ -9,14 +9,14 @@ param(
   [string]$CloudPassword = "",
   [string]$TenantName = "",
   [switch]$ExistingCloud,
-  [string]$InstallDir = "$env:LOCALAPPDATA\TitanPOS",
+  [string]$InstallDir = "$env:LOCALAPPDATA\POSVENDELO",
   [string]$PublisherCertPath = "",
   [int]$ApiPort = 0,
   [int]$DbPort = 0
 )
 
 $ErrorActionPreference = "Stop"
-$statePath = Join-Path $env:ProgramData "TitanPOS\install-state.json"
+$statePath = Join-Path $env:ProgramData "POSVENDELO\install-state.json"
 
 function Write-Step([string]$Message) {
   Write-Host "[POSVENDELO] $Message" -ForegroundColor Cyan
@@ -296,8 +296,8 @@ try {
 
   $envPath = Join-Path $InstallDir ".env"
   $composePath = Join-Path $InstallDir "docker-compose.yml"
-  $agentPath = Join-Path $InstallDir "titan-agent.json"
-  $registerPath = Join-Path $env:TEMP "titan-register.json"
+  $agentPath = Join-Path $InstallDir "titan-agent.json"  # nombre de archivo interno del agente
+  $registerPath = Join-Path $env:TEMP "posvendelo-register.json"
 
   @"
 POSTGRES_PASSWORD=$(New-RandomHex 32)
@@ -376,7 +376,7 @@ Archivos clave:
 
 Como abrir el punto de venta (POS):
   - Doble clic en el icono "POSVENDELO - Punto de venta" del escritorio (abre la app o la pagina de descargas).
-  - Si ya instalo la app: ejecute "POSVENDELO" o "titan-pos" desde el menu Inicio.
+  - Si ya instalo la app: ejecute "POSVENDELO" o "posvendelo" desde el menu Inicio.
   - Si aun no tiene la app: descargue el instalador .exe desde la web e instalelo.
   - Si la app no inicia: ejecutela desde Ejecutar (Win+R) o desde una consola para ver mensajes de error.
 
@@ -388,11 +388,11 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Continue-Install.p
   $abrirPosScript = @"
 # Abre el POS si esta instalado; si no, abre la pagina de descargas
 `$exe = `$null
-try { `$exe = Get-Command titan-pos -ErrorAction SilentlyContinue } catch {}
+try { `$exe = Get-Command posvendelo -ErrorAction SilentlyContinue } catch {}
 if (`$exe) { Start-Process `$exe.Source; exit }
 `$paths = @(
-  "`$env:LOCALAPPDATA\Programs\POSVENDELO\titan-pos.exe",
-  "`$env:ProgramFiles\POSVENDELO\titan-pos.exe"
+  "`$env:LOCALAPPDATA\Programs\POSVENDELO\posvendelo.exe",
+  "`$env:ProgramFiles\POSVENDELO\posvendelo.exe"
 )
 foreach (`$p in `$paths) {
   if (Test-Path `$p) { Start-Process `$p; exit }
@@ -459,13 +459,13 @@ $PublisherCertPath
       }
       Write-Step "Instalacion completada en $InstallDir"
       Write-Host ""
-      Write-Host "Para abrir el punto de venta (POS): busque 'POSVENDELO' en el menu Inicio o ejecute titan-pos." -ForegroundColor Green
+      Write-Host "Para abrir el punto de venta (POS): busque 'POSVENDELO' en el menu Inicio o ejecute posvendelo." -ForegroundColor Green
       Write-Host "Si aun no instalo la app, descargue el .exe desde la web." -ForegroundColor Green
       Write-Host ""
       $posExe = $null
-      if (Get-Command titan-pos -ErrorAction SilentlyContinue) { $posExe = "titan-pos" }
-      if (-not $posExe -and (Test-Path "$env:LOCALAPPDATA\Programs\POSVENDELO\titan-pos.exe")) { $posExe = "$env:LOCALAPPDATA\Programs\POSVENDELO\titan-pos.exe" }
-      if (-not $posExe -and (Test-Path "$env:ProgramFiles\POSVENDELO\titan-pos.exe")) { $posExe = "$env:ProgramFiles\POSVENDELO\titan-pos.exe" }
+      if (Get-Command posvendelo -ErrorAction SilentlyContinue) { $posExe = "posvendelo" }
+      if (-not $posExe -and (Test-Path "$env:LOCALAPPDATA\Programs\POSVENDELO\posvendelo.exe")) { $posExe = "$env:LOCALAPPDATA\Programs\POSVENDELO\posvendelo.exe" }
+      if (-not $posExe -and (Test-Path "$env:ProgramFiles\POSVENDELO\posvendelo.exe")) { $posExe = "$env:ProgramFiles\POSVENDELO\posvendelo.exe" }
       if ($posExe) {
         Write-Step "Iniciando la aplicacion POS..."
         Start-Process -FilePath $posExe -ErrorAction SilentlyContinue

@@ -1,4 +1,4 @@
-## TITAN POS — Client Node Compose Template (installers/shared copy)
+## POSVENDELO — Client Node Compose Template (installers/shared copy)
 ##
 ## CANONICAL SOURCE: control-plane/templates/docker-compose.client.yml
 ## This file MUST stay in sync with the canonical template.
@@ -12,15 +12,15 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: titan_pos
-      POSTGRES_USER: titan_user
+      POSTGRES_DB: posvendelo
+      POSTGRES_USER: posvendelo_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "127.0.0.1:${LOCAL_POSTGRES_PORT:-5434}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]
+      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,11 +32,11 @@ services:
         max-file: "5"
     restart: unless-stopped
 
-  # ── TITAN POS API — auto-updated by Watchtower ─────────────────────────────
+  # ── POSVENDELO API — auto-updated by Watchtower ─────────────────────────────
   api:
     image: ${BACKEND_IMAGE}
     environment:
-      DATABASE_URL: "postgresql+asyncpg://titan_user:${POSTGRES_PASSWORD}@postgres:5432/titan_pos"
+      DATABASE_URL: "postgresql+asyncpg://posvendelo_user:${POSTGRES_PASSWORD}@postgres:5432/posvendelo"
       ADMIN_API_USER: ${ADMIN_API_USER}
       ADMIN_API_PASSWORD: ${ADMIN_API_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
@@ -54,7 +54,7 @@ services:
       - "127.0.0.1:${LOCAL_API_PORT:-8000}:8000"
     volumes:
       # Mount only the agent config — do NOT mount the entire install dir (.env, CREDENCIALES.txt)
-      - ./titan-agent.json:/runtime/titan-agent.json:ro
+      - ./titan-agent.json:/runtime/titan-agent.json:ro  # nombre interno del agente — no cambiar
       - ./backups:/backups
     depends_on:
       postgres:
@@ -83,8 +83,8 @@ services:
       - ./backups:/backups
     entrypoint: >
       sh -c 'while true; do
-        FNAME="/backups/titan_$$(date +%Y%m%d_%H%M).dump";
-        pg_dump -h postgres -U titan_user -Fc titan_pos > "$$FNAME";
+        FNAME="/backups/posvendelo_$$(date +%Y%m%d_%H%M).dump";
+        pg_dump -h postgres -U posvendelo_user -Fc posvendelo > "$$FNAME";
         ls -t /backups/*.dump | tail -n +9 | xargs rm -f 2>/dev/null || true;
         sleep 21600;
       done'

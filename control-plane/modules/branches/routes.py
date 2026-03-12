@@ -78,7 +78,7 @@ async def _resolve_backend_image(db, branch_id: int, release_channel: str) -> st
     release = await db.fetchrow(query, params)
     if release and release.get("target_ref"):
         return str(release["target_ref"])
-    return os.getenv("CP_DEFAULT_BACKEND_IMAGE", "ghcr.io/titan-pos/titan-pos:latest").strip()
+    return os.getenv("CP_DEFAULT_BACKEND_IMAGE", "ghcr.io/uriel2121ger-art/posvendelo:latest").strip()
 
 
 @router.post("/pre-register")

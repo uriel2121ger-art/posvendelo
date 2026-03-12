@@ -556,7 +556,7 @@ async def health_check():
             "success": True,
             "data": {
                 "status": "healthy",
-                "service": "titan-pos",
+                "service": "posvendelo",
                 "version": app.version,
                 "branch_id": runtime_branch_id or None,
                 "os_platform": sys.platform,

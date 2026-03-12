@@ -10,12 +10,12 @@ APP_DIR="/opt/POSVENDELO"
 if [ -d "$APP_DIR" ]; then
     # Symlink to /usr/bin
     if type update-alternatives >/dev/null 2>&1; then
-        if [ -L '/usr/bin/titan-pos' ] && [ -e '/usr/bin/titan-pos' ] && [ "$(readlink '/usr/bin/titan-pos')" != '/etc/alternatives/titan-pos' ]; then
-            rm -f '/usr/bin/titan-pos'
+        if [ -L '/usr/bin/posvendelo' ] && [ -e '/usr/bin/posvendelo' ] && [ "$(readlink '/usr/bin/posvendelo')" != '/etc/alternatives/posvendelo' ]; then
+            rm -f '/usr/bin/posvendelo'
         fi
-        update-alternatives --install '/usr/bin/titan-pos' 'titan-pos' "$APP_DIR/titan-pos" 100 || ln -sf "$APP_DIR/titan-pos" '/usr/bin/titan-pos'
+        update-alternatives --install '/usr/bin/posvendelo' 'posvendelo' "$APP_DIR/posvendelo" 100 || ln -sf "$APP_DIR/posvendelo" '/usr/bin/posvendelo'
     else
-        ln -sf "$APP_DIR/titan-pos" '/usr/bin/titan-pos'
+        ln -sf "$APP_DIR/posvendelo" '/usr/bin/posvendelo'
     fi
 
     # Chrome sandbox permissions
@@ -32,7 +32,7 @@ if [ -d "$APP_DIR" ]; then
     # AppArmor profile (Ubuntu 24+)
     if apparmor_status --enabled > /dev/null 2>&1; then
         APPARMOR_PROFILE_SOURCE="$APP_DIR/resources/apparmor-profile"
-        APPARMOR_PROFILE_TARGET="/etc/apparmor.d/titan-pos"
+        APPARMOR_PROFILE_TARGET="/etc/apparmor.d/posvendelo"
         if [ -f "$APPARMOR_PROFILE_SOURCE" ] && apparmor_parser --skip-kernel-load --debug "$APPARMOR_PROFILE_SOURCE" > /dev/null 2>&1; then
             cp -f "$APPARMOR_PROFILE_SOURCE" "$APPARMOR_PROFILE_TARGET"
             if ! { [ -x '/usr/bin/ischroot' ] && /usr/bin/ischroot; } && hash apparmor_parser 2>/dev/null; then
@@ -45,10 +45,10 @@ fi
 # ---------------------------------------------------------------------------
 # 1. Backend setup — Docker + PostgreSQL + API
 # ---------------------------------------------------------------------------
-INSTALL_DIR="/opt/titan-pos"
+INSTALL_DIR="/opt/posvendelo"
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 ENV_FILE="$INSTALL_DIR/.env"
-SERVICE_FILE="/etc/systemd/system/titan-pos.service"
+SERVICE_FILE="/etc/systemd/system/posvendelo.service"
 
 log() {
     echo "[POSVENDELO] $*"
@@ -104,7 +104,7 @@ if [ ! -f "$ENV_FILE" ]; then
     DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
     cat > "$ENV_FILE" << ENVEOF
 POSTGRES_PASSWORD=$DB_PASSWORD
-DATABASE_URL=postgresql+asyncpg://titan_user:$DB_PASSWORD@postgres:5432/titan_pos
+DATABASE_URL=postgresql+asyncpg://posvendelo_user:$DB_PASSWORD@postgres:5432/posvendelo
 JWT_SECRET=$JWT_SECRET
 ADMIN_API_USER=
 ADMIN_API_PASSWORD=
@@ -124,20 +124,20 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: titan_pos
-      POSTGRES_USER: titan_user
+      POSTGRES_DB: posvendelo
+      POSTGRES_USER: posvendelo_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]
+      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
   api:
-    image: ghcr.io/uriel2121ger-art/titan-pos:latest
+    image: ghcr.io/uriel2121ger-art/posvendelo:latest
     env_file:
       - .env
     environment:
@@ -180,7 +180,7 @@ WantedBy=multi-user.target
 SVCEOF
 
 systemctl daemon-reload
-systemctl enable titan-pos.service
+systemctl enable posvendelo.service
 log "Servicio systemd registrado."
 
 # ---------------------------------------------------------------------------
@@ -229,7 +229,7 @@ cat > "$INSTALL_DIR/INSTALL_SUMMARY.txt" << 'SUMEOF'
 ║  por primera vez.                            ║
 ║                                              ║
 ║  Backend: http://127.0.0.1:8000              ║
-║  Datos en: /opt/titan-pos/                   ║
+║  Datos en: /opt/posvendelo/                  ║
 ║                                              ║
 ╚══════════════════════════════════════════════╝
 SUMEOF

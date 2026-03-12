@@ -12,7 +12,7 @@ usage() {
 CP_URL=""
 INSTALL_TOKEN=""
 BRANCH_NAME=""
-INSTALL_DIR="$HOME/.titanpos"
+INSTALL_DIR="$HOME/.posvendelo"
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 APP_VERSION="1.0.0"
 POS_VERSION="2.0.0"
@@ -397,7 +397,7 @@ print(f"TITAN_BRANCH_ID={data['branch_id']}")
 print(f"TITAN_VERSION={os.environ.get('POS_VERSION', '2.0.0')}")
 print(f"CF_TUNNEL_TOKEN={data.get('cf_tunnel_token') or ''}")
 override = os.environ.get("BACKEND_IMAGE_OVERRIDE", "").strip()
-backend_image = override or data.get("backend_image") or os.environ.get("TITAN_DEFAULT_BACKEND_IMAGE", "ghcr.io/titan-pos/titan-pos:latest")
+backend_image = override or data.get("backend_image") or os.environ.get("TITAN_DEFAULT_BACKEND_IMAGE", "ghcr.io/uriel2121ger-art/posvendelo:latest")
 print(f"BACKEND_IMAGE={backend_image}")
 print(f"LOCAL_API_PORT={os.environ['LOCAL_API_PORT']}")
 print(f"LOCAL_POSTGRES_PORT={os.environ['LOCAL_POSTGRES_PORT']}")
@@ -507,9 +507,9 @@ Actualizar backend (cuando haya nueva versión):
 
 Cómo abrir el punto de venta (POS):
   - Doble clic en el icono "POSVENDELO" del escritorio o del menú de aplicaciones (abre la app o la página de descargas).
-  - Con la app instalada: busque "POSVENDELO" en el menú o ejecute: titan-pos
+  - Con la app instalada: busque "POSVENDELO" en el menú o ejecute: posvendelo
   - Si no tiene la app: descargue el .deb (Linux/Raspberry Pi) desde la web e instale (dpkg -i ...)
-  - Si la app no inicia: ejecute desde terminal "titan-pos" para ver mensajes de error.
+  - Si la app no inicia: ejecute desde terminal "posvendelo" para ver mensajes de error.
 EOF
 chmod 600 "$INSTALL_DIR/INSTALL_SUMMARY.txt"
 
@@ -522,8 +522,8 @@ fi
 DOWNLOAD_PAGE="${CP_URL%/}/"
 cat > "$INSTALL_DIR/abrir-pos.sh" <<ABRIRPOS
 #!/usr/bin/env bash
-if command -v titan-pos >/dev/null 2>&1; then
-  exec titan-pos "\$@"
+if command -v posvendelo >/dev/null 2>&1; then
+  exec posvendelo "\$@"
 fi
 echo "[POSVENDELO] La app de escritorio no esta instalada. Descargue el .deb desde: $DOWNLOAD_PAGE"
 if command -v xdg-open >/dev/null 2>&1 && [[ -n "\${DISPLAY:-}" ]]; then
@@ -584,13 +584,13 @@ PULL_FAILED=0
 run_compose pull || PULL_FAILED=$?
 if [[ "$PULL_FAILED" -ne 0 ]]; then
   echo ""
-  echo "[TITAN] No se pudo descargar alguna imagen (por ejemplo la del API)."
+  echo "[POSVENDELO] No se pudo descargar alguna imagen (por ejemplo la del API)."
   if [[ -n "${BACKEND_IMAGE_OVERRIDE:-}" ]] && docker image inspect "$BACKEND_IMAGE_OVERRIDE" >/dev/null 2>&1; then
-    echo "[TITAN] La imagen $BACKEND_IMAGE_OVERRIDE existe localmente. Continuando con el arranque..."
+    echo "[POSVENDELO] La imagen $BACKEND_IMAGE_OVERRIDE existe localmente. Continuando con el arranque..."
   else
-    echo "[TITAN] Si tienes la imagen del API construida en esta máquina, ejecuta de nuevo con:"
-    echo "        --backend-image titan-pos:local"
-    echo "        (construir antes:  docker build -t titan-pos:local ./backend  desde la raíz del repo)"
+    echo "[POSVENDELO] Si tienes la imagen del API construida en esta máquina, ejecuta de nuevo con:"
+    echo "        --backend-image posvendelo:local"
+    echo "        (construir antes:  docker build -t posvendelo:local ./backend  desde la raíz del repo)"
     echo ""
     report_status "error" "fallo al descargar imagenes docker"
     exit 1
@@ -614,12 +614,12 @@ for _ in $(seq 1 60); do
     echo "[POSVENDELO] Instalacion completada en $INSTALL_DIR"
     echo ""
     echo "Para abrir el punto de venta (POS):"
-    echo "  - Si ya instalaste la app: busque 'POSVENDELO' en el menu o ejecute: titan-pos"
+    echo "  - Si ya instalaste la app: busque 'POSVENDELO' en el menu o ejecute: posvendelo"
     echo "  - Si aun no tiene la app: descargue el .deb desde la web e instalelo (dpkg -i ...)"
     echo ""
-    if [[ -n "${DISPLAY:-}" ]] && command -v titan-pos >/dev/null 2>&1; then
+    if [[ -n "${DISPLAY:-}" ]] && command -v posvendelo >/dev/null 2>&1; then
       echo "[POSVENDELO] Iniciando la aplicacion POS..."
-      nohup titan-pos >/dev/null 2>&1 &
+      nohup posvendelo >/dev/null 2>&1 &
       sleep 1
     elif [[ -n "${DISPLAY:-}" ]] && command -v xdg-open >/dev/null 2>&1; then
       echo "[POSVENDELO] Abriendo el POS en el navegador para configuracion inicial..."

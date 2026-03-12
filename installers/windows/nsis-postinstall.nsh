@@ -105,7 +105,7 @@
         }); \
         $content = @( \
           ''POSTGRES_PASSWORD='' + $dbPass, \
-          ''DATABASE_URL=postgresql+asyncpg://titan_user:'' + $dbPass + ''@postgres:5432/titan_pos'', \
+          ''DATABASE_URL=postgresql+asyncpg://posvendelo_user:'' + $dbPass + ''@postgres:5432/posvendelo'', \
           ''JWT_SECRET='' + $jwtSecret, \
           ''ADMIN_API_USER='', \
           ''ADMIN_API_PASSWORD='', \
@@ -119,7 +119,7 @@
       ; Fallback: escribir .env con placeholder (el wizard pedirá configuración)
       FileOpen $1 "$TITAN_ENV" w
       FileWrite $1 "POSTGRES_PASSWORD=changeme_on_first_run$\r$\n"
-      FileWrite $1 "DATABASE_URL=postgresql+asyncpg://titan_user:changeme_on_first_run@postgres:5432/titan_pos$\r$\n"
+      FileWrite $1 "DATABASE_URL=postgresql+asyncpg://posvendelo_user:changeme_on_first_run@postgres:5432/posvendelo$\r$\n"
       FileWrite $1 "JWT_SECRET=changeme_jwt_secret_please_set_a_strong_value$\r$\n"
       FileWrite $1 "ADMIN_API_USER=$\r$\n"
       FileWrite $1 "ADMIN_API_PASSWORD=$\r$\n"
@@ -138,20 +138,20 @@
   FileWrite $1 "  postgres:$\r$\n"
   FileWrite $1 "    image: postgres:15-alpine$\r$\n"
   FileWrite $1 "    environment:$\r$\n"
-  FileWrite $1 "      POSTGRES_DB: titan_pos$\r$\n"
-  FileWrite $1 "      POSTGRES_USER: titan_user$\r$\n"
+  FileWrite $1 "      POSTGRES_DB: posvendelo$\r$\n"
+  FileWrite $1 "      POSTGRES_USER: posvendelo_user$\r$\n"
   FileWrite $1 "      POSTGRES_PASSWORD: $${POSTGRES_PASSWORD}$\r$\n"
   FileWrite $1 "    volumes:$\r$\n"
   FileWrite $1 "      - pgdata:/var/lib/postgresql/data$\r$\n"
   FileWrite $1 "    healthcheck:$\r$\n"
-  FileWrite $1 '      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]$\r$\n'
+  FileWrite $1 '      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]$\r$\n'
   FileWrite $1 "      interval: 10s$\r$\n"
   FileWrite $1 "      timeout: 5s$\r$\n"
   FileWrite $1 "      retries: 5$\r$\n"
   FileWrite $1 "    restart: unless-stopped$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "  api:$\r$\n"
-  FileWrite $1 "    image: ghcr.io/uriel2121ger-art/titan-pos:latest$\r$\n"
+  FileWrite $1 "    image: ghcr.io/uriel2121ger-art/posvendelo:latest$\r$\n"
   FileWrite $1 "    env_file:$\r$\n"
   FileWrite $1 "      - .env$\r$\n"
   FileWrite $1 "    environment:$\r$\n"

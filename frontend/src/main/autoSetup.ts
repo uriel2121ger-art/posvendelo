@@ -6,8 +6,8 @@ import http from 'http'
 
 const INSTALL_DIR =
   process.platform === 'win32'
-    ? join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'TitanPOS')
-    : '/opt/titan-pos'
+    ? join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'POSVENDELO')
+    : '/opt/posvendelo'
 
 const COMPOSE_FILE = join(INSTALL_DIR, 'docker-compose.yml')
 const HEALTH_URL = 'http://127.0.0.1:8000/health'
@@ -202,10 +202,10 @@ function generateLinuxScript(): string {
   return `#!/bin/bash
 set -e
 
-INSTALL_DIR="/opt/titan-pos"
+INSTALL_DIR="/opt/posvendelo"
 COMPOSE_FILE="\$INSTALL_DIR/docker-compose.yml"
 ENV_FILE="\$INSTALL_DIR/.env"
-SERVICE_FILE="/etc/systemd/system/titan-pos.service"
+SERVICE_FILE="/etc/systemd/system/posvendelo.service"
 
 log() { echo "[POSVENDELO] \$*"; }
 
@@ -244,7 +244,7 @@ if [ ! -f "\$ENV_FILE" ]; then
   DB_PASSWORD=\$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
   cat > "\$ENV_FILE" << ENVEOF
 POSTGRES_PASSWORD=\$DB_PASSWORD
-DATABASE_URL=postgresql+asyncpg://titan_user:\$DB_PASSWORD@postgres:5432/titan_pos
+DATABASE_URL=postgresql+asyncpg://posvendelo_user:\$DB_PASSWORD@postgres:5432/posvendelo
 JWT_SECRET=\$JWT_SECRET
 ADMIN_API_USER=
 ADMIN_API_PASSWORD=
@@ -262,20 +262,20 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: titan_pos
-      POSTGRES_USER: titan_user
+      POSTGRES_DB: posvendelo
+      POSTGRES_USER: posvendelo_user
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]
+      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
   api:
-    image: ghcr.io/uriel2121ger-art/titan-pos:latest
+    image: ghcr.io/uriel2121ger-art/posvendelo:latest
     env_file:
       - .env
     environment:
@@ -316,7 +316,7 @@ WantedBy=multi-user.target
 SVCEOF
 
 systemctl daemon-reload
-systemctl enable titan-pos.service
+systemctl enable posvendelo.service
 log "Servicio systemd registrado."
 
 # Pull image and start
@@ -348,7 +348,7 @@ function generateWindowsScript(): string {
   return [
     '#Requires -RunAsAdministrator',
     '$ErrorActionPreference = "Stop"',
-    '$INSTALL_DIR = "$env:ProgramData\\TitanPOS"',
+    '$INSTALL_DIR = "$env:ProgramData\\POSVENDELO"',
     '$COMPOSE_FILE = "$INSTALL_DIR\\docker-compose.yml"',
     '$ENV_FILE = "$INSTALL_DIR\\.env"',
     '',
@@ -399,7 +399,7 @@ function generateWindowsScript(): string {
     '  $dbpass = New-RandomHex 32',
     '  @"',
     'POSTGRES_PASSWORD=$dbpass',
-    'DATABASE_URL=postgresql+asyncpg://titan_user:$dbpass@postgres:5432/titan_pos',
+    'DATABASE_URL=postgresql+asyncpg://posvendelo_user:$dbpass@postgres:5432/posvendelo',
     'JWT_SECRET=$jwt',
     'ADMIN_API_USER=',
     'ADMIN_API_PASSWORD=',
@@ -416,20 +416,20 @@ function generateWindowsScript(): string {
     '  postgres:',
     '    image: postgres:15-alpine',
     '    environment:',
-    '      POSTGRES_DB: titan_pos',
-    '      POSTGRES_USER: titan_user',
+    '      POSTGRES_DB: posvendelo',
+    '      POSTGRES_USER: posvendelo_user',
     '      POSTGRES_PASSWORD: `${POSTGRES_PASSWORD}',
     '    volumes:',
     '      - pgdata:/var/lib/postgresql/data',
     '    healthcheck:',
-    '      test: ["CMD-SHELL", "pg_isready -U titan_user -d titan_pos"]',
+    '      test: ["CMD-SHELL", "pg_isready -U posvendelo_user -d posvendelo"]',
     '      interval: 10s',
     '      timeout: 5s',
     '      retries: 5',
     '    restart: unless-stopped',
     '',
     '  api:',
-    '    image: ghcr.io/uriel2121ger-art/titan-pos:latest',
+    '    image: ghcr.io/uriel2121ger-art/posvendelo:latest',
     '    env_file:',
     '      - .env',
     '    environment:',

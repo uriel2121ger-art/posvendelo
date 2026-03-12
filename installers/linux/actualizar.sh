@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Actualizar el backend del nodo TITAN POS (descarga nueva imagen y reinicia).
+# Actualizar el backend del nodo POSVENDELO (descarga nueva imagen y reinicia).
 # Uso: ./actualizar.sh [--dir INSTALL_DIR]
-# Por defecto INSTALL_DIR=$HOME/.titanpos
+# Por defecto INSTALL_DIR=$HOME/.posvendelo
 
 set -euo pipefail
 
-INSTALL_DIR="${HOME:-/root}/.titanpos"
+INSTALL_DIR="${HOME:-/root}/.posvendelo"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       echo "Uso: $0 [--dir INSTALL_DIR]"
       echo "  Actualiza el backend del nodo: pull de la imagen y reinicio del contenedor."
-      echo "  Por defecto INSTALL_DIR=$HOME/.titanpos"
+      echo "  Por defecto INSTALL_DIR=$HOME/.posvendelo"
       exit 0
       ;;
     *)
@@ -27,12 +27,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -d "$INSTALL_DIR" ]]; then
-  echo "[TITAN] No existe el directorio de instalación: $INSTALL_DIR" >&2
+  echo "[POSVENDELO] No existe el directorio de instalación: $INSTALL_DIR" >&2
   exit 1
 fi
 
 if [[ ! -f "$INSTALL_DIR/docker-compose.yml" ]] || [[ ! -f "$INSTALL_DIR/.env" ]]; then
-  echo "[TITAN] No parece una instalación TITAN POS (falta docker-compose.yml o .env)." >&2
+  echo "[POSVENDELO] No parece una instalación POSVENDELO (falta docker-compose.yml o .env)." >&2
   exit 1
 fi
 
@@ -46,18 +46,18 @@ run_compose() {
     docker compose --env-file .env "$@"
 }
 
-echo "[TITAN] Descargando nueva imagen del backend..."
+echo "[POSVENDELO] Descargando nueva imagen del backend..."
 if ! run_compose pull api; then
-  echo "[TITAN] Si la imagen es privada (GHCR), ejecuta antes: docker login ghcr.io" >&2
+  echo "[POSVENDELO] Si la imagen es privada (GHCR), ejecuta antes: docker login ghcr.io" >&2
   exit 1
 fi
 
-echo "[TITAN] Reiniciando el backend..."
+echo "[POSVENDELO] Reiniciando el backend..."
 run_compose up -d api
 
-echo "[TITAN] Estado del stack:"
+echo "[POSVENDELO] Estado del stack:"
 run_compose ps
 
 LOCAL_API_PORT="$(grep -E '^LOCAL_API_PORT=' .env 2>/dev/null | cut -d= -f2 || echo "8000")"
 echo ""
-echo "[TITAN] Actualización aplicada. Health: http://127.0.0.1:${LOCAL_API_PORT}/health"
+echo "[POSVENDELO] Actualización aplicada. Health: http://127.0.0.1:${LOCAL_API_PORT}/health"

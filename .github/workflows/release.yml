@@ -43,7 +43,7 @@ jobs:
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: titan-pos-linux
+          name: posvendelo-linux
           path: frontend/dist/**
 
   build-windows:
@@ -89,7 +89,7 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: titan-pos-windows
+          name: posvendelo-windows
           path: frontend/dist/**
 
   build-android-cajero:
@@ -127,7 +127,7 @@ jobs:
       - name: Upload cajero APK
         uses: actions/upload-artifact@v4
         with:
-          name: titan-pos-cajero-apk
+          name: posvendelo-cajero-apk
           path: frontend/android/app/build/outputs/apk/release/*.apk
 
   build-owner-app:
@@ -160,7 +160,7 @@ jobs:
       - name: Upload owner Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: titan-owner-linux
+          name: posvendelo-owner-linux
           path: owner-app/dist/*.AppImage
 
       - name: Build owner Android APK
@@ -174,7 +174,7 @@ jobs:
       - name: Upload owner APK
         uses: actions/upload-artifact@v4
         with:
-          name: titan-owner-apk
+          name: posvendelo-owner-apk
           path: owner-app/android/app/build/outputs/apk/release/*.apk
         if: hashFiles('owner-app/android/build.gradle') != ''
 
@@ -194,31 +194,31 @@ jobs:
       - name: Download Linux artifacts
         uses: actions/download-artifact@v4
         with:
-          name: titan-pos-linux
+          name: posvendelo-linux
           path: release-artifacts/linux
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
-          name: titan-pos-windows
+          name: posvendelo-windows
           path: release-artifacts/windows
 
       - name: Download cajero APK
         uses: actions/download-artifact@v4
         with:
-          name: titan-pos-cajero-apk
+          name: posvendelo-cajero-apk
           path: release-artifacts/android-cajero
 
       - name: Download owner Linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: titan-owner-linux
+          name: posvendelo-owner-linux
           path: release-artifacts/owner-linux
 
       - name: Download owner APK
         uses: actions/download-artifact@v4
         with:
-          name: titan-owner-apk
+          name: posvendelo-owner-apk
           path: release-artifacts/owner-android
         continue-on-error: true
 
@@ -263,12 +263,12 @@ jobs:
           RELEASE_BASE_URL="${CP_RELEASES_URL:-https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}}"
           NOTES="Publicado desde GitHub Actions para tag v${VERSION}"
           declare -A ASSET_URLS=(
-            ["electron-linux"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}.AppImage"
-            ["electron-windows"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}-setup.exe"
+            ["electron-linux"]="${RELEASE_BASE_URL%/}/posvendelo-${VERSION}.AppImage"
+            ["electron-windows"]="${RELEASE_BASE_URL%/}/posvendelo-${VERSION}-setup.exe"
             ["android-cajero"]="${RELEASE_BASE_URL%/}/app-release.apk"
-            ["owner-linux"]="${RELEASE_BASE_URL%/}/titan-owner-${VERSION}.AppImage"
-            ["owner-android"]="${RELEASE_BASE_URL%/}/titan-owner-${VERSION}.apk"
-            ["backend"]="ghcr.io/${GITHUB_REPOSITORY_OWNER}/titan-pos:${VERSION}"
+            ["owner-linux"]="${RELEASE_BASE_URL%/}/posvendelo-owner-${VERSION}.AppImage"
+            ["owner-android"]="${RELEASE_BASE_URL%/}/posvendelo-owner-${VERSION}.apk"
+            ["backend"]="ghcr.io/${GITHUB_REPOSITORY_OWNER}/posvendelo:${VERSION}"
           )
 
           for ARTIFACT in electron-linux electron-windows android-cajero owner-linux owner-android backend; do

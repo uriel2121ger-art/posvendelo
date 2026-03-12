@@ -18,7 +18,7 @@ extraResources:
   - from: "../installers/windows/Install-Titan.ps1"
     to: "posvendelo-setup.ps1"
 win:
-  executableName: titan-pos
+  executableName: posvendelo
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

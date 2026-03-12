@@ -28,16 +28,16 @@ debug = os.getenv("DEBUG", "false").lower() == "true"
 _default_downloads = Path(__file__).resolve().parent / "downloads"
 DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", str(_default_downloads)))
 
-CAJERO_WINDOWS_INSTALLER = "titan-pos-setup.exe"
-CAJERO_APPIMAGE = "titan-pos.AppImage"
-CAJERO_DEB = "titan-pos_amd64.deb"
-CAJERO_DEB_ARM64 = "titan-pos_arm64.deb"
-CAJERO_APK = "titan-pos.apk"
-OWNER_WINDOWS_INSTALLER = "titan-owner-setup.exe"
-OWNER_APPIMAGE = "titan-owner.AppImage"
-OWNER_DEB = "titan-owner_amd64.deb"
-OWNER_WEB_ZIP = "titan-owner-web.zip"
-OWNER_APK = "titan-owner.apk"
+CAJERO_WINDOWS_INSTALLER = "posvendelo-setup.exe"
+CAJERO_APPIMAGE = "posvendelo.AppImage"
+CAJERO_DEB = "posvendelo_amd64.deb"
+CAJERO_DEB_ARM64 = "posvendelo_arm64.deb"
+CAJERO_APK = "posvendelo.apk"
+OWNER_WINDOWS_INSTALLER = "posvendelo-owner-setup.exe"
+OWNER_APPIMAGE = "posvendelo-owner.AppImage"
+OWNER_DEB = "posvendelo-owner_amd64.deb"
+OWNER_WEB_ZIP = "posvendelo-owner-web.zip"
+OWNER_APK = "posvendelo-owner.apk"
 
 
 def _file_size_mb(filename: str) -> str:
@@ -528,7 +528,7 @@ async def health_check():
             "success": True,
             "data": {
                 "status": "healthy",
-                "service": "titan-control-plane",
+                "service": "posvendelo-control-plane",
                 "version": app.version,
             },
         }

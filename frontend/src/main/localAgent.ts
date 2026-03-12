@@ -637,7 +637,7 @@ export class LocalNodeAgent {
     const updatesDir = this.desktopUpdatesDir()
     mkdirSync(updatesDir, { recursive: true })
     const filename =
-      basename(new URL(release.target_ref).pathname) || `titan-pos-${release.version}`
+      basename(new URL(release.target_ref).pathname) || `posvendelo-${release.version}`
     const destination = join(updatesDir, filename)
     const rollbackExecutablePath = app.isPackaged ? app.getPath('exe') : process.execPath
 
@@ -926,7 +926,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
         mkdirSync(updatesDir, { recursive: true })
         const filename =
           basename(new URL(remoteRollback.target_ref).pathname) ||
-          `titan-pos-rollback-${remoteRollback.version}`
+          `posvendelo-rollback-${remoteRollback.version}`
         const destination = join(updatesDir, `rollback-${filename}`)
         const response = await fetch(remoteRollback.target_ref, {
           signal: AbortSignal.timeout(120_000)
@@ -1608,9 +1608,9 @@ nohup "$TARGET" >/dev/null 2>&1 &
   private configCandidates(): string[] {
     const custom = process.env.TITAN_AGENT_CONFIG_PATH?.trim()
     const userData = join(app.getPath('userData'), 'titan-agent.json')
-    const home = join(homedir(), '.titanpos', 'titan-agent.json')
+    const home = join(homedir(), '.posvendelo', 'titan-agent.json')
     const localAppData = process.env.LOCALAPPDATA
-      ? join(process.env.LOCALAPPDATA, 'TitanPOS', 'titan-agent.json')
+      ? join(process.env.LOCALAPPDATA, 'POSVENDELO', 'titan-agent.json')
       : null
     return [custom, userData, home, localAppData].filter((value): value is string => Boolean(value))
   }

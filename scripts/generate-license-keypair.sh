@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # generate-license-keypair.sh
-# Generates an RSA 2048 keypair for signing TITAN POS licenses.
+# Generates an RSA 2048 keypair for signing POSVENDELO licenses.
 #
 # Usage:
 #   bash scripts/generate-license-keypair.sh
@@ -54,7 +54,7 @@ PRIVATE_KEY_ONELINER="$(awk 'NF {printf "%s\\n", $0}' "${PRIVATE_PEM}")"
 # ── Output ────────────────────────────────────────────────────────────────────
 echo ""
 echo "========================================================================"
-echo "  TITAN POS — License keypair generated"
+echo "  POSVENDELO — License keypair generated"
 echo "========================================================================"
 echo ""
 echo "Files written:"
