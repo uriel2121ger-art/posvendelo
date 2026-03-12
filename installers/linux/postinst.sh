@@ -157,7 +157,7 @@ log "Contenedores iniciados."
 log "Esperando que el servidor esté listo..."
 READY=0
 for i in $(seq 1 30); do
-    if curl -sf http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
+    if curl -sf http://127.0.0.1:8000/health >/dev/null 2>&1; then
         READY=1
         break
     fi

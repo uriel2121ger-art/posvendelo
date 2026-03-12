@@ -10,7 +10,7 @@ const INSTALL_DIR =
     : '/opt/titan-pos'
 
 const COMPOSE_FILE = join(INSTALL_DIR, 'docker-compose.yml')
-const HEALTH_URL = 'http://127.0.0.1:8000/api/v1/health'
+const HEALTH_URL = 'http://127.0.0.1:8000/health'
 
 // ---------------------------------------------------------------------------
 // Public entry point — call before creating the main window
@@ -332,7 +332,7 @@ log "Contenedores iniciados."
 # Wait for health (up to 60 s)
 log "Esperando que el servidor este listo..."
 for i in \$(seq 1 30); do
-  if curl -sf http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
+  if curl -sf http://127.0.0.1:8000/health >/dev/null 2>&1; then
     log "Servidor listo."
     break
   fi
@@ -458,7 +458,7 @@ function generateWindowsScript(): string {
     'Write-Step "Esperando que el servidor este listo..."',
     'for ($i = 0; $i -lt 30; $i++) {',
     '  try {',
-    '    Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/v1/health" | Out-Null',
+    '    Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health" | Out-Null',
     '    Write-Step "Servidor listo."',
     '    exit 0',
     '  } catch { Start-Sleep 2 }',

@@ -6,7 +6,7 @@
 ;   1. Detecta Docker Desktop; lo descarga e instala si no está presente.
 ;   2. Crea C:\ProgramData\POSVENDELO\ con .env y docker-compose.yml.
 ;   3. Corre docker compose pull + up -d.
-;   4. Espera el health endpoint (http://127.0.0.1:8000/api/v1/health).
+;   4. Espera el health endpoint (http://127.0.0.1:8000/health).
 ;   5. Escribe INSTALL_SUMMARY.txt.
 ; =============================================================================
 
@@ -206,7 +206,7 @@
     ${EndIf}
     Sleep 2000
     nsExec::ExecToLog \
-      'cmd /c curl -sf http://127.0.0.1:8000/api/v1/health >nul 2>&1'
+      'cmd /c curl -sf http://127.0.0.1:8000/health >nul 2>&1'
     Pop $HEALTH_RESULT
     ${If} $HEALTH_RESULT == 0
       DetailPrint "¡Servidor listo en http://127.0.0.1:8000!"
