@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { LocalNodeAgent } from './localAgent'
+import { ensureBackend } from './autoSetup'
 
 const defaultConnectSrc =
   process.env.ELECTRON_ALLOWED_CONNECT_SRC?.trim() || 'http://localhost:* http://127.0.0.1:*'
@@ -81,7 +82,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.titanpos.pos')
 
@@ -91,6 +92,15 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Ensure backend is running before loading the renderer.
+  // In dev mode the backend is started separately so this is a fast no-op.
+  // For AppImage / deb / nsis installs this sets up Docker + backend on first run.
+  const backendReady = await ensureBackend()
+  if (!backendReady) {
+    app.quit()
+    return
+  }
 
   createWindow()
 

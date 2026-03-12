@@ -12,6 +12,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: "../installers/linux/postinst.sh"
+    to: "posvendelo-setup.sh"
+  - from: "../installers/windows/Install-Titan.ps1"
+    to: "posvendelo-setup.ps1"
 win:
   executableName: titan-pos
 nsis:
