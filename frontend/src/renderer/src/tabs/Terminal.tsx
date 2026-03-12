@@ -23,7 +23,6 @@ import {
   type SaleItemPayload,
   type HardwareConfig,
   loadRuntimeConfig,
-  saveRuntimeConfig,
   pullTable,
   createSale,
   printReceipt,

@@ -17,7 +17,11 @@ Esta carpeta contiene los instaladores que el **control-plane** sirve en la land
 | `titan-owner-web.zip` | Web/PWA | App dueños (opcional) |
 | `titan-owner.apk` | Android | App dueños (opcional) |
 
-Los binarios se versionan en el repo para que la landing y `/downloads` puedan ofrecerlos sin depender de artefactos externos. Al generar nuevas versiones, sustituir los archivos aquí y hacer commit.
+Los binarios **no** se suben a Git (están en `.gitignore` por tamaño). Para distribuir por la página (posvendelo.com):
+
+1. **Generar** los instaladores/APKs desde el repo (ver secciones abajo).
+2. **Copiar** los artefactos a esta carpeta con los nombres exactos de la tabla.
+3. **Desplegar:** subir esta carpeta `downloads/` al servidor donde corre el control-plane (homelab). El control-plane sirve los archivos desde `CP_DOWNLOADS_DIR` o, por defecto, `control-plane/downloads/`.
 
 ### Raspberry Pi (64-bit)
 
