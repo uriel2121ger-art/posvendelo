@@ -84,6 +84,17 @@ export default function Login(): ReactElement {
     ? `V ${TITAN_RELEASE_LABEL} • ${TITAN_APP_LABEL}`
     : TITAN_APP_LABEL
 
+  // Redirigir al wizard si nunca se ha guardado una URL (primera vez o instalador antiguo sin este flujo)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('titan.baseUrl')
+      if (saved != null && saved.trim() !== '') return
+      navigate('/configurar-servidor', { replace: true })
+    } catch {
+      navigate('/configurar-servidor', { replace: true })
+    }
+  }, [navigate])
+
   const refreshAgentStatus = async (): Promise<void> => {
     const api = (window as Window & { api?: { agent?: { refresh?: () => Promise<unknown> } } }).api
     if (typeof api?.agent?.refresh !== 'function') return

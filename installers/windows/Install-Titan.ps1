@@ -1,7 +1,8 @@
 #Requires -RunAsAdministrator
 
+# URL del nodo central por defecto. El usuario no tiene que escribir nada; el token se obtiene por pre-registro.
 param(
-  [Parameter(Mandatory = $true)][string]$CpUrl,
+  [string]$CpUrl = "https://posvendelo.com",
   [string]$InstallToken = "",
   [string]$BranchName = "",
   [string]$CloudEmail = "",

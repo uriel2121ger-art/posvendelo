@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# URL del nodo central por defecto (homelab/posvendelo.com). El usuario no tiene que escribir nada.
+DEFAULT_CP_URL="${POSVENDELO_CP_URL:-https://posvendelo.com}"
+
 usage() {
-  echo "Uso: bash install-titan.sh --cp-url URL [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO] [--backend-image IMAGEN]"
+  echo "Uso: bash install-titan.sh [--cp-url URL] [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO] [--backend-image IMAGEN]"
+  echo "  Si no pasas --cp-url ni --install-token, se usa $DEFAULT_CP_URL y el token se obtiene automáticamente (pre-registro por hardware)."
 }
 
 CP_URL=""
@@ -113,8 +117,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$CP_URL" ]]; then
-  usage
-  exit 1
+  CP_URL="$DEFAULT_CP_URL"
+  echo "[POSVENDELO] Usando servidor central: $CP_URL (token se obtendrá automáticamente)"
 fi
 
 bootstrap_cloud_install_token() {

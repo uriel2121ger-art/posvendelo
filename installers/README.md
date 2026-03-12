@@ -6,10 +6,16 @@
 
 ## Linux
 
-Instalador Linux del nodo TITAN:
+**Instalación para el cliente (sin tocar terminal/código):** el instalador puede ejecutarse sin argumentos. Usa por defecto el servidor central (posvendelo.com) y obtiene el token automáticamente por pre-registro (huella de hardware). El usuario solo descarga, ejecuta y configura en la app.
 
 ```bash
-bash installers/linux/install-titan.sh --cp-url http://localhost:9090 --install-token TOKEN
+bash installers/linux/install-titan.sh
+```
+
+Con URL y token explícitos (pruebas o entornos custom):
+
+```bash
+bash installers/linux/install-titan.sh --cp-url https://posvendelo.com --install-token TOKEN
 ```
 
 Opcional:
@@ -45,10 +51,16 @@ Si instalaste en otro directorio: `./actualizar.sh --dir /ruta/de/instalacion`. 
 
 ## Windows
 
-Instalador Windows del nodo TITAN:
+**Instalación para el cliente (sin tocar código):** el instalador puede ejecutarse sin token ni URL. Por defecto usa posvendelo.com y obtiene el token automáticamente por pre-registro. El usuario solo descarga, ejecuta y configura en la app.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 -CpUrl http://localhost:9090 -InstallToken TOKEN
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1
+```
+
+Con URL y token explícitos (pruebas o entornos custom):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 -CpUrl https://posvendelo.com -InstallToken TOKEN
 ```
 
 Opcional:
