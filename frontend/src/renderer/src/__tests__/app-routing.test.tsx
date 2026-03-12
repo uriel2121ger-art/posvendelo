@@ -78,7 +78,9 @@ vi.mock('../posApi', () => ({
   openDrawerForSale: vi.fn().mockResolvedValue({}),
   getCurrentTurn: vi.fn().mockResolvedValue(null),
   pullTable: vi.fn().mockResolvedValue([]),
-  getInitialSetupStatus: vi.fn().mockResolvedValue({ completed: true })
+  getInitialSetupStatus: vi.fn().mockResolvedValue({ completed: true }),
+  checkNeedsFirstUser: vi.fn().mockResolvedValue(false),
+  setupOwnerUser: vi.fn().mockResolvedValue({ token: 'test', role: 'admin' })
 }))
 
 // App usa HashRouter internamente, así que importamos directo
