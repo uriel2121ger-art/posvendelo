@@ -9,6 +9,10 @@
     "dev:web": "vite",
     "build": "tsc -b && vite build",
     "build:web": "tsc -b && vite build",
+    "build:web:android": "tsc -b && vite build --base ./",
+    "build:android": "npm run build:web:android && npx cap sync android",
+    "cap:sync": "npx cap sync android",
+    "cap:open:android": "npx cap open android",
     "lint": "eslint .",
     "preview": "vite preview",
     "desktop": "electron electron/main.mjs",
@@ -17,6 +21,7 @@
     "build:win": "npm run build:web && electron-builder --config electron-builder.yml --win --publish never"
   },
   "dependencies": {
+    "@capacitor/core": "^7.4.3",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -24,6 +29,8 @@
     "vite-plugin-pwa": "^1.2.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.7",

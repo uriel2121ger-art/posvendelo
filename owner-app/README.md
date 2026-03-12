@@ -1,3 +1,18 @@
+# POSVENDELO Dueño (owner-app)
+
+App para dueños: monitoreo remoto, sucursales y panel de control. Web/PWA, Electron (Windows/Linux) y Android (Capacitor).
+
+## Build Android (APK)
+
+```bash
+npm run build:android
+cd android && ./gradlew assembleDebug
+```
+
+Requiere Android SDK (`ANDROID_HOME` o `android/local.properties` con `sdk.dir`). El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Para publicar en la landing: copiarlo a `control-plane/downloads/titan-owner.apk`.
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
