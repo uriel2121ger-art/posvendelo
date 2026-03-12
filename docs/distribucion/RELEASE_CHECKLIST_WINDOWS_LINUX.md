@@ -28,11 +28,13 @@ Checklist operativo para publicar POSVENDELO con apariencia profesional y menor 
 
 ## Instalación plug-and-play
 
-1. Probar `setup.sh` o `installers/linux/install-titan.sh` en una máquina Linux limpia.
-1. Probar `installers/windows/Install-Titan.ps1` en una máquina Windows limpia.
-1. Confirmar creación de `titan-agent.json` y conectividad al backend local.
-1. Confirmar health local en la URL reportada por `INSTALL_SUMMARY.txt` o `titan-agent.json`.
-1. Validar login, apertura de turno, venta, impresión y reinicio del equipo.
+1. Probar `sudo dpkg -i posvendelo_amd64.deb` en una máquina Linux limpia.
+1. Probar `posvendelo-setup.exe` en una máquina Windows limpia (instala Docker Desktop si no existe).
+1. Confirmar que `curl http://127.0.0.1:8000/health` responde OK tras la instalación.
+1. Abrir la app → verificar splash → wizard de primer usuario → auto-login.
+1. Verificar wizard de configuración de negocio → terminal operativa.
+1. Validar apertura de turno, venta, impresión y reinicio del equipo.
+1. Probar APK en dispositivo Android: debe mostrar `/configurar-servidor` en primer arranque.
 
 ## Seguridad y confianza
 
