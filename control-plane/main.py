@@ -27,6 +27,10 @@ debug = os.getenv("DEBUG", "false").lower() == "true"
 # Ruta por defecto: carpeta downloads junto a main.py (funciona en local y en Docker /app)
 _default_downloads = Path(__file__).resolve().parent / "downloads"
 DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", str(_default_downloads)))
+# Ruta al script de instalación del nodo (desde repo; en prod puede estar en DOWNLOADS_DIR)
+_installer_script_name = "install-titan.sh"
+NODO_INSTALLER_PATH = DOWNLOADS_DIR / _installer_script_name
+NODO_INSTALLER_REPO_PATH = Path(__file__).resolve().parent.parent / "installers" / "linux" / _installer_script_name
 
 CAJERO_WINDOWS_INSTALLER = "titan-pos-setup.exe"
 CAJERO_APPIMAGE = "titan-pos.AppImage"
@@ -218,7 +222,9 @@ async def landing_page() -> str:
     <h1>Tu punto de venta en la nube,<br>listo para crecer.</h1>
     <p>
       Plataforma POS para México con sincronización de sucursales, operación offline-first y control centralizado.
-      Esta instancia está activa y preparada para onboarding de clientes.
+    </p>
+    <p style="margin-bottom:16px;font-size:13px;color:var(--muted);background:rgba(0,0,0,0.2);padding:12px 16px;border-radius:12px;border:1px solid var(--line)">
+      <strong style="color:var(--accent-soft)">Puede instalar ahora:</strong> Cajeros y Dueño en Windows, Linux, Raspberry Pi (cajero .deb arm64), Android (APK) y Web/PWA (dueño).
     </p>
     <p style="margin-bottom:8px;font-size:15px;color:var(--accent-soft)"><strong>App Cajeros (punto de venta)</strong></p>
     <div class="actions">
@@ -236,7 +242,11 @@ async def landing_page() -> str:
       <a class="btn" href="/download/owner/deb">Linux (.deb)</a>
       <a class="btn" href="/download/owner/apk">Android (APK)</a>
     </div>
-    <p style="margin:0 0 10px;font-size:13px;color:var(--muted);opacity:0.9">Si algún instalador no está disponible, use la versión Web del dueño.</p>
+    <p style="margin:20px 0 8px;font-size:15px;color:var(--accent-soft)"><strong>Instalador del nodo (servidor/sucursal)</strong></p>
+    <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">Script para instalar el backend en esta PC (Linux). Tras descargar: <code>bash install-titan.sh --cp-url URL --install-token TOKEN</code></p>
+    <div class="actions">
+      <a class="btn" href="/download/nodo/install.sh">Descargar script (Linux)</a>
+    </div>
     <div class="actions" style="margin-top:18px">
       <a class="btn" href="/downloads">Ver todos los instaladores</a>
       <a class="btn" href="/health">Estado del servicio</a>
@@ -275,6 +285,11 @@ def _require_download(filename: str) -> Path:
 
 def _installer_no_disponible_html(nombre: str = "Este instalador") -> HTMLResponse:
     """Página amigable cuando un instalador aún no está disponible (evita 404 crudo)."""
+    is_owner_apk = "owner" in nombre.lower() and "android" in nombre.lower()
+    extra = ""
+    if is_owner_apk:
+        extra = """<p><strong>En el celular:</strong> descargue el <a href="/download/owner/web">Web/PWA (.zip)</a>, 
+        descomprima y abra <code>index.html</code> en el navegador, o sirva la carpeta en un hosting y acceda desde el móvil.</p>"""
     body = f"""<!doctype html>
 <html lang="es">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -282,10 +297,12 @@ def _installer_no_disponible_html(nombre: str = "Este instalador") -> HTMLRespon
 <style>body{{font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:60px auto;padding:0 20px;text-align:center;color:#1a1a2e;}}
 h1{{font-size:1.4rem;color:#435edf;}} p{{color:#555;line-height:1.6;}}
 a{{color:#5675ff;text-decoration:none;font-weight:600;}} a:hover{{text-decoration:underline;}}
+code{{background:#eee;padding:2px 6px;border-radius:4px;}}
 .box{{background:#f5f7ff;border:1px solid #e0e5ff;border-radius:12px;padding:24px;}}</style></head>
 <body><div class="box"><h1>{nombre} no está disponible</h1>
 <p>Puede que aún no hayamos publicado esta versión para tu plataforma.</p>
-<p><strong>App dueño:</strong> usa la versión <a href="/download/owner/web">Web/PWA (.zip)</a> para usar el panel en el navegador.</p>
+<p><strong>App dueño:</strong> use la versión <a href="/download/owner/web">Web/PWA (.zip)</a> en el navegador (PC o móvil).</p>
+{extra}
 <p><a href="/">Inicio</a> · <a href="/downloads">Ver todas las descargas</a></p></div></body></html>"""
     return HTMLResponse(content=body, status_code=200)
 
@@ -340,11 +357,15 @@ async def downloads_page() -> str:
     </ul>
     <h2>App Dueño (monitoreo y sucursales)</h2>
     <ul>
-      <li><a href="/download/owner/web">Web/PWA (.zip)</a> — recomendada si no encuentra su plataforma</li>
+      <li><a href="/download/owner/web">Web/PWA (.zip)</a> — use esta versión en PC o en el navegador del móvil (Android)</li>
       <li><a href="/download/owner/windows">Windows (.exe)</a></li>
       <li><a href="/download/owner/appimage">Linux (AppImage)</a></li>
       <li><a href="/download/owner/deb">Linux Debian/Ubuntu (.deb)</a></li>
       <li><a href="/download/owner/apk">Android (APK)</a></li>
+    </ul>
+    <h2>Instalador del nodo (servidor/sucursal)</h2>
+    <ul>
+      <li><a href="/download/nodo/install.sh">Script Linux (install-titan.sh)</a> — instala el backend en esta PC. Ejecute: <code>bash install-titan.sh --cp-url URL --install-token TOKEN</code></li>
     </ul>
     <a class="back" href="/">Volver al inicio</a>
   </div>
@@ -452,6 +473,22 @@ async def download_owner_apk() -> FileResponse | HTMLResponse:
         OWNER_APK,
         "application/vnd.android.package-archive",
         "App dueño Android (APK)",
+    )
+
+
+@app.api_route("/download/nodo/install.sh", methods=["GET", "HEAD"], include_in_schema=False)
+async def download_nodo_install_sh() -> FileResponse:
+    """Sirve el script de instalación del nodo (Linux). Busca en downloads/ o en repo installers/linux/."""
+    for path in (NODO_INSTALLER_PATH, NODO_INSTALLER_REPO_PATH):
+        if path.exists() and path.is_file():
+            return FileResponse(
+                path=str(path),
+                filename=_installer_script_name,
+                media_type="application/x-sh",
+            )
+    raise HTTPException(
+        status_code=404,
+        detail="Script de instalación no disponible. Ejecute desde el repo: bash installers/linux/install-titan.sh --cp-url URL --install-token TOKEN",
     )
 
 

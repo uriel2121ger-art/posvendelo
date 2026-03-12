@@ -26,6 +26,15 @@ bash installers/linux/uninstall-titan.sh
 bash installers/linux/uninstall-titan.sh /ruta/instalacion
 ```
 
+Reinstalación limpia en esta PC (desinstala y vuelve a instalar; no toca el repo ni el entorno de desarrollo):
+
+```bash
+cd /home/uriel/Documentos/PUNTO\ DE\ VENTA
+bash installers/linux/reinstall-titan.sh --cp-url http://localhost:9090 --install-token TU_TOKEN
+# Con directorio custom:
+bash installers/linux/reinstall-titan.sh --cp-url http://localhost:9090 --install-token TU_TOKEN --dir "$HOME/.titanpos"
+```
+
 Actualizar el backend (cuando publiques una nueva imagen en GHCR):
 
 ```bash

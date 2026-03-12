@@ -18,6 +18,7 @@ import {
   getInitialSetupStatus,
   serverLogout
 } from './posApi'
+import { TITAN_API_URL } from './runtimeEnv'
 import CustomersTab from './tabs/CustomersTab'
 import DashboardStatsTab from './tabs/DashboardStatsTab'
 import CompanionDevicesTab from './tabs/CompanionDevicesTab'
@@ -147,6 +148,30 @@ function _isTokenStructureValid(token: string): boolean {
   }
 }
 
+/** True si la app corre en WebView nativo (Capacitor, APK). */
+function isNativePlatform(): boolean {
+  if (typeof window === 'undefined') return false
+  const cap = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+  return cap?.isNativePlatform?.() === true
+}
+
+/** Si no hay token, decidir si mostrar primero Configurar servidor (APK/primera vez) en vez de Login. */
+function needServerConfigFirst(): boolean {
+  let token: string | null = null
+  let saved: string | null = null
+  try {
+    token = localStorage.getItem('titan.token')
+    saved = localStorage.getItem('titan.baseUrl')
+  } catch {
+    return true
+  }
+  if (token && _isTokenStructureValid(token)) return false
+  // En app nativa (APK) siempre mostrar configurar servidor primero; en desktop si no hay URL configurada
+  if (isNativePlatform()) return true
+  const defaultUrl = TITAN_API_URL ?? 'http://127.0.0.1:8000'
+  return !saved || saved === defaultUrl || saved === 'http://127.0.0.1:8000' || saved === 'http://localhost:8000'
+}
+
 function RequireAuth({ children }: { children: ReactElement }): ReactElement {
   let token: string | null = null
   try {
@@ -155,12 +180,14 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
     /* storage error */
   }
   if (!token || !_isTokenStructureValid(token)) {
-    // Clear invalid/expired token
     try {
       localStorage.removeItem('titan.token')
       localStorage.removeItem('titan.role')
     } catch {
       /* ignore */
+    }
+    if (needServerConfigFirst()) {
+      return <Navigate to="/configurar-servidor" replace />
     }
     return <Navigate to="/login" replace />
   }

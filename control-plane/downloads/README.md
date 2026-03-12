@@ -26,3 +26,8 @@ El `.deb` para PC (`titan-pos_amd64.deb`) **no** funciona en Raspberry Pi (ARM).
 - **Generar:** desde el repo, en una máquina con Node: `cd frontend && npm run build:linux:arm64`. Se genera `dist/titan-pos_1.x.x_arm64.deb`.
 - **Publicar:** renombrar a `titan-pos_arm64.deb`, copiar a `control-plane/downloads/` y desplegar (o subir a la landing). La ruta de descarga es `/download/cajero/deb/arm64`.
 - **Instalar en la Pi:** `sudo dpkg -i titan-pos_arm64.deb` (y `sudo apt -f install` si pide dependencias).
+
+### App dueño — APK Android
+
+- **Generar:** `cd owner-app && npm run build:android`. Luego, con Android SDK (ANDROID_HOME o `android/local.properties` con `sdk.dir`): `cd android && ./gradlew assembleDebug`.
+- **Publicar:** copiar `owner-app/android/app/build/outputs/apk/debug/app-debug.apk` a `control-plane/downloads/titan-owner.apk`. La ruta de descarga es `/download/owner/apk`.
