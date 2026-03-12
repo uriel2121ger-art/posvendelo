@@ -1063,6 +1063,7 @@ async def get_sale_events(sale_id: int, auth: dict = Depends(verify_token), db=D
         FROM sale_events
         WHERE sale_id = :sale_id
         ORDER BY sequence ASC
+        LIMIT 1000
         """,
         {"sale_id": sale_id}
     )

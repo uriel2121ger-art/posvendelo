@@ -249,7 +249,8 @@ class ReturnsEngine:
             """SELECT * FROM returns
                WHERE original_serie = 'A'
                AND cfdi_egreso_status = 'pending'
-               ORDER BY created_at"""
+               ORDER BY created_at
+               LIMIT 500"""
         )
 
     async def mark_cfdi_egreso_done(self, return_folio: str, uuid: str) -> Dict[str, Any]:

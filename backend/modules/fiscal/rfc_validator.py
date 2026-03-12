@@ -7,6 +7,7 @@ Validacion Fiscal Mexicana
 Dependencies: aiosqlite (pip install aiosqlite) - required for EFOS cache
 """
 from typing import Any, Dict, List, Optional
+import asyncio
 from datetime import datetime
 import logging
 import os
@@ -126,7 +127,7 @@ class EFOSChecker:
     
     async def _ensure_cache_db(self):
         if not HAS_AIOSQLITE: return
-        self.EFOS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(self.EFOS_CACHE_PATH.parent.mkdir, parents=True, exist_ok=True)
         async with aiosqlite.connect(str(self.EFOS_CACHE_PATH)) as conn:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS efos_list (

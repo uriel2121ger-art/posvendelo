@@ -96,13 +96,20 @@ class ShadowInventory:
             if real_stock < quantity:
                 return {'success': False, 'error': 'Stock insuficiente'}
 
+            qty_dec = dec(str(quantity))
             if serie == 'A':
                 await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, updated_at = CURRENT_TIMESTAMP WHERE id = :pid", qty=quantity, pid=product_id)
+                real_after = real_stock - qty_dec
+                shadow_after = shadow_stock
             else:
                 if shadow_stock >= quantity:
                     await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, shadow_stock = shadow_stock - :qty WHERE id = :pid", qty=quantity, pid=product_id)
+                    shadow_after = shadow_stock - qty_dec
                 else:
                     await self.db.execute("UPDATE products SET stock = stock - :qty, synced = 0, shadow_stock = 0 WHERE id = :pid", qty=quantity, pid=product_id)
+                    shadow_after = Decimal('0')
+                real_after = real_stock - qty_dec
+            fiscal_after = max(Decimal('0'), real_after - shadow_after)
 
             try:
                 await self.db.execute("""
@@ -112,13 +119,14 @@ class ShadowInventory:
             except Exception:
                 pass
 
-        new_dual = await self.get_dual_stock(product_id)
-        await self.db.execute("""
-            INSERT INTO shadow_movements (product_id, movement_type, quantity, real_stock_after, fiscal_stock_after, source, created_at)
-            VALUES (:pid, :mt, :qty, :real, :fiscal, :src, :ts)
-        """, pid=product_id, mt=f'SALE_{serie}', qty=-quantity, real=new_dual['real_stock'],
-            fiscal=new_dual['fiscal_stock'], src=f'Venta Serie {serie}', ts=datetime.now().isoformat())
+            await self.db.execute("""
+                INSERT INTO shadow_movements (product_id, movement_type, quantity, real_stock_after, fiscal_stock_after, source, created_at)
+                VALUES (:pid, :mt, :qty, :real, :fiscal, :src, :ts)
+            """, pid=product_id, mt=f'SALE_{serie}', qty=-quantity,
+                real=money(real_after), fiscal=money(fiscal_after),
+                src=f'Venta Serie {serie}', ts=datetime.now().isoformat())
 
+        new_dual = await self.get_dual_stock(product_id)
         return {'success': True, 'serie': serie, 'quantity_sold': quantity, 'real_stock': new_dual['real_stock'], 'fiscal_stock': new_dual['fiscal_stock']}
 
     async def get_audit_view(self) -> List[Dict]:

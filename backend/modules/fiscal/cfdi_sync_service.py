@@ -146,7 +146,8 @@ class CFDISyncService:
         cfdis = await self.db.fetch(
             """SELECT * FROM cfdis
                WHERE fecha_emision::date BETWEEN :d1::date AND :d2::date
-               ORDER BY id""",
+               ORDER BY id
+               LIMIT 10000""",
             {"d1": date_from, "d2": date_to},
         )
 
@@ -199,7 +200,7 @@ class CFDISyncService:
             import shutil
             import asyncio
             nas_target = Path(self.nas_path) / 'cfdis' / year / month
-            nas_target.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(nas_target.mkdir, parents=True, exist_ok=True)
 
             def do_copy():
                 for file in source_dir.iterdir():

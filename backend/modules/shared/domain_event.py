@@ -208,7 +208,8 @@ class DomainEventStore:
             rows = await self.db.fetch(
                 """SELECT * FROM domain_events
                    WHERE aggregate_type = :aggregate_type AND aggregate_id = :aggregate_id
-                   ORDER BY timestamp ASC""",
+                   ORDER BY timestamp ASC
+                   LIMIT 5000""",
                 {"aggregate_type": aggregate_type, "aggregate_id": aggregate_id},
             )
             return [dict(row) for row in rows] if rows else []

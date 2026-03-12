@@ -338,7 +338,8 @@ async def sync_push(
                 upserted += 1
 
         elif table_name == "customers":
-            for row in payload.data:
+            sorted_data = sorted(payload.data, key=lambda r: r.get('id', 0))
+            for row in sorted_data:
                 # Handle soft-delete flag from frontend
                 if row.get("deleted"):
                     cid = row.get("id")

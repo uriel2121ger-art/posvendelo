@@ -6,6 +6,7 @@ Uses :name params and db.fetch/db.fetchrow/db.execute.
 """
 
 from typing import Any, Dict, Optional
+import asyncio
 import logging
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -415,7 +416,7 @@ class CFDIService:
             raise ValueError(f"Invalid UUID format for file save: {uuid}")
 
         cfdi_dir = Path(DATA_DIR) / "cfdis"
-        cfdi_dir.mkdir(exist_ok=True, parents=True)
+        await asyncio.to_thread(cfdi_dir.mkdir, exist_ok=True, parents=True)
         xml_path = (cfdi_dir / f"{uuid}.xml").resolve()
 
         # Ensure resolved path is still under cfdi_dir

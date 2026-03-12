@@ -80,7 +80,7 @@ async def register_expense(
     async with conn.transaction():
         # Lock open turn to prevent race with close_turn
         turn = await db.fetchrow(
-            "SELECT id FROM turns WHERE user_id = :uid AND status = 'open' LIMIT 1 FOR UPDATE",
+            "SELECT id FROM turns WHERE user_id = :uid AND status = 'open' ORDER BY id LIMIT 1 FOR UPDATE",
             {"uid": user_id},
         )
         turn_id = turn["id"] if turn else None

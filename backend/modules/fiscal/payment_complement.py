@@ -8,6 +8,7 @@ Added missing awaits, XML escaping for string interpolation.
 """
 
 from typing import Any, Dict, List
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from xml.sax.saxutils import escape as xml_escape
@@ -242,7 +243,7 @@ class PaymentReceiptService:
 
         uuid = pac_result['uuid']
         xml_dir = Path(DATA_DIR) / "cfdis"
-        xml_dir.mkdir(exist_ok=True)
+        await asyncio.to_thread(xml_dir.mkdir, exist_ok=True)
 
         xml_path = xml_dir / f"{uuid}.xml"
         async with aiofiles.open(xml_path, 'w', encoding='utf-8') as f:

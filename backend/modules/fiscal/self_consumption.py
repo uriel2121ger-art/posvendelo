@@ -104,6 +104,7 @@ class SelfConsumptionEngine:
         items = await self.db.fetch("""
             SELECT * FROM self_consumption WHERE EXTRACT(YEAR FROM created_at::timestamp) = :year
             AND EXTRACT(MONTH FROM created_at::timestamp) = :month ORDER BY category, created_at
+            LIMIT 1000
         """, year=year, month=month)
 
         if not items:
@@ -120,5 +121,5 @@ class SelfConsumptionEngine:
         return {'success': True, 'folio': folio, 'items_count': len(items), 'items': voucher_items}
 
     async def get_pending_voucher_months(self) -> List[str]:
-        result = await self.db.fetch("SELECT DISTINCT TO_CHAR(created_at::timestamp, 'YYYY-MM') as period FROM self_consumption WHERE voucher_folio IS NULL ORDER BY period")
+        result = await self.db.fetch("SELECT DISTINCT TO_CHAR(created_at::timestamp, 'YYYY-MM') as period FROM self_consumption WHERE voucher_folio IS NULL ORDER BY period LIMIT 120")
         return [r['period'] for r in result]

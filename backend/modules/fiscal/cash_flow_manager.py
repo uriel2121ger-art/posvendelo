@@ -69,26 +69,28 @@ class CashExtractionEngine:
 
     async def create_extraction(self, amount: float, document_type: str, related_person_id: int = None, purpose: str = None) -> Dict[str, Any]:
         amount = Decimal(str(amount))
-        balance = await self.get_serie_b_balance()
-        if amount > Decimal(str(balance['available'])):
-            return {'success': False, 'error': f'Monto excede disponible (${balance["available"]:,.2f})'}
-
-        person = None
-        if related_person_id:
-            person = await self.db.fetchrow("SELECT * FROM related_persons WHERE id = :rid", rid=related_person_id)
-
-        requires_notary = amount >= self.UMBRAL_FECHA_CIERTA
-        contract_data = f"{amount}|{document_type}|{datetime.now().isoformat()}|{person['name'] if person else 'N/A'}"
-        contract_hash = hashlib.sha256(contract_data.encode()).hexdigest()
 
         try:
-            await self.db.execute("""
-                INSERT INTO cash_extractions (amount, extraction_date, document_type, related_person_id,
-                    beneficiary_name, purpose, contract_hash, requires_notary, status, created_at)
-                VALUES (:amt, :dt, :dtype, :rpid, :bname, :purpose, :hash, :rn, 'pending', :ts)
-            """, amt=amount.quantize(Decimal('0.01')), dt=datetime.now().strftime('%Y-%m-%d'), dtype=document_type,
-                rpid=related_person_id, bname=person['name'] if person else None, purpose=purpose,
-                hash=contract_hash, rn=1 if requires_notary else 0, ts=datetime.now().isoformat())
+            async with self.db.connection.transaction():
+                balance = await self.get_serie_b_balance()
+                if amount > Decimal(str(balance['available'])):
+                    return {'success': False, 'error': f'Monto excede disponible (${balance["available"]:,.2f})'}
+
+                person = None
+                if related_person_id:
+                    person = await self.db.fetchrow("SELECT * FROM related_persons WHERE id = :rid", rid=related_person_id)
+
+                requires_notary = amount >= self.UMBRAL_FECHA_CIERTA
+                contract_data = f"{amount}|{document_type}|{datetime.now().isoformat()}|{person['name'] if person else 'N/A'}"
+                contract_hash = hashlib.sha256(contract_data.encode()).hexdigest()
+
+                await self.db.execute("""
+                    INSERT INTO cash_extractions (amount, extraction_date, document_type, related_person_id,
+                        beneficiary_name, purpose, contract_hash, requires_notary, status, created_at)
+                    VALUES (:amt, :dt, :dtype, :rpid, :bname, :purpose, :hash, :rn, 'pending', :ts)
+                """, amt=amount.quantize(Decimal('0.01')), dt=datetime.now().strftime('%Y-%m-%d'), dtype=document_type,
+                    rpid=related_person_id, bname=person['name'] if person else None, purpose=purpose,
+                    hash=contract_hash, rn=1 if requires_notary else 0, ts=datetime.now().isoformat())
 
             result = {'success': True, 'amount': money(amount), 'type': document_type, 'hash': contract_hash[:16] + '...', 'requires_notary': requires_notary}
             if requires_notary:

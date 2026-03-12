@@ -4,19 +4,10 @@ from decimal import Decimal, ROUND_HALF_UP
 
 PRIVILEGED_ROLES = ("admin", "manager", "owner")
 
-# Orden de locks para evitar deadlocks (TURNS → SALES → PRODUCTS → CUSTOMERS).
-# Documentado en AGENTS.md / CLAUDE.md; respetar en transacciones que toquen varias tablas.
-LOCK_ORDER = ("turns", "sales", "products", "customers")
-
 OWNER_ROLES = ("admin", "owner")
 RESICO_ANNUAL_LIMIT = Decimal("3500000")
-DEFAULT_TAX_RATE = Decimal("0.16")
-
-SALE_STATUS_COMPLETED = "completed"
-SALE_STATUS_CANCELLED = "cancelled"
 
 TWO_PLACES = Decimal("0.01")
-FOUR_PLACES = Decimal("0.0001")
 
 
 def dec(val) -> Decimal:

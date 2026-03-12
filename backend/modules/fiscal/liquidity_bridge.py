@@ -111,20 +111,21 @@ class CryptoBridge:
         if stablecoin not in self.STABLECOINS: return {'success': False, 'error': f'Stablecoin no soportada: {stablecoin}'}
         if amount_mxn > self.MAX_SINGLE_TRANSACTION: return {'success': False, 'error': f'Excede límite transacción (${self.MAX_SINGLE_TRANSACTION:,.0f})'}
 
-        available = await self.get_available_for_conversion()
-        if amount_mxn > available['max_now']: return {'success': False, 'error': f'Monto excede disponible (${available["max_now"]:,.0f})'}
-
         amount_usd = (amount_mxn / Decimal(str(self.USD_TO_MXN))).quantize(Decimal("0.01"))
         exchange_rate = Decimal(str(self.USD_TO_MXN)).quantize(Decimal("0.0001"))
         if not cover_description: cover_description = self._generate_cover_description(amount_mxn)
 
-        await self.db.execute("""
-            INSERT INTO crypto_conversions
-            (amount_mxn, amount_usd, stablecoin, wallet_address, exchange_rate, cover_description, status, created_at)
-            VALUES (:amount_mxn, :amount_usd, :stablecoin, :wallet_address, :ex_rate, :cover_desc, 'pending', NOW())
-        """, amount_mxn=amount_mxn, amount_usd=amount_usd, stablecoin=stablecoin, wallet_address=wallet_address, ex_rate=exchange_rate, cover_desc=cover_description)
+        async with self.db.connection.transaction():
+            available = await self.get_available_for_conversion()
+            if amount_mxn > available['max_now']: return {'success': False, 'error': f'Monto excede disponible (${available["max_now"]:,.0f})'}
 
-        await self._register_cover_expense(amount_mxn, cover_description)
+            await self.db.execute("""
+                INSERT INTO crypto_conversions
+                (amount_mxn, amount_usd, stablecoin, wallet_address, exchange_rate, cover_description, status, created_at)
+                VALUES (:amount_mxn, :amount_usd, :stablecoin, :wallet_address, :ex_rate, :cover_desc, 'pending', NOW())
+            """, amount_mxn=amount_mxn, amount_usd=amount_usd, stablecoin=stablecoin, wallet_address=wallet_address, ex_rate=exchange_rate, cover_desc=cover_description)
+
+            await self._register_cover_expense(amount_mxn, cover_description)
 
         return {'success': True, 'amount_mxn': amount_mxn, 'amount_usd': amount_usd, 'cover': cover_description, 'status': 'pending'}
     

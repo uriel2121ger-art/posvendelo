@@ -167,6 +167,7 @@ class CerebroContable:
             AND EXTRACT(YEAR FROM s.timestamp::timestamp) = :year
             AND s.status = 'completed'
             ORDER BY fiscal_margin DESC NULLS LAST, s.timestamp ASC
+            LIMIT 5000
         """
         ventas = await self.db.fetch(sql, year=int(year))
         

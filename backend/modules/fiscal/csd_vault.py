@@ -333,7 +333,7 @@ class CSDManager:
 
         # Crear directorio para este RFC (using sanitized RFC)
         rfc_dir = self.storage_path / rfc_clean
-        rfc_dir.mkdir(exist_ok=True)
+        await asyncio.to_thread(rfc_dir.mkdir, exist_ok=True)
         
         # Encriptar y guardar .key
         encrypted_key_path = rfc_dir / f"{rfc}.key.enc"

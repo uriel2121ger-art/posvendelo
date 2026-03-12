@@ -102,40 +102,42 @@ async def create_customer(
     db=Depends(get_db),
 ):
     """Create a new customer. Requires auth."""
-    # Check for existing active customer with same name
-    existing = await db.fetchrow(
-        "SELECT id FROM customers WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) AND is_active = 1",
-        {"name": body.name},
-    )
-    if existing:
-        raise HTTPException(status_code=409, detail="Ya existe un cliente activo con ese nombre")
-
-    row = await db.fetchrow(
-        """
-        INSERT INTO customers (
-            name, phone, email, rfc, address, notes, credit_limit,
-            credit_balance, is_active, created_at, updated_at, synced,
-            postal_code, razon_social, regimen_fiscal
-        ) VALUES (
-            :name, :phone, :email, :rfc, :address, :notes, :credit_limit,
-            0, 1, NOW(), NOW(), 0,
-            :postal_code, :razon_social, :regimen_fiscal
+    conn = db.connection
+    async with conn.transaction():
+        # Check for existing active customer with same name
+        existing = await db.fetchrow(
+            "SELECT id FROM customers WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) AND is_active = 1",
+            {"name": body.name},
         )
-        RETURNING id
-        """,
-        {
-            "name": body.name,
-            "phone": body.phone,
-            "email": body.email,
-            "rfc": body.rfc,
-            "address": body.address,
-            "notes": body.notes,
-            "credit_limit": body.credit_limit if body.credit_limit is not None else 0.0,
-            "postal_code": body.codigo_postal,
-            "razon_social": body.razon_social,
-            "regimen_fiscal": body.regimen_fiscal,
-        },
-    )
+        if existing:
+            raise HTTPException(status_code=409, detail="Ya existe un cliente activo con ese nombre")
+
+        row = await db.fetchrow(
+            """
+            INSERT INTO customers (
+                name, phone, email, rfc, address, notes, credit_limit,
+                credit_balance, is_active, created_at, updated_at, synced,
+                postal_code, razon_social, regimen_fiscal
+            ) VALUES (
+                :name, :phone, :email, :rfc, :address, :notes, :credit_limit,
+                0, 1, NOW(), NOW(), 0,
+                :postal_code, :razon_social, :regimen_fiscal
+            )
+            RETURNING id
+            """,
+            {
+                "name": body.name,
+                "phone": body.phone,
+                "email": body.email,
+                "rfc": body.rfc,
+                "address": body.address,
+                "notes": body.notes,
+                "credit_limit": body.credit_limit if body.credit_limit is not None else 0.0,
+                "postal_code": body.codigo_postal,
+                "razon_social": body.razon_social,
+                "regimen_fiscal": body.regimen_fiscal,
+            },
+        )
 
     if not row:
         raise HTTPException(status_code=500, detail="Error al crear cliente")
