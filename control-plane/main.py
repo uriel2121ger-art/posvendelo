@@ -302,7 +302,7 @@ def _serve_download(
     filename: str,
     media_type: str,
     display_name: str | None = None,
-) -> FileResponse | HTMLResponse:
+):
     """Sirve el archivo si existe; si no, página amigable para que la app dueño siga siendo usable (Web)."""
     path = DOWNLOADS_DIR / filename
     if not path.exists() or not path.is_file():
@@ -366,48 +366,48 @@ async def downloads_page() -> str:
 </html>"""
 
 
-@app.api_route("/download/windows", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_windows() -> FileResponse | HTMLResponse:
+@app.api_route("/download/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_windows():
     return _serve_download(CAJERO_WINDOWS_INSTALLER, "application/octet-stream", "App cajero Windows")
 
 
-@app.api_route("/download/appimage", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_appimage() -> FileResponse | HTMLResponse:
+@app.api_route("/download/appimage", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_appimage():
     return _serve_download(CAJERO_APPIMAGE, "application/octet-stream", "App cajero Linux (AppImage)")
 
 
-@app.api_route("/download/deb", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_deb() -> FileResponse | HTMLResponse:
+@app.api_route("/download/deb", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_deb():
     return _serve_download(CAJERO_DEB, "application/vnd.debian.binary-package", "App cajero Linux (.deb)")
 
 
-@app.api_route("/download/cajero/windows", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_windows() -> FileResponse | HTMLResponse:
+@app.api_route("/download/cajero/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_windows():
     return _serve_download(CAJERO_WINDOWS_INSTALLER, "application/octet-stream", "App cajero Windows")
 
 
-@app.api_route("/download/cajero/appimage", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_appimage() -> FileResponse | HTMLResponse:
+@app.api_route("/download/cajero/appimage", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_appimage():
     return _serve_download(CAJERO_APPIMAGE, "application/octet-stream", "App cajero Linux (AppImage)")
 
 
-@app.api_route("/download/cajero/deb", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_deb() -> FileResponse | HTMLResponse:
+@app.api_route("/download/cajero/deb", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_deb():
     return _serve_download(CAJERO_DEB, "application/vnd.debian.binary-package", "App cajero Linux (.deb)")
 
 
-@app.api_route("/download/cajero/deb/arm64", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_deb_arm64() -> FileResponse | HTMLResponse:
+@app.api_route("/download/cajero/deb/arm64", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_deb_arm64():
     return _serve_download(CAJERO_DEB_ARM64, "application/vnd.debian.binary-package", "App cajero Raspberry Pi (.deb arm64)")
 
 
-@app.api_route("/download/cajero/apk", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_apk() -> FileResponse | HTMLResponse:
+@app.api_route("/download/cajero/apk", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_apk():
     return _serve_download(CAJERO_APK, "application/vnd.android.package-archive", "App cajero Android (APK)")
 
 
-@app.api_route("/download/owner/windows", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_owner_windows() -> FileResponse | HTMLResponse:
+@app.api_route("/download/owner/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_owner_windows():
     return _serve_download(
         OWNER_WINDOWS_INSTALLER,
         "application/octet-stream",
@@ -415,8 +415,8 @@ async def download_owner_windows() -> FileResponse | HTMLResponse:
     )
 
 
-@app.api_route("/download/owner/appimage", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_owner_appimage() -> FileResponse | HTMLResponse:
+@app.api_route("/download/owner/appimage", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_owner_appimage():
     return _serve_download(
         OWNER_APPIMAGE,
         "application/octet-stream",
@@ -424,8 +424,8 @@ async def download_owner_appimage() -> FileResponse | HTMLResponse:
     )
 
 
-@app.api_route("/download/owner/deb", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_owner_deb() -> FileResponse | HTMLResponse:
+@app.api_route("/download/owner/deb", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_owner_deb():
     return _serve_download(
         OWNER_DEB,
         "application/vnd.debian.binary-package",
@@ -433,8 +433,8 @@ async def download_owner_deb() -> FileResponse | HTMLResponse:
     )
 
 
-@app.api_route("/download/owner/web", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_owner_web() -> FileResponse | HTMLResponse:
+@app.api_route("/download/owner/web", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_owner_web():
     return _serve_download(
         OWNER_WEB_ZIP,
         "application/zip",
@@ -442,8 +442,8 @@ async def download_owner_web() -> FileResponse | HTMLResponse:
     )
 
 
-@app.api_route("/download/owner/apk", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_owner_apk() -> FileResponse | HTMLResponse:
+@app.api_route("/download/owner/apk", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_owner_apk():
     return _serve_download(
         OWNER_APK,
         "application/vnd.android.package-archive",
@@ -451,13 +451,13 @@ async def download_owner_apk() -> FileResponse | HTMLResponse:
     )
 
 
-@app.api_route("/download/nodo/linux", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_nodo_linux() -> FileResponse | HTMLResponse:
+@app.api_route("/download/nodo/linux", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_nodo_linux():
     return _serve_download("install-titan.sh", "application/x-sh", "Instalador nodo Linux (bash)")
 
 
-@app.api_route("/download/nodo/windows", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_nodo_windows() -> FileResponse | HTMLResponse:
+@app.api_route("/download/nodo/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_nodo_windows():
     return _serve_download("Install-Titan.ps1", "application/octet-stream", "Instalador nodo Windows (PowerShell)")
 
 
