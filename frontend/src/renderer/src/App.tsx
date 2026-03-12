@@ -688,7 +688,7 @@ function RoutedApp(): ReactElement {
 
   return (
     <>
-      {hasToken && !shiftResolved && !isCompanionRoute && (!setupChecked || !setupRequired) && (
+      {hasToken && !shiftResolved && !isCompanionRoute && setupChecked && !setupRequired && (
         <ShiftStartupModal
           onComplete={() => setShiftResolved(true)}
           onExit={() => {

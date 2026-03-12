@@ -361,61 +361,43 @@ async def downloads_page() -> str:
 
 
 @app.api_route("/download/windows", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_windows() -> FileResponse:
-    path = _require_download(CAJERO_WINDOWS_INSTALLER)
-    return FileResponse(path=str(path), filename=CAJERO_WINDOWS_INSTALLER, media_type="application/octet-stream")
+async def download_windows() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_WINDOWS_INSTALLER, "application/octet-stream", "App cajero Windows")
 
 
 @app.api_route("/download/appimage", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_appimage() -> FileResponse:
-    path = _require_download(CAJERO_APPIMAGE)
-    return FileResponse(path=str(path), filename=CAJERO_APPIMAGE, media_type="application/octet-stream")
+async def download_appimage() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_APPIMAGE, "application/octet-stream", "App cajero Linux (AppImage)")
 
 
 @app.api_route("/download/deb", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_deb() -> FileResponse:
-    path = _require_download(CAJERO_DEB)
-    return FileResponse(path=str(path), filename=CAJERO_DEB, media_type="application/vnd.debian.binary-package")
-
-
+async def download_deb() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_DEB, "application/vnd.debian.binary-package", "App cajero Linux (.deb)")
 
 
 @app.api_route("/download/cajero/windows", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_windows() -> FileResponse:
-    path = _require_download(CAJERO_WINDOWS_INSTALLER)
-    return FileResponse(path=str(path), filename=CAJERO_WINDOWS_INSTALLER, media_type="application/octet-stream")
+async def download_cajero_windows() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_WINDOWS_INSTALLER, "application/octet-stream", "App cajero Windows")
 
 
 @app.api_route("/download/cajero/appimage", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_appimage() -> FileResponse:
-    path = _require_download(CAJERO_APPIMAGE)
-    return FileResponse(path=str(path), filename=CAJERO_APPIMAGE, media_type="application/octet-stream")
+async def download_cajero_appimage() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_APPIMAGE, "application/octet-stream", "App cajero Linux (AppImage)")
 
 
 @app.api_route("/download/cajero/deb", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_deb() -> FileResponse:
-    path = _require_download(CAJERO_DEB)
-    return FileResponse(path=str(path), filename=CAJERO_DEB, media_type="application/vnd.debian.binary-package")
+async def download_cajero_deb() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_DEB, "application/vnd.debian.binary-package", "App cajero Linux (.deb)")
 
 
 @app.api_route("/download/cajero/deb/arm64", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_deb_arm64() -> FileResponse:
-    path = _require_download(CAJERO_DEB_ARM64)
-    return FileResponse(
-        path=str(path),
-        filename=CAJERO_DEB_ARM64,
-        media_type="application/vnd.debian.binary-package",
-    )
+async def download_cajero_deb_arm64() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_DEB_ARM64, "application/vnd.debian.binary-package", "App cajero Raspberry Pi (.deb arm64)")
 
 
 @app.api_route("/download/cajero/apk", methods=["GET", "HEAD"], include_in_schema=False)
-async def download_cajero_apk() -> FileResponse:
-    path = _require_download(CAJERO_APK)
-    return FileResponse(
-        path=str(path),
-        filename=CAJERO_APK,
-        media_type="application/vnd.android.package-archive",
-    )
+async def download_cajero_apk() -> FileResponse | HTMLResponse:
+    return _serve_download(CAJERO_APK, "application/vnd.android.package-archive", "App cajero Android (APK)")
 
 
 @app.api_route("/download/owner/windows", methods=["GET", "HEAD"], include_in_schema=False)

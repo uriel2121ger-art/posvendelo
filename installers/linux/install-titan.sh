@@ -206,21 +206,6 @@ PY
   fi
 }
 
-if [[ -z "$INSTALL_TOKEN" ]]; then
-  if [[ -n "$CLOUD_EMAIL" || -n "$CLOUD_PASSWORD" || -n "$TENANT_NAME" ]]; then
-    bootstrap_cloud_install_token
-  else
-    # Pre-register with hardware fingerprint (plug-and-play, no account needed)
-    pre_register
-  fi
-fi
-
-if [[ -z "$INSTALL_TOKEN" ]]; then
-  echo "[POSVENDELO] No se pudo obtener un token de instalación."
-  usage
-  exit 1
-fi
-
 pick_port() {
   local preferred="$1"
   python3 - "$preferred" <<'PY'
@@ -336,6 +321,22 @@ run_compose() {
     USER="${USER:-}" \
     docker compose --env-file .env "$@"
 }
+
+# --- Obtain install token (all functions now defined above) ---
+if [[ -z "$INSTALL_TOKEN" ]]; then
+  if [[ -n "$CLOUD_EMAIL" || -n "$CLOUD_PASSWORD" || -n "$TENANT_NAME" ]]; then
+    bootstrap_cloud_install_token
+  else
+    # Pre-register with hardware fingerprint (plug-and-play, no account needed)
+    pre_register
+  fi
+fi
+
+if [[ -z "$INSTALL_TOKEN" ]]; then
+  echo "[POSVENDELO] No se pudo obtener un token de instalación."
+  usage
+  exit 1
+fi
 
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   echo "[POSVENDELO] Docker no encontrado. Instalando..."

@@ -111,7 +111,7 @@ export default function InitialSetupWizard(): ReactElement {
     try {
       await completeInitialSetup(cfg, payload)
       setMessage('Configuración inicial guardada. Ya puedes operar el POS.')
-      navigate('/configuraciones', { replace: true })
+      navigate('/terminal', { replace: true })
     } catch (err) {
       setError((err as Error).message)
     } finally {

@@ -340,9 +340,12 @@ describe('F-key Navigation', () => {
       window.location.hash = '#/terminal'
       render(<App />)
 
+      // Wait for setup check + shift modal to resolve (async microtasks)
       await waitFor(() => {
         expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
       })
+      // Allow ShiftStartupModal mock to mount and call onComplete
+      await new Promise((r) => setTimeout(r, 50))
 
       fireEvent.keyDown(window, { key, bubbles: true })
 
@@ -367,6 +370,7 @@ describe('F-key Navigation', () => {
       await waitFor(() => {
         expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
       })
+      await new Promise((r) => setTimeout(r, 50))
 
       fireEvent.keyDown(window, { key, bubbles: true })
 
@@ -404,6 +408,7 @@ describe('F-key Navigation', () => {
     await waitFor(() => {
       expect(screen.getByTestId('terminal-tab')).toBeInTheDocument()
     })
+    await new Promise((r) => setTimeout(r, 50))
 
     // Simular focus en input
     const input = document.createElement('input')
