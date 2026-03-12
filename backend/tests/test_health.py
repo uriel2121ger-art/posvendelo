@@ -11,7 +11,7 @@ class TestHealth:
         data = r.json()
         assert data["success"] is True
         assert data["data"]["status"] == "healthy"
-        assert data["data"]["service"] == "titan-pos"
+        assert data["data"]["service"] == "posvendelo"
 
     async def test_terminals_requires_auth(self, client):
         r = await client.get("/api/v1/terminals")

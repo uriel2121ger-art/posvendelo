@@ -26,6 +26,8 @@ function renderLogin(): ReturnType<typeof render> {
 describe('Login', () => {
   beforeEach(() => {
     clearAuth()
+    // Set a base URL so Login doesn't redirect to /configurar-servidor
+    localStorage.setItem('titan.baseUrl', 'http://127.0.0.1:8000')
     mockNavigate.mockReset()
     vi.restoreAllMocks()
     ;(
@@ -186,6 +188,14 @@ describe('Login', () => {
           ok: false,
           status: 401,
           json: () => Promise.resolve({}),
+          body: { cancel: () => Promise.resolve() }
+        })
+      }
+      if (String(url).includes('/auth/needs-setup')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true, data: { needs_first_user: false } }),
           body: { cancel: () => Promise.resolve() }
         })
       }
