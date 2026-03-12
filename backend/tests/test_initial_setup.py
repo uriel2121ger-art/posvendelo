@@ -1,4 +1,4 @@
-"""Tests for first-run setup wizard persistence."""
+"""Tests for first-run setup wizard persistence and first-user setup flow."""
 
 import json
 
@@ -70,3 +70,67 @@ class TestInitialSetupWizard:
         status = await client.get('/api/v1/hardware/setup-status', headers=auth_header(admin_token))
         assert status.status_code == 200
         assert status.json()['data']['completed'] is True
+
+
+class TestNeedsSetup:
+    async def test_needs_setup_true_when_no_users(self, client):
+        r = await client.get("/api/v1/auth/needs-setup")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert data["data"]["needs_first_user"] is True
+
+    async def test_needs_setup_false_when_user_exists(self, client, seed_users):
+        r = await client.get("/api/v1/auth/needs-setup")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert data["data"]["needs_first_user"] is False
+
+
+class TestSetupOwner:
+    async def test_setup_owner_creates_user_returns_token(self, client):
+        r = await client.post(
+            "/api/v1/auth/setup-owner",
+            json={"username": "primer_admin", "password": "segura1234", "name": "Admin Principal"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+        assert data["expires_in"] > 0
+        assert data["role"] == "admin"
+
+    async def test_setup_owner_blocked_when_user_exists(self, client, seed_users):
+        r = await client.post(
+            "/api/v1/auth/setup-owner",
+            json={"username": "segundo_admin", "password": "segura1234"},
+        )
+        assert r.status_code == 409
+
+    async def test_setup_owner_rejects_weak_password(self, client):
+        r = await client.post(
+            "/api/v1/auth/setup-owner",
+            json={"username": "admin", "password": "corta"},
+        )
+        assert r.status_code == 422
+
+    async def test_setup_owner_rejects_invalid_username(self, client):
+        r = await client.post(
+            "/api/v1/auth/setup-owner",
+            json={"username": "user name!", "password": "segura1234"},
+        )
+        assert r.status_code == 422
+
+    async def test_setup_owner_token_is_valid(self, client):
+        """Token returned by setup-owner should pass /verify."""
+        r = await client.post(
+            "/api/v1/auth/setup-owner",
+            json={"username": "admin_verify", "password": "verifica1234"},
+        )
+        assert r.status_code == 200
+        token = r.json()["access_token"]
+
+        verify = await client.get("/api/v1/auth/verify", headers=auth_header(token))
+        assert verify.status_code == 200
+        assert verify.json()["data"]["role"] == "admin"

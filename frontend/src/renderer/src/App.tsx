@@ -33,6 +33,7 @@ import MermasTab from './tabs/MermasTab'
 import ProductsTab from './tabs/ProductsTab'
 import ReportsTab from './tabs/ReportsTab'
 import SettingsTab from './tabs/SettingsTab'
+import FirstUserSetup from './tabs/FirstUserSetup'
 import InitialSetupWizard from './tabs/InitialSetupWizard'
 import ShiftsTab from './tabs/ShiftsTab'
 import EmployeesTab from './tabs/EmployeesTab'
@@ -712,6 +713,7 @@ function RoutedApp(): ReactElement {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/configurar-servidor" element={<ConfigurarServidor />} />
+        <Route path="/setup-inicial-usuario" element={<FirstUserSetup />} />
         <Route
           element={
             <RequireAuth>

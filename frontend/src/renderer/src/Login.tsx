@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, LogIn, RefreshCw, Server, Settings, Wifi } from 'lucide-react'
-import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
+import { autoDiscoverBackend, checkNeedsFirstUser, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 import { TITAN_APP_LABEL, TITAN_RELEASE_LABEL } from './runtimeEnv'
 
 type AgentStatusView = {
@@ -92,6 +92,30 @@ export default function Login(): ReactElement {
       navigate('/configurar-servidor', { replace: true })
     } catch {
       navigate('/configurar-servidor', { replace: true })
+    }
+  }, [navigate])
+
+  // Si no hay token y el sistema no tiene usuarios, redirigir al wizard de primer usuario
+  useEffect(() => {
+    let cancelled = false
+    try {
+      const token = localStorage.getItem('titan.token')
+      if (token) return // Already logged in — no redirect needed
+    } catch {
+      /* ignore storage errors */
+    }
+    const cfg = loadRuntimeConfig()
+    checkNeedsFirstUser(cfg)
+      .then((needed) => {
+        if (!cancelled && needed) {
+          navigate('/setup-inicial-usuario', { replace: true })
+        }
+      })
+      .catch(() => {
+        /* best-effort — if check fails, stay on login */
+      })
+    return () => {
+      cancelled = true
     }
   }, [navigate])
 

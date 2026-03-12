@@ -92,9 +92,95 @@ jobs:
           name: titan-pos-windows
           path: frontend/dist/**
 
+  build-android-cajero:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build browser target
+        run: npm run build:browser
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: frontend/android
+        run: ./gradlew assembleRelease
+
+      - name: Upload cajero APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-pos-cajero-apk
+          path: frontend/android/app/build/outputs/apk/release/*.apk
+
+  build-owner-app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: owner-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: owner-app/package-lock.json
+
+      - name: Install owner-app dependencies
+        run: npm ci
+
+      - name: Build Linux Electron
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run build:linux
+
+      - name: Upload owner Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-owner-linux
+          path: owner-app/dist/*.AppImage
+
+      - name: Build owner Android APK
+        run: npm run build:android
+
+      - name: Build owner APK
+        working-directory: owner-app/android
+        run: ./gradlew assembleRelease
+        if: hashFiles('owner-app/android/build.gradle') != ''
+
+      - name: Upload owner APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: titan-owner-apk
+          path: owner-app/android/app/build/outputs/apk/release/*.apk
+        if: hashFiles('owner-app/android/build.gradle') != ''
+
   publish-metadata:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-android-cajero, build-owner-app]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -117,10 +203,29 @@ jobs:
           name: titan-pos-windows
           path: release-artifacts/windows
 
+      - name: Download cajero APK
+        uses: actions/download-artifact@v4
+        with:
+          name: titan-pos-cajero-apk
+          path: release-artifacts/android-cajero
+
+      - name: Download owner Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: titan-owner-linux
+          path: release-artifacts/owner-linux
+
+      - name: Download owner APK
+        uses: actions/download-artifact@v4
+        with:
+          name: titan-owner-apk
+          path: release-artifacts/owner-android
+        continue-on-error: true
+
       - name: Generate checksums
         run: |
           cd release-artifacts
-          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.snap" -o -name "*setup.exe" -o -name "*.exe" \) -print0 \
+          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.snap" -o -name "*setup.exe" -o -name "*.exe" -o -name "*.apk" \) -print0 \
             | sort -z \
             | xargs -0 sha256sum > SHA256SUMS.txt
 
@@ -137,6 +242,9 @@ jobs:
             release-artifacts/linux/**/*.snap
             release-artifacts/windows/**/*setup.exe
             release-artifacts/windows/**/*.exe
+            release-artifacts/android-cajero/**/*.apk
+            release-artifacts/owner-linux/**/*.AppImage
+            release-artifacts/owner-android/**/*.apk
             release-artifacts/SHA256SUMS.txt
             release-artifacts/dist-manifest.json
           generate_release_notes: true
@@ -157,10 +265,13 @@ jobs:
           declare -A ASSET_URLS=(
             ["electron-linux"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}.AppImage"
             ["electron-windows"]="${RELEASE_BASE_URL%/}/titan-pos-${VERSION}-setup.exe"
+            ["android-cajero"]="${RELEASE_BASE_URL%/}/app-release.apk"
+            ["owner-linux"]="${RELEASE_BASE_URL%/}/titan-owner-${VERSION}.AppImage"
+            ["owner-android"]="${RELEASE_BASE_URL%/}/titan-owner-${VERSION}.apk"
             ["backend"]="ghcr.io/${GITHUB_REPOSITORY_OWNER}/titan-pos:${VERSION}"
           )
 
-          for ARTIFACT in electron-linux electron-windows backend; do
+          for ARTIFACT in electron-linux electron-windows android-cajero owner-linux owner-android backend; do
             TARGET_REF="${ASSET_URLS[$ARTIFACT]}"
             curl -fsSL -X POST "${CP_RELEASES_PUBLISH_URL}" \
               -H "Content-Type: application/json" \

@@ -98,8 +98,10 @@ python3 db/migrate.py
 
 # -----------------------------------------------------------
 # 3.5. Ensure initial admin user exists for fresh installs
+# Only creates admin from env vars if ADMIN_API_PASSWORD is non-empty AND DB has 0 users.
+# If ADMIN_API_PASSWORD is empty, the wizard will handle first-user creation.
 # -----------------------------------------------------------
-echo "[ENTRYPOINT] Ensuring initial admin user exists..."
+echo "[ENTRYPOINT] Checking if admin bootstrap is needed..."
 python3 -c "
 import asyncio, asyncpg, bcrypt, os, sys
 
@@ -108,19 +110,15 @@ username = (os.environ.get('ADMIN_API_USER') or 'admin').strip()
 password = os.environ.get('ADMIN_API_PASSWORD', '').strip()
 
 async def ensure_admin():
-    if not username or not password:
-        print('[ENTRYPOINT] Skipping admin bootstrap: missing ADMIN_API_USER or ADMIN_API_PASSWORD')
+    if not password:
+        print('[ENTRYPOINT] ADMIN_API_PASSWORD is empty — skipping admin bootstrap (wizard will handle setup)')
         return
     conn = await asyncpg.connect(dsn)
     try:
-        existing = await conn.fetchrow(
-            'SELECT id FROM users WHERE username = \$1 LIMIT 1',
-            username,
-        )
-        if existing:
-            print(f'[ENTRYPOINT] Admin bootstrap skipped: user {username} already exists')
+        user_count = await conn.fetchval('SELECT COUNT(*) FROM users')
+        if int(user_count or 0) > 0:
+            print('[ENTRYPOINT] Admin bootstrap skipped: DB already has users')
             return
-
         password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
         await conn.execute(
             '''

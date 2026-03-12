@@ -301,8 +301,8 @@ try {
 
   @"
 POSTGRES_PASSWORD=$(New-RandomHex 32)
-ADMIN_API_USER=admin
-ADMIN_API_PASSWORD=$(New-RandomHex 24)
+ADMIN_API_USER=
+ADMIN_API_PASSWORD=
 JWT_SECRET=$(New-RandomHex 64)
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8080,http://127.0.0.1:8080
 CONTROL_PLANE_URL=$($bootstrapData.cp_url)
@@ -315,10 +315,6 @@ LOCAL_API_PORT=$ApiPort
 LOCAL_POSTGRES_PORT=$DbPort
 TITAN_LICENSE_ENFORCEMENT=true
 "@ | Set-Content -Encoding UTF8 $envPath
-
-  $adminUser = "admin"
-  $adminPasswordLine = Get-Content $envPath | Where-Object { $_ -like "ADMIN_API_PASSWORD=*" } | Select-Object -First 1
-  $adminPassword = if ($adminPasswordLine) { ($adminPasswordLine -split "=", 2)[1] } else { "" }
 
   @{
     controlPlaneUrl = $bootstrapData.cp_url
@@ -366,9 +362,9 @@ Companion: $($bootstrapData.companion_url)
 Companion Portfolio: $($bootstrapData.companion_entry_url)
 Owner API: $($bootstrapData.owner_api_base_url)
 
-Credenciales iniciales de acceso a caja:
-- Usuario: $adminUser
-- Contraseña: $adminPassword
+Primer acceso:
+Configura tu usuario al abrir el POS por primera vez.
+El asistente de configuracion te pedira crear un usuario administrador.
 
 Período de prueba: 120 días desde el primer registro
 Activar Nube: Desde la app, Configuración > Nube PosVendelo
@@ -473,6 +469,9 @@ $PublisherCertPath
       if ($posExe) {
         Write-Step "Iniciando la aplicacion POS..."
         Start-Process -FilePath $posExe -ErrorAction SilentlyContinue
+      } else {
+        Write-Step "Abriendo el POS en el navegador para configuracion inicial..."
+        Start-Process "http://127.0.0.1:$ApiPort" -ErrorAction SilentlyContinue
       }
       exit 0
     } catch {

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from db.connection import get_db
 from modules.shared.auth import verify_token, create_token, revoke_token, TOKEN_EXPIRE_MINUTES
 from modules.shared.rate_limit import limiter
-from modules.auth.schemas import LoginRequest, PairRequest, PairTokenRequest, TokenResponse
+from modules.auth.schemas import LoginRequest, PairRequest, PairTokenRequest, SetupOwnerRequest, TokenResponse
 from modules.shared.auth import get_user_id
 from modules.shared.constants import PRIVILEGED_ROLES
 
@@ -76,6 +76,56 @@ async def _do_login(request: Request, body: LoginRequest, db=Depends(get_db)):
 _do_login = limiter.limit(_login_rate)(_do_login)
 
 router.post("/login", response_model=TokenResponse)(_do_login)
+
+
+async def _do_needs_setup(request: Request, db=Depends(get_db)):
+    """Check whether the system needs first-user setup (no users in DB)."""
+    count = await db.fetchval("SELECT COUNT(*) FROM users")
+    return {"success": True, "data": {"needs_first_user": int(count or 0) == 0}}
+
+
+_do_needs_setup = limiter.limit("10/minute")(_do_needs_setup)
+router.get("/needs-setup")(_do_needs_setup)
+
+
+async def _do_setup_owner(request: Request, body: SetupOwnerRequest, db=Depends(get_db)):
+    """Create the first admin user. Only works when there are 0 users in DB."""
+    count = await db.fetchval("SELECT COUNT(*) FROM users")
+    if int(count or 0) > 0:
+        raise HTTPException(status_code=409, detail="El sistema ya tiene usuarios registrados")
+
+    password_hash = bcrypt.hashpw(
+        body.password.encode("utf-8"), bcrypt.gensalt(rounds=12)
+    ).decode("utf-8")
+
+    row = await db.fetchrow(
+        """
+        INSERT INTO users (username, password_hash, role, name, is_active, branch_id, created_at, updated_at)
+        VALUES (:username, :password_hash, 'admin', :name, 1, 1, NOW(), NOW())
+        RETURNING id, role, branch_id
+        """,
+        {
+            "username": body.username,
+            "password_hash": password_hash,
+            "name": body.name or body.username,
+        },
+    )
+
+    user_id = row["id"]
+    role = row["role"]
+    branch_id = row["branch_id"]
+    token = create_token(str(user_id), role, {"branch_id": branch_id})
+
+    return TokenResponse(
+        access_token=token,
+        expires_in=TOKEN_EXPIRE_MINUTES * 60,
+        role=role,
+        branch_id=branch_id,
+    )
+
+
+_do_setup_owner = limiter.limit("5/minute")(_do_setup_owner)
+router.post("/setup-owner", response_model=TokenResponse)(_do_setup_owner)
 
 
 @router.post("/logout")

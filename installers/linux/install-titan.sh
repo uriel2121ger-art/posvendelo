@@ -387,8 +387,8 @@ def rand_hex(n: int) -> str:
     return secrets.token_hex(n)
 
 print(f"POSTGRES_PASSWORD={rand_hex(16)}")
-print("ADMIN_API_USER=admin")
-print(f"ADMIN_API_PASSWORD={rand_hex(12)}")
+print("ADMIN_API_USER=")
+print("ADMIN_API_PASSWORD=")
 print(f"JWT_SECRET={rand_hex(32)}")
 print("CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8080,http://127.0.0.1:8080")
 print(f"CONTROL_PLANE_URL={data.get('cp_url', '')}")
@@ -451,9 +451,6 @@ chmod 600 "$INSTALL_DIR/titan-agent.json"
 CURRENT_STEP="descargando compose"
 curl -fsSL -H "Authorization: Bearer ${INSTALL_TOKEN}" "${CP_URL%/}/api/v1/branches/compose-template" -o docker-compose.yml
 
-ADMIN_USER="admin"
-ADMIN_PASSWORD="$(awk -F= '$1 == "ADMIN_API_PASSWORD" {print $2}' .env | head -n1)"
-
 cat > INSTALL_SUMMARY.txt <<EOF
 POSVENDELO - RESUMEN DE INSTALACION
 
@@ -493,9 +490,9 @@ print(data.get("owner_api_base_url", ""))
 PY
 )
 
-Credenciales iniciales de acceso a caja:
-- Usuario: ${ADMIN_USER}
-- Contraseña: ${ADMIN_PASSWORD}
+Primer acceso:
+Configura tu usuario al abrir el POS por primera vez.
+El asistente de configuracion te pedira crear un usuario administrador.
 
 Período de prueba: 120 días desde el primer registro
 Activar Nube: Desde la app, Configuración > Nube PosVendelo
@@ -624,6 +621,9 @@ for _ in $(seq 1 60); do
       echo "[POSVENDELO] Iniciando la aplicacion POS..."
       nohup titan-pos >/dev/null 2>&1 &
       sleep 1
+    elif [[ -n "${DISPLAY:-}" ]] && command -v xdg-open >/dev/null 2>&1; then
+      echo "[POSVENDELO] Abriendo el POS en el navegador para configuracion inicial..."
+      xdg-open "http://127.0.0.1:${LOCAL_API_PORT}" 2>/dev/null &
     fi
     exit 0
   fi

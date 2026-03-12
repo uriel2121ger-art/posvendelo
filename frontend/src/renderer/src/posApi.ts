@@ -2577,3 +2577,66 @@ export async function openDrawerForSale(cfg: RuntimeConfig): Promise<Record<stri
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error abriendo cajón'))
   return (await res.json()) as Record<string, unknown>
 }
+
+// ── Public auth endpoints (no Authorization header) ────────────────────────
+
+/**
+ * Checks whether the system needs a first admin user to be created.
+ * Public endpoint — no auth headers sent.
+ */
+export async function checkNeedsFirstUser(cfg: RuntimeConfig): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+  let res: Response
+  try {
+    res = await fetch(`${cfg.baseUrl}/api/v1/auth/needs-setup`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+  if (!res.ok) return false
+  const body = (await res.json()) as { success: boolean; data: { needs_first_user: boolean } }
+  return Boolean(body.data?.needs_first_user)
+}
+
+/**
+ * Creates the first admin (owner) user during initial setup.
+ * Public endpoint — no auth headers sent.
+ * Throws on network error or non-2xx response.
+ * Throws an error with name "ConflictError" on HTTP 409.
+ */
+export async function setupOwnerUser(
+  cfg: RuntimeConfig,
+  payload: { username: string; password: string; name?: string }
+): Promise<{ token: string; role: string }> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  let res: Response
+  try {
+    res = await fetch(`${cfg.baseUrl}/api/v1/auth/setup-owner`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+  if (res.status === 409) {
+    const err = new Error('Ya existe un usuario administrador. Inicia sesión.')
+    err.name = 'ConflictError'
+    throw err
+  }
+  if (!res.ok) {
+    throw new Error(parseErrorDetail(await res.text(), 'Error al crear el usuario administrador'))
+  }
+  const body = (await res.json()) as {
+    access_token: string
+    role: string
+    token_type: string
+  }
+  return { token: body.access_token, role: body.role }
+}

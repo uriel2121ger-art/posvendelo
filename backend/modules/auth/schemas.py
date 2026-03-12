@@ -1,5 +1,7 @@
 """POSVENDELO - Auth Module Schemas"""
 
+from typing import Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -22,6 +24,12 @@ class TokenResponse(BaseModel):
     expires_in: int
     role: str = "cashier"
     branch_id: int | None = None
+
+
+class SetupOwnerRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
+    password: str = Field(..., min_length=8)
+    name: Optional[str] = None
 
 
 class PairTokenRequest(BaseModel):
