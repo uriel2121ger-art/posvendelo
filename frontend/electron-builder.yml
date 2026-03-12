@@ -51,6 +51,9 @@ deb:
     - openssl
   afterInstall: ../installers/linux/postinst.sh
   afterRemove: ../installers/linux/prerm.sh
+  fpm:
+    - "--conflicts=titan-pos"
+    - "--replaces=titan-pos"
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
