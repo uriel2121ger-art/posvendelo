@@ -233,6 +233,7 @@ jobs:
         run: npm ci
 
       - name: Inyectar version del tag
+        shell: bash
         working-directory: frontend
         env:
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -480,6 +481,7 @@ jobs:
         run: npm ci
 
       - name: Inyectar version del tag
+        shell: bash
         working-directory: owner-app
         env:
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -623,40 +625,45 @@ jobs:
     steps:
       - name: Descargar artifacts Linux frontend
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: posvendelo-linux
           path: release-artifacts/linux
 
       - name: Descargar artifacts Windows frontend
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: posvendelo-windows
           path: release-artifacts/windows
 
       - name: Descargar APK cajero
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: posvendelo-cajero-apk
           path: release-artifacts/android-cajero
 
       - name: Descargar artifacts Linux owner
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: posvendelo-owner-linux
           path: release-artifacts/owner-linux
 
       - name: Descargar artifacts Windows owner
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: posvendelo-owner-windows
           path: release-artifacts/owner-windows
 
       - name: Descargar APK owner
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: posvendelo-owner-apk
           path: release-artifacts/owner-android
-        continue-on-error: true
 
       - name: Renombrar APKs para evitar conflicto de nombres
         run: |
