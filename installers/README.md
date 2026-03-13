@@ -4,6 +4,16 @@
 
 ---
 
+## Modo PC principal vs caja secundaria
+
+- **PC principal:** instala backend + base de datos en esta máquina. Una por sucursal. La app usa `127.0.0.1:8000` y muestra el wizard de negocio la primera vez.
+- **Caja secundaria:** solo instala la app (o la marca como cliente). No crea backend. Al abrir la app se muestra "Configurar servidor" para indicar la IP del nodo en la red.
+- **Android (APK):** siempre es cliente; la app pide la dirección del servidor si no hay URL guardada.
+
+En Linux (.deb), para instalar como caja secundaria: `sudo INSTALL_MODE=client dpkg -i posvendelo*.deb`. En Windows (PowerShell): usar el parámetro `-InstallMode Client`.
+
+---
+
 ## Linux
 
 **Instalación para el cliente (sin tocar terminal/código):** el instalador puede ejecutarse sin argumentos. Usa por defecto el servidor central (posvendelo.com) y obtiene el token automáticamente por pre-registro (huella de hardware). El usuario solo descarga, ejecuta y configura en la app.
@@ -51,7 +61,7 @@ Si instalaste en otro directorio: `./actualizar.sh --dir /ruta/de/instalacion`. 
 
 ## Windows
 
-**Instalación para el cliente (sin tocar código):** el instalador puede ejecutarse sin token ni URL. Por defecto usa posvendelo.com y obtiene el token automáticamente por pre-registro. El usuario solo descarga, ejecuta y configura en la app.
+**Instalación para el cliente (sin tocar código):** el instalador puede ejecutarse sin token ni URL. Para instalar solo como caja secundaria (sin backend): `-InstallMode Client`. Por defecto usa posvendelo.com y obtiene el token automáticamente por pre-registro. El usuario solo descarga, ejecuta y configura en la app.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Posvendelo.ps1

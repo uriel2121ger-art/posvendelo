@@ -8,9 +8,22 @@ queda operativo en minutos. La nube es opcional y se activa después.
 
 > **Implementación de referencia:** ver [CHANGELOG_INSTALL_FLOW_2026_03_12.md](CHANGELOG_INSTALL_FLOW_2026_03_12.md)
 
+## PC principal vs caja secundaria (desktop)
+
+En Linux y Windows puede instalarse la misma app como **PC principal** (con base de datos y backend en esta máquina) o como **caja secundaria** (solo app, conecta a un servidor en la red).
+
+| Modo        | Comportamiento |
+|-------------|----------------|
+| **Principal** | Instalador crea Docker + backend + PostgreSQL; la app usa `127.0.0.1:8000`. Wizard de negocio y opcional registro para monitoreo. |
+| **Secundaria** | No se instala backend. Se escribe un marcador (`install-mode` = client). Al abrir la app se muestra "Configurar servidor" para indicar la IP del nodo en LAN. |
+
+- **Linux (.deb):** ejecutar con `sudo INSTALL_MODE=client dpkg -i posvendelo*.deb` para modo caja secundaria.
+- **Windows (PowerShell):** ejecutar con `-InstallMode Client` para modo caja secundaria.
+- **Android (APK):** siempre es cliente; la app pide la dirección del servidor si no hay URL guardada.
+
 ## Fases
 
-### Fase 1: Instalación automática
+### Fase 1: Instalación automática (PC principal)
 
 ```
 posvendelo.com → descarga instalador → ejecuta

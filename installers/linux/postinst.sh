@@ -46,10 +46,34 @@ fi
 # 1. Backend setup — Docker + PostgreSQL + API
 #    From here on we disable set -e: network/Docker failures must NOT abort
 #    the package installation. The app installs fine, backend starts later.
+#    If INSTALL_MODE=client or INSTALL_MODE=secundaria: skip backend, only write marker for app.
 # ---------------------------------------------------------------------------
 set +e
 
 INSTALL_DIR="/opt/posvendelo"
+
+# Modo caja secundaria: solo app, sin backend. El usuario conecta a un servidor en LAN.
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=""
+[ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6) || true
+if [ -z "$REAL_HOME" ]; then
+  REAL_HOME="$HOME"
+fi
+POSVENDELO_CONFIG_DIR="${REAL_HOME}/.config/posvendelo"
+INSTALL_MODE_FILE="$POSVENDELO_CONFIG_DIR/install-mode"
+
+if [ "$INSTALL_MODE" = "client" ] || [ "$INSTALL_MODE" = "secundaria" ]; then
+  log "Modo caja secundaria: no se instala backend ni base de datos."
+  mkdir -p "$POSVENDELO_CONFIG_DIR"
+  echo "client" > "$INSTALL_MODE_FILE"
+  if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
+    chown "$REAL_USER:$REAL_USER" "$INSTALL_MODE_FILE" 2>/dev/null || true
+    chown "$REAL_USER:$REAL_USER" "$POSVENDELO_CONFIG_DIR" 2>/dev/null || true
+  fi
+  log "Al abrir la app, configura la dirección del servidor de la sucursal (Conectar al servidor)."
+  exit 0
+fi
+
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 ENV_FILE="$INSTALL_DIR/.env"
 SERVICE_FILE="/etc/systemd/system/posvendelo.service"

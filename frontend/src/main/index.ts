@@ -1,4 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, type PrinterInfo } from 'electron'
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -9,6 +11,21 @@ const defaultConnectSrc =
   process.env.ELECTRON_ALLOWED_CONNECT_SRC?.trim() || 'http://localhost:* http://127.0.0.1:*'
 
 const localAgent = new LocalNodeAgent()
+
+/** Returns 'client' if this install is a secondary terminal (no local backend); otherwise 'principal'. */
+function getInstallMode(): 'principal' | 'client' {
+  const path =
+    process.platform === 'win32'
+      ? join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'POSVENDELO', 'install-mode')
+      : join(homedir(), '.config', 'posvendelo', 'install-mode')
+  if (!existsSync(path)) return 'principal'
+  try {
+    const content = readFileSync(path, 'utf8').trim().toLowerCase()
+    return content === 'client' ? 'client' : 'principal'
+  } catch {
+    return 'principal'
+  }
+}
 
 function isSafeExternalUrl(rawUrl: string): boolean {
   try {
@@ -93,13 +110,16 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Ensure backend is running before loading the renderer.
-  // In dev mode the backend is started separately so this is a fast no-op.
-  // For AppImage / deb / nsis installs this sets up Docker + backend on first run.
-  const backendReady = await ensureBackend()
-  if (!backendReady) {
-    app.quit()
-    return
+  // Modo caja secundaria: no hay backend local; la app conecta a un servidor en LAN.
+  const installMode = getInstallMode()
+  if (installMode !== 'client') {
+    // Ensure backend is running before loading the renderer.
+    // In dev mode the backend is started separately so this is a fast no-op.
+    const backendReady = await ensureBackend()
+    if (!backendReady) {
+      app.quit()
+      return
+    }
   }
 
   createWindow()
@@ -110,6 +130,8 @@ app.whenReady().then(async () => {
     if (win) win.close()
     else app.quit()
   })
+
+  ipcMain.handle('app:get-install-mode', () => getInstallMode())
 
   ipcMain.handle('agent:get-status', async () => localAgent.getStatus())
   ipcMain.handle('agent:refresh', async () => localAgent.refreshNow())

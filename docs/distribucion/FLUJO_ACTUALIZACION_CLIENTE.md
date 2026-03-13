@@ -34,6 +34,8 @@ El fix del postinst (volumen + copia de `posvendelo-agent.json`) **solo llega al
 
 **Resumen:** el cliente descarga el .deb nuevo e instala con `dpkg -i`; no tiene que editar nada a mano.
 
+El **registro para monitoreo** (vincular la sucursal con una cuenta para verla desde la app del dueño) puede hacerse desde el wizard inicial (paso 2) o más tarde desde **Configuración** → Nube PosVendelo → "Registro para monitoreo".
+
 ### Opción B — Desde la app (sin comandos ni terminal)
 
 Para usuarios que no usan terminal ni comandos: abrir la app PosVendelo → **Configuración** → sección **Actualizaciones**. Activar **"Buscar actualizaciones automáticamente"** y pulsar **"Comprobar ahora"**. Si hay actualización, pulsar **"Descargar actualización"** y luego **"Instalar ahora"**; en Linux se abre el instalador del sistema (Centro de software, etc.) y el usuario solo confirma. No hace falta escribir comandos.
@@ -80,7 +82,18 @@ En la práctica: **“Descargar el .deb nuevo desde la página de descargas e in
 
 ---
 
-## 4. Orden recomendado al publicar un fix así
+## 4. Regenerar todo (backend + instaladores + control-plane)
+
+Para que se construya **backend**, **frontend** (instaladores) y se **suban al control-plane**, hay que disparar el workflow de release, no solo push a master:
+
+- **Opción A:** Crear y subir un tag: `git tag v1.0.1 && git push origin v1.0.1`. El workflow `Release Artifacts` construye backend, frontend Linux, frontend Windows (y Android si aplica) y sube los artefactos al control-plane.
+- **Opción B:** En GitHub → Actions → "POSVENDELO — Release Artifacts" → "Run workflow" (elegir rama/tag si lo permite).
+
+Solo el **push a master** construye y sube la **imagen del backend** a GHCR; no genera ni sube los instaladores. Ver [DEPLOY_VS_RELEASE.md](DEPLOY_VS_RELEASE.md).
+
+---
+
+## 5. Orden recomendado al publicar un fix así
 
 1. **Nosotros:** merge a master (o release) → se construye backend y se sube a GHCR.
 2. **Nosotros:** construir nuevo .deb desde `frontend` (ej. `npm run build:linux`).
@@ -88,4 +101,4 @@ En la práctica: **“Descargar el .deb nuevo desde la página de descargas e in
 4. **Nosotros (opcional):** publicar en el control-plane la release (versión, artifact `electron-deb`/`electron-linux`, `target_ref` a la URL del .deb) para que la app muestre “Actualización disponible”.
 5. **Cliente:** descarga el .deb nuevo e instala con `sudo dpkg -i` en el nodo (o sigue el flujo de auto-update y luego ejecuta el .deb descargado).
 
-Referencia: [ROLLOUT_UPDATES_Y_ROLLBACK.md](../operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md), [HOMELAB.md](../operacion/HOMELAB.md).
+Referencia: [DEPLOY_VS_RELEASE.md](DEPLOY_VS_RELEASE.md), [ROLLOUT_UPDATES_Y_ROLLBACK.md](../operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md), [HOMELAB.md](../operacion/HOMELAB.md).

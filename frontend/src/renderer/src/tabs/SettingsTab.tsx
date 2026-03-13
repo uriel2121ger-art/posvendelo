@@ -71,7 +71,6 @@ type ConfigProfile = {
 }
 
 const CONFIG_PROFILES_KEY = 'pos.configProfiles'
-const HW_CACHE_KEY = 'pos.hwConfig'
 const UPDATES_AUTO_KEY = 'pos.updates.autoCheck'
 
 function parseTerminalId(value: string): number {

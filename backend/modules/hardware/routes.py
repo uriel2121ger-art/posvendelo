@@ -286,6 +286,10 @@ async def complete_initial_setup(
         "scanner_enabled": bool(body.scanner_enabled),
         "cash_drawer_enabled": bool(body.cash_drawer_enabled),
     }
+    if body.receipt_paper_width is not None:
+        updates["receipt_paper_width"] = body.receipt_paper_width
+    if body.cash_drawer_auto_open_cash is not None:
+        updates["cash_drawer_auto_open_cash"] = body.cash_drawer_auto_open_cash
 
     row_id = await _ensure_hw_row(db)
     updates["_row_id"] = row_id

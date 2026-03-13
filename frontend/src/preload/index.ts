@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 // Custom APIs for renderer (IPC solo para cerrar app; resto vía HTTP al backend)
 const api = {
   closeApp: () => ipcRenderer.invoke('app:close'),
+  getInstallMode: (): Promise<'principal' | 'client'> => ipcRenderer.invoke('app:get-install-mode'),
   hardware: {
     listPrinters: () => ipcRenderer.invoke('hardware:list-printers')
   },

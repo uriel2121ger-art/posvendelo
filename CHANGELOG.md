@@ -6,6 +6,29 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.0.3] - 2026-03-12
+
+### Añadido
+
+- **Wizard inicial (PC principal)**
+  - Wizard en dos pasos: paso 1 (negocio, impresora, ancho de papel 58/80 mm, abrir cajón al cobrar en efectivo) y paso 2 (registro para monitoreo desde la app del dueño). Opción "Omitir por ahora" con mensaje para completar en Configuración.
+  - Backend: `InitialSetupPayload` y `complete_initial_setup` aceptan `receipt_paper_width` y `cash_drawer_auto_open_cash`; se persisten en `app_config` y se muestran en Configuración.
+- **Registro para monitoreo**
+  - En Configuración → Nube PosVendelo: bloque "Registro para monitoreo" cuando el nodo está conectado al servidor central y aún no está vinculado (formulario email/contraseña y "Vincular cuenta para monitoreo"). API frontend: `getCloudStatus`, `activateCloud` en `posApi.ts`.
+- **Instalador: PC principal vs caja secundaria**
+  - Linux (.deb): variable de entorno `INSTALL_MODE=client` (o `secundaria`) en el postinst omite Docker/backend y escribe marcador en `~/.config/posvendelo/install-mode`; la app muestra "Conectar al servidor" al abrir.
+  - Windows (PowerShell): parámetro `-InstallMode Client` omite backend y escribe marcador en `ProgramData\POSVENDELO\install-mode`.
+  - Electron: lectura del marcador y redirección a Configurar servidor cuando modo cliente y no hay URL guardada; en modo principal se mantiene auto-asignación a 127.0.0.1:8000.
+- **Documentación**
+  - installers/README.md: uso de modo secundaria (Linux `INSTALL_MODE=client`, Windows `-InstallMode Client`); Android siempre cliente.
+
+### Cambiado
+
+- La configuración del wizard (negocio, papel, cajón) persiste y es editable en la pestaña Configuración (misma fuente `app_config`).
+- RequireAuth y lógica de redirección consideran modo instalación (principal/client) en Electron para decidir si mostrar Configurar servidor.
+
+---
+
 ## [1.0.2] - 2026-03-10
 
 ### Documentación

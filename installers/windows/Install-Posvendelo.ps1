@@ -1,6 +1,7 @@
 #Requires -RunAsAdministrator
 
 # URL del nodo central por defecto. El usuario no tiene que escribir nada; el token se obtiene por pre-registro.
+# InstallMode: Principal = PC con base de datos (backend + app). Client = caja secundaria (solo app, conectar a servidor en LAN).
 param(
   [string]$CpUrl = "https://posvendelo.com",
   [string]$InstallToken = "",
@@ -9,6 +10,8 @@ param(
   [string]$CloudPassword = "",
   [string]$TenantName = "",
   [switch]$ExistingCloud,
+  [ValidateSet("Principal", "Client")]
+  [string]$InstallMode = "Principal",
   [string]$InstallDir = "$env:LOCALAPPDATA\POSVENDELO",
   [string]$PublisherCertPath = "",
   [int]$ApiPort = 0,
@@ -264,6 +267,17 @@ function Send-InstallReport([string]$Status, [string]$ErrorMessage) {
 }
 
 try {
+  # Modo caja secundaria: solo marcar para que la app muestre "Conectar al servidor". No instalar backend ni Docker.
+  if ($InstallMode -eq "Client") {
+    $programDataDir = Join-Path $env:ProgramData "POSVENDELO"
+    New-Item -ItemType Directory -Force -Path $programDataDir | Out-Null
+    "client" | Set-Content -Encoding UTF8 -Path (Join-Path $programDataDir "install-mode")
+    Write-Step "Modo caja secundaria configurado. Al abrir la app, configura la direccion del servidor de la sucursal (Conectar al servidor)."
+    Write-Host ""
+    Write-Host "No se instala backend ni base de datos. La app se conectara a un servidor existente en la red." -ForegroundColor Green
+    exit 0
+  }
+
   if (-not $InstallToken) {
     if ($CloudEmail -or $CloudPassword -or $TenantName) {
       Ensure-CloudInstallToken

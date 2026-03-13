@@ -13,6 +13,7 @@ Indice por categoria. Documentos activos en subcarpetas. Archivos supersedidos e
 | [PLAN_NUBE_POSVENDELO.md](distribucion/PLAN_NUBE_POSVENDELO.md) | Plan Nube: cuenta opcional, app dueno, sync y comandos remotos. |
 | [RELEASE_CHECKLIST_WINDOWS_LINUX.md](distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md) | Checklist antes de publicar clientes (Windows/Linux). |
 | [FLUJO_ACTUALIZACION_CLIENTE.md](distribucion/FLUJO_ACTUALIZACION_CLIENTE.md) | Como llegan los fixes al cliente (deb, postinst, backend) y que debe hacer el cliente. |
+| [DEPLOY_VS_RELEASE.md](distribucion/DEPLOY_VS_RELEASE.md) | Que se construye en push a master (backend) vs tag v* (backend + instaladores + control-plane). |
 
 ---
 

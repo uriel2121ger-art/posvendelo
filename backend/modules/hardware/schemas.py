@@ -69,6 +69,8 @@ class InitialSetupPayload(BaseModel):
     business_footer: Optional[str] = Field(None, max_length=200)
     receipt_printer_name: Optional[str] = Field(None, max_length=100)
     receipt_printer_enabled: bool = False
+    receipt_paper_width: Optional[Literal[58, 80]] = None
     receipt_auto_print: bool = False
     scanner_enabled: bool = False
     cash_drawer_enabled: bool = False
+    cash_drawer_auto_open_cash: Optional[bool] = None
