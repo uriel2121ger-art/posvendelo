@@ -58,4 +58,14 @@ Formato por entrada: ID, Síntoma, Causa raíz, Solución, Resultado, Lección.
 
 ---
 
+## ERR-005 — Release workflow: Android APK falla con "invalid source release: 21"
+
+- **Síntoma:** En GitHub Actions, el workflow "POSVENDELO — Release Artifacts" (tag v1.0.3) falla en los jobs "Frontend Android — APK cajero" y "Owner App Android — APK" con: `Execution failed for task ':capacitor-android:compileReleaseJavaWithJavac'` → `error: invalid source release: 21`.
+- **Causa raíz:** Los proyectos Android (frontend y owner-app) tienen en `capacitor.build.gradle` (o equivalente) `sourceCompatibility`/`targetCompatibility` en Java 21, pero el workflow de release usaba `actions/setup-java` con `java-version: "17"`. El JDK 17 no soporta compilar con source/target 21.
+- **Solución:** En `.github/workflows/release.yml`, en los jobs `build-frontend-android` y `build-owner-android`, cambiar `Setup Java 17` por `Setup Java 21` y `java-version: "21"`.
+- **Resultado:** Los builds de APK en CI usan JDK 21 y compilan correctamente; el release completo puede completar (salvo otros fallos como upload al control-plane).
+- **Lección:** La versión de Java en el workflow debe coincidir con la que exigen los proyectos Android (capacitor.build.gradle); si el proyecto usa VERSION_21, el job debe usar Java 21.
+
+---
+
 *Última actualización: 2026-03-13. Entradas derivadas de auditoría backend, frontend y correcciones aplicadas.*
