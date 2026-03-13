@@ -24,7 +24,6 @@
   Var /GLOBAL HEALTH_RESULT
   Var /GLOBAL POS_AGENT_DIR
   Var /GLOBAL POS_AGENT_FILE
-  Var /GLOBAL POS_CP_URL
   Var /GLOBAL POS_LOCAL_APPDATA
 
   ; NSIS no tiene $PROGRAMDATA built-in — leer de variable de entorno
