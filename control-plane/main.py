@@ -160,6 +160,9 @@ async def landing_page() -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PosVendelo | Punto de venta para México</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: dark;
@@ -177,27 +180,59 @@ async def landing_page() -> str:
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--text); background: var(--bg); }
+    body { margin: 0; padding: 0; overflow-x: hidden; font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif; color: var(--text); background: var(--bg); }
     .nav {
       position: sticky; top: 0; z-index: 100;
-      display: flex; align-items: center; justify-content: space-between; padding: 0.875rem 1.5rem; max-width: 1200px; margin: 0 auto;
-      border-bottom: 1px solid var(--border); background: rgba(20, 20, 31, 0.9); backdrop-filter: blur(8px);
+      display: block; width: 100vw; max-width: none; box-sizing: border-box;
+      margin-left: calc(-50vw + 50%);
+      border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(20, 20, 31, 0.95); backdrop-filter: blur(8px);
       transition: background 0.2s, border-color 0.2s;
     }
-    .nav-brand { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; color: var(--text); text-decoration: none; transition: color 0.15s; }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between; padding: 0.875rem 1.5rem;
+      max-width: 1200px; margin: 0 auto; box-sizing: border-box;
+    }
+    .nav-brand { font-weight: 800; font-size: 1.25rem; letter-spacing: 0.02em; color: var(--text); text-decoration: none; transition: color 0.15s; }
     .nav-brand:hover { color: var(--accent); }
     .nav-links { display: flex; gap: 1.75rem; }
     .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; font-size: 0.9375rem; transition: color 0.15s; }
     .nav-links a:hover { color: var(--accent); }
     .nav-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
     .hero {
-      background: var(--bg-hero); color: #f1f5f9; text-align: center; padding: 4.5rem 1.5rem 5.5rem;
+      position: relative; color: #f1f5f9; text-align: center; padding: 5rem 1.5rem 6rem;
+      overflow: hidden;
+      border-bottom: 1px solid rgba(59, 130, 246, 0.08);
+      background: #0b0f1a;
+      background-image: linear-gradient(180deg, #0f172a 0%, #0b0f1a 50%, #080b12 100%);
     }
-    .hero h1 { margin: 0 0 1rem; font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; max-width: 720px; margin-left: auto; margin-right: auto; }
-    .hero p { margin: 0 0 1.5rem; font-size: 1.125rem; color: #94a3b8; max-width: 560px; margin-left: auto; margin-right: auto; line-height: 1.6; }
-    .hero-trust { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem 1.5rem; margin-bottom: 2rem; font-size: 0.875rem; color: #94a3b8; }
-    .hero-trust span { display: inline-flex; align-items: center; gap: 0.35rem; }
-    .hero-trust span::before { content: ""; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+    .hero-shapes {
+      position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    }
+    .hero-shapes svg { position: absolute; width: 100%; height: 100%; opacity: 0.5; }
+    .hero-shapes .shape-screen { left: 50%; top: 50%; transform: translate(-50%, -45%); width: 85%; max-width: 520px; height: 280px; }
+    .hero-shapes .shape-screen rect { fill: none; stroke: rgba(59, 130, 246, 0.2); stroke-width: 1; rx: 12; }
+    .hero-shapes .shape-screen line { stroke: rgba(59, 130, 246, 0.12); stroke-width: 1; }
+    .hero-shapes .shape-diag { right: 0; top: 0; width: 50%; height: 100%; }
+    .hero-shapes .shape-diag path { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 1.5; }
+    .hero-shapes .shape-dots { left: 8%; top: 25%; width: 120px; height: 120px; }
+    .hero-shapes .shape-dots circle { fill: none; stroke: rgba(59, 130, 246, 0.15); stroke-width: 1; }
+    .hero-shapes .shape-dots line { stroke: rgba(59, 130, 246, 0.1); stroke-width: 1; }
+    .hero-shapes .shape-bento { right: 12%; bottom: 15%; width: 140px; height: 100px; }
+    .hero-shapes .shape-bento rect { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 1; rx: 8; }
+    .hero > * { position: relative; z-index: 1; }
+    .hero-badge {
+      display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 1rem; padding: 0.35rem 0.85rem; border: 1px solid rgba(59, 130, 246, 0.4);
+      border-radius: 999px; background: rgba(59, 130, 246, 0.08);
+    }
+    .hero h1 { margin: 0 0 1rem; font-size: clamp(2.1rem, 5.2vw, 3.5rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.03em; max-width: 720px; margin-left: auto; margin-right: auto; color: #fff; }
+    .hero p { margin: 0 0 1.5rem; font-size: 1.125rem; color: #94a3b8; max-width: 560px; margin-left: auto; margin-right: auto; line-height: 1.65; font-weight: 500; }
+    .hero-trust { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem 1.25rem; margin-bottom: 2rem; }
+    .hero-trust span {
+      display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; font-weight: 600; color: #94a3b8;
+      padding: 0.35rem 0.75rem; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    }
+    .hero-trust span::before { content: ""; width: 5px; height: 5px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
     .hero-cta { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 12px;
@@ -206,20 +241,34 @@ async def landing_page() -> str:
     .btn:hover { transform: translateY(-1px); }
     .btn:active { transform: translateY(0); }
     .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .btn-primary { background: var(--accent); color: #fff; border: none; }
-    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, #2563eb 100%); color: #fff; border: none;
+      box-shadow: 0 2px 12px rgba(59, 130, 246, 0.35);
+    }
+    .btn-primary:hover { background: linear-gradient(135deg, var(--accent-hover) 0%, #3b82f6 100%); box-shadow: 0 4px 24px rgba(59, 130, 246, 0.45); }
     .btn-secondary { background: rgba(255,255,255,0.1); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.25); }
     .btn-secondary:hover { background: rgba(255,255,255,0.18); }
     .section { max-width: 1200px; margin: 0 auto; padding: 4rem 1.5rem; }
-    .section.section-alt { background: rgba(20, 20, 31, 0.5); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .section-title { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text); }
-    .section-sub { color: var(--text-muted); margin: 0 0 2.5rem; font-size: 1rem; line-height: 1.5; }
+    .section.section-alt { }
+    .section-header { position: relative; margin-bottom: 2.5rem; }
+    .section-header::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--accent), transparent);
+      border-radius: 2px; opacity: 0.8;
+    }
+    .section-title { font-size: 1.75rem; font-weight: 800; margin: 0 0 0 1rem; padding-left: 0.5rem; color: var(--text); letter-spacing: -0.02em; }
+    .section-title::after { content: ""; display: block; width: 2.5rem; height: 3px; background: linear-gradient(90deg, var(--accent), transparent); border-radius: 2px; margin-top: 0.5rem; margin-left: 1rem; }
+    .section-sub { color: var(--text-muted); margin: 0.5rem 0 0 1rem; font-size: 1rem; line-height: 1.5; }
+    .section-header + .benefits { margin-top: 0; }
+    .section-header + .steps { margin-top: 0; }
+    .section-header + .downloads-intro { margin-top: 0; }
+    .section-header + .downloads-grid { margin-top: 0; }
     .benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
     .benefit-card {
       background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem;
       box-shadow: var(--shadow); transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+      border-left: 3px solid transparent;
     }
-    .benefit-card:hover { box-shadow: var(--shadow-lg); border-color: #3d3d52; transform: translateY(-2px); }
+    .benefit-card:hover { box-shadow: var(--shadow-lg); border-color: #3d3d52; border-left-color: var(--accent); transform: translateY(-2px); }
     .benefit-icon { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #1e3a5f, #2563eb33); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #cbd5e1; }
     .benefit-icon svg { width: 24px; height: 24px; flex-shrink: 0; }
     .benefit-card h3 { margin: 0 0 0.5rem; font-size: 1.125rem; font-weight: 700; color: var(--text); }
@@ -233,19 +282,36 @@ async def landing_page() -> str:
     .step::before { counter-increment: step; content: counter(step); display: block; width: 2.5rem; height: 2.5rem; margin: 0 auto 1rem; background: var(--accent); color: #fff; border-radius: 50%; font-weight: 700; font-size: 1rem; line-height: 2.5rem; }
     .step h3 { margin: 0 0 0.5rem; font-size: 1.0625rem; font-weight: 700; color: var(--text); }
     .step p { margin: 0; font-size: 0.875rem; color: var(--text-muted); line-height: 1.45; }
-    .downloads-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem; box-shadow: var(--shadow); }
-    .download-group { margin-bottom: 1.5rem; }
-    .download-group:last-of-type { margin-bottom: 0; }
-    .download-group h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin: 0 0 0.75rem; }
+    .downloads-intro { text-align: center; margin-bottom: 2rem; }
+    .downloads-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+    .download-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem;
+      box-shadow: var(--shadow); transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .download-card:hover { border-color: #3d3d52; box-shadow: var(--shadow-lg); }
+    .download-card h3 { font-size: 1.125rem; font-weight: 700; color: var(--text); margin: 0 0 0.25rem; }
+    .download-card .card-desc { font-size: 0.875rem; color: var(--text-muted); margin: 0 0 1rem; line-height: 1.4; }
+    .download-card .card-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-bottom: 0.5rem; }
     .download-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .download-links .btn { padding: 0.5rem 1rem; font-size: 0.875rem; }
     .download-links .btn-outline { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
     .download-links .btn-outline:hover { background: rgba(59, 130, 246, 0.15); }
-    .cta-band { text-align: center; padding: 3rem 1.5rem; background: linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, var(--card) 100%); border: 1px solid var(--border); border-radius: var(--radius); margin: 0 1.5rem 2rem; max-width: 1200px; margin-left: auto; margin-right: auto; margin-bottom: 2rem; }
+    .downloads-meta { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+    .downloads-meta a { font-size: 0.875rem; color: var(--text-muted); text-decoration: none; }
+    .downloads-meta a:hover { color: var(--accent); }
+    .cta-band {
+      text-align: center; padding: 3rem 1.5rem; position: relative; overflow: hidden;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      margin: 0 1.5rem 2rem; max-width: 1200px; margin-left: auto; margin-right: auto; margin-bottom: 2rem;
+    }
+    .cta-band::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), rgba(59, 130, 246, 0.4), var(--accent)); border-radius: var(--radius) var(--radius) 0 0;
+    }
     .cta-band h2 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text); }
     .cta-band p { color: var(--text-muted); margin: 0 0 1.5rem; font-size: 0.9375rem; }
     .cta-band .btn { padding: 0.875rem 1.75rem; font-size: 1rem; }
-    .footer { background: #0a0a0f; border-top: 1px solid var(--border); color: #94a3b8; padding: 2.5rem 1.5rem; margin-top: 0; }
+    .footer { background: #0a0a0f; border-top: 1px solid rgba(255,255,255,0.06); color: #94a3b8; padding: 2.5rem 1.5rem; margin-top: 0; }
     .footer-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center; }
     .footer-links { display: flex; flex-wrap: wrap; gap: 1rem; }
     .footer a { color: #cbd5e1; text-decoration: none; font-size: 0.875rem; transition: color 0.15s; }
@@ -257,15 +323,24 @@ async def landing_page() -> str:
 </head>
 <body>
   <nav class="nav">
-    <a class="nav-brand" href="/">POSVENDELO</a>
-    <div class="nav-links">
+    <div class="nav-inner">
+      <a class="nav-brand" href="/">POSVENDELO</a>
+      <div class="nav-links">
       <a href="#beneficios">Beneficios</a>
       <a href="#descargas">Descargas</a>
       <a href="/health">Estado</a>
       <a href="mailto:ventas@posvendelo.com">Contacto</a>
+      </div>
     </div>
   </nav>
   <header class="hero">
+    <div class="hero-shapes" aria-hidden="true">
+      <svg class="shape-screen" viewBox="0 0 520 280" preserveAspectRatio="xMidYMid meet"><rect width="520" height="280"/><line x1="24" y1="52" x2="496" y2="52"/><line x1="24" y1="100" x2="320" y2="100"/><line x1="24" y1="148" x2="280" y2="148"/><rect x="24" y="180" width="120" height="32" rx="6" fill="none" stroke="rgba(59,130,246,0.15)" stroke-width="1"/></svg>
+      <svg class="shape-diag" viewBox="0 0 400 800" preserveAspectRatio="xMaxYMid meet"><path d="M0 0 L400 800 M60 0 L460 800 M120 0 L520 800"/></svg>
+      <svg class="shape-dots" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet"><circle cx="20" cy="20" r="14"/><circle cx="100" cy="30" r="14"/><circle cx="60" cy="95" r="14"/><line x1="32" y1="28" x2="88" y2="32"/><line x1="35" y1="38" x2="62" y2="88"/><line x1="92" y1="40" x2="65" y2="88"/></svg>
+      <svg class="shape-bento" viewBox="0 0 140 100" preserveAspectRatio="xMidYMid meet"><rect x="0" y="0" width="80" height="44"/><rect x="88" y="0" width="52" height="44"/><rect x="0" y="52" width="52" height="48"/><rect x="60" y="52" width="80" height="48"/></svg>
+    </div>
+    <p class="hero-badge">Plataforma POS para México</p>
     <h1>Punto de venta que crece contigo, en la nube y en tu sucursal</h1>
     <p>Controla varias tiendas desde un solo lugar. Funciona sin internet y se sincroniza cuando vuelve la conexión. Pensado para México.</p>
     <div class="hero-trust" role="list">
@@ -279,8 +354,10 @@ async def landing_page() -> str:
     </div>
   </header>
   <section class="section" id="beneficios">
-    <h2 class="section-title">Por qué PosVendelo</h2>
-    <p class="section-sub">Todo lo que necesitas para vender y administrar tu negocio, sin complicaciones.</p>
+    <div class="section-header">
+      <h2 class="section-title">Por qué PosVendelo</h2>
+      <p class="section-sub">Todo lo que necesitas para vender y administrar tu negocio, sin complicaciones.</p>
+    </div>
     <div class="benefits">
       <article class="benefit-card">
         <div class="benefit-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
@@ -310,8 +387,10 @@ async def landing_page() -> str:
     </div>
   </section>
   <section class="section section-alt">
-    <h2 class="section-title">Así de fácil es empezar</h2>
-    <p class="section-sub">En pocos pasos tendrás el punto de venta funcionando.</p>
+    <div class="section-header">
+      <h2 class="section-title">Así de fácil es empezar</h2>
+      <p class="section-sub">En pocos pasos tendrás el punto de venta funcionando.</p>
+    </div>
     <div class="steps">
       <div class="step">
         <h3>Descarga</h3>
@@ -328,11 +407,16 @@ async def landing_page() -> str:
     </div>
   </section>
   <section class="section" id="descargas">
-    <h2 class="section-title">Descargas</h2>
-    <p class="section-sub">App de cajero (punto de venta) y app de dueño (monitoreo y sucursales).</p>
-    <div class="downloads-wrap">
-      <div class="download-group">
-        <h3>App cajero (punto de venta)</h3>
+    <div class="section-header">
+      <h2 class="section-title">Descargas</h2>
+      <p class="section-sub downloads-intro">Elige la app que necesitas y tu sistema. Todo en un clic.</p>
+    </div>
+    <div class="downloads-grid">
+      <article class="download-card">
+        <p class="card-label">Para vender en caja</p>
+        <h3>App Cajero</h3>
+        <p class="card-desc">Punto de venta para registrar ventas, cobrar y manejar turnos en cada sucursal.</p>
+        <p class="card-label" style="margin-bottom:0.5rem;">Elige tu sistema</p>
         <div class="download-links">
           <a class="btn btn-primary" href="/download/cajero/windows">Windows</a>
           <a class="btn btn-outline" href="/download/cajero/appimage">Linux AppImage</a>
@@ -340,9 +424,12 @@ async def landing_page() -> str:
           <a class="btn btn-outline" href="/download/cajero/deb/arm64">Raspberry Pi</a>
           <a class="btn btn-outline" href="/download/cajero/apk">Android</a>
         </div>
-      </div>
-      <div class="download-group">
-        <h3>App dueño (monitoreo y sucursales)</h3>
+      </article>
+      <article class="download-card">
+        <p class="card-label">Para administrar tu negocio</p>
+        <h3>App Dueño</h3>
+        <p class="card-desc">Monitorea sucursales, ventas y licencias desde un solo lugar.</p>
+        <p class="card-label" style="margin-bottom:0.5rem;">Elige tu sistema</p>
         <div class="download-links">
           <a class="btn btn-primary" href="/download/owner/web">Web / PWA</a>
           <a class="btn btn-outline" href="/download/owner/windows">Windows</a>
@@ -350,11 +437,11 @@ async def landing_page() -> str:
           <a class="btn btn-outline" href="/download/owner/deb">Linux .deb</a>
           <a class="btn btn-outline" href="/download/owner/apk">Android</a>
         </div>
-      </div>
-      <div class="download-links" style="margin-top:1rem;">
-        <a class="btn btn-outline" href="/downloads">Ver todos los instaladores</a>
-        <a class="btn btn-outline" href="/health">Estado del servicio</a>
-      </div>
+      </article>
+    </div>
+    <div class="downloads-meta">
+      <a href="/downloads">Ver todos los instaladores</a>
+      <a href="/health">Estado del servicio</a>
     </div>
   </section>
   <section class="cta-band">
