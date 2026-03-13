@@ -2593,6 +2593,15 @@ export function isElectron(): boolean {
   return navigator.userAgent.includes('Electron')
 }
 
+/** True if running inside a Capacitor native app (Android/iOS). */
+export function isCapacitor(): boolean {
+  if (typeof window === 'undefined') return false
+  const cap = (window as Record<string, unknown>).Capacitor as
+    | { isNativePlatform?: () => boolean }
+    | undefined
+  return typeof cap?.isNativePlatform === 'function' && cap.isNativePlatform()
+}
+
 const HW_CACHE_KEY = 'pos.hwConfig'
 
 /** Read cached HardwareConfig from localStorage (null if missing/corrupt). */

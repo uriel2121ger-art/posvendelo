@@ -1,8 +1,9 @@
 import type { ReactElement } from 'react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useConfirm } from './ConfirmDialog'
-import { getLicenseStatus, loadRuntimeConfig, serverLogout } from '../posApi'
+import { getLicenseStatus, loadRuntimeConfig, serverLogout, isElectron, isCapacitor } from '../posApi'
+import UpdateBanner, { type UpdateBannerStatus } from './UpdateBanner'
 import {
   ShoppingCart,
   Box,
@@ -130,6 +131,92 @@ export default function TopNavbar(): ReactElement {
     }
   }, [])
 
+  // ── Desktop update banner (Electron localAgent) ──
+  const [updateStatus, setUpdateStatus] = useState<UpdateBannerStatus>(null)
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isElectron()) return
+    const api = (window as Window & { api?: { agent?: {
+      getStatus: () => Promise<Record<string, unknown>>
+      prepareAppUpdate: () => Promise<unknown>
+      applyAppUpdate: () => Promise<unknown>
+      discardAppUpdate: () => Promise<unknown>
+    } } }).api
+    if (!api?.agent) return
+
+    let cancelled = false
+    const poll = (): void => {
+      api.agent!.getStatus().then((st) => {
+        if (cancelled) return
+        const du = st.desktopUpdate as { status?: string; availableVersion?: string; lastError?: string } | undefined
+        if (!du || du.status === 'idle') {
+          setUpdateStatus(null)
+        } else {
+          setUpdateStatus(du.status as UpdateBannerStatus)
+          setUpdateVersion((du.availableVersion as string) ?? null)
+          setUpdateMessage(du.lastError ?? null)
+        }
+      }).catch(() => { /* agent unavailable */ })
+    }
+    poll()
+    const id = setInterval(poll, 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  const handleDesktopDownload = useCallback(() => {
+    const api = (window as Window & { api?: { agent?: { prepareAppUpdate: () => Promise<unknown> } } }).api
+    api?.agent?.prepareAppUpdate().catch(() => {})
+  }, [])
+  const handleDesktopInstall = useCallback(() => {
+    const api = (window as Window & { api?: { agent?: { applyAppUpdate: () => Promise<unknown> } } }).api
+    api?.agent?.applyAppUpdate().catch(() => {})
+  }, [])
+  const handleDesktopDiscard = useCallback(() => {
+    const api = (window as Window & { api?: { agent?: { discardAppUpdate: () => Promise<unknown> } } }).api
+    api?.agent?.discardAppUpdate().catch(() => {})
+  }, [])
+
+  // ── Android APK update banner (Capacitor) ──
+  const [apkStatus, setApkStatus] = useState<UpdateBannerStatus>(null)
+  const [apkVersion, setApkVersion] = useState<string | null>(null)
+  const [apkDownloadUrl, setApkDownloadUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isCapacitor()) return
+    let cancelled = false
+    const check = async (): Promise<void> => {
+      try {
+        const { checkApkUpdate } = await import('../lib/apkUpdater')
+        const cpUrl = localStorage.getItem('pos.controlPlaneUrl') ?? ''
+        const token = localStorage.getItem('pos.installToken') ?? ''
+        const currentVersion = localStorage.getItem('pos.appVersion') ?? '0.0.0'
+        if (!cpUrl || !token) return
+        const info = await checkApkUpdate(cpUrl, token, currentVersion)
+        if (cancelled) return
+        if (info.available) {
+          setApkStatus('available')
+          setApkVersion(info.version)
+          setApkDownloadUrl(info.downloadUrl)
+        } else {
+          setApkStatus(null)
+        }
+      } catch { /* ignore */ }
+    }
+    void check()
+    const id = setInterval(() => void check(), 5 * 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  const handleApkInstall = useCallback(() => {
+    if (!apkDownloadUrl) return
+    setApkStatus('downloading')
+    import('../lib/apkUpdater')
+      .then(({ downloadAndInstallApk }) => downloadAndInstallApk(apkDownloadUrl))
+      .catch(() => setApkStatus('error'))
+  }, [apkDownloadUrl])
+
   const [userName] = useState(() => {
     try {
       return localStorage.getItem('pos.user') || 'Usuario'
@@ -186,6 +273,26 @@ export default function TopNavbar(): ReactElement {
         <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold text-amber-200">
           {licenseBanner}
         </div>
+      )}
+      {isElectron() && (
+        <UpdateBanner
+          status={updateStatus}
+          version={updateVersion}
+          message={updateMessage}
+          onDownload={handleDesktopDownload}
+          onInstall={handleDesktopInstall}
+          onDiscard={handleDesktopDiscard}
+        />
+      )}
+      {isCapacitor() && (
+        <UpdateBanner
+          status={apkStatus}
+          version={apkVersion}
+          message={null}
+          onDownload={handleApkInstall}
+          onInstall={handleApkInstall}
+          onDiscard={() => setApkStatus(null)}
+        />
       )}
       <header className="h-14 bg-zinc-950 border-b border-zinc-900 flex items-center select-none">
         <div className="flex items-center w-full h-full px-3 gap-3 min-w-0">

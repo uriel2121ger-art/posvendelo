@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Building2,
   ChartColumn,
@@ -186,6 +186,96 @@ function OwnerShell(): ReactElement {
   const [priceForm, setPriceForm] = useState({ branchId: '', sku: '', newPrice: '' })
   const [newBranchName, setNewBranchName] = useState('')
 
+  // ── Desktop update banner (ownerUpdates IPC) ──
+  type OwnerUpdateStatus = 'available' | 'downloading' | 'staged' | 'applying' | 'error' | null
+  const [updateStatus, setUpdateStatus] = useState<OwnerUpdateStatus>(null)
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null)
+
+  const ownerUpdates = typeof window !== 'undefined'
+    ? (window as Window & { ownerUpdates?: {
+        getStatus: () => Promise<{ status: string; availableVersion?: string | null; lastError?: string | null }>
+        checkForUpdate: () => Promise<unknown>
+        downloadUpdate: () => Promise<unknown>
+        applyUpdate: () => Promise<unknown>
+        discardUpdate: () => Promise<unknown>
+      } }).ownerUpdates
+    : undefined
+
+  useEffect(() => {
+    if (!ownerUpdates) return
+    let cancelled = false
+    const poll = (): void => {
+      ownerUpdates.getStatus().then((st) => {
+        if (cancelled) return
+        if (st.status === 'idle' || st.status === 'checking') {
+          setUpdateStatus(null)
+        } else {
+          setUpdateStatus(st.status as OwnerUpdateStatus)
+          setUpdateVersion(st.availableVersion ?? null)
+          setUpdateMessage(st.lastError ?? null)
+        }
+      }).catch(() => {})
+    }
+    poll()
+    const id = setInterval(poll, 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleOwnerDownload = useCallback(() => {
+    ownerUpdates?.downloadUpdate().catch(() => {})
+  }, [ownerUpdates])
+  const handleOwnerInstall = useCallback(() => {
+    ownerUpdates?.applyUpdate().catch(() => {})
+  }, [ownerUpdates])
+  const handleOwnerDiscard = useCallback(() => {
+    ownerUpdates?.discardUpdate().catch(() => {})
+  }, [ownerUpdates])
+
+  // ── Android APK update banner (Capacitor) ──
+  const isCapacitor = typeof window !== 'undefined' &&
+    typeof (window as Record<string, unknown>).Capacitor === 'object' &&
+    typeof ((window as Record<string, unknown>).Capacitor as { isNativePlatform?: () => boolean })?.isNativePlatform === 'function' &&
+    ((window as Record<string, unknown>).Capacitor as { isNativePlatform: () => boolean }).isNativePlatform()
+
+  const [apkStatus, setApkStatus] = useState<OwnerUpdateStatus>(null)
+  const [apkVersion, setApkVersion] = useState<string | null>(null)
+  const [apkDownloadUrl, setApkDownloadUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isCapacitor) return
+    let cancelled = false
+    const check = async (): Promise<void> => {
+      try {
+        const { checkApkUpdate } = await import('./lib/apkUpdater')
+        const cpUrl = localStorage.getItem('owner.controlPlaneUrl') ?? ''
+        const token = localStorage.getItem('owner.installToken') ?? ''
+        const currentVersion = localStorage.getItem('owner.appVersion') ?? '0.0.0'
+        if (!cpUrl || !token) return
+        const info = await checkApkUpdate(cpUrl, token, currentVersion)
+        if (cancelled) return
+        if (info.available) {
+          setApkStatus('available')
+          setApkVersion(info.version)
+          setApkDownloadUrl(info.downloadUrl)
+        } else {
+          setApkStatus(null)
+        }
+      } catch { /* ignore */ }
+    }
+    void check()
+    const id = setInterval(() => void check(), 5 * 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [isCapacitor])
+
+  const handleApkInstall = useCallback(() => {
+    if (!apkDownloadUrl) return
+    setApkStatus('downloading')
+    import('./lib/apkUpdater')
+      .then(({ downloadAndInstallApk }) => downloadAndInstallApk(apkDownloadUrl))
+      .catch(() => setApkStatus('error'))
+  }, [apkDownloadUrl])
+
   const branches = useMemo(() => {
     const data = state.portfolio?.branches
     return Array.isArray(data) ? (data as Array<Record<string, unknown>>) : []
@@ -331,6 +421,80 @@ function OwnerShell(): ReactElement {
         </header>
 
         {message && <div className="banner">{message}</div>}
+
+        {ownerUpdates && updateStatus && (
+          <div
+            className="banner"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+              ...(updateStatus === 'error'
+                ? { borderColor: 'rgba(239,68,68,0.24)', background: 'rgba(239,68,68,0.12)', color: '#fca5a5' }
+                : updateStatus === 'staged'
+                  ? { borderColor: 'rgba(34,197,94,0.24)', background: 'rgba(34,197,94,0.12)', color: '#86efac' }
+                  : { borderColor: 'rgba(59,130,246,0.24)', background: 'rgba(59,130,246,0.12)', color: '#93c5fd' })
+            }}
+          >
+            {updateStatus === 'available' && (
+              <>
+                <span>Actualización v{updateVersion ?? '?'} disponible</span>
+                <button className="primary-button" style={{ padding: '2px 12px', fontSize: '12px' }} onClick={handleOwnerDownload}>
+                  Descargar
+                </button>
+              </>
+            )}
+            {updateStatus === 'downloading' && <span>Descargando actualización...</span>}
+            {updateStatus === 'staged' && (
+              <>
+                <span>Actualización v{updateVersion ?? '?'} lista para instalar</span>
+                <button className="primary-button" style={{ padding: '2px 12px', fontSize: '12px' }} onClick={handleOwnerInstall}>
+                  Instalar ahora
+                </button>
+                <button className="ghost-button" style={{ padding: '2px 12px', fontSize: '12px' }} onClick={handleOwnerDiscard}>
+                  Descartar
+                </button>
+              </>
+            )}
+            {updateStatus === 'applying' && <span>Instalando actualización...</span>}
+            {updateStatus === 'error' && (
+              <>
+                <span>Error al actualizar{updateMessage ? `: ${updateMessage}` : ''}</span>
+                <button className="ghost-button" style={{ padding: '2px 12px', fontSize: '12px' }} onClick={handleOwnerDownload}>
+                  Reintentar
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {isCapacitor && apkStatus && (
+          <div
+            className="banner"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+              ...(apkStatus === 'error'
+                ? { borderColor: 'rgba(239,68,68,0.24)', background: 'rgba(239,68,68,0.12)', color: '#fca5a5' }
+                : { borderColor: 'rgba(59,130,246,0.24)', background: 'rgba(59,130,246,0.12)', color: '#93c5fd' })
+            }}
+          >
+            {apkStatus === 'available' && (
+              <>
+                <span>Actualización v{apkVersion ?? '?'} disponible</span>
+                <button className="primary-button" style={{ padding: '2px 12px', fontSize: '12px' }} onClick={handleApkInstall}>
+                  Instalar
+                </button>
+              </>
+            )}
+            {apkStatus === 'downloading' && <span>Descargando actualización...</span>}
+            {apkStatus === 'error' && (
+              <>
+                <span>Error al descargar actualización</span>
+                <button className="ghost-button" style={{ padding: '2px 12px', fontSize: '12px' }} onClick={handleApkInstall}>
+                  Reintentar
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {section === 'dashboard' && (
           <section className="content-grid">
