@@ -72,7 +72,7 @@ if [ "$TABLE_EXISTS" = "no" ]; then
     SCHEMA_FILE="/app/db/schema.sql"
     if [ -f "$SCHEMA_FILE" ]; then
         python3 -c "
-import asyncio, asyncpg, os
+import asyncio, asyncpg, os, re, glob
 dsn = os.environ.get('DB_DSN', '')
 async def apply():
     conn = await asyncpg.connect(dsn)
@@ -83,6 +83,34 @@ async def apply():
     finally:
         await conn.close()
 asyncio.run(apply())
+"
+        # Marcar migraciones 1..N como aplicadas para no ejecutar 48 archivos en instalación nueva
+        python3 -c "
+import asyncio, asyncpg, os, re, glob
+dsn = os.environ.get('DB_DSN', '')
+migrations_dir = '/app/migrations'
+def max_migration_version():
+    versions = []
+    for f in glob.glob(os.path.join(migrations_dir, '*.sql')):
+        m = re.match(r'(\d+)_', os.path.basename(f))
+        if m:
+            versions.append(int(m.group(1)))
+    return max(versions) if versions else 0
+async def mark_applied():
+    conn = await asyncpg.connect(dsn)
+    try:
+        max_ver = max_migration_version()
+        if max_ver > 0:
+            await conn.execute('''
+                INSERT INTO schema_version (version, description)
+                SELECT g, 'Consolidated pre-production (schema.sql)'
+                FROM generate_series(1, \$1) AS g
+                ON CONFLICT (version) DO NOTHING
+            ''', max_ver)
+            print(f'[ENTRYPOINT] Marked migrations 1-{max_ver} as applied (skip incremental run)')
+    finally:
+        await conn.close()
+asyncio.run(mark_applied())
 "
     else
         echo "[ENTRYPOINT] WARNING: Schema file not found at ${SCHEMA_FILE}"

@@ -65,7 +65,7 @@ backend/
 │   ├── sat/                 # Búsqueda catálogos SAT (2)
 │   ├── fiscal/              # CFDI 4.0, Facturapi, emisores, facturas (40)
 │   └── shared/              # auth.py (verify_token), rate_limit.py
-├── migrations/              # 18 archivos SQL (001→025)
+├── migrations/              # SQL versionados (001–048); instalación nueva vía schema.sql + marca aplicadas
 ├── tests/                   # 181 tests de integración
 │   ├── conftest.py          # Fixtures: DB, auth, seeds
 │   ├── test_sales.py        # 25 tests (saga, cancel, search)
@@ -133,7 +133,7 @@ Roles: `admin` > `manager` > `cashier` > `owner`
 
 ### Migraciones
 
-18 archivos SQL en `migrations/`. Se aplican automáticamente al iniciar la app (lifespan).
+Archivos SQL en `migrations/` (001 a 048). En **instalación nueva** el entrypoint aplica primero `db/schema.sql` (esquema completo) y marca las versiones 1..N como aplicadas, así `db/migrate.py` no ejecuta los N archivos de forma incremental. En bases ya existentes, `migrate.py` solo aplica las migraciones pendientes. Ver `db/migrate.py` y `memory/error-playbook.md` (ERR-003).
 
 ## Tests
 
