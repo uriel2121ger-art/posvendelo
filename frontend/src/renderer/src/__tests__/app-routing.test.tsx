@@ -80,7 +80,13 @@ vi.mock('../posApi', () => ({
   pullTable: vi.fn().mockResolvedValue([]),
   getInitialSetupStatus: vi.fn().mockResolvedValue({ completed: true }),
   checkNeedsFirstUser: vi.fn().mockResolvedValue(false),
-  setupOwnerUser: vi.fn().mockResolvedValue({ token: 'test', role: 'admin' })
+  setupOwnerUser: vi.fn().mockResolvedValue({ token: 'test', role: 'admin' }),
+  getHardwareConfig: vi.fn().mockResolvedValue({
+    printer: { name: '', enabled: false, paper_width: 80, char_width: 48, auto_print: false, mode: 'basic', cut_type: 'partial' },
+    business: { name: '', legal_name: '', address: '', rfc: '', regimen: '', phone: '', footer: '' },
+    scanner: { enabled: false, prefix: '', suffix: '', min_speed_ms: 50, auto_submit: true },
+    drawer: { enabled: false, printer_name: '', auto_open_cash: true, auto_open_card: false, auto_open_transfer: false }
+  })
 }))
 
 // App usa HashRouter internamente, así que importamos directo

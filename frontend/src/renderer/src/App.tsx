@@ -15,6 +15,7 @@ import {
   loadRuntimeConfig,
   createCashMovement,
   openDrawerForSale,
+  getHardwareConfig,
   pullTable,
   getInitialSetupStatus,
   checkNeedsFirstUser,
@@ -643,6 +644,22 @@ function RoutedApp(): ReactElement {
       events.forEach((e) => window.removeEventListener(e, resetTimer))
     }
   }, [navigate])
+
+  // Pre-cargar hwConfig al iniciar si tiene token y no existe en localStorage
+  // Esto asegura que el cajón/impresora funcionen sin visitar Configuración primero
+  useEffect(() => {
+    if (!hasToken) return
+    try {
+      const cached = localStorage.getItem('pos.hwConfig')
+      if (cached) return // ya existe
+    } catch { /* ignore */ }
+    const cfg = loadRuntimeConfig()
+    getHardwareConfig(cfg)
+      .then((data) => {
+        try { localStorage.setItem('pos.hwConfig', JSON.stringify(data)) } catch { /* quota */ }
+      })
+      .catch(() => { /* backend not ready yet — non-fatal */ })
+  }, [hasToken])
 
   // Sincronizar hasToken + shiftResolved cuando otra pestaña modifica el storage
   useEffect((): (() => void) => {
