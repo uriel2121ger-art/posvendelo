@@ -1,6 +1,6 @@
 {
   "name": "posvendelo",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "POSVENDELO desktop app for retail operations in Mexico",
   "homepage": "https://github.com/uriel2121ger-art/posvendelo",
   "main": "./out/main/index.js",
