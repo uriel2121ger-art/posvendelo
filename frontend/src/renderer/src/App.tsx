@@ -151,11 +151,10 @@ function _isTokenStructureValid(token: string): boolean {
   }
 }
 
-/** True si la app corre en WebView nativo (Capacitor, APK). */
-function isNativePlatform(): boolean {
+/** True si la app corre en Electron desktop. */
+function isElectron(): boolean {
   if (typeof window === 'undefined') return false
-  const cap = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
-  return cap?.isNativePlatform?.() === true
+  return navigator.userAgent.includes('Electron')
 }
 
 /** Si no hay token, decidir si mostrar primero Configurar servidor (APK/primera vez) en vez de Login. */
@@ -169,15 +168,17 @@ function needServerConfigFirst(): boolean {
     return true
   }
   if (token && _isTokenStructureValid(token)) return false
-  // En app nativa (APK) siempre mostrar configurar servidor primero si no hay URL guardada
-  if (isNativePlatform()) return !saved || !saved.trim()
-  // Desktop: auto-asignar default sincronamente si no hay URL.
-  // Esto DEBE pasar aqui (no en useLayoutEffect) porque RequireAuth evalua
-  // durante el render, antes de que los effects corran.
-  if (!saved || !saved.trim()) {
-    const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
-    localStorage.setItem('pos.baseUrl', defaultUrl)
+  // Solo Electron desktop puede asumir localhost:8000 (backend local Docker).
+  if (isElectron()) {
+    if (!saved || !saved.trim()) {
+      const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
+      localStorage.setItem('pos.baseUrl', defaultUrl)
+    }
+    return false
   }
+  // APK/nativo/PWA: siempre requerir configurar servidor si no hay URL útil guardada
+  if (!saved || !saved.trim()) return true
+  if (saved.includes('localhost') || saved.includes('127.0.0.1')) return true
   return false
 }
 
@@ -523,16 +524,15 @@ function RoutedApp(): ReactElement {
   })
 
   // Wizard inicial obligatorio: si no hay servidor configurado, ir a Configurar servidor.
-  // En desktop (Electron), needServerConfigFirst() ya auto-asigna el default.
-  // Solo en APK/móvil (nativo) se fuerza la pantalla de configurar servidor.
+  // En Electron desktop, needServerConfigFirst() ya auto-asigna localhost:8000.
+  // En APK/PWA, siempre mostrar configurar servidor si no hay URL útil.
   useLayoutEffect(() => {
     if (location.pathname === '/configurar-servidor') return
     try {
       const saved = localStorage.getItem('pos.baseUrl')
       const token = localStorage.getItem('pos.token')
-      // En APK/nativo: si no hay token Y no hay URL (o URL es localhost que no sirve en móvil),
-      // siempre mostrar configurar servidor para que el usuario ingrese la IP del servidor LAN.
-      if (isNativePlatform() && (!token || !token.trim())) {
+      // No-Electron (APK/PWA): si no hay token válido y no hay URL útil, pedir config
+      if (!isElectron() && (!token || !token.trim())) {
         if (!saved || !saved.trim() || saved.includes('localhost') || saved.includes('127.0.0.1')) {
           navigate('/configurar-servidor', { replace: true })
           return

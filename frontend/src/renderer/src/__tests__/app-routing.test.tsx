@@ -87,13 +87,26 @@ vi.mock('../posApi', () => ({
 import App from '../App'
 
 describe('App Routing', () => {
+  const originalUserAgent = navigator.userAgent
+
   beforeEach(() => {
     clearAuth()
     vi.restoreAllMocks()
+    // Simular Electron para que la detección desktop funcione en tests
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 Electron/39.6.1',
+      writable: true,
+      configurable: true
+    })
   })
 
   afterEach(() => {
     clearAuth()
+    Object.defineProperty(navigator, 'userAgent', {
+      value: originalUserAgent,
+      writable: true,
+      configurable: true
+    })
   })
 
   it('redirige a /login sin token cuando ya hay servidor configurado', async () => {

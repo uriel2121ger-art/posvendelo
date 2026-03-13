@@ -104,9 +104,9 @@
     DetailPrint "Generando .env con credenciales seguras..."
     ; Escribir script PS1 temporal para evitar escaping NSIS/PowerShell
     FileOpen $1 "$TEMP\posvendelo-genenv.ps1" w
+    FileWrite $1 'param([string]$$envPath)$\r$\n'
     FileWrite $1 '$$jwtSecret = -join ((1..64) | ForEach-Object { "{0:x}" -f (Get-Random -Maximum 16) })$\r$\n'
     FileWrite $1 '$$dbPass = -join ((1..32) | ForEach-Object { [char](Get-Random -Minimum 65 -Maximum 123) })$\r$\n'
-    FileWrite $1 '$$envPath = [System.Environment]::GetCommandLineArgs()[-1]$\r$\n'
     FileWrite $1 '$$lines = @($\r$\n'
     FileWrite $1 '  "POSTGRES_PASSWORD=$$dbPass",$\r$\n'
     FileWrite $1 '  ("DATABASE_URL=postgresql+asyncpg://posvendelo_user:" + $$dbPass + "@postgres:5432/posvendelo"),$\r$\n'

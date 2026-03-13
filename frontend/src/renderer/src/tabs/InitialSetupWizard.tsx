@@ -114,7 +114,6 @@ export default function InitialSetupWizard({ onSetupCompleted }: InitialSetupWiz
     setBusy(true)
     try {
       await completeInitialSetup(cfg, payload)
-      setMessage('Configuración inicial guardada. Ya puedes operar el POS.')
       onSetupCompleted?.()
       navigate('/terminal', { replace: true })
     } catch (err) {

@@ -17,15 +17,13 @@ export default function Login(): ReactElement {
     ? `V ${POS_RELEASE_LABEL} • ${POS_APP_LABEL}`
     : POS_APP_LABEL
 
-  // Redirigir al wizard si nunca se ha guardado una URL y estamos en APK/móvil.
-  // En desktop, App.tsx ya auto-configura el default.
+  // Redirigir a configurar servidor si no hay URL guardada y no estamos en Electron.
+  // Solo Electron puede asumir localhost:8000 (backend Docker local).
   useEffect(() => {
     try {
       const saved = localStorage.getItem('pos.baseUrl')
       if (saved != null && saved.trim() !== '') return
-      // Desktop: auto-set default URL instead of redirecting
-      const cap = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
-      if (cap?.isNativePlatform?.() !== true) {
+      if (navigator.userAgent.includes('Electron')) {
         localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8000')
         return
       }
