@@ -50,6 +50,7 @@ jobs:
             ${{ env.GHCR_IMAGE }}:latest
 
       - name: Registrar backend en control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -109,6 +110,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir AppImage al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -125,6 +127,7 @@ jobs:
             "${CP_URL}/api/v1/releases/upload"
 
       - name: Subir .deb al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -141,6 +144,7 @@ jobs:
             "${CP_URL}/api/v1/releases/upload"
 
       - name: Subir .flatpak al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -204,6 +208,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir .exe al control-plane
+        continue-on-error: true
         shell: bash
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
@@ -283,6 +288,7 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Subir APK al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -338,6 +344,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir AppImage al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -354,6 +361,7 @@ jobs:
             "${CP_URL}/api/v1/releases/upload"
 
       - name: Subir .deb al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
@@ -412,6 +420,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir .exe al control-plane
+        continue-on-error: true
         shell: bash
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
@@ -490,6 +499,7 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Subir APK al control-plane
+        continue-on-error: true
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
