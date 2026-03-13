@@ -22,7 +22,8 @@ import {
   closeTurn,
   getTurnSummary,
   createCashMovement,
-  printShiftReport
+  printShiftReport,
+  openDrawerForSale
 } from '../posApi'
 import {
   type ShiftRecord,
@@ -250,6 +251,17 @@ export default function ShiftsTab(): ReactElement {
       setNotes('')
       setSelectedShiftId(closed.id)
       setMessage(`Turno cerrado en backend. Diferencia: $${differenceFromBackend.toFixed(2)}`)
+
+      // Open cash drawer on turn close (fire-and-forget)
+      try {
+        const hwRaw = localStorage.getItem('pos.hwConfig')
+        if (hwRaw) {
+          const hwCfg = JSON.parse(hwRaw)
+          if (hwCfg?.drawer?.enabled) {
+            openDrawerForSale(cfg).catch(() => {})
+          }
+        }
+      } catch { /* non-fatal */ }
     } catch (error) {
       setMessage((error as Error).message)
     } finally {

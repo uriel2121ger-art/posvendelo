@@ -385,7 +385,7 @@ async def test_drawer(
     _require_admin(auth)
     cfg = await _get_hw_config(db)
 
-    drawer_printer = cfg.get("printer_name", "")
+    drawer_printer = cfg.get("printer_name", "") or cfg.get("receipt_printer_name", "")
     if not drawer_printer:
         raise HTTPException(status_code=400, detail="Impresora de cajón no configurada")
 
@@ -463,7 +463,7 @@ async def open_drawer_for_sale(
     if not cfg.get("cash_drawer_enabled"):
         return {"success": True, "data": {"message": "Cajon no habilitado", "opened": False}}
 
-    drawer_printer = cfg.get("printer_name", "")
+    drawer_printer = cfg.get("printer_name", "") or cfg.get("receipt_printer_name", "")
     if not drawer_printer:
         return {"success": True, "data": {"message": "Impresora no configurada", "opened": False}}
 
