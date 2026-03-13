@@ -677,28 +677,28 @@ export default function SettingsTab({
                     {String(agentStatus.currentAppVersion ?? '—')}
                   </span>
                 </div>
-                {agentStatus.lastManifestCheckAt && (
+                {agentStatus.lastManifestCheckAt ? (
                   <div>
                     Última comprobación:{' '}
                     <span className="text-zinc-300">
                       {new Date(String(agentStatus.lastManifestCheckAt)).toLocaleString('es-MX')}
                     </span>
                   </div>
-                )}
-                {agentStatus.lastManifestError && (
+                ) : null}
+                {agentStatus.lastManifestError ? (
                   <p className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-rose-400 text-xs">
                     {String(agentStatus.lastManifestError)}
                   </p>
-                )}
-                {agentStatus.appUpdateAvailable && (
+                ) : null}
+                {agentStatus.appUpdateAvailable ? (
                   <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
                     <p className="font-medium text-emerald-400 mb-2">
                       Hay una actualización disponible
-                      {agentStatus.availableAppVersion && (
+                      {agentStatus.availableAppVersion ? (
                         <span className="font-mono ml-1">
                           (versión {String(agentStatus.availableAppVersion)})
                         </span>
-                      )}
+                      ) : null}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {agentStatus.desktopUpdate &&
@@ -725,17 +725,17 @@ export default function SettingsTab({
                       )}
                     </div>
                   </div>
-                )}
+                ) : null}
                 {agentStatus.desktopUpdate &&
-                  ['downloading', 'staged'].includes(
-                    String((agentStatus.desktopUpdate as Record<string, unknown>).status)
-                  ) && (
-                    <p className="text-xs text-zinc-500">
-                      {(agentStatus.desktopUpdate as Record<string, unknown>).status === 'downloading'
-                        ? 'Descargando…'
-                        : 'Lista para instalar. Haz clic en "Instalar ahora".'}
-                    </p>
-                  )}
+                ['downloading', 'staged'].includes(
+                  String((agentStatus.desktopUpdate as Record<string, unknown>).status)
+                ) ? (
+                  <p className="text-xs text-zinc-500">
+                    {(agentStatus.desktopUpdate as Record<string, unknown>).status === 'downloading'
+                      ? 'Descargando…'
+                      : 'Lista para instalar. Haz clic en "Instalar ahora".'}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
