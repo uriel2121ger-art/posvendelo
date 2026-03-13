@@ -110,3 +110,4 @@ owner-app/dist/
 __pycache__/
 .pytest_cache/
 
+*.jks

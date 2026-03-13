@@ -51,10 +51,17 @@ jobs:
           fi
           echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build y push imagen Docker
+      - name: Configurar QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build y push imagen Docker (amd64 + arm64)
         uses: docker/build-push-action@v6
         with:
           context: backend
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.GHCR_IMAGE }}:${{ steps.ver.outputs.VERSION }}
@@ -197,6 +204,56 @@ jobs:
             frontend/dist/*.flatpak
 
 # ─────────────────────────────────────────────────────────────────────────────
+# JOB 2b: Frontend Linux ARM64 — .deb para Raspberry Pi
+# ─────────────────────────────────────────────────────────────────────────────
+  build-frontend-linux-arm64:
+    name: "Frontend Linux ARM64 — deb (Raspberry Pi)"
+    runs-on: ubuntu-latest
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Extraer version del tag
+        id: ver
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: frontend
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Build Linux ARM64 (.deb)
+        working-directory: frontend
+        run: npm run build:linux:arm64
+
+      - name: Guardar artifact para GitHub Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: posvendelo-linux-arm64
+          path: frontend/dist/*arm64.deb
+
+# ─────────────────────────────────────────────────────────────────────────────
 # JOB 3: Frontend Windows — NSIS .exe
 # ─────────────────────────────────────────────────────────────────────────────
   build-frontend-windows:
@@ -325,11 +382,20 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
-      - name: Build APK release
+      - name: Decodificar keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/posvendelo-release.jks
+
+      - name: Build APK release (firmado)
         working-directory: frontend/android
         env:
           APK_VERSION_NAME: ${{ steps.ver.outputs.VERSION }}
           APK_VERSION_CODE: ${{ steps.ver.outputs.VERSION_CODE }}
+          KEYSTORE_PATH: /tmp/posvendelo-release.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
       - name: Subir APK al control-plane
@@ -338,7 +404,7 @@ jobs:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
         run: |
-          APK="frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          APK="frontend/android/app/build/outputs/apk/release/app-release.apk"
           echo "APK encontrado: $APK"
           curl -sf --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
@@ -570,11 +636,20 @@ jobs:
         working-directory: owner-app
         run: npx cap sync android
 
-      - name: Build APK release
+      - name: Decodificar keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/posvendelo-release.jks
+
+      - name: Build APK release (firmado)
         working-directory: owner-app/android
         env:
           APK_VERSION_NAME: ${{ steps.ver.outputs.VERSION }}
           APK_VERSION_CODE: ${{ steps.ver.outputs.VERSION_CODE }}
+          KEYSTORE_PATH: /tmp/posvendelo-release.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
       - name: Subir APK al control-plane
@@ -583,7 +658,7 @@ jobs:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
         run: |
-          APK="owner-app/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          APK="owner-app/android/app/build/outputs/apk/release/app-release.apk"
           echo "APK encontrado: $APK"
           curl -sf --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
@@ -609,6 +684,7 @@ jobs:
     needs:
       - build-backend
       - build-frontend-linux
+      - build-frontend-linux-arm64
       - build-frontend-windows
       - build-frontend-android
       - build-owner-linux
@@ -625,6 +701,13 @@ jobs:
         with:
           name: posvendelo-linux
           path: release-artifacts/linux
+
+      - name: Descargar artifacts Linux ARM64
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: posvendelo-linux-arm64
+          path: release-artifacts/linux-arm64
 
       - name: Descargar artifacts Windows frontend
         uses: actions/download-artifact@v4
@@ -664,12 +747,12 @@ jobs:
       - name: Renombrar APKs para evitar conflicto de nombres
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if [ -f release-artifacts/android-cajero/app-release-unsigned.apk ]; then
-            mv release-artifacts/android-cajero/app-release-unsigned.apk \
+          if [ -f release-artifacts/android-cajero/app-release.apk ]; then
+            mv release-artifacts/android-cajero/app-release.apk \
                release-artifacts/android-cajero/posvendelo-cajero-${VERSION}.apk
           fi
-          if [ -f release-artifacts/owner-android/app-release-unsigned.apk ]; then
-            mv release-artifacts/owner-android/app-release-unsigned.apk \
+          if [ -f release-artifacts/owner-android/app-release.apk ]; then
+            mv release-artifacts/owner-android/app-release.apk \
                release-artifacts/owner-android/posvendelo-owner-${VERSION}.apk
           fi
 
@@ -691,6 +774,7 @@ jobs:
             release-artifacts/linux/*.AppImage
             release-artifacts/linux/*.deb
             release-artifacts/linux/*.flatpak
+            release-artifacts/linux-arm64/*.deb
             release-artifacts/windows/*setup.exe
             release-artifacts/android-cajero/*.apk
             release-artifacts/owner-linux/*.AppImage
