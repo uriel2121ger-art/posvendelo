@@ -605,7 +605,7 @@ jobs:
 # ─────────────────────────────────────────────────────────────────────────────
   publish-github-release:
     name: "Publicar GitHub Release"
-    if: ${{ !cancelled() }}
+    if: always()
     needs:
       - build-backend
       - build-frontend-linux
