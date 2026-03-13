@@ -46,6 +46,7 @@ import { ConfirmProvider } from './components/ConfirmDialog'
 import Layout from './components/Layout'
 import CompanionLayout from './components/CompanionLayout'
 import { useFocusTrap } from './hooks/useFocusTrap'
+import { Check } from 'lucide-react'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -323,7 +324,9 @@ function CashMovementModal({
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <div className="w-full max-w-sm rounded-2xl border border-emerald-700 bg-zinc-900 p-8 shadow-2xl text-center">
-          <div className="text-5xl mb-4">&#9989;</div>
+          <div className="mb-4 flex justify-center">
+            <Check className="h-14 w-14 text-emerald-400" strokeWidth={2.5} aria-hidden />
+          </div>
           <h2 className="text-lg font-bold text-emerald-400 mb-2">Operación exitosa</h2>
           <p className="text-zinc-300 font-semibold mb-1">{successMsg}</p>
           <p className="text-zinc-500 text-sm">Cajón de dinero abierto</p>

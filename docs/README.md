@@ -25,6 +25,8 @@ Indice por categoria. Documentos activos en subcarpetas. Archivos supersedidos e
 | [DESPUES_DE_DEPLOY.md](operacion/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de cache tras deploy. |
 | [SECURITY_CHECKLIST.md](operacion/SECURITY_CHECKLIST.md) | Checklist de seguridad y controles. |
 | [CHECKLIST_SALIDA_MERCADO_GA.md](operacion/CHECKLIST_SALIDA_MERCADO_GA.md) | Checklist salida a mercado (trial 120 dias). |
+| [HOMELAB.md](operacion/HOMELAB.md) | Homelab (servidor central 192.168.10.90): control-plane, Watchtower, downloads, SSH `prod`, despliegue. |
+| [AUDITORIA_HOMELAB.md](operacion/AUDITORIA_HOMELAB.md) | Auditoria del servidor central: Docker, health, puertos, disco, seguridad, logs; checklist y comandos. |
 
 ---
 
@@ -73,6 +75,14 @@ E2E Playwright: ver [frontend/e2e/README.md](../frontend/e2e/README.md) y `npm r
 | [AUDITORIA_COMPLETA.md](informes/AUDITORIA_COMPLETA.md) | Auditoria completa del proyecto. |
 | [PENDIENTES_APLICADOS.md](informes/PENDIENTES_APLICADOS.md) | Pendientes resueltos. |
 | [VERIFICACION_20_RONDAS.md](informes/VERIFICACION_20_RONDAS.md) | Verificacion 20 rondas. |
+
+---
+
+## Memoria (raíz del repo)
+
+| Documento | Descripcion |
+|-----------|-------------|
+| [memory/error-playbook.md](../memory/error-playbook.md) | Playbook de errores: ID, sintoma, causa raiz, solucion, leccion. Consultar antes de investigar un bug. |
 
 ---
 

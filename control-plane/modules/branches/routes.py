@@ -346,10 +346,25 @@ async def report_install_status(
     return {"success": True, "data": updated}
 
 
+async def _get_install_token(
+    request: Request,
+    install_token: str | None = Query(default=None, min_length=8),
+) -> str:
+    """Acepta install_token por query o por header (Authorization Bearer / X-Install-Token)."""
+    if install_token and len(install_token) >= 8:
+        return install_token
+    token_dict = await verify_install_token(
+        request.headers.get("Authorization"),
+        request.headers.get("X-Install-Token"),
+    )
+    return token_dict["install_token"]
+
+
 @router.get("/bootstrap-config")
 async def get_bootstrap_config(
-    install_token: str = Query(..., min_length=8),
+    request: Request,
     db=Depends(get_db),
+    install_token: str = Depends(_get_install_token),
 ):
     branch = await db.fetchrow(
         """
@@ -431,8 +446,9 @@ async def get_bootstrap_config(
 
 @router.get("/compose-template", response_class=PlainTextResponse)
 async def get_compose_template(
-    install_token: str = Query(..., min_length=8),
+    request: Request,
     db=Depends(get_db),
+    install_token: str = Depends(_get_install_token),
 ):
     branch = await db.fetchrow(
         "SELECT id, cloud_activated, tunnel_token FROM branches WHERE install_token = :install_token",

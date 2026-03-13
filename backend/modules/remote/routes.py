@@ -207,10 +207,10 @@ async def get_turn_status(auth: dict = Depends(verify_token), db=Depends(get_db)
             "started_at": turn["start_timestamp"],
             "initial_cash": money(turn["initial_cash"]),
             "sales_count": int(summary["sales_count"]) if summary else 0,
-            "cash_sales": money(summary["cash_sales"]) if summary else 0.0,
-            "card_sales": money(summary["card_sales"]) if summary else 0.0,
-            "transfer_sales": money(summary["transfer_sales"]) if summary else 0.0,
-            "total_sales": money(summary["total_sales"]) if summary else 0.0,
+            "cash_sales": money(summary["cash_sales"]) if summary else money(Decimal("0")),
+            "card_sales": money(summary["card_sales"]) if summary else money(Decimal("0")),
+            "transfer_sales": money(summary["transfer_sales"]) if summary else money(Decimal("0")),
+            "total_sales": money(summary["total_sales"]) if summary else money(Decimal("0")),
         },
     }
 

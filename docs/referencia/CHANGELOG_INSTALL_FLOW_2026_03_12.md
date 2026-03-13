@@ -165,8 +165,9 @@ automaticamente a `/setup-inicial-usuario`:
 
 ### Homelab auto-deploy
 
-- **Script:** `/opt/posvendelo/auto-deploy.sh` (cron cada 5 min)
-- **Flujo:** git fetch → detecta commits nuevos → pull → Watchtower signal → rebuild control-plane → copy installers
+- **Servidor homelab (nodo central):** 192.168.10.90; alias SSH `prod`. Ver [docs/operacion/HOMELAB.md](../../operacion/HOMELAB.md).
+- **Script en el homelab:** `/opt/posvendelo/auto-deploy.sh` (cron cada 5 min). En el repo hay una plantilla: `scripts/homelab-auto-deploy.example.sh`.
+- **Flujo:** git fetch → detecta commits nuevos → pull → rebuild control-plane → (opcional) Watchtower --run-once
 - **Watchtower:** auto-pulls `ghcr.io/uriel2121ger-art/posvendelo:latest`
 
 ### Control-plane downloads
@@ -176,12 +177,13 @@ automaticamente a `/setup-inicial-usuario`:
 - Tamanos dinamicos via `_file_size_mb()`
 - Headers: `Cache-Control: no-cache, must-revalidate` + ETag
 
-### Build artifacts
+### Build artifacts (copia manual al homelab .90)
 
 ```bash
+export HOMELAB_HOST="${HOMELAB_HOST:-192.168.10.90}"
 cd frontend && npm run build:linux
-scp dist/posvendelo_amd64.deb user@<HOMELAB_IP>:/path/to/control-plane/downloads/
-scp dist/posvendelo.AppImage user@<HOMELAB_IP>:/path/to/control-plane/downloads/
+scp dist/posvendelo_amd64.deb "user@${HOMELAB_HOST}:/path/to/control-plane/downloads/"
+scp dist/posvendelo.AppImage "user@${HOMELAB_HOST}:/path/to/control-plane/downloads/"
 ```
 
 ---
