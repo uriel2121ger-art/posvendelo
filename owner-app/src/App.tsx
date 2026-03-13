@@ -234,9 +234,9 @@ function OwnerShell(): ReactElement {
 
   // ── Android APK update banner (Capacitor) ──
   const isCapacitor = typeof window !== 'undefined' &&
-    typeof (window as Record<string, unknown>).Capacitor === 'object' &&
-    typeof ((window as Record<string, unknown>).Capacitor as { isNativePlatform?: () => boolean })?.isNativePlatform === 'function' &&
-    ((window as Record<string, unknown>).Capacitor as { isNativePlatform: () => boolean }).isNativePlatform()
+    'Capacitor' in window &&
+    typeof (window.Capacitor as { isNativePlatform?: () => boolean })?.isNativePlatform === 'function' &&
+    (window.Capacitor as { isNativePlatform: () => boolean }).isNativePlatform()
 
   const [apkStatus, setApkStatus] = useState<OwnerUpdateStatus>(null)
   const [apkVersion, setApkVersion] = useState<string | null>(null)

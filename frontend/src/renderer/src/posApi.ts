@@ -2605,7 +2605,8 @@ export function isElectron(): boolean {
 /** True if running inside a Capacitor native app (Android/iOS). */
 export function isCapacitor(): boolean {
   if (typeof window === 'undefined') return false
-  const cap = (window as Record<string, unknown>).Capacitor as
+  if (!('Capacitor' in window)) return false
+  const cap = (window as unknown as Record<string, unknown>).Capacitor as
     | { isNativePlatform?: () => boolean }
     | undefined
   return typeof cap?.isNativePlatform === 'function' && cap.isNativePlatform()

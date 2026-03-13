@@ -1,5 +1,8 @@
 FROM python:3.13-slim
 
+LABEL org.opencontainers.image.source="https://github.com/uriel2121ger-art/titan-pos"
+LABEL org.opencontainers.image.description="POSVENDELO backend API"
+
 WORKDIR /app
 
 # System deps for lxml/signxml (CFDI)

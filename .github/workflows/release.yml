@@ -89,11 +89,18 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Instalar flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+
       - name: Instalar dependencias
         working-directory: frontend
         run: npm ci
 
-      - name: Build Linux (AppImage + deb)
+      - name: Build Linux (AppImage + deb + flatpak)
         working-directory: frontend
         run: npm run build:linux
 
@@ -133,6 +140,26 @@ jobs:
             -F "file=@${DEB}" \
             "${CP_URL}/api/v1/releases/upload"
 
+      - name: Subir .flatpak al control-plane
+        env:
+          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          FLATPAK=$(find frontend/dist -name "*.flatpak" | head -1)
+          if [ -n "$FLATPAK" ]; then
+            echo ".flatpak encontrado: $FLATPAK"
+            curl -sf --max-time 300 \
+              -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
+              -F "platform=desktop" \
+              -F "artifact=electron-linux-flatpak" \
+              -F "version=${VERSION}" \
+              -F "channel=stable" \
+              -F "file=@${FLATPAK}" \
+              "${CP_URL}/api/v1/releases/upload"
+          else
+            echo "No .flatpak found, skipping upload"
+          fi
+
       - name: Guardar artifacts para GitHub Release
         uses: actions/upload-artifact@v4
         with:
@@ -140,6 +167,7 @@ jobs:
           path: |
             frontend/dist/*.AppImage
             frontend/dist/*.deb
+            frontend/dist/*.flatpak
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 3: Frontend Windows — NSIS .exe
