@@ -213,9 +213,9 @@ async def get_sat_count(db) -> int:
 
 
 async def seed_sat_catalog(db) -> int:
-    """Insert COMMON_CODES if table is empty. Returns count inserted."""
+    """Insert COMMON_CODES if table has fewer than expected. Returns count inserted."""
     count = await get_sat_count(db)
-    if count > 0:
+    if count >= len(COMMON_CODES):
         logger.info("SAT catalog already seeded (%d codes), skipping", count)
         return 0
 

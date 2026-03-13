@@ -46,9 +46,10 @@ class CalculatedItem:
     product_id: Optional[int]
     name: str
     qty: Decimal
-    unit_price: Decimal       # after tax strip
-    line_discount: Decimal    # after tax strip
-    line_total: Decimal
+    unit_price: Decimal       # price sin IVA (para desglose fiscal en DB)
+    line_discount: Decimal    # descuento sin IVA
+    line_total: Decimal       # subtotal sin IVA de esta linea
+    line_total_with_tax: Decimal  # total con IVA (precio original × qty - descuento)
     sat_clave: str
     is_common: bool
     is_kit: bool
@@ -60,6 +61,10 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
     Single source of truth — used by both totals calculation and item insertion.
     Non-common products ALWAYS use the DB price to prevent price forgery.
     Common products (no product_id, SKU COM-/COMUN-) use the client-provided price.
+
+    Para evitar errores de redondeo acumulativo cuando price_includes_tax=true,
+    se calcula line_total_with_tax con el precio original (con IVA) y el desglose
+    fiscal se hace UNA sola vez sobre el total final de la venta.
     """
     prod = locked_map.get(item.product_id, {}) if item.product_id else {}
     sku = prod.get("sku", "") or ""
@@ -67,42 +72,61 @@ def _calculate_item(item: SaleItemCreate, locked_map: Dict) -> CalculatedItem:
     is_kit = prod.get("is_kit", 0) == 1
 
     if is_common:
-        # Common/misc products: trust client price (no DB record to look up)
         price = dec(item.price)
         if item.is_wholesale and item.price_wholesale is not None:
             price = dec(item.price_wholesale)
     else:
-        # Regular products: ALWAYS use DB price to prevent price forgery
         if item.is_wholesale:
             price = dec(prod.get("price_wholesale") or prod.get("price") or 0)
         else:
             price = dec(prod.get("price") or 0)
 
     includes_tax = item.price_includes_tax and price > 0
-    if includes_tax:
-        price = (price / (1 + TAX_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
     raw_disc = dec(item.discount)
-    if abs(raw_disc) < Decimal("0.001"):
-        line_discount = Decimal("0")
+
+    qty = dec(item.qty)
+
+    if includes_tax:
+        # Calcular total con IVA usando precio original (sin redondeo intermedio)
+        line_total_with_tax = max(Decimal("0"), (qty * price) - raw_disc).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        # Desglose fiscal por linea (solo informativo para sale_items en DB)
+        price_no_tax = (price / (1 + TAX_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if abs(raw_disc) < Decimal("0.001"):
+            line_discount = Decimal("0")
+        else:
+            line_discount = max(Decimal("0"), raw_disc / (1 + TAX_RATE)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        line_total = max(Decimal("0"), (qty * price_no_tax) - line_discount).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
     else:
-        if includes_tax:
-            raw_disc = raw_disc / (1 + TAX_RATE)
-        line_discount = max(Decimal("0"), raw_disc).quantize(
+        price_no_tax = price
+        if abs(raw_disc) < Decimal("0.001"):
+            line_discount = Decimal("0")
+        else:
+            line_discount = max(Decimal("0"), raw_disc).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        line_total = max(Decimal("0"), (qty * price) - line_discount).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        line_total_with_tax = (line_total * (1 + TAX_RATE)).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
-    qty = dec(item.qty)
-    line_total = max(Decimal("0"), (qty * price) - line_discount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     product_name = item.name or prod.get("name", "Producto")
 
     return CalculatedItem(
         product_id=item.product_id if item.product_id else None,
         name=product_name,
         qty=qty,
-        unit_price=price,
+        unit_price=price_no_tax,
         line_discount=line_discount,
         line_total=line_total,
+        line_total_with_tax=line_total_with_tax,
         sat_clave=item.sat_clave_prod_serv or "01010101",
         is_common=is_common,
         is_kit=is_kit,
@@ -484,13 +508,14 @@ async def create_sale(
                                f"Disponible: {current_stock}, Solicitado: {demanded}",
                     )
 
-            # 5. Calculate totals from pre-calculated items (all quantized to 0.01)
-            subtotal = sum((ci.line_total for ci in calculated), Decimal("0"))
+            # 5. Calculate totals — usar line_total_with_tax para el total final
+            #    y desglozar IVA UNA sola vez sobre el total (evita error acumulativo)
+            total_val = sum((ci.line_total_with_tax for ci in calculated), Decimal("0"))
             total_discount = sum((ci.line_discount for ci in calculated), Decimal("0"))
 
-            subtotal_after_discount = max(subtotal, Decimal("0")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            tax_total = (subtotal_after_discount * TAX_RATE).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            total_val = subtotal_after_discount + tax_total
+            # Desglose fiscal: subtotal sin IVA y IVA, calculados del total con IVA
+            subtotal_after_discount = (total_val / (1 + TAX_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            tax_total = total_val - subtotal_after_discount
 
             if total_val <= Decimal("0"):
                 raise HTTPException(
