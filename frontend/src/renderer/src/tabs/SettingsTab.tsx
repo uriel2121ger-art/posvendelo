@@ -41,7 +41,9 @@ import {
   RefreshCw,
   Settings,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Download,
+  Package
 } from 'lucide-react'
 
 type SettingsTabId = 'server' | 'business' | 'printer' | 'scanner' | 'drawer'
@@ -66,6 +68,7 @@ type ConfigProfile = {
 
 const CONFIG_PROFILES_KEY = 'pos.configProfiles'
 const HW_CACHE_KEY = 'pos.hwConfig'
+const UPDATES_AUTO_KEY = 'pos.updates.autoCheck'
 
 function saveToCache(cfg: HardwareConfig): void {
   try {
@@ -180,6 +183,16 @@ export default function SettingsTab({
   const [systemInfo, setSystemInfo] = useState<Record<string, unknown> | null>(null)
   const [licenseState, setLicenseState] = useState<Record<string, unknown> | null>(null)
   const [backupStatus, setBackupStatus] = useState<Record<string, unknown> | null>(null)
+  const [agentStatus, setAgentStatus] = useState<Record<string, unknown> | null>(null)
+  const [updatesAutoCheck, setUpdatesAutoCheck] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem(UPDATES_AUTO_KEY)
+      return v !== 'false'
+    } catch {
+      return true
+    }
+  })
+  const [updatesChecking, setUpdatesChecking] = useState(false)
   const [backups, setBackups] = useState<Record<string, unknown>[]>([])
   const [selectedBackup, setSelectedBackup] = useState('')
   const [restorePlan, setRestorePlan] = useState<Record<string, unknown> | null>(null)
@@ -261,6 +274,69 @@ export default function SettingsTab({
         if (!cancelled) setLicenseState(null)
       })
     return () => { cancelled = true }
+  }, [])
+
+  const loadAgentStatus = useCallback(async () => {
+    const agent = window.api?.agent
+    if (!agent?.getStatus) return
+    try {
+      const status = await agent.getStatus()
+      setAgentStatus(status as unknown as Record<string, unknown>)
+    } catch {
+      setAgentStatus(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAgentStatus()
+  }, [loadAgentStatus])
+
+  const handleCheckUpdates = useCallback(async () => {
+    const agent = window.api?.agent
+    if (!agent?.refresh) return
+    setUpdatesChecking(true)
+    try {
+      const status = await agent.refresh()
+      setAgentStatus(status as unknown as Record<string, unknown>)
+    } catch {
+      setAgentStatus(null)
+    } finally {
+      setUpdatesChecking(false)
+    }
+  }, [])
+
+  const handleToggleAutoUpdates = useCallback((enabled: boolean) => {
+    setUpdatesAutoCheck(enabled)
+    try {
+      localStorage.setItem(UPDATES_AUTO_KEY, String(enabled))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const handlePrepareUpdate = useCallback(async () => {
+    const agent = window.api?.agent
+    if (!agent?.prepareAppUpdate) return
+    setBusy(true)
+    try {
+      const status = await agent.prepareAppUpdate()
+      setAgentStatus(status as unknown as Record<string, unknown>)
+    } catch {
+      setAgentStatus(null)
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const handleApplyUpdate = useCallback(async () => {
+    const agent = window.api?.agent
+    if (!agent?.applyAppUpdate) return
+    setBusy(true)
+    try {
+      await agent.applyAppUpdate()
+    } finally {
+      setBusy(false)
+    }
   }, [])
 
   function showMessage(msg: string, isError = false): void {
@@ -558,6 +634,111 @@ export default function SettingsTab({
               )}
             </div>
           )}
+
+          {/* Actualizaciones — sin comandos ni terminal */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+            <div className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-400">
+              <Package className="h-4 w-4 text-blue-400" />
+              Actualizaciones
+            </div>
+            <p className="text-sm text-zinc-500 mb-2">
+              Comprueba si hay una nueva versión de la aplicación. Si está activado, se buscarán
+              actualizaciones automáticamente en segundo plano.
+            </p>
+            <p className="text-xs text-zinc-600 mb-4">
+              Al instalar, el sistema puede pedir tu contraseña (Linux) o permisos de administrador
+              (Windows) para completar la instalación. No hace falta usar comandos ni terminal.
+            </p>
+            <div className="flex flex-wrap items-center gap-4 mb-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={updatesAutoCheck}
+                  onChange={(e) => handleToggleAutoUpdates(e.target.checked)}
+                  className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                />
+                <span className="text-sm text-zinc-300">Buscar actualizaciones automáticamente</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleCheckUpdates}
+                disabled={updatesChecking || busy}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`h-4 w-4 ${updatesChecking ? 'animate-spin' : ''}`} />
+                {updatesChecking ? 'Comprobando…' : 'Comprobar ahora'}
+              </button>
+            </div>
+            {agentStatus && (
+              <div className="space-y-2 text-sm text-zinc-400">
+                <div>
+                  Versión actual:{' '}
+                  <span className="font-mono text-zinc-200">
+                    {String(agentStatus.currentAppVersion ?? '—')}
+                  </span>
+                </div>
+                {agentStatus.lastManifestCheckAt && (
+                  <div>
+                    Última comprobación:{' '}
+                    <span className="text-zinc-300">
+                      {new Date(String(agentStatus.lastManifestCheckAt)).toLocaleString('es-MX')}
+                    </span>
+                  </div>
+                )}
+                {agentStatus.lastManifestError && (
+                  <p className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-rose-400 text-xs">
+                    {String(agentStatus.lastManifestError)}
+                  </p>
+                )}
+                {agentStatus.appUpdateAvailable && (
+                  <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+                    <p className="font-medium text-emerald-400 mb-2">
+                      Hay una actualización disponible
+                      {agentStatus.availableAppVersion && (
+                        <span className="font-mono ml-1">
+                          (versión {String(agentStatus.availableAppVersion)})
+                        </span>
+                      )}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {agentStatus.desktopUpdate &&
+                        (agentStatus.desktopUpdate as Record<string, unknown>).status === 'staged' ? (
+                        <button
+                          type="button"
+                          onClick={handleApplyUpdate}
+                          disabled={busy}
+                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <Package className="h-4 w-4" />
+                          Instalar ahora
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handlePrepareUpdate}
+                          disabled={busy}
+                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                        >
+                          <Download className="h-4 w-4" />
+                          Descargar actualización
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {agentStatus.desktopUpdate &&
+                  ['downloading', 'staged'].includes(
+                    String((agentStatus.desktopUpdate as Record<string, unknown>).status)
+                  ) && (
+                    <p className="text-xs text-zinc-500">
+                      {(agentStatus.desktopUpdate as Record<string, unknown>).status === 'downloading'
+                        ? 'Descargando…'
+                        : 'Lista para instalar. Haz clic en "Instalar ahora".'}
+                    </p>
+                  )}
+              </div>
+            )}
+          </div>
 
           {/* Master-Detail Layout */}
           <div className="flex flex-col md:flex-row gap-8">

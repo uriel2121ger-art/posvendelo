@@ -38,4 +38,24 @@ Formato por entrada: ID, Síntoma, Causa raíz, Solución, Resultado, Lección.
 
 ---
 
+---
+
+## ERR-004 — Licencia del nodo: "missing", "sin-licencia", "Archivo titan-agent.json no encontrado"
+
+- **Síntoma:** En Ajustes → Licencia del nodo se ve: Plan sin-licencia, Estado missing, Válida/Soporte hasta sin límite, y mensaje "Archivo titan-agent.json no encontrado".
+- **Causa raíz:**  
+  1. El backend no encuentra el archivo de configuración del agente (donde puede ir la licencia). Por defecto busca `POSVENDELO_AGENT_CONFIG_PATH` o `/runtime/posvendelo-agent.json`. Si no existe, devuelve `effective_status: "missing"` y un mensaje de archivo no encontrado.  
+  2. Si el mensaje dice **"titan-agent.json"** (y no "posvendelo-agent.json"), el backend que responde es una **imagen o código antiguo** (titan-pos); en el repo actual el mensaje es "Archivo posvendelo-agent.json no encontrado" (`backend/modules/shared/license_state.py`).
+  3. En Docker el backend suele no tener montado `posvendelo-agent.json`; ese archivo lo genera el instalador en el host (Linux: `~/.config/posvendelo/`, Windows: `%LOCALAPPDATA%\POSVENDELO\`). El contenedor no tiene acceso a esa ruta salvo que se monte.
+- **Solución:**  
+  1. **Actualizar el backend** a la imagen/código actual (posvendelo) para que el mensaje sea el correcto y el comportamiento sea el esperado.  
+  2. **Tener el archivo donde el backend lo busque:** o bien montar en el contenedor la ruta del host donde está `posvendelo-agent.json` (ej. volumen a `~/.config/posvendelo/posvendelo-agent.json`) y definir `POSVENDELO_AGENT_CONFIG_PATH` a esa ruta dentro del contenedor, o bien inyectar la licencia vía `POSVENDELO_LICENSE_BLOB` (JSON en env).  
+  3. Si no se usa licencia (modo desarrollo/trial): es esperado "missing" y "sin límite"; no bloquea si `POSVENDELO_LICENSE_ENFORCEMENT` no está en true.
+- **Resultado:** Mensaje coherente con posvendelo-agent.json; licencia visible en Ajustes si el archivo o el BLOB está configurado; si se ve "titan-agent.json", tras actualizar el backend debería verse "posvendelo-agent.json".
+- **Lección:** El estado de licencia lo resuelve el backend desde `license_state.py` (archivo o env); el nombre del archivo en los mensajes debe ser posvendelo-agent.json. Evitar desplegar backend con código/imagen titan-pos si ya se renombró a posvendelo.
+
+**Complemento (instalador nuevo):** El postinst del .deb generaba `posvendelo-agent.json` en `~/.config/posvendelo/` pero el docker-compose del nodo **no** montaba ese archivo en el contenedor del backend, por eso el backend siempre devolvía "no encontrado". Corrección: en `installers/linux/postinst.sh` se añadió (1) volumen `./posvendelo-agent.json:/runtime/posvendelo-agent.json:ro` y `POSVENDELO_AGENT_CONFIG_PATH` en el servicio api, y (2) copia de `~/.config/posvendelo/posvendelo-agent.json` a `$INSTALL_DIR/posvendelo-agent.json` para que el volumen tenga archivo. Con eso, instalaciones nuevas con el .deb dejan el backend viendo el archivo; si aún no hay licencia en el JSON, el estado seguirá "missing" hasta hacer pre-registro/activación.
+
+---
+
 *Última actualización: 2026-03-13. Entradas derivadas de auditoría backend, frontend y correcciones aplicadas.*

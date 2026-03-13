@@ -99,9 +99,11 @@ services:
       ADMIN_API_PASSWORD: ${ADMIN_API_PASSWORD:-}
       CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
       CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+      POSVENDELO_AGENT_CONFIG_PATH: /runtime/posvendelo-agent.json
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
+      - ./posvendelo-agent.json:/runtime/posvendelo-agent.json:ro
       - /var/run/cups/cups.sock:/var/run/cups/cups.sock
     depends_on:
       postgres:
@@ -279,6 +281,10 @@ AGENTEOF
     log "posvendelo-agent.json generado."
 else
     log "posvendelo-agent.json existente conservado."
+fi
+# Copia en INSTALL_DIR para que el contenedor del backend la monte (Licencia del nodo)
+if [ -f "$AGENT_CONFIG" ]; then
+    cp "$AGENT_CONFIG" "$INSTALL_DIR/posvendelo-agent.json" 2>/dev/null && chmod 644 "$INSTALL_DIR/posvendelo-agent.json" || true
 fi
 
 # ---------------------------------------------------------------------------
