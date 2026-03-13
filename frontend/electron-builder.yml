@@ -43,13 +43,13 @@ linux:
     - AppImage
     - deb
     - flatpak
+  maintainer: POSVENDELO
+  category: Utility
 flatpak:
   runtime: org.freedesktop.Platform
   runtimeVersion: "24.08"
   sdk: org.freedesktop.Sdk
   artifactName: ${name}-${version}.${ext}
-  maintainer: POSVENDELO
-  category: Utility
 deb:
   depends:
     - curl
