@@ -108,9 +108,9 @@ function suggestMapping(fileHeaders: string[]): Record<string, string> {
     stock: ['stock', 'existencia', 'cantidad'],
     category: ['categoria', 'category', 'categoría'],
     barcode: ['barcode', 'codigobarras', 'ean'],
-    satClaveProdServ: ['sat', 'clavesat', 'claveprodserv'],
-    satClaveUnidad: ['unidad', 'satunidad'],
-    satDescripcion: ['descripcionsat', 'satdesc']
+    satClaveProdServ: ['clavesat', 'claveprodserv', 'clavesatprodserv', 'satproducto', 'satprod'],
+    satClaveUnidad: ['claveunidad', 'satunidad', 'clavesatunidad'],
+    satDescripcion: ['descripcionsat', 'satdesc', 'satdescripcion']
   }
   const mapping: Record<string, string> = {}
   const used = new Set<string>()
@@ -555,7 +555,15 @@ export default function ProductsTab(): ReactElement {
     const cfg = loadRuntimeConfig()
     const requiredKeys = IMPORT_FIELDS.filter((f) => f.required).map((f) => f.key)
     const mapped = importRows.map((r) => getMappedRow(r))
-    const valid = mapped.filter((row) => requiredKeys.every((k) => row[k]))
+    const valid = mapped.filter((row) =>
+      requiredKeys.every((k) => {
+        const v = row[k]
+        if (v === undefined || v === '') return false
+        // price=0 is falsy but valid for required check (the field was mapped)
+        if (k === 'price') return true
+        return Boolean(v)
+      })
+    )
     if (valid.length === 0) {
       setMessage('Ninguna fila tiene SKU, Nombre y Precio. Revisa el mapeo de columnas.')
       return
@@ -1099,6 +1107,9 @@ export default function ProductsTab(): ReactElement {
                   }}
                   onFocus={() => {
                     if (satResults.length > 0) setShowSatDropdown(true)
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowSatDropdown(false), 200)
                   }}
                   placeholder="Buscar: 50161800, bebidas, cremas..."
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-medium text-white focus:outline-none focus:border-blue-500"

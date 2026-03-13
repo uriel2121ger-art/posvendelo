@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("SAT_CATALOG")
 
-# 192 common SAT codes — used as seed data for sat_clave_prod_serv
+# 157 common SAT codes — used as seed data for sat_clave_prod_serv
 COMMON_CODES: List[tuple[str, str]] = [
     # General
     ("01010101", "No existe en el catálogo"),
@@ -213,19 +213,20 @@ async def get_sat_count(db) -> int:
 
 
 async def seed_sat_catalog(db) -> int:
-    """Insert COMMON_CODES if table has fewer than expected. Returns count inserted."""
+    """Upsert COMMON_CODES if table has fewer than expected. Returns count upserted."""
     count = await get_sat_count(db)
     if count >= len(COMMON_CODES):
         logger.info("SAT catalog already seeded (%d codes), skipping", count)
         return 0
 
-    inserted = 0
+    upserted = 0
     for clave, descripcion in COMMON_CODES:
         await db.execute(
             "INSERT INTO sat_clave_prod_serv (clave, descripcion) "
-            "VALUES (:clave, :desc) ON CONFLICT DO NOTHING",
+            "VALUES (:clave, :desc) "
+            "ON CONFLICT (clave) DO UPDATE SET descripcion = EXCLUDED.descripcion",
             {"clave": clave, "desc": descripcion},
         )
-        inserted += 1
-    logger.info("Seeded %d SAT codes into PostgreSQL", inserted)
-    return inserted
+        upserted += 1
+    logger.info("Seeded %d SAT codes into PostgreSQL (upsert)", upserted)
+    return upserted
