@@ -24,7 +24,7 @@
 ## Reglas de implementación
 
 - Backend: FastAPI async, asyncpg, Pydantic v2, SQL parametrizado.
-- Frontend: no emojis; mantener consistencia visual existente.
+- Frontend: no emojis; usar solo SVG (o iconos basados en SVG, p. ej. Lucide) para iconos e ilustraciones. Mantener consistencia visual existente.
 - API: `{"success": true, "data": {...}}` y errores en español.
 - Lock ordering: `TURNS -> SALES -> PRODUCTS -> CUSTOMERS`.
 - Para hora actual en DB usar `NOW()`; no mandar `datetime` desde Python.
