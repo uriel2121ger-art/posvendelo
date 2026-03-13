@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
-def apkVersionCode = 1
-def apkVersionName = "1.0.0"
+def apkVersionCode = 3
+def apkVersionName = "1.0.3"
 def vcEnv = System.getenv("APK_VERSION_CODE")
 if (vcEnv != null && !vcEnv.isEmpty()) { apkVersionCode = vcEnv.toInteger() }
 def vnEnv = System.getenv("APK_VERSION_NAME")
