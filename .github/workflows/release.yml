@@ -527,7 +527,7 @@ jobs:
 # ─────────────────────────────────────────────────────────────────────────────
   publish-github-release:
     name: "Publicar GitHub Release"
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ !cancelled() }}
     needs:
       - build-backend
       - build-frontend-linux
@@ -578,10 +578,22 @@ jobs:
           path: release-artifacts/owner-android
         continue-on-error: true
 
+      - name: Renombrar APKs para evitar conflicto de nombres
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -f release-artifacts/android-cajero/app-release-unsigned.apk ]; then
+            mv release-artifacts/android-cajero/app-release-unsigned.apk \
+               release-artifacts/android-cajero/posvendelo-cajero-${VERSION}.apk
+          fi
+          if [ -f release-artifacts/owner-android/app-release-unsigned.apk ]; then
+            mv release-artifacts/owner-android/app-release-unsigned.apk \
+               release-artifacts/owner-android/posvendelo-owner-${VERSION}.apk
+          fi
+
       - name: Generar checksums SHA256
         run: |
           cd release-artifacts
-          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*setup.exe" -o -name "*.exe" -o -name "*.apk" \) \
+          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" -o -name "*setup.exe" -o -name "*.exe" -o -name "*.apk" \) \
             -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
           echo "=== SHA256SUMS ==="
           cat SHA256SUMS.txt
@@ -596,6 +608,7 @@ jobs:
             release-artifacts/windows/*setup.exe
             release-artifacts/windows/*.exe
             release-artifacts/android-cajero/*.apk
+            release-artifacts/linux/*.flatpak
             release-artifacts/owner-linux/*.AppImage
             release-artifacts/owner-linux/*.deb
             release-artifacts/owner-windows/*setup.exe
