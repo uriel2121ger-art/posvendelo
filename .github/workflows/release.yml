@@ -6,6 +6,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      ref_override:
+        description: "Tag to build (e.g. v1.0.7). Required for workflow_dispatch."
+        required: false
+        type: string
 
 # Variables compartidas entre todos los jobs
 # Control-plane expuesto via Cloudflare Tunnel en posvendelo.com
@@ -38,7 +43,13 @@ jobs:
 
       - name: Extraer version del tag
         id: ver
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build y push imagen Docker
         uses: docker/build-push-action@v6
@@ -107,7 +118,13 @@ jobs:
 
       - name: Extraer version del tag
         id: ver
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir AppImage al control-plane
         continue-on-error: true
@@ -205,7 +222,13 @@ jobs:
       - name: Extraer version del tag
         id: ver
         shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir .exe al control-plane
         continue-on-error: true
@@ -265,7 +288,12 @@ jobs:
       - name: Extraer version del tag
         id: ver
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          VERSION=${REF#v}
           # Convertir vX.Y.Z a codigo numerico (ej: 1.2.3 → 10203)
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
@@ -341,7 +369,13 @@ jobs:
 
       - name: Extraer version del tag
         id: ver
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir AppImage al control-plane
         continue-on-error: true
@@ -417,7 +451,13 @@ jobs:
       - name: Extraer version del tag
         id: ver
         shell: bash
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Subir .exe al control-plane
         continue-on-error: true
@@ -520,7 +560,6 @@ jobs:
         with:
           name: posvendelo-owner-apk
           path: owner-app/android/app/build/outputs/apk/release/*.apk
-        if: hashFiles('owner-app/android/gradlew') != ''
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB FINAL: GitHub Release con todos los artifacts + checksums
