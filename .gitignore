@@ -29,14 +29,24 @@ Thumbs.db
 gateway.log
 posvendelo_gateway.log
 
-# Environment
+# Environment & Secrets — NEVER commit
 .env
+.env.*
+!.env.example
 CREDENCIALES.txt
 .mcp.json
 
 # License keypair — NEVER commit private keys
 license_private.pem
 *.pem
+*.p12
+*.pfx
+*.key
+*.keystore
+
+# Agent config with secrets
+posvendelo-agent.json
+INSTALL_SUMMARY.txt
 
 # Node (frontend)
 node_modules/
