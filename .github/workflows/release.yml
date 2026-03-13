@@ -250,7 +250,7 @@ jobs:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
         run: |
-          EXE=$(find frontend/dist -name "*setup.exe" -o -name "*.exe" | head -1)
+          EXE=$(find frontend/dist -name "*setup.exe" | head -1)
           echo "Instalador encontrado: $EXE"
           curl -sf --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
@@ -265,9 +265,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: posvendelo-windows
-          path: |
-            frontend/dist/*setup.exe
-            frontend/dist/*.exe
+          path: frontend/dist/*setup.exe
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 4: Frontend Android — APK (cajero)
@@ -498,7 +496,7 @@ jobs:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
         run: |
-          EXE=$(find owner-app/dist -name "*setup.exe" -o -name "*.exe" | head -1)
+          EXE=$(find owner-app/dist -name "*setup.exe" | head -1)
           echo "Instalador encontrado: $EXE"
           curl -sf --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
@@ -513,9 +511,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: posvendelo-owner-windows
-          path: |
-            owner-app/dist/*setup.exe
-            owner-app/dist/*.exe
+          path: owner-app/dist/*setup.exe
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 7: Owner App Android — APK
@@ -680,7 +676,7 @@ jobs:
       - name: Generar checksums SHA256
         run: |
           cd release-artifacts
-          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" -o -name "*setup.exe" -o -name "*.exe" -o -name "*.apk" \) \
+          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" -o -name "*setup.exe" -o -name "*.apk" \) \
             -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
           echo "=== SHA256SUMS ==="
           cat SHA256SUMS.txt
@@ -688,17 +684,17 @@ jobs:
       - name: Publicar GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          draft: false
+          make_latest: true
           generate_release_notes: true
           files: |
             release-artifacts/linux/*.AppImage
             release-artifacts/linux/*.deb
-            release-artifacts/windows/*setup.exe
-            release-artifacts/windows/*.exe
-            release-artifacts/android-cajero/*.apk
             release-artifacts/linux/*.flatpak
+            release-artifacts/windows/*setup.exe
+            release-artifacts/android-cajero/*.apk
             release-artifacts/owner-linux/*.AppImage
             release-artifacts/owner-linux/*.deb
             release-artifacts/owner-windows/*setup.exe
-            release-artifacts/owner-windows/*.exe
             release-artifacts/owner-android/*.apk
             release-artifacts/SHA256SUMS.txt

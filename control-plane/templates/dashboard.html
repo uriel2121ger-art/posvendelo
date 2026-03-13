@@ -97,7 +97,7 @@
             <td>{{ branch.install_status or "-" }}</td>
             <td>{{ branch.last_seen or "-" }}</td>
             <td class="status {{ 'online' if branch.is_online else 'offline' }}">
-              {{ 'online' if branch.is_online else 'offline' }}
+              {{ 'En línea' if branch.is_online else 'Sin conexión' }}
             </td>
           </tr>
           {% else %}

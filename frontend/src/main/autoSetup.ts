@@ -17,7 +17,9 @@ const HEALTH_URL = 'http://127.0.0.1:8000/health'
 // ---------------------------------------------------------------------------
 export async function ensureBackend(): Promise<boolean> {
   // Fast path: backend already running (deb postinst already ran, dev mode, etc.)
-  if (await checkHealth(3)) return true
+  // Use 15 retries (30s) because on first install postgres healthcheck alone
+  // can take up to 50s (interval=10s × retries=5) before the API container starts.
+  if (await checkHealth(15)) return true
 
   // Compose file present → containers are installed but maybe stopped
   if (existsSync(COMPOSE_FILE)) {

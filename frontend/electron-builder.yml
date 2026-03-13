@@ -31,10 +31,10 @@ nsis:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    - NSCameraUsageDescription: POSVENDELO solicita acceso a la cámara del dispositivo.
+    - NSMicrophoneUsageDescription: POSVENDELO solicita acceso al micrófono del dispositivo.
+    - NSDocumentsFolderUsageDescription: POSVENDELO solicita acceso a la carpeta Documentos.
+    - NSDownloadsFolderUsageDescription: POSVENDELO solicita acceso a la carpeta Descargas.
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}

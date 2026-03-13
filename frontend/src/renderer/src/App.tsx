@@ -607,7 +607,7 @@ function RoutedApp(): ReactElement {
       setFirstUserChecked(true)
       return
     }
-    const MAX_RETRIES = 10
+    const MAX_RETRIES = 30
     const RETRY_DELAY_MS = 2000
     let attempt = 0
     const tryCheck = (): void => {
@@ -629,10 +629,14 @@ function RoutedApp(): ReactElement {
           if (attempt < MAX_RETRIES) {
             setTimeout(tryCheck, RETRY_DELAY_MS)
           } else {
-            // Backend inalcanzable tras reintentos — mostrar login como fallback seguro.
-            // Solo forzar wizard cuando el backend CONFIRMA needed=true (en .then).
-            setFirstUserNeeded(false)
+            // Backend inalcanzable tras 30 reintentos (60s).
+            // En instalación limpia es más seguro mostrar el wizard que el login,
+            // porque si no hay usuarios el login no tiene sentido.
+            setFirstUserNeeded(true)
             setFirstUserChecked(true)
+            if (location.pathname !== '/setup-inicial-usuario') {
+              navigate('/setup-inicial-usuario', { replace: true })
+            }
           }
         })
     }

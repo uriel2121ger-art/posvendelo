@@ -47,7 +47,7 @@
     "electron": "^40.8.0",
     "electron-builder": "^26.8.1"
   },
-  "description": "POSVENDELO owner desktop app",
+  "description": "Panel de administración para dueños de negocio",
   "author": {
     "name": "POSVENDELO",
     "email": "soporte@posvendelo.com"

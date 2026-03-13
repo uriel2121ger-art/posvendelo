@@ -1,7 +1,7 @@
 {
   "name": "posvendelo",
   "version": "1.0.10",
-  "description": "POSVENDELO desktop app for retail operations in Mexico",
+  "description": "Punto de venta para comercios en México",
   "homepage": "https://github.com/uriel2121ger-art/posvendelo",
   "main": "./out/main/index.js",
   "author": "POSVENDELO",
