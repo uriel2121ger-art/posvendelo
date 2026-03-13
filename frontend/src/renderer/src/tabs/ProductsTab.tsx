@@ -496,8 +496,8 @@ export default function ProductsTab(): ReactElement {
     const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows])
     XLSX.utils.book_append_sheet(wb, ws, 'Productos')
     const date = new Date().toISOString().slice(0, 10)
-    XLSX.writeFile(wb, `productos_${date}.xlsm`, { bookType: 'xlsm' })
-    setMessage(`Exportados ${products.length} productos a Excel (.xlsm).`)
+    XLSX.writeFile(wb, `productos_${date}.xlsx`, { bookType: 'xlsx' })
+    setMessage(`Exportados ${products.length} productos a Excel (.xlsx).`)
   }
 
   function openImportDialog(): void {
@@ -513,7 +513,7 @@ export default function ProductsTab(): ReactElement {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const isXlsx = /\.xlsx$/i.test(file.name) || /\.xls$/i.test(file.name)
+    const isXlsx = /\.xlsx?$/i.test(file.name) || /\.xlsm$/i.test(file.name)
     if (isXlsx) {
       const reader = new FileReader()
       reader.onload = () => {
@@ -526,7 +526,8 @@ export default function ProductsTab(): ReactElement {
             return
           }
           const ws = wb.Sheets[firstSheetName]
-          const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' }) as (
+          // raw: false preserves formatted text (keeps leading zeros in SAT codes like 01010101)
+          const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '', raw: false }) as (
             | string
             | number
           )[][]
@@ -593,7 +594,18 @@ export default function ProductsTab(): ReactElement {
     }
     const cfg = loadRuntimeConfig()
     const requiredKeys = IMPORT_FIELDS.filter((f) => f.required).map((f) => f.key)
-    const mapped = importRows.map((r) => getMappedRow(r))
+    // Snapshot headers/mapping to avoid race if user changes file during async import
+    const snapHeaders = [...importHeaders]
+    const snapMapping = { ...importMapping }
+    const getMapped = (row: string[]): Record<string, string> => {
+      const out: Record<string, string> = {}
+      snapHeaders.forEach((col, i) => {
+        const field = snapMapping[col]
+        if (field && row[i] !== undefined) out[field] = String(row[i]).trim()
+      })
+      return out
+    }
+    const mapped = importRows.map((r) => getMapped(r))
     const valid = mapped.filter((row) =>
       requiredKeys.every((k) => {
         const v = row[k]
@@ -752,7 +764,7 @@ export default function ProductsTab(): ReactElement {
                       className="w-full text-left px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800 hover:text-white flex items-center gap-2"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      Excel (.xlsm)
+                      Excel (.xlsx)
                     </button>
                   </div>
                 </>
@@ -761,7 +773,7 @@ export default function ProductsTab(): ReactElement {
             <input
               ref={importFileInputRef}
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,.xlsx,.xls,.xlsm"
               className="hidden"
               onChange={handleImportFile}
             />

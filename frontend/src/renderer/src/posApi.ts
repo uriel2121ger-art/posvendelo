@@ -663,6 +663,7 @@ export type SaleItemPayload = {
   is_wholesale: boolean
   price_includes_tax: boolean
   sat_clave_prod_serv?: string
+  sat_clave_unidad?: string
 }
 
 export type CreateSalePayload = {
@@ -1196,7 +1197,7 @@ export async function searchSatCodes(
   query: string,
   limit = 20
 ): Promise<{ code: string; description: string }[]> {
-  const res = await apiFetch(
+  const res = await apiFetchLong(
     `${cfg.baseUrl}/api/v1/sat/search?q=${encodeURIComponent(query)}&limit=${limit}`,
     { headers: headers(cfg) }
   )
@@ -1207,7 +1208,7 @@ export async function searchSatCodes(
 }
 
 export async function getSatUnits(cfg: RuntimeConfig): Promise<{ code: string; name: string }[]> {
-  const res = await apiFetch(`${cfg.baseUrl}/api/v1/sat/units`, {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/sat/units`, {
     headers: headers(cfg)
   })
   if (!res.ok) return []

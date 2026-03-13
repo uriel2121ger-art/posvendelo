@@ -58,6 +58,7 @@ type CartItem = {
   isCommon?: boolean
   commonNote?: string
   satClaveProdServ?: string
+  satClaveUnidad?: string
   subtotal: number
 }
 
@@ -299,7 +300,8 @@ async function syncSale(
       discount,
       is_wholesale: isWholesale ?? false,
       price_includes_tax: true,
-      sat_clave_prod_serv: item.satClaveProdServ || (item.isCommon ? '01010101' : undefined)
+      sat_clave_prod_serv: item.satClaveProdServ || (item.isCommon ? '01010101' : undefined),
+      sat_clave_unidad: item.satClaveUnidad || (item.isCommon ? 'H87' : undefined)
     }
   })
   // Serie A: factura individual, pago bancarizado (tarjeta/transferencia/mixto).
@@ -350,6 +352,7 @@ type CommonProductResult = {
   qty: number
   note: string
   satCode: string
+  satClaveUnidad: string
 }
 
 function CommonProductModal({
@@ -413,7 +416,7 @@ function CommonProductModal({
     if (!Number.isFinite(numPrice) || numPrice <= 0) { setError('Ingresa un precio válido.'); return }
     const numQty = Math.max(1, Math.floor(Number(cQty)))
     if (!Number.isFinite(numQty) || numQty <= 0) { setError('Ingresa una cantidad válida.'); return }
-    onSubmit({ name: trimName, price: numPrice, qty: numQty, note: note.trim(), satCode })
+    onSubmit({ name: trimName, price: numPrice, qty: numQty, note: note.trim(), satCode, satClaveUnidad: 'H87' })
   }
 
   const inputCls = 'w-full bg-zinc-950 border border-zinc-700 rounded-lg py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none'
@@ -1151,6 +1154,7 @@ export default function Terminal(): ReactElement {
       isCommon: true,
       commonNote: result.note,
       satClaveProdServ: result.satCode,
+      satClaveUnidad: result.satClaveUnidad,
       subtotal: calculateLineSubtotal(result.price, result.qty, 0)
     }
     setCart((prev) => [...prev, item])
