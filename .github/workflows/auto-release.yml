@@ -1,0 +1,129 @@
+name: POSVENDELO — Auto Release
+
+# Dispara en push a master con commits fix: o feat:
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**.md"
+      - ".github/workflows/auto-release.yml"
+
+jobs:
+  auto-release:
+    name: "Auto bump & tag"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detectar tipo de bump desde commits
+        id: bump
+        run: |
+          # Commits desde el ultimo tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline)
+          else
+            COMMITS=$(git log "${LAST_TAG}..HEAD" --oneline)
+          fi
+
+          echo "=== Commits desde $LAST_TAG ==="
+          echo "$COMMITS"
+
+          # Si no hay commits nuevos, salir
+          if [ -z "$COMMITS" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Detectar tipo de bump
+          if echo "$COMMITS" | grep -qiE "^[a-f0-9]+ (feat|feature)(\(.+\))?!?:"; then
+            echo "bump=minor" >> "$GITHUB_OUTPUT"
+          elif echo "$COMMITS" | grep -qiE "^[a-f0-9]+ (fix|perf|refactor|chore)(\(.+\))?:"; then
+            echo "bump=patch" >> "$GITHUB_OUTPUT"
+          else
+            echo "No fix:/feat: commits found, skipping release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Calcular nueva version
+        if: steps.bump.outputs.skip != 'true'
+        id: ver
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          CURRENT=${LAST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          BUMP="${{ steps.bump.outputs.bump }}"
+          if [ "$BUMP" = "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Bump: $BUMP | $CURRENT -> $NEW_VERSION"
+        env:
+          BUMP_TYPE: ${{ steps.bump.outputs.bump }}
+
+      - name: Setup Node 22
+        if: steps.bump.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Bump version en package.json
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          cd frontend
+          npm version "$VERSION" --no-git-tag-version
+          cd ..
+
+          cd owner-app
+          npm version "$VERSION" --no-git-tag-version
+          cd ..
+
+      - name: Commit version bump
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/package.json frontend/package-lock.json owner-app/package.json owner-app/package-lock.json
+          git commit -m "chore: bump version to ${VERSION} [skip ci]" || echo "No changes to commit"
+          git push origin master
+
+      - name: Crear tag y push
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Resumen
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          BUMP: ${{ steps.bump.outputs.bump }}
+        run: |
+          echo "## Auto Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Version**: $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Tag**: $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Bump**: $BUMP" >> "$GITHUB_STEP_SUMMARY"
+          echo "- El workflow **release.yml** se disparara automaticamente con el tag." >> "$GITHUB_STEP_SUMMARY"
