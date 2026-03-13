@@ -203,7 +203,7 @@ function Get-FreeTcpPort([int]$PreferredPort) {
   throw "No se encontro un puerto libre a partir de $PreferredPort"
 }
 
-function Invoke-TitanCompose {
+function Invoke-PosvendoloCompose {
   param(
     [Parameter(Mandatory = $true)][string[]]$Arguments,
     [Parameter(Mandatory = $true)][string]$WorkingDirectory,
@@ -217,14 +217,14 @@ function Invoke-TitanCompose {
     "JWT_SECRET",
     "CORS_ALLOWED_ORIGINS",
     "CONTROL_PLANE_URL",
-    "TITAN_LICENSE_KEY",
-    "TITAN_BRANCH_ID",
-    "TITAN_VERSION",
+    "POSVENDELO_LICENSE_KEY",
+    "POSVENDELO_BRANCH_ID",
+    "POSVENDELO_VERSION",
     "CF_TUNNEL_TOKEN",
     "BACKEND_IMAGE",
     "LOCAL_API_PORT",
     "LOCAL_POSTGRES_PORT",
-    "TITAN_LICENSE_ENFORCEMENT"
+    "POSVENDELO_LICENSE_ENFORCEMENT"
   )
 
   $backup = @{}
@@ -296,7 +296,7 @@ try {
 
   $envPath = Join-Path $InstallDir ".env"
   $composePath = Join-Path $InstallDir "docker-compose.yml"
-  $agentPath = Join-Path $InstallDir "titan-agent.json"  # nombre de archivo interno del agente
+  $agentPath = Join-Path $InstallDir "posvendelo-agent.json"  # nombre de archivo interno del agente
   $registerPath = Join-Path $env:TEMP "posvendelo-register.json"
 
   @"
@@ -306,14 +306,14 @@ ADMIN_API_PASSWORD=
 JWT_SECRET=$(New-RandomHex 64)
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8080,http://127.0.0.1:8080
 CONTROL_PLANE_URL=$($bootstrapData.cp_url)
-TITAN_LICENSE_KEY=$($bootstrapData.tenant_slug)
-TITAN_BRANCH_ID=$($bootstrapData.branch_id)
-TITAN_VERSION=2.0.0
+POSVENDELO_LICENSE_KEY=$($bootstrapData.tenant_slug)
+POSVENDELO_BRANCH_ID=$($bootstrapData.branch_id)
+POSVENDELO_VERSION=2.0.0
 CF_TUNNEL_TOKEN=$($bootstrapData.cf_tunnel_token)
 BACKEND_IMAGE=$($bootstrapData.backend_image)
 LOCAL_API_PORT=$ApiPort
 LOCAL_POSTGRES_PORT=$DbPort
-TITAN_LICENSE_ENFORCEMENT=true
+POSVENDELO_LICENSE_ENFORCEMENT=true
 "@ | Set-Content -Encoding UTF8 $envPath
 
   @{
@@ -372,7 +372,7 @@ Activar Nube: Desde la app, Configuración > Nube PosVendelo
 Archivos clave:
 - .env
 - docker-compose.yml
-- titan-agent.json
+- posvendelo-agent.json
 
 Como abrir el punto de venta (POS):
   - Doble clic en el icono "POSVENDELO - Punto de venta" del escritorio (abre la app o la pagina de descargas).
@@ -446,8 +446,8 @@ $PublisherCertPath
     }
   }
 
-  Invoke-TitanCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("pull")
-  Invoke-TitanCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("up", "-d")
+  Invoke-PosvendoloCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("pull")
+  Invoke-PosvendoloCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("up", "-d")
 
   Write-Step "Esperando health local..."
   for ($i = 0; $i -lt 60; $i++) {

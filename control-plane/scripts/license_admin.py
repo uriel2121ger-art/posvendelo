@@ -14,7 +14,7 @@ Ejemplos:
     --base-url http://localhost:9090 \
     --install-token TOKEN \
     --machine-id MI-EQUIPO \
-    --output titan-license.json
+    --output posvendelo-license.json
 """
 
 from __future__ import annotations
@@ -282,13 +282,13 @@ def build_parser() -> argparse.ArgumentParser:
     resolve.add_argument("--pos-version", default="2.0.0")
     resolve.set_defaults(func=resolve_license)
 
-    export_file = sub.add_parser("export-file", help="Exportar titan-license.json para un cliente offline")
+    export_file = sub.add_parser("export-file", help="Exportar posvendelo-license.json para un cliente offline")
     export_file.add_argument("--install-token", required=True)
     export_file.add_argument("--machine-id", required=True)
     export_file.add_argument("--os-platform", default=sys.platform)
     export_file.add_argument("--app-version", default="1.0.0")
     export_file.add_argument("--pos-version", default="2.0.0")
-    export_file.add_argument("--output", default="titan-license.json")
+    export_file.add_argument("--output", default="posvendelo-license.json")
     export_file.set_defaults(func=export_license_file)
 
     return parser

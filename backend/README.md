@@ -141,7 +141,7 @@ Roles: `admin` > `manager` > `cashier` > `owner`
 cd backend && source .venv/bin/activate
 
 # Correr todos (181 tests)
-DATABASE_URL="postgresql+asyncpg://titan_user:PASSWORD@localhost:5433/titan_pos" \
+DATABASE_URL="postgresql+asyncpg://posvendelo_user:PASSWORD@localhost:5433/posvendelo" \
 JWT_SECRET="tu-secret" \
 python3 -m pytest tests/ -v
 
@@ -184,7 +184,7 @@ Los datos de la DB real no se contaminan.
 
 | Variable | Descripción | Ejemplo |
 |----------|-------------|---------|
-| `DATABASE_URL` | Conexión PostgreSQL | `postgresql+asyncpg://user:pass@host:5433/titan_pos` |
+| `DATABASE_URL` | Conexión PostgreSQL | `postgresql+asyncpg://user:pass@host:5433/posvendelo` |
 | `JWT_SECRET` | Secreto para firmar JWT | (cadena larga aleatoria) |
 | `DEBUG` | Habilita /docs Swagger | `true` / `false` |
 | `CORS_ALLOWED_ORIGINS` | Orígenes permitidos (CSV) | `http://localhost:3000,http://localhost:5173` |

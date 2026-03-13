@@ -319,8 +319,8 @@ owner-app/
 - IPC nuevo: `agent:generateLinkCode` en localAgent.ts
 
 ### Archivos a modificar
-- `installers/linux/install-titan.sh` (sección Nube PosVendelo interactiva)
-- `installers/windows/Install-Titan.ps1` (lo mismo en PowerShell)
+- `installers/linux/install-posvendelo.sh` (sección Nube PosVendelo interactiva)
+- `installers/windows/Install-Posvendelo.ps1` (lo mismo en PowerShell)
 - `frontend/src/main/localAgent.ts` (nuevo IPC generateLinkCode)
 - `frontend/src/preload/index.ts` (exponer método)
 - `frontend/src/renderer/src/tabs/` (sección config Nube PosVendelo)
@@ -334,7 +334,7 @@ owner-app/
 - Subdominio `api.posvendelo.com` → endpoint `/api/v1/cloud/discover` (puede ser Cloudflare Worker o Pages con JSON estático)
 
 ### 5.2 CF Tunnel para el control-plane
-- Crear tunnel `titan-cloud` en Zero Trust
+- Crear tunnel `posvendelo-cloud` en Zero Trust
 - Ruta: `cloud.posvendelo.com` → `http://control-plane-api-1:9090`
 - En `control-plane/docker-compose.yml` agregar servicio `cloudflared`:
   ```yaml

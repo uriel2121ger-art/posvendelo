@@ -223,7 +223,7 @@
   ],
   "largest_files_top30": [
     {
-      "ruta": "CLIENTE/titan_pos_client.zip",
+      "ruta": "CLIENTE/posvendelo_client.zip",
       "tamano_bytes": 253086140,
       "tipo": "binary",
       "sha256": "7856884114faeab3b5c395110b352ccaa9f6e4db8f786c4ec1d0bbc1b312c4f0"

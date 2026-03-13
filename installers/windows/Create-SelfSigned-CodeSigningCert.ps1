@@ -22,8 +22,8 @@ $cert = New-SelfSignedCertificate `
   -CertStoreLocation "Cert:\CurrentUser\My" `
   -NotAfter (Get-Date).AddYears(3)
 
-$pfxPath = Join-Path $OutputDir "titan-selfsigned-codesign.pfx"
-$cerPath = Join-Path $OutputDir "titan-selfsigned-codesign.cer"
+$pfxPath = Join-Path $OutputDir "posvendelo-selfsigned-codesign.pfx"
+$cerPath = Join-Path $OutputDir "posvendelo-selfsigned-codesign.cer"
 
 Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
 Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null

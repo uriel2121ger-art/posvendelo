@@ -93,8 +93,8 @@ const delay = (ms) => new Promise((r) => setTimeout(r, ms))
     // Fase 2: Float Precision y FK Deletion usando Fetch API en el contexto de la app
     console.log('Ejecutando Variantes de Backend...')
     const apiResults = await page.evaluate(async (fallbackApiBaseUrl) => {
-      const token = localStorage.getItem('titan.token')
-      const baseUrl = localStorage.getItem('titan.baseUrl') || fallbackApiBaseUrl
+      const token = localStorage.getItem('pos.token')
+      const baseUrl = localStorage.getItem('pos.baseUrl') || fallbackApiBaseUrl
       const res = { floatOk: false, floatError: '', fkOk: false, fkError: '' }
 
       try {

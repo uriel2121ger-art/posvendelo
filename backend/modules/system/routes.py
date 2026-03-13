@@ -22,7 +22,7 @@ async def license_status():
     los días de trial restantes.
     """
     cp_url = os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/")
-    install_token = os.getenv("TITAN_LICENSE_KEY", "").strip()
+    install_token = os.getenv("POSVENDELO_LICENSE_KEY", "").strip()
 
     result = {
         "licensed": False,
@@ -96,7 +96,7 @@ async def license_status():
 
 
 def _backup_dir() -> Path:
-    return Path(os.getenv("TITAN_BACKUP_DIR", "/backups"))
+    return Path(os.getenv("POSVENDELO_BACKUP_DIR", "/backups"))
 
 
 @router.get("/status")
@@ -181,7 +181,7 @@ async def build_restore_plan(body: RestorePlanRequest, auth: dict = Depends(veri
                 "docker compose stop api",
                 "docker compose stop postgres",
                 "docker compose up -d postgres",
-                f"pg_restore -h 127.0.0.1 -U titan_user -d titan_pos --clean --if-exists {target}",
+                f"pg_restore -h 127.0.0.1 -U posvendelo_user -d posvendelo --clean --if-exists {target}",
                 "docker compose up -d api",
             ],
         },

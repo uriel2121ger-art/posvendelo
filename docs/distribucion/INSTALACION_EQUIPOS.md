@@ -29,36 +29,36 @@ En la máquina donde quieres el **nodo de sucursal** (backend + DB + agente):
 ### Opción A – Descargar solo el script (sin clonar)
 
 - Descargar el script desde el repo (raw):
-  - Linux: `installers/linux/install-titan.sh`
-  - Windows: `installers/windows/Install-Titan.ps1`
+  - Linux: `installers/linux/install-posvendelo.sh`
+  - Windows: `installers/windows/Install-Posvendelo.ps1`
 - Ejecutarlo pasando la URL del control-plane y el token que te dio el administrador.
 
 Ejemplo Linux (con curl, sin git):
 
 ```bash
-curl -fsSL -o install-titan.sh \
-  "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-titan.sh"
-chmod +x install-titan.sh
-bash install-titan.sh --cp-url https://tu-control-plane.ejemplo.com --install-token TOKEN_QUE_TE_DIERON
+curl -fsSL -o install-posvendelo.sh \
+  "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-posvendelo.sh"
+chmod +x install-posvendelo.sh
+bash install-posvendelo.sh --cp-url https://tu-control-plane.ejemplo.com --install-token TOKEN_QUE_TE_DIERON
 ```
 
 Ejemplo Windows (PowerShell, descargando el script):
 
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Titan.ps1" -OutFile Install-Titan.ps1
-powershell -ExecutionPolicy Bypass -File .\Install-Titan.ps1 -CpUrl https://tu-control-plane.ejemplo.com -InstallToken TOKEN_QUE_TE_DIERON
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Posvendelo.ps1" -OutFile Install-Posvendelo.ps1
+powershell -ExecutionPolicy Bypass -File .\Install-Posvendelo.ps1 -CpUrl https://tu-control-plane.ejemplo.com -InstallToken TOKEN_QUE_TE_DIERON
 ```
 
-El script descarga del control-plane el `docker-compose` y la configuración; genera `.env`, `titan-agent.json` e `INSTALL_SUMMARY.txt`. Además crea un icono en el escritorio (y en el menú en Linux) para abrir el POS o la página de descargas. En esa máquina no necesitas el código fuente.
+El script descarga del control-plane el `docker-compose` y la configuración; genera `.env`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`. Además crea un icono en el escritorio (y en el menú en Linux) para abrir el POS o la página de descargas. En esa máquina no necesitas el código fuente.
 
 ### Opción B – Clonar solo para tener los scripts
 
 Si prefieres tener el repo:
 
 ```bash
-git clone --depth 1 https://github.com/<ORG>/<REPO>.git titan-install
-cd titan-install
-bash installers/linux/install-titan.sh --cp-url <URL> --install-token <TOKEN>
+git clone --depth 1 https://github.com/<ORG>/<REPO>.git posvendelo-install
+cd posvendelo-install
+bash installers/linux/install-posvendelo.sh --cp-url <URL> --install-token <TOKEN>
 ```
 
 Después puedes borrar la carpeta clonada; el nodo queda en el directorio de instalación que el script indique (por defecto `/opt/posvendelo` en Linux).

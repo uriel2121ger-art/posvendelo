@@ -39,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Trust-PosvendeloPu
 1. Para instalacion guiada con confianza previa, usar:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 `
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Posvendelo.ps1 `
   -CpUrl https://control-plane.example.com `
   -InstallToken TOKEN `
   -PublisherCertPath ".\artifacts\codesign\posvendelo-selfsigned-codesign.cer"
@@ -61,5 +61,5 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Install-Titan.ps1 
 
 - `installers/windows/Create-SelfSigned-CodeSigningCert.ps1`
 - `installers/windows/Trust-PosvendeloPublisher.ps1`
-- `installers/windows/Install-Titan.ps1`
+- `installers/windows/Install-Posvendelo.ps1`
 - `.github/workflows/release.yml`

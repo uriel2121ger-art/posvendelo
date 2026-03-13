@@ -51,12 +51,12 @@
       2146
     ],
     [
-      "backend/server/titan_gateway.py",
+      "backend/server/posvendelo_gateway.py",
       2447,
       2057
     ],
     [
-      "frontend/server/titan_gateway.py",
+      "frontend/server/posvendelo_gateway.py",
       2447,
       2057
     ],
@@ -203,12 +203,12 @@
       2146
     ],
     [
-      "backend/server/titan_gateway.py",
+      "backend/server/posvendelo_gateway.py",
       2447,
       2057
     ],
     [
-      "frontend/server/titan_gateway.py",
+      "frontend/server/posvendelo_gateway.py",
       2447,
       2057
     ],

@@ -58,7 +58,7 @@ function requireSetting(name, fallback = '') {
 
 const API_URL =
   readSetting('E2E_API_URL') ||
-  readSetting('TITAN_API_URL') ||
+  readSetting('POSVENDELO_API_URL') ||
   readSetting('ELECTRON_E2E_BASE_URL') ||
   'http://127.0.0.1:8000'
 const ADMIN_USER = requireSetting('E2E_USER', readSetting('ADMIN_API_USER'))
@@ -155,9 +155,9 @@ async function seedRuntime(page, clearStorage) {
   await page.evaluate(
     ({ apiUrl, terminalId, discoverPorts, clear }) => {
       if (clear) localStorage.clear()
-      localStorage.setItem('titan.baseUrl', apiUrl)
-      localStorage.setItem('titan.terminalId', terminalId)
-      localStorage.setItem('titan.discoverPorts', JSON.stringify(discoverPorts))
+      localStorage.setItem('pos.baseUrl', apiUrl)
+      localStorage.setItem('pos.terminalId', terminalId)
+      localStorage.setItem('pos.discoverPorts', JSON.stringify(discoverPorts))
     },
     {
       apiUrl: API_URL,
@@ -261,7 +261,7 @@ async function createProduct(page, idSuffix) {
 
 async function createCustomer(page, idSuffix) {
   const name = `Cliente Caos ${idSuffix}`
-  const email = `caos.${idSuffix}@titan.test`
+  const email = `caos.${idSuffix}@posvendelo.test`
   const phone = `555${String(idSuffix).slice(-7).padStart(7, '0')}`
 
   await page.getByRole('link', { name: /clientes/i }).click()
@@ -430,7 +430,7 @@ async function rapidNavigationLoop(page) {
 
 function pendingTicketCount(entries) {
   return Object.entries(entries)
-    .filter(([key]) => key.startsWith('titan.pendingTickets'))
+    .filter(([key]) => key.startsWith('pos.pendingTickets'))
     .map(([, value]) => {
       try {
         const parsed = JSON.parse(value)
@@ -465,7 +465,7 @@ async function ensureEmptyTerminal(page) {
 async function seedScannerConfig(page, overrides = {}) {
   await page.evaluate((nextConfig) => {
     localStorage.setItem(
-      'titan.hwConfig',
+      'pos.hwConfig',
       JSON.stringify({
         scanner: {
           enabled: true,
@@ -639,7 +639,7 @@ async function apiExpectFailure(pathname, options = {}, expected = {}) {
 
 function sampleTextForMeta(meta, index) {
   const hint = `${meta.placeholder || meta.label || meta.name || ''}`.toLowerCase()
-  if (hint.includes('correo') || hint.includes('email')) return `qa.${index}@titan.test`
+  if (hint.includes('correo') || hint.includes('email')) return `qa.${index}@posvendelo.test`
   if (hint.includes('rfc')) return 'XAXX010101000'
   if (hint.includes('tel')) return '5551234567'
   if (hint.includes('postal') || hint.includes('código postal') || hint.includes('codigo postal'))
@@ -1363,7 +1363,7 @@ async function main() {
           `Los pendientes bajaron tras reinicio: antes=${pendingCountBeforeRestart}, después=${pendingAfterRestart}`
         )
       }
-      const storedBaseUrl = entries['titan.baseUrl']
+      const storedBaseUrl = entries['pos.baseUrl']
       if (storedBaseUrl !== API_URL) {
         throw new Error(`La base URL persistida cambió a ${storedBaseUrl || '(vacía)'}`)
       }

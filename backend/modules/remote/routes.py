@@ -41,7 +41,7 @@ def _json_dumps(payload: dict) -> str:
 
 
 def _load_agent_install_context() -> tuple[str | None, str | None]:
-    config_path = Path(os.getenv("TITAN_AGENT_CONFIG_PATH", "")).expanduser()
+    config_path = Path(os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "")).expanduser()
     if not config_path.exists():
         return os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/") or None, None
     try:

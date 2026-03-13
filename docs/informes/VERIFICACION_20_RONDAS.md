@@ -140,7 +140,7 @@ Validación de entradas, SQL/escape, transacciones y locks, auth/permisos, rutas
 
 ## Ronda 18 (profunda): Instalador
 
-- **install-titan.sh:** Uso de set -e, trap cleanup, report_status en fallo. Sin --backend-image en esta copia; documentado en sesiones anteriores.
+- **install-posvendelo.sh:** Uso de set -e, trap cleanup, report_status en fallo. Sin --backend-image en esta copia; documentado en sesiones anteriores.
 
 ## Ronda 19 (profunda): Docs y patrones
 

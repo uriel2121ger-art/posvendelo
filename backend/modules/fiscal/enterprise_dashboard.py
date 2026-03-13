@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 def _get_federation_auth_code() -> str:
     """Obtiene el código de autorización para operaciones federadas (solo env vars)."""
-    code = os.environ.get('TITAN_FEDERATION_CODE', '')
+    code = os.environ.get('POSVENDELO_FEDERATION_CODE', '')
     if code and len(code) >= 8:
         return code
-    logger.warning("TITAN_FEDERATION_CODE not configured — set via environment variable")
+    logger.warning("POSVENDELO_FEDERATION_CODE not configured — set via environment variable")
     return ""
 
 class FederationDashboard:

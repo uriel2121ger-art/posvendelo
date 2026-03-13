@@ -1,5 +1,5 @@
 ---
-description: Reglas para desarrollo FastAPI + Python en TITAN POS (asyncpg, sin ORM)
+description: Reglas para desarrollo FastAPI + Python en POSVENDELO (asyncpg, sin ORM)
 alwaysApply: true
 ---
 

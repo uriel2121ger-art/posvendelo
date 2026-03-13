@@ -10,7 +10,7 @@ Indice por categoria. Documentos activos en subcarpetas. Archivos supersedidos e
 |-----------|-------------|
 | [INSTRUCCIONES_DISTRIBUCION.md](distribucion/INSTRUCCIONES_DISTRIBUCION.md) | Publicar release y distribuir a cajeros y sucursales. |
 | [INSTALACION_EQUIPOS.md](distribucion/INSTALACION_EQUIPOS.md) | Instalacion en equipos nuevos: .deb, AppImage, script de nodo. |
-| [PLAN_NUBE_TITAN.md](distribucion/PLAN_NUBE_TITAN.md) | Plan Nube: cuenta opcional, app dueno, sync y comandos remotos. |
+| [PLAN_NUBE_POSVENDELO.md](distribucion/PLAN_NUBE_POSVENDELO.md) | Plan Nube: cuenta opcional, app dueno, sync y comandos remotos. |
 | [RELEASE_CHECKLIST_WINDOWS_LINUX.md](distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md) | Checklist antes de publicar clientes (Windows/Linux). |
 
 ---

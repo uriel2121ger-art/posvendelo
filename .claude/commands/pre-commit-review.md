@@ -14,7 +14,7 @@ Rules for all reviewers:
 - Only report issues with HIGH confidence (>80%)
 - Include file path and line number for each finding
 - Severity levels: CRITICAL, HIGH, MEDIUM (skip LOW)
-- Context: This is TITAN POS — FastAPI + asyncpg backend, React + Electron frontend
+- Context: This is POSVENDELO — FastAPI + asyncpg backend, React + Electron frontend
 - Security rules from CLAUDE.md apply: never trust client prices, SHA256 PINs, manager PIN for cancellations
 
 Consolidate all findings into a single report sorted by severity before allowing the commit.

@@ -39,7 +39,7 @@ usuario al abrir el POS por primera vez."
 
 ### Instalador Windows (NSIS + PowerShell)
 
-**Archivos:** `installers/windows/nsis-postinstall.nsh`, `installers/windows/Install-Titan.ps1`
+**Archivos:** `installers/windows/nsis-postinstall.nsh`, `installers/windows/Install-Posvendelo.ps1`
 
 Flujo equivalente al Linux: instala Docker Desktop si no existe, genera `.env`,
 `docker-compose.yml`, pull + up, health check.
@@ -84,7 +84,7 @@ useLayoutEffect(() => {
   if (saved != null && saved.trim() !== '') return
   if (!isNativePlatform()) {
     // Desktop: auto-set default URL
-    const defaultUrl = TITAN_API_URL ?? 'http://127.0.0.1:8000'
+    const defaultUrl = POSVENDELO_API_URL ?? 'http://127.0.0.1:8000'
     localStorage.setItem('titan.baseUrl', defaultUrl)
     return
   }
@@ -165,7 +165,7 @@ automaticamente a `/setup-inicial-usuario`:
 
 ### Homelab auto-deploy
 
-- **Script:** `/home/uriel/auto-deploy-titan.sh` (cron cada 5 min)
+- **Script:** `/opt/posvendelo/auto-deploy.sh` (cron cada 5 min)
 - **Flujo:** git fetch → detecta commits nuevos → pull → Watchtower signal → rebuild control-plane → copy installers
 - **Watchtower:** auto-pulls `ghcr.io/uriel2121ger-art/posvendelo:latest`
 
@@ -180,8 +180,8 @@ automaticamente a `/setup-inicial-usuario`:
 
 ```bash
 cd frontend && npm run build:linux
-scp dist/posvendelo_amd64.deb uriel@192.168.10.90:~/titan-control-plane/downloads/
-scp dist/posvendelo.AppImage uriel@192.168.10.90:~/titan-control-plane/downloads/
+scp dist/posvendelo_amd64.deb user@<HOMELAB_IP>:/path/to/control-plane/downloads/
+scp dist/posvendelo.AppImage user@<HOMELAB_IP>:/path/to/control-plane/downloads/
 ```
 
 ---
@@ -233,7 +233,7 @@ El `exit 0` final garantiza que dpkg nunca falla por problemas del backend.
 |---------|------|-------------|
 | `installers/linux/postinst.sh` | MOD | set +e resilience, .env sin password, INSTALL_SUMMARY sin credenciales |
 | `installers/windows/nsis-postinstall.nsh` | MOD | Equivalente Windows del postinst |
-| `installers/windows/Install-Titan.ps1` | MOD | PowerShell backend setup |
+| `installers/windows/Install-Posvendelo.ps1` | MOD | PowerShell backend setup |
 | `frontend/src/renderer/src/App.tsx` | MOD | Auto-config URL, splash screen, first-user check, redirect logic |
 | `frontend/src/renderer/src/Login.tsx` | MOD | Auto-config URL desktop, texto ayuda actualizado |
 | `frontend/src/renderer/src/tabs/FirstUserSetup.tsx` | NUEVO | Wizard creacion primer usuario |
@@ -295,7 +295,7 @@ El usuario final no sabe que es bootstrap, licencia, ni companion.
 **Archivo:** `installers/windows/nsis-postinstall.nsh`
 
 **Problema 1:** NSIS no tiene `$PROGRAMDATA` como variable built-in → error `warning 6000`.
-**Solucion:** `ReadEnvStr $TITAN_DATA_DIR PROGRAMDATA` con fallback `C:\ProgramData`.
+**Solucion:** `ReadEnvStr $POSVENDELO_DATA_DIR PROGRAMDATA` con fallback `C:\ProgramData`.
 
 **Problema 2:** PowerShell embebido en NSIS: variables como `$content`, `$dbPass` se interpretan como variables NSIS.
 **Solucion:** Escribir script PowerShell como archivo temporal (`$TEMP\posvendelo-genenv.ps1`) y ejecutar con `-File`.
@@ -320,4 +320,68 @@ El usuario final no sabe que es bootstrap, licencia, ni companion.
 
 ---
 
-*Ultima actualizacion: 2026-03-12 17:40*
+## Fase 8: Auto-Update — Agent Config Generation (2026-03-12 noche)
+
+### Problema
+
+El sistema de auto-update en `localAgent.ts` estaba 100% implementado pero desconectado:
+el agente local busca `posvendelo-agent.json` para saber donde hacer polling de manifests,
+pero los instaladores no generaban este archivo.
+
+### Solucion
+
+Ambos instaladores ahora generan `posvendelo-agent.json` en la primera instalacion:
+
+| Plataforma | Ruta | Generado por |
+|-----------|------|-------------|
+| Linux | `~/.config/posvendelo/posvendelo-agent.json` | `postinst.sh` seccion 9 |
+| Windows | `%LOCALAPPDATA%\POSVENDELO\posvendelo-agent.json` | `nsis-postinstall.nsh` seccion 7 |
+
+**Contenido del agent config:**
+
+```json
+{
+  "controlPlaneUrl": "",
+  "localApiUrl": "http://127.0.0.1:8000",
+  "backendHealthUrl": "http://127.0.0.1:8000/health",
+  "appArtifact": "electron-linux|electron-windows",
+  "backendArtifact": "backend",
+  "releaseChannel": "stable",
+  "pollIntervals": {
+    "healthSeconds": 30,
+    "manifestSeconds": 300,
+    "licenseSeconds": 3600
+  }
+}
+```
+
+**Flujo auto-update end-to-end:**
+
+```
+localAgent.ts inicia → busca posvendelo-agent.json
+→ lee controlPlaneUrl → poll manifest cada 5 min
+→ detecta nueva version → descarga artefacto
+→ verifica SHA256 → stage en directorio temporal
+→ usuario aplica → reemplaza binario → reinicia app
+```
+
+**Decisiones:**
+
+| Decision | Razon |
+|----------|-------|
+| `controlPlaneUrl` vacio por default | Se configura despues via bootstrap o manualmente. Sin URL, el agente solo hace health checks |
+| Linux: `~/.config/posvendelo/` | Coincide con `app.getPath('userData')` de Electron en Linux |
+| Windows: `$LOCALAPPDATA\POSVENDELO\` | Coincide con la busqueda de `localAgent.ts` en `process.env.LOCALAPPDATA` |
+| Solo genera si no existe | Nunca sobreescribe config del usuario con sus tokens/URLs |
+| `chown` para el usuario real (Linux) | `postinst.sh` corre como root via dpkg, pero el archivo es del usuario |
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `installers/linux/postinst.sh` | +seccion 9: genera posvendelo-agent.json |
+| `installers/windows/nsis-postinstall.nsh` | +seccion 7: genera posvendelo-agent.json |
+
+---
+
+*Ultima actualizacion: 2026-03-12 21:00*

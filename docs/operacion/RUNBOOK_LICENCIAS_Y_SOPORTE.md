@@ -61,13 +61,13 @@ python3 scripts/license_admin.py \
   --output posvendelo-license.json
 ```
 
-Entrega `posvendelo-license.json` al cliente para colocarlo junto a `titan-agent.json`.
+Entrega `posvendelo-license.json` al cliente para colocarlo junto a `posvendelo-agent.json`.
 
 ## Ubicaciones Del Archivo Offline
 
-- Linux típico: mismo directorio del `titan-agent.json`
+- Linux típico: mismo directorio del `posvendelo-agent.json`
 - Backend cliente Docker: `/runtime/posvendelo-license.json`
-- Wrapper local: archivo hermano del `titan-agent.json`
+- Wrapper local: archivo hermano del `posvendelo-agent.json`
 
 ## Reinstalación En El Mismo Equipo
 
@@ -105,7 +105,7 @@ Comportamiento esperado:
 - Confirmar `tenant_id`, `branch_id`, `install_token` y `machine_id`.
 - Verificar estado en `Login` o `Ajustes`.
 - Confirmar si el backend local responde en `/health`.
-- Confirmar si la licencia está en `titan-agent.json` o `posvendelo-license.json`.
+- Confirmar si la licencia está en `posvendelo-agent.json` o `posvendelo-license.json`.
 - Si la firma no valida, reemitir desde control-plane.
 - Si la mensual venció, renovar y exportar nuevamente.
 
@@ -114,4 +114,4 @@ Comportamiento esperado:
 - No compartir `CP_ADMIN_TOKEN` con clientes.
 - No usar clave efímera de desarrollo para producción.
 - No ligar la licencia a fingerprints demasiado frágiles.
-- No borrar `titan-agent.json` sin respaldo durante soporte.
+- No borrar `posvendelo-agent.json` sin respaldo durante soporte.

@@ -16,7 +16,7 @@ function readEnv(name: string, fallback: string): string {
 
 const frontendBaseUrl = readEnv(
   'E2E_BASE_URL',
-  readEnv('TITAN_BROWSER_URL', 'http://127.0.0.1:5173')
+  readEnv('POSVENDELO_BROWSER_URL', 'http://127.0.0.1:5173')
 )
 const e2eServerMode = readEnv('E2E_SERVER_MODE', 'dev')
 const e2eServerCommand =

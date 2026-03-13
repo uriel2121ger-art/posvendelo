@@ -4,11 +4,11 @@
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"]
     },
-    "postgres-titan": {
+    "postgres-posvendelo": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-postgres"],
       "env": {
-        "DATABASE_URL": "${TITAN_DATABASE_URL}"
+        "DATABASE_URL": "${POSVENDELO_DATABASE_URL}"
       }
     },
     "postgres-catalogo": {

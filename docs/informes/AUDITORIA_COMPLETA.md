@@ -57,7 +57,7 @@ Revisión exhaustiva de backend, control-plane, frontend, instaladores, DB, test
 
 ## 4. Instaladores
 
-- **install-titan.sh:** set -e, trap cleanup, report_status en fallo. Opción --backend-image documentada en sesiones anteriores (verificar en rama actual).
+- **install-posvendelo.sh:** set -e, trap cleanup, report_status en fallo. Opción --backend-image documentada en sesiones anteriores (verificar en rama actual).
 - **Windows:** No revisado en esta auditoría.
 
 ---

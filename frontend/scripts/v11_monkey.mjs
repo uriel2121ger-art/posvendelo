@@ -5,8 +5,8 @@ import { runtimeConfig } from './runtime-config.mjs'
 console.log('Iniciando inyector Monkey V11...')
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms))
-const loginUsername = process.env.TITAN_TEST_USER?.trim()
-const loginPassword = process.env.TITAN_TEST_PASSWORD?.trim()
+const loginUsername = process.env.POSVENDELO_TEST_USER?.trim()
+const loginPassword = process.env.POSVENDELO_TEST_PASSWORD?.trim()
 const chaosKeys = ['Enter', 'Escape', 'ArrowDown', ' ', 'Backspace', 'F3', 'F12']
 const chaosPayloads = [
   'monkey_v11',
@@ -81,14 +81,14 @@ async function performLogin(page) {
     page.click('[data-testid="login-submit"]')
   ])
 
-  await page.waitForFunction(() => !!localStorage.getItem('titan.token'), { timeout: 10000 })
+  await page.waitForFunction(() => !!localStorage.getItem('pos.token'), { timeout: 10000 })
 }
 
 ;(async () => {
   try {
     if (!loginUsername || !loginPassword) {
       throw new Error(
-        'Configura TITAN_TEST_USER y TITAN_TEST_PASSWORD antes de ejecutar v11_monkey.mjs.'
+        'Configura POSVENDELO_TEST_USER y POSVENDELO_TEST_PASSWORD antes de ejecutar v11_monkey.mjs.'
       )
     }
 
@@ -149,8 +149,8 @@ async function performLogin(page) {
 
     const apiTest = await page.evaluate(
       async ({ apiBaseUrl, branchId }) => {
-        const tk = localStorage.getItem('titan.token')
-        const url = localStorage.getItem('titan.baseUrl') || apiBaseUrl
+        const tk = localStorage.getItem('pos.token')
+        const url = localStorage.getItem('pos.baseUrl') || apiBaseUrl
         const log = []
 
         if (!tk) {
@@ -196,7 +196,7 @@ async function performLogin(page) {
       },
       {
         apiBaseUrl: runtimeConfig.apiBaseUrl,
-        branchId: Number(process.env.TITAN_TEST_BRANCH_ID || '1')
+        branchId: Number(process.env.POSVENDELO_TEST_BRANCH_ID || '1')
       }
     )
 

@@ -16,10 +16,10 @@ function readEnv(name: string, fallback: string): string {
   return value || fallback
 }
 
-const browserHost = readEnv('TITAN_BROWSER_HOST', '127.0.0.1')
-const browserPort = Number.parseInt(readEnv('TITAN_BROWSER_PORT', '5173'), 10)
-const browserOrigin = readEnv('TITAN_BROWSER_URL', `http://${browserHost}:${browserPort}`)
-const apiBaseUrl = readEnv('TITAN_API_URL', 'http://127.0.0.1:8000')
+const browserHost = readEnv('POSVENDELO_BROWSER_HOST', '127.0.0.1')
+const browserPort = Number.parseInt(readEnv('POSVENDELO_BROWSER_PORT', '5173'), 10)
+const browserOrigin = readEnv('POSVENDELO_BROWSER_URL', `http://${browserHost}:${browserPort}`)
+const apiBaseUrl = readEnv('POSVENDELO_API_URL', 'http://127.0.0.1:8000')
 
 // Standalone config for browser-only (no Electron).
 // dev: modo desarrollo (HMR). build: producción (minificado). preview: sirve el build.

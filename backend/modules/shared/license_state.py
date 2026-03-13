@@ -45,18 +45,18 @@ def _canonical_bytes(payload: dict[str, Any]) -> bytes:
 
 
 def _load_blob() -> tuple[dict[str, Any] | None, str | None]:
-    raw_blob = os.getenv("TITAN_LICENSE_BLOB", "").strip()
+    raw_blob = os.getenv("POSVENDELO_LICENSE_BLOB", "").strip()
     if raw_blob:
         try:
             return json.loads(raw_blob), None
         except json.JSONDecodeError:
-            return None, "TITAN_LICENSE_BLOB inválido"
+            return None, "POSVENDELO_LICENSE_BLOB inválido"
 
-    config_path = Path(os.getenv("TITAN_AGENT_CONFIG_PATH", "/runtime/titan-agent.json"))
+    config_path = Path(os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "/runtime/posvendelo-agent.json"))
     if not config_path.exists():
-        return None, "Archivo titan-agent.json no encontrado"
+        return None, "Archivo posvendelo-agent.json no encontrado"
     try:
-        override_path = Path(os.getenv("TITAN_LICENSE_FILE_PATH", str(config_path.with_name("titan-license.json"))))
+        override_path = Path(os.getenv("POSVENDELO_LICENSE_FILE_PATH", str(config_path.with_name("posvendelo-license.json"))))
         if override_path.exists():
             return json.loads(override_path.read_text(encoding="utf-8")), None
         stat = config_path.stat()
@@ -73,7 +73,7 @@ def _load_blob() -> tuple[dict[str, Any] | None, str | None]:
             _CACHE["mtime"] = stat.st_mtime
             _CACHE["state"] = blob
             return blob, None
-        return None, "Licencia no encontrada en titan-agent.json"
+        return None, "Licencia no encontrada en posvendelo-agent.json"
     except Exception as exc:
         return None, str(exc)
 
@@ -81,7 +81,7 @@ def _load_blob() -> tuple[dict[str, Any] | None, str | None]:
 def _verify_signature(blob: dict[str, Any]) -> tuple[bool, str | None]:
     payload = blob.get("payload")
     signature = blob.get("signature")
-    public_key_pem = blob.get("public_key") or os.getenv("TITAN_LICENSE_PUBLIC_KEY", "").strip()
+    public_key_pem = blob.get("public_key") or os.getenv("POSVENDELO_LICENSE_PUBLIC_KEY", "").strip()
     if not isinstance(payload, dict):
         return False, "Payload de licencia inválido"
     if not isinstance(signature, str) or not signature.strip():
@@ -194,7 +194,7 @@ def _build_message(
 
 
 def license_enforcement_enabled() -> bool:
-    return os.getenv("TITAN_LICENSE_ENFORCEMENT", "false").strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv("POSVENDELO_LICENSE_ENFORCEMENT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def should_block_request(path: str, method: str) -> tuple[bool, dict[str, Any]]:

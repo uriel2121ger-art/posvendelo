@@ -3,8 +3,8 @@ import puppeteer from 'puppeteer-core'
 import { runtimeConfig } from './runtime-config.mjs'
 console.log('Iniciando inyector Monkey...')
 
-const loginUsername = process.env.TITAN_TEST_USER?.trim()
-const loginPassword = process.env.TITAN_TEST_PASSWORD?.trim()
+const loginUsername = process.env.POSVENDELO_TEST_USER?.trim()
+const loginPassword = process.env.POSVENDELO_TEST_PASSWORD?.trim()
 const chaosKeys = ['Enter', 'Escape', 'ArrowDown', ' ', 'Backspace', 'F3', 'F12']
 const chaosPayloads = [
   'monkey',
@@ -18,11 +18,11 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function performLogin(page) {
   if (!loginUsername || !loginPassword) {
-    throw new Error('Configura TITAN_TEST_USER y TITAN_TEST_PASSWORD antes de ejecutar monkey.mjs.')
+    throw new Error('Configura POSVENDELO_TEST_USER y POSVENDELO_TEST_PASSWORD antes de ejecutar monkey.mjs.')
   }
 
   await page.goto(runtimeConfig.browserLoginUrl, { waitUntil: 'networkidle0', timeout: 30000 })
-  const existingToken = await page.evaluate(() => localStorage.getItem('titan.token'))
+  const existingToken = await page.evaluate(() => localStorage.getItem('pos.token'))
   if (existingToken) {
     await page.goto(`${runtimeConfig.browserOrigin}/#/terminal`, {
       waitUntil: 'networkidle0',
@@ -51,13 +51,13 @@ async function performLogin(page) {
     page.waitForFunction(() => window.location.hash === '#/terminal', { timeout: 10000 }),
     page.click('[data-testid="login-submit"]')
   ])
-  await page.waitForFunction(() => !!localStorage.getItem('titan.token'), { timeout: 10000 })
+  await page.waitForFunction(() => !!localStorage.getItem('pos.token'), { timeout: 10000 })
 }
 
 async function resolveSellableProduct(page, apiBaseUrl) {
   return page.evaluate(async (fallbackApiBaseUrl) => {
-    const tk = localStorage.getItem('titan.token') || ''
-    const url = localStorage.getItem('titan.baseUrl') || fallbackApiBaseUrl
+    const tk = localStorage.getItem('pos.token') || ''
+    const url = localStorage.getItem('pos.baseUrl') || fallbackApiBaseUrl
     const res = await fetch(`${url}/api/v1/products/?limit=200`, {
       headers: { Authorization: `Bearer ${tk}` }
     })
@@ -147,8 +147,8 @@ async function runUiChaos(page) {
     const sellableProduct = await resolveSellableProduct(page, runtimeConfig.apiBaseUrl)
     const apiTest = await page.evaluate(
       async ({ fallbackApiBaseUrl, sellableProductId, sellableProductPrice }) => {
-        const tk = localStorage.getItem('titan.token') || 'token_ausente'
-        const url = localStorage.getItem('titan.baseUrl') || fallbackApiBaseUrl
+        const tk = localStorage.getItem('pos.token') || 'token_ausente'
+        const url = localStorage.getItem('pos.baseUrl') || fallbackApiBaseUrl
         const log = []
         try {
           if (!sellableProductId || !sellableProductPrice) {

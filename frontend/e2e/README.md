@@ -5,13 +5,13 @@ Se ejecutan en un **navegador real** (Chromium), no con scripts que simulan el D
 
 ## Requisitos
 
-1. **Backend** en la URL configurada en `TITAN_API_URL` o `TITAN_TEST_API_URL`:
+1. **Backend** en la URL configurada en `POSVENDELO_API_URL` o `POSVENDELO_TEST_API_URL`:
 
    ```bash
    cd backend && set -a && source .env && set +a && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
    ```
 
-2. **Frontend** en modo navegador en la URL configurada en `TITAN_BROWSER_URL` o `E2E_BASE_URL`:
+2. **Frontend** en modo navegador en la URL configurada en `POSVENDELO_BROWSER_URL` o `E2E_BASE_URL`:
 
    ```bash
    npm run dev:browser
@@ -54,7 +54,7 @@ E2E_PASS=admin \
 npx playwright test
 ```
 
-Los helpers E2E siembran `titan.baseUrl` y `titan.discoverPorts` antes del login para que los tests no dependan del proxy de desarrollo ni del auto-discovery implícito.
+Los helpers E2E siembran `pos.baseUrl` y `pos.discoverPorts` antes del login para que los tests no dependan del proxy de desarrollo ni del auto-discovery implícito.
 
 Con navegador visible:
 

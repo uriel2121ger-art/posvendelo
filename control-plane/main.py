@@ -507,14 +507,19 @@ async def download_owner_apk():
     )
 
 
+@app.api_route("/download/SHA256SUMS.txt", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_checksums():
+    return _serve_download("SHA256SUMS.txt", "text/plain", "SHA256 checksums")
+
+
 @app.api_route("/download/nodo/linux", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
 async def download_nodo_linux():
-    return _serve_download("install-titan.sh", "application/x-sh", "Instalador nodo Linux (bash)")
+    return _serve_download("install-posvendelo.sh", "application/x-sh", "Instalador nodo Linux (bash)")
 
 
 @app.api_route("/download/nodo/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
 async def download_nodo_windows():
-    return _serve_download("Install-Titan.ps1", "application/octet-stream", "Instalador nodo Windows (PowerShell)")
+    return _serve_download("Install-Posvendelo.ps1", "application/octet-stream", "Instalador nodo Windows (PowerShell)")
 
 
 @app.get("/health", tags=["system"])

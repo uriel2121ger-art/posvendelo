@@ -13,10 +13,10 @@
 
 ## 2. Instalador Linux: --backend-image y fallback al pull
 
-- **installers/linux/install-titan.sh**:
+- **installers/linux/install-posvendelo.sh**:
   - Opción `--backend-image IMAGEN` en usage y en el parser.
   - Variable `BACKEND_IMAGE_OVERRIDE`; se pasa al Python que genera `.env`.
-  - En la generación de `.env`, `BACKEND_IMAGE` usa: override > bootstrap `backend_image` > `TITAN_DEFAULT_BACKEND_IMAGE`.
+  - En la generación de `.env`, `BACKEND_IMAGE` usa: override > bootstrap `backend_image` > `POSVENDELO_DEFAULT_BACKEND_IMAGE`.
   - Si `docker compose pull` falla: se comprueba si `BACKEND_IMAGE_OVERRIDE` está definida y la imagen existe localmente; si es así se continúa con `up -d`; si no, se muestra mensaje en español y se sale con error (incluyendo la sugerencia de usar `--backend-image posvendelo:local`).
 
 ## 3. Corrección de typos en módulos (español)

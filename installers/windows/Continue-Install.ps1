@@ -10,7 +10,7 @@ if (-not (Test-Path $StateFile)) {
 
 $state = Get-Content $StateFile -Raw | ConvertFrom-Json
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$installScript = Join-Path $scriptDir "Install-Titan.ps1"
+$installScript = Join-Path $scriptDir "Install-Posvendelo.ps1"
 
 powershell -ExecutionPolicy Bypass -File $installScript `
   -CpUrl $state.CpUrl `

@@ -40,13 +40,13 @@ def _get_local_ips() -> list[str]:
 
 def _build_discovery_payload() -> bytes:
     """Construye el payload JSON para el broadcast de discovery."""
-    api_port = os.getenv("TITAN_API_PORT", "8000")
-    branch_name = os.getenv("TITAN_BRANCH_NAME", "Sucursal Principal")
-    version = os.getenv("TITAN_VERSION", "2.0.0")
+    api_port = os.getenv("POSVENDELO_API_PORT", "8000")
+    branch_name = os.getenv("POSVENDELO_BRANCH_NAME", "Sucursal Principal")
+    version = os.getenv("POSVENDELO_VERSION", "2.0.0")
     local_ips = _get_local_ips()
 
     payload = {
-        "service": "titanpos",
+        "service": "posvendelo",
         "version": version,
         "branch_name": branch_name,
         "api_port": int(api_port),

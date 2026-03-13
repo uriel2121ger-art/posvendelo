@@ -59,7 +59,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Variables de entorno para tests (solo si otros tests necesitan DB)
-export DATABASE_URL="postgresql+asyncpg://titan_user:PASSWORD@localhost:5433/titan_pos"
+export DATABASE_URL="postgresql+asyncpg://posvendelo_user:PASSWORD@localhost:5433/posvendelo"
 export JWT_SECRET="test-secret"
 
 python3 -m pytest tests/test_xml_parse.py -v

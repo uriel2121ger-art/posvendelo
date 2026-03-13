@@ -57,7 +57,7 @@ npm run verify:go-live
 
 ## Agente Local Y Companion
 
-- La app desktop ahora busca `titan-agent.json` en `appData`, `~/.titanpos/` o `LOCALAPPDATA/TitanPOS/` para descubrir el nodo local y el manifest de releases del control-plane.
+- La app desktop ahora busca `posvendelo-agent.json` en `appData`, `~/.posvendelo/` o `LOCALAPPDATA/POSVENDELO/` para descubrir el nodo local y el manifest de releases del control-plane.
 - Ese archivo lo generan `setup.sh` y los instaladores en `installers/`.
 - Existe un companion MVP reutilizando la UI remota en la ruta `#/companion/remoto` y `#/companion/estadisticas`.
 - El agente local también expone estado de licencia para `Login`, `TopNavbar` y `Ajustes`.
@@ -80,5 +80,5 @@ Notas:
 - `GO_NO_GO_PRODUCCION_ELECTRON.md`
 - `ESTADO_MIGRACION_PYQT6_ELECTRON.md`
 - `../docs/distribucion/RELEASE_CHECKLIST_WINDOWS_LINUX.md`
-- El nombre distribuible esperado ya no debe salir como `electron_pos`, sino como `POSVENDELO` / `titan-pos`.
+- El nombre distribuible esperado ya no debe salir como `electron_pos`, sino como `POSVENDELO`.
 - `verify:go-live` ahora también exige `resources/icon.png` para evitar builds con icono genérico.

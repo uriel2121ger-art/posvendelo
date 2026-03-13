@@ -21,7 +21,7 @@ POS retail multi-sucursal para Mexico. Offline-first, CFDI 4.0, inventario, turn
 - `frontend/`: app desktop Electron (preload + renderer). Agente local en `src/main/localAgent.ts`.
 - `control-plane/`: bootstrap-config, compose-template, releases, licencias, owner platform, fleet ops.
 - `owner-app/`: app desktop del propietario para gestion remota de fleet.
-- `installers/`: postinst.sh (Linux .deb), Install-Titan.ps1 (Windows), NSIS.
+- `installers/`: postinst.sh (Linux .deb), Install-Posvendelo.ps1 (Windows), NSIS.
 
 ## Flujo primera ejecucion (desktop)
 
@@ -31,14 +31,14 @@ dpkg -i → postinst (Docker + backend) → abrir app → splash
 → /setup-inicial (wizard negocio) → /terminal
 ```
 
-- Desktop auto-configura `titan.baseUrl` = `127.0.0.1:8000` (no muestra "configurar servidor").
+- Desktop auto-configura la URL base = `127.0.0.1:8000` (no muestra "configurar servidor").
 - Mobile (APK) muestra `/configurar-servidor` para IP del servidor LAN.
 - `checkNeedsFirstUser()` decide si mostrar wizard o login.
 
 ## Contrato plug-and-play
 
 - `control-plane` publica `bootstrap-config` y `compose-template`.
-- El instalador genera `.env`, `docker-compose.yml`, `titan-agent.json` e `INSTALL_SUMMARY.txt`.
+- El instalador genera `.env`, `docker-compose.yml`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
 - Pre-registro por fingerprint de hardware (sin cuenta); trial 120 dias vinculado al hardware.
 - Nube opcional: se activa desde UI, tunel CF solo al activar nube.
 - Discovery LAN: UDP broadcast `:41520` cada 2s (`backend/modules/discovery/broadcast.py`).

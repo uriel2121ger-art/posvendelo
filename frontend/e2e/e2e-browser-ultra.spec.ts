@@ -108,7 +108,7 @@ test.describe('Ultra Browser Stress', () => {
     await expectNoAppCrash(page)
 
     await page.evaluate(() => {
-      localStorage.setItem('titan.token', 'token-malformado')
+      localStorage.setItem('pos.token', 'token-malformado')
     })
     await page.goto('/#/terminal')
     await expect(page).toHaveURL(/#\/login/)
@@ -133,8 +133,8 @@ test.describe('Ultra Browser Stress', () => {
     }> => {
       await page.goto('/#/terminal')
       return page.evaluate(async () => {
-        const token = localStorage.getItem('titan.token') || ''
-        const baseUrl = localStorage.getItem('titan.baseUrl') || ''
+        const token = localStorage.getItem('pos.token') || ''
+        const baseUrl = localStorage.getItem('pos.baseUrl') || ''
         const headers = { Authorization: `Bearer ${token}` }
         const requests = [
           ...Array.from({ length: 150 }, () =>

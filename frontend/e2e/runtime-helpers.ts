@@ -32,9 +32,9 @@ export const E2E_DISCOVER_PORTS = readPortList(readEnv('E2E_DISCOVER_PORTS', '80
 
 function runtimeSeed(): Record<string, string> {
   return {
-    'titan.baseUrl': E2E_API_URL,
-    'titan.terminalId': String(E2E_TERMINAL_ID),
-    'titan.discoverPorts': JSON.stringify(E2E_DISCOVER_PORTS)
+    'pos.baseUrl': E2E_API_URL,
+    'pos.terminalId': String(E2E_TERMINAL_ID),
+    'pos.discoverPorts': JSON.stringify(E2E_DISCOVER_PORTS)
   }
 }
 

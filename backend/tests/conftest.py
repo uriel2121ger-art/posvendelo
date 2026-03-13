@@ -6,7 +6,7 @@ BEGIN…ROLLBACK block so the real dev DB stays clean.
 
 Usage:
     cd backend && source .venv/bin/activate
-    DATABASE_URL="postgresql://titan_user:PASSWORD@localhost:5433/titan_pos" \
+    DATABASE_URL="postgresql://posvendelo_user:PASSWORD@localhost:5433/posvendelo" \
     JWT_SECRET="test-secret" \
     python3 -m pytest tests/ -v
 """

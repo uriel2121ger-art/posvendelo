@@ -66,7 +66,7 @@ test.describe('E2E-1: Login y arranque', () => {
   }) => {
     await submitLogin(page)
     await expect(page).toHaveURL(/\/#\/terminal/, { timeout: 10000 })
-    const token = await page.evaluate(() => localStorage.getItem('titan.token'))
+    const token = await page.evaluate(() => localStorage.getItem('pos.token'))
     expect(token).toBeTruthy()
   })
 
@@ -93,7 +93,7 @@ test.describe('E2E-1: Login y arranque', () => {
     await page.getByRole('button', { name: /cerrar sesión/i }).click()
     await page.getByRole('button', { name: /aceptar/i }).click()
     await expect(page).toHaveURL(/#\/login/)
-    expect(await page.evaluate(() => localStorage.getItem('titan.token'))).toBeFalsy()
+    expect(await page.evaluate(() => localStorage.getItem('pos.token'))).toBeFalsy()
     cachedSessionStorage = null
   })
 })

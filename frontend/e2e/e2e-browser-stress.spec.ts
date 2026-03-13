@@ -88,8 +88,8 @@ test.describe('Stress Browser Edge Cases', () => {
 
   test('stress-3: rafaga API desde navegador sin 5xx', async ({ page }) => {
     const result = await page.evaluate(async () => {
-      const token = localStorage.getItem('titan.token') || ''
-      const baseUrl = localStorage.getItem('titan.baseUrl') || ''
+      const token = localStorage.getItem('pos.token') || ''
+      const baseUrl = localStorage.getItem('pos.baseUrl') || ''
       const headers = { Authorization: `Bearer ${token}` }
       const requests = [
         ...Array.from({ length: 120 }, () =>

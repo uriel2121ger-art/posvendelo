@@ -121,20 +121,20 @@ services:
     ports:
       - "8090:8090"         # LAN local
     environment:
-      - DATABASE_URL=postgresql://titan_user:${DB_PASSWORD}@db:5432/titan_pos
+      - DATABASE_URL=postgresql://posvendelo_user:${DB_PASSWORD}@db:5432/posvendelo
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - db
     restart: unless-stopped
     labels:
-      - "com.centurylinklabs.watchtower.scope=titan"
+      - "com.centurylinklabs.watchtower.scope=posvendelo"
 
   db:
     image: postgres:15
     environment:
-      - POSTGRES_USER=titan_user
+      - POSTGRES_USER=posvendelo_user
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=titan_pos
+      - POSTGRES_DB=posvendelo
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -151,8 +151,8 @@ services:
     image: prodrigestivill/postgres-backup-local:15
     environment:
       - POSTGRES_HOST=db
-      - POSTGRES_DB=titan_pos
-      - POSTGRES_USER=titan_user
+      - POSTGRES_DB=posvendelo
+      - POSTGRES_USER=posvendelo_user
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - SCHEDULE=0 */6 * * *       # cada 6 horas
       - BACKUP_KEEP_DAYS=7
@@ -252,7 +252,7 @@ services:
     deploy:
       replicas: 2                    # escalar según carga
     environment:
-      - DATABASE_URL=postgresql://cp_user:${DB_PASSWORD}@db:5432/titan_cp
+      - DATABASE_URL=postgresql://cp_user:${DB_PASSWORD}@db:5432/posvendelo_cp
       - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=${CP_JWT_SECRET}
       - CF_API_TOKEN=${CF_API_TOKEN}
@@ -266,7 +266,7 @@ services:
     environment:
       - POSTGRES_USER=cp_user
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=titan_cp
+      - POSTGRES_DB=posvendelo_cp
     volumes:
       - cpdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -376,7 +376,7 @@ Portal web: portal.example.pos/registro
     │
     ▼
 3. Dueño descarga y ejecuta:
-   $ ./instalar-titan.sh
+   $ ./install-posvendelo.sh
    → docker compose pull
    → docker compose up -d
    → "POSVENDELO listo en la URL local configurada"

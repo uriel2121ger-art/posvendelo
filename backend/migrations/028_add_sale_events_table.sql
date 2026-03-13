@@ -2,7 +2,7 @@
 -- POSVENDELO — Event Sourcing: sale_events table
 -- Phase 5: Append-only event store for sale aggregates
 --
--- Run: psql -U titan_user -d titan_pos -f migrations/add_sale_events_table.sql
+-- Run: psql -U posvendelo_user -d posvendelo -f migrations/add_sale_events_table.sql
 -- =============================================================================
 
 -- Sale events (append-only event stream)

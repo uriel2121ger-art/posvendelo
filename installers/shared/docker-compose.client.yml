@@ -42,19 +42,19 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       CONTROL_PLANE_URL: ${CONTROL_PLANE_URL}
-      TITAN_LICENSE_KEY: ${TITAN_LICENSE_KEY}
-      TITAN_BRANCH_ID: ${TITAN_BRANCH_ID}
-      TITAN_VERSION: ${TITAN_VERSION:-2.0.0}
-      TITAN_LICENSE_ENFORCEMENT: ${TITAN_LICENSE_ENFORCEMENT:-true}
-      TITAN_BACKUP_DIR: /backups
-      TITAN_AGENT_CONFIG_PATH: /runtime/titan-agent.json
+      POSVENDELO_LICENSE_KEY: ${POSVENDELO_LICENSE_KEY}
+      POSVENDELO_BRANCH_ID: ${POSVENDELO_BRANCH_ID}
+      POSVENDELO_VERSION: ${POSVENDELO_VERSION:-2.0.0}
+      POSVENDELO_LICENSE_ENFORCEMENT: ${POSVENDELO_LICENSE_ENFORCEMENT:-true}
+      POSVENDELO_BACKUP_DIR: /backups
+      POSVENDELO_AGENT_CONFIG_PATH: /runtime/posvendelo-agent.json
       DEBUG: "false"
     ports:
       # API exposed only on loopback — Cloudflare tunnel provides external access
       - "127.0.0.1:${LOCAL_API_PORT:-8000}:8000"
     volumes:
       # Mount only the agent config — do NOT mount the entire install dir (.env, CREDENCIALES.txt)
-      - ./titan-agent.json:/runtime/titan-agent.json:ro  # nombre interno del agente — no cambiar
+      - ./posvendelo-agent.json:/runtime/posvendelo-agent.json:ro  # nombre interno del agente — no cambiar
       - ./backups:/backups
       # CUPS socket for host printer access (discovery + printing)
       - /var/run/cups/cups.sock:/var/run/cups/cups.sock

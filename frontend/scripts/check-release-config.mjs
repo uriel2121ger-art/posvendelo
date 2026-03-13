@@ -9,7 +9,7 @@ const checks = [
     id: 'appId',
     ok: !/^\s*appId:\s*com\.electron\.app\s*$/m.test(raw),
     message:
-      "appId sigue con valor placeholder ('com.electron.app'). Define uno real, por ejemplo: com.titan.pos"
+      "appId sigue con valor placeholder ('com.electron.app'). Define uno real, por ejemplo: com.posvendelo.pos"
   },
   {
     id: 'productName',

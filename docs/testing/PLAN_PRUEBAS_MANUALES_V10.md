@@ -113,10 +113,10 @@ Guia de pruebas manuales **mas exigente**: mas edge cases, variantes por escenar
 
 - [ ] **Recuperar turno con historial:**
   - [P] Abrir turno. Hacer 5 ventas ($50 c/u = $250 total).
-  - [P] `localStorage.removeItem('titan.currentShift')`. Recargar (F5).
+  - [P] `localStorage.removeItem('pos.currentShift')`. Recargar (F5).
   - [V] Modal detecta turno abierto y lo recupera.
   - [V] Tras recuperar, badge muestra `5 ventas / $250.00` (no `0 ventas / $250.00`).
-- [ ] **EDGE — Recuperar con shift corrupto parcial:** `titan.currentShift` con `sales_count: 0` pero `total_cents` correcto. [V] Al recuperar, badge muestra ventas reales (backend) o mensaje coherente.
+- [ ] **EDGE — Recuperar con shift corrupto parcial:** `pos.currentShift` con `sales_count: 0` pero `total_cents` correcto. [V] Al recuperar, badge muestra ventas reales (backend) o mensaje coherente.
 
 ---
 
@@ -380,11 +380,11 @@ Guia de pruebas manuales **mas exigente**: mas edge cases, variantes por escenar
 - [ ] **localStorage.clear() con ticket:** 10 items. clear(). Cobrar. [V] Error o redireccion a Login. Sin pantalla blanca.
 - [ ] **Token invalido / expirado:** [V] 401. Redireccion a Login.
 - [ ] **Config corrupta, JSON roto en shift:** [V] App carga con defaults o modal de turno. Sin WSOD.
-- [ ] **EDGE — Token vacio:** `titan.token = ''`. [V] Tratado como no autenticado.
-- [ ] **EDGE — Token malformado (no JWT):** `titan.token = 'abc'`. [V] 401 o redireccion.
+- [ ] **EDGE — Token vacio:** `pos.token = ''`. [V] Tratado como no autenticado.
+- [ ] **EDGE — Token malformado (no JWT):** `pos.token = 'abc'`. [V] 401 o redireccion.
 - [ ] **EDGE — Token JWT firmado con otra clave:** Token valido pero de otro entorno. [V] 401.
-- [ ] **EDGE — Borrar solo titan.currentShift:** Resto intacto. Recargar. [V] Modal recuperar turno. No perdida de token.
-- [ ] **EDGE — Borrar solo titan.token con turno abierto:** Cobrar. [V] 401 o redireccion. Turno en backend sigue abierto.
+- [ ] **EDGE — Borrar solo pos.currentShift:** Resto intacto. Recargar. [V] Modal recuperar turno. No perdida de token.
+- [ ] **EDGE — Borrar solo pos.token con turno abierto:** Cobrar. [V] 401 o redireccion. Turno en backend sigue abierto.
 - [ ] **VARIANTE — Stock 2, pestana A agrega 2, pestana B agrega 1, A cobra primero:** [V] A OK (stock=0). B al cobrar: rechazado.
 - [ ] **VARIANTE — Stock 2, A y B agregan 1 cada uno, ambas cobran a la vez:** [V] Dos ventas de 1 ud. Stock final 0. Folios distintos.
 - [ ] **VARIANTE — Producto desactivado mientras esta en carrito:** Desactivar en otra tab. Cobrar. [V] Backend rechaza o acepta; no crash. Comportamiento documentado.

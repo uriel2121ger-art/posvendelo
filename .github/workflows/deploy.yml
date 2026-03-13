@@ -34,20 +34,19 @@ jobs:
       postgres:
         image: postgres:15-alpine
         env:
-          POSTGRES_DB: titan_pos
-          POSTGRES_USER: titan_user
+          POSTGRES_DB: posvendelo
+          POSTGRES_USER: posvendelo_user
           POSTGRES_PASSWORD: ci_test_password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U titan_user -d titan_pos"
+          --health-cmd "pg_isready -U posvendelo_user -d posvendelo"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: "postgresql+asyncpg://titan_user:ci_test_password@localhost:5432/titan_pos"
-      # NOTE: CI uses the existing dev DB (titan_user/titan_pos) — solo templates nuevos usan posvendelo_user/posvendelo
+      DATABASE_URL: "postgresql+asyncpg://posvendelo_user:ci_test_password@localhost:5432/posvendelo"
       JWT_SECRET: "ci-test-secret-not-for-production"
       ADMIN_API_USER: "admin"
       ADMIN_API_PASSWORD: "ci_admin_pass"
@@ -64,7 +63,7 @@ jobs:
 
       - name: Apply base schema
         run: |
-          psql "postgresql://titan_user:ci_test_password@localhost:5432/titan_pos" \
+          psql "postgresql://posvendelo_user:ci_test_password@localhost:5432/posvendelo" \
             -v ON_ERROR_STOP=1 -f backend/db/schema.sql
 
       - name: Run migrations
@@ -120,7 +119,7 @@ jobs:
       - name: Watchtower auto-deploy note
         if: github.ref == 'refs/heads/master'
         run: |
-          echo "Image pushed as :latest — Watchtower on homelab (192.168.10.90) will"
+          echo "Image pushed as :latest — Watchtower on homelab will"
           echo "auto-pull and redeploy within 30 min (poll interval configured there)."
           echo "To force an immediate update via Tailscale SSH, run:"
           echo "  ssh prod 'docker exec posvendelo-watchtower-1 /watchtower --run-once'"

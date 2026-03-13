@@ -5,7 +5,7 @@ set -euo pipefail
 DEFAULT_CP_URL="${POSVENDELO_CP_URL:-https://posvendelo.com}"
 
 usage() {
-  echo "Uso: bash install-titan.sh [--cp-url URL] [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO] [--backend-image IMAGEN]"
+  echo "Uso: bash install-posvendelo.sh [--cp-url URL] [--install-token TOKEN] [--branch-name NOMBRE] [--cloud-email CORREO --cloud-password PASS --tenant-name EMPRESA --existing-cloud] [--dir DIR] [--api-port PUERTO] [--db-port PUERTO] [--backend-image IMAGEN]"
   echo "  Si no pasas --cp-url ni --install-token, se usa $DEFAULT_CP_URL y el token se obtiene automáticamente (pre-registro por hardware)."
 }
 
@@ -360,7 +360,7 @@ fi
 
 mkdir -p "$INSTALL_DIR/backups"
 cd "$INSTALL_DIR"
-AGENT_JSON_PATH="$INSTALL_DIR/titan-agent.json"
+AGENT_JSON_PATH="$INSTALL_DIR/posvendelo-agent.json"
 
 BOOTSTRAP_JSON="$(mktemp)"
 REGISTER_JSON="$(mktemp)"
@@ -392,16 +392,16 @@ print("ADMIN_API_PASSWORD=")
 print(f"JWT_SECRET={rand_hex(32)}")
 print("CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8080,http://127.0.0.1:8080")
 print(f"CONTROL_PLANE_URL={data.get('cp_url', '')}")
-print(f"TITAN_LICENSE_KEY={data.get('tenant_slug', '')}")
-print(f"TITAN_BRANCH_ID={data['branch_id']}")
-print(f"TITAN_VERSION={os.environ.get('POS_VERSION', '2.0.0')}")
+print(f"POSVENDELO_LICENSE_KEY={data.get('tenant_slug', '')}")
+print(f"POSVENDELO_BRANCH_ID={data['branch_id']}")
+print(f"POSVENDELO_VERSION={os.environ.get('POS_VERSION', '2.0.0')}")
 print(f"CF_TUNNEL_TOKEN={data.get('cf_tunnel_token') or ''}")
 override = os.environ.get("BACKEND_IMAGE_OVERRIDE", "").strip()
-backend_image = override or data.get("backend_image") or os.environ.get("TITAN_DEFAULT_BACKEND_IMAGE", "ghcr.io/uriel2121ger-art/posvendelo:latest")
+backend_image = override or data.get("backend_image") or os.environ.get("POSVENDELO_DEFAULT_BACKEND_IMAGE", "ghcr.io/uriel2121ger-art/posvendelo:latest")
 print(f"BACKEND_IMAGE={backend_image}")
 print(f"LOCAL_API_PORT={os.environ['LOCAL_API_PORT']}")
 print(f"LOCAL_POSTGRES_PORT={os.environ['LOCAL_POSTGRES_PORT']}")
-print("TITAN_LICENSE_ENFORCEMENT=true")
+print("POSVENDELO_LICENSE_ENFORCEMENT=true")
 PY
 chmod 600 "$INSTALL_DIR/.env"
 
@@ -446,7 +446,7 @@ payload = {
 with open(os.environ["AGENT_JSON_PATH"], "w", encoding="utf-8") as fh:
     json.dump(payload, fh, indent=2, ensure_ascii=False)
 PY
-chmod 600 "$INSTALL_DIR/titan-agent.json"
+chmod 600 "$INSTALL_DIR/posvendelo-agent.json"
 
 CURRENT_STEP="descargando compose"
 curl -fsSL -H "Authorization: Bearer ${INSTALL_TOKEN}" "${CP_URL%/}/api/v1/branches/compose-template" -o docker-compose.yml
@@ -500,7 +500,7 @@ Activar Nube: Desde la app, Configuración > Nube PosVendelo
 Archivos clave:
 - .env
 - docker-compose.yml
-- titan-agent.json
+- posvendelo-agent.json
 
 Actualizar backend (cuando haya nueva versión):
   cd ${INSTALL_DIR} && ./actualizar.sh

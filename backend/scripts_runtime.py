@@ -37,10 +37,10 @@ def _read_int_env(name: str, default: int) -> int:
 
 
 def load_runtime() -> ScriptRuntime:
-    base_url = _read_required_env("TITAN_TEST_API_URL").rstrip("/")
+    base_url = _read_required_env("POSVENDELO_TEST_API_URL").rstrip("/")
     return ScriptRuntime(
         base_url=base_url,
-        username=_read_required_env("TITAN_TEST_USER"),
-        password=_read_required_env("TITAN_TEST_PASSWORD"),
-        branch_id=_read_int_env("TITAN_TEST_BRANCH_ID", 1),
+        username=_read_required_env("POSVENDELO_TEST_USER"),
+        password=_read_required_env("POSVENDELO_TEST_PASSWORD"),
+        branch_id=_read_int_env("POSVENDELO_TEST_BRANCH_ID", 1),
     )

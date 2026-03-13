@@ -15,7 +15,7 @@ asarUnpack:
 extraResources:
   - from: "../installers/linux/postinst.sh"
     to: "posvendelo-setup.sh"
-  - from: "../installers/windows/Install-Titan.ps1"
+  - from: "../installers/windows/Install-Posvendelo.ps1"
     to: "posvendelo-setup.ps1"
 win:
   executableName: posvendelo

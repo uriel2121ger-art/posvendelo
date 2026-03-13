@@ -29,7 +29,7 @@ class CFDISyncService:
             "SELECT * FROM app_config LIMIT 1"
         )
         cfg = cfg or {}
-        self.sync_base_path = Path(cfg.get('cfdi_sync_path', '/var/titan/cfdis'))
+        self.sync_base_path = Path(cfg.get('cfdi_sync_path', '/var/posvendelo/cfdis'))
         self.nas_path = cfg.get('backup_nas_path', '')
 
     async def _get_facturapi(self):

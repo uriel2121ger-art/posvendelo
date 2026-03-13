@@ -17,7 +17,7 @@
 ## Contrato operativo
 
 - `control-plane` entrega `bootstrap-config` y `compose-template`.
-- El nodo instalado debe terminar con `.env`, `docker-compose.yml`, `titan-agent.json` e `INSTALL_SUMMARY.txt`.
+- El nodo instalado debe terminar con `.env`, `docker-compose.yml`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
 - El agente local es la fuente para health, licencia, updates, companion y owner access.
 - Si una URL ya existe en `bootstrap-config`, no reconstruirla a mano.
 

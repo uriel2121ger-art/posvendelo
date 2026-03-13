@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "electron/main.mjs",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "dev:web": "vite",
@@ -15,10 +15,11 @@
     "cap:open:android": "npx cap open android",
     "lint": "eslint .",
     "preview": "vite preview",
-    "desktop": "electron electron/main.mjs",
-    "build:desktop": "npm run build:web && electron-builder --config electron-builder.yml --publish never",
-    "build:linux": "npm run build:web && electron-builder --config electron-builder.yml --linux --publish never",
-    "build:win": "npm run build:web && electron-builder --config electron-builder.yml --win --publish never"
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "desktop": "npm run build:electron && electron dist-electron/main.js",
+    "build:desktop": "npm run build:web && npm run build:electron && electron-builder --config electron-builder.yml --publish never",
+    "build:linux": "npm run build:web && npm run build:electron && electron-builder --config electron-builder.yml --linux --publish never",
+    "build:win": "npm run build:web && npm run build:electron && electron-builder --config electron-builder.yml --win --publish never"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",

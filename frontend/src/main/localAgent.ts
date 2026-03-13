@@ -6,6 +6,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
 type AgentConfig = {
+  installDir?: string
   controlPlaneUrl?: string
   branchId?: number
   installToken?: string
@@ -620,11 +621,8 @@ export class LocalNodeAgent {
       if (!existsSync(candidate)) continue
       const next = parseJsonFile<AgentConfig>(candidate)
       if (!next) continue
-      const configDir = candidate.replace(/(?:posvendelo|titan)-agent\.json$/i, '')
-      // Buscar licencia con nombre nuevo, fallback al legacy
-      const externalLicensePath = existsSync(join(configDir, 'posvendelo-license.json'))
-        ? join(configDir, 'posvendelo-license.json')
-        : join(configDir, 'titan-license.json')
+      const configDir = candidate.replace(/posvendelo-agent\.json$/i, '')
+      const externalLicensePath = join(configDir, 'posvendelo-license.json')
       if (existsSync(externalLicensePath)) {
         const externalLicense = parseJsonFile<AgentLicenseEnvelope>(externalLicensePath)
         if (externalLicense?.payload) {
@@ -858,6 +856,36 @@ nohup "$TARGET" >/dev/null 2>&1 &
       }
     }
     assertSafeArtifactExtension(stagedPath)
+
+    // Windows: silent NSIS install — no user interaction needed
+    if (process.platform === 'win32' && stagedPath.toLowerCase().endsWith('.exe')) {
+      try {
+        this.desktopUpdateState = {
+          ...this.desktopUpdateState,
+          status: 'applying',
+          message: 'Instalando actualización silenciosamente...',
+          lastError: null
+        }
+        this.saveDesktopUpdateState()
+        spawn(stagedPath, ['/S', '/NORESTART'], {
+          detached: true,
+          stdio: 'ignore'
+        }).unref()
+        app.quit()
+        return this.getStatus()
+      } catch (error) {
+        this.desktopUpdateState = {
+          ...this.desktopUpdateState,
+          status: 'error',
+          message: 'No se pudo ejecutar el instalador silencioso.',
+          lastError: error instanceof Error ? error.message : String(error)
+        }
+        this.saveDesktopUpdateState()
+        return this.getStatus()
+      }
+    }
+
+    // Fallback: open with OS handler (macOS, .deb, etc.)
     const openError = await shell.openPath(stagedPath)
     if (openError) {
       this.desktopUpdateState = {
@@ -1664,20 +1692,13 @@ nohup "$TARGET" >/dev/null 2>&1 &
   }
 
   private configCandidates(): string[] {
-    // Soportar ambos: POSVENDELO_AGENT_CONFIG_PATH (nuevo) y TITAN_AGENT_CONFIG_PATH (legacy)
-    const custom = (process.env.POSVENDELO_AGENT_CONFIG_PATH ?? process.env.TITAN_AGENT_CONFIG_PATH)?.trim()
+    const custom = process.env.POSVENDELO_AGENT_CONFIG_PATH?.trim()
     const userData = join(app.getPath('userData'), 'posvendelo-agent.json')
-    const userDataLegacy = join(app.getPath('userData'), 'titan-agent.json')
     const home = join(homedir(), '.posvendelo', 'posvendelo-agent.json')
-    const homeLegacy = join(homedir(), '.posvendelo', 'titan-agent.json')
     const localAppData = process.env.LOCALAPPDATA
       ? join(process.env.LOCALAPPDATA, 'POSVENDELO', 'posvendelo-agent.json')
       : null
-    const localAppDataLegacy = process.env.LOCALAPPDATA
-      ? join(process.env.LOCALAPPDATA, 'POSVENDELO', 'titan-agent.json')
-      : null
-    // Nuevo nombre primero, fallback al legacy para migracion gradual
-    return [custom, userData, userDataLegacy, home, homeLegacy, localAppData, localAppDataLegacy]
+    return [custom, userData, home, localAppData]
       .filter((value): value is string => Boolean(value))
   }
 
@@ -1938,6 +1959,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
   }
 
   private installationDir(): string | null {
+    if (this.config?.installDir) return this.config.installDir
     if (!this.configPath) return null
     return dirname(this.configPath)
   }

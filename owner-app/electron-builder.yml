@@ -1,23 +1,23 @@
-appId: com.titanpos.owner
+appId: com.posvendelo.owner
 productName: POSVENDELO Dueño
 directories:
   buildResources: public
 files:
   - dist/**
-  - electron/**
+  - dist-electron/**
   - package.json
 asar: true
 win:
   target:
     - nsis
-  artifactName: titan-owner-${version}-setup.${ext}
+  artifactName: posvendelo-owner-${version}-setup.${ext}
 linux:
   target:
     - AppImage
     - deb
   category: Utility
   maintainer: POSVENDELO <soporte@posvendelo.com>
-  artifactName: titan-owner-${version}.${ext}
+  artifactName: posvendelo-owner-${version}.${ext}
 nsis:
   oneClick: false
   perMachine: false

@@ -105,6 +105,36 @@ Desde POS → Configuración > Nube  (o wizard de primera vez)
 |-----------|--------|-----------|--------------------------------------|
 | UDP       | 41520  | 2s        | `{service, api_url, branch_name}`    |
 
+## Auto-update (Electron desktop)
+
+El agente local (`localAgent.ts`) gestiona actualizaciones automáticas:
+
+```
+localAgent.ts inicia → busca posvendelo-agent.json
+→ lee controlPlaneUrl → poll manifest cada 5 min
+→ detecta nueva version → descarga artefacto
+→ verifica SHA256 → stage en directorio temporal
+→ usuario aplica → reemplaza binario → reinicia app
+```
+
+### Agent config
+
+Los instaladores generan `posvendelo-agent.json` en la primera instalación:
+
+| Plataforma | Ruta |
+|-----------|------|
+| Linux | `~/.config/posvendelo/posvendelo-agent.json` |
+| Windows | `%LOCALAPPDATA%\POSVENDELO\posvendelo-agent.json` |
+
+El agente busca en este orden: env var, `userData`, `~/.posvendelo/`, `%LOCALAPPDATA%`.
+
+### Manifest endpoint
+
+`GET /api/v1/releases/manifest?install_token=TOKEN` retorna artefactos con:
+- `version`, `target_ref`, `channel`
+- `checksums_manifest_url` (para verificación SHA256)
+- `rollback_supported`, `rollback.version`
+
 ## Archivos clave
 
 ```
@@ -121,6 +151,6 @@ backend/
 └── modules/discovery/broadcast.py           # UDP broadcast
 
 installers/
-├── linux/install-titan.sh                   # collect_hw_info + pre_register
-└── windows/Install-Titan.ps1               # Collect-HardwareInfo + Invoke-PreRegister
+├── linux/postinst.sh                        # Electron + Docker + agent config
+└── windows/nsis-postinstall.nsh             # Docker Desktop + agent config
 ```

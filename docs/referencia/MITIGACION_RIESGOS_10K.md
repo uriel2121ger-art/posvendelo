@@ -95,7 +95,7 @@ CI/CD Pipeline (GitHub Actions)
 
 Watchtower se incluye en el `docker-compose.yml` canónico (ver ARQ sección 2) con:
 - `DOCKER_CONTENT_TRUST=1` — solo pull imágenes firmadas con cosign
-- `WATCHTOWER_LABEL_ENABLE=true` — solo actualiza containers con label `titan`
+- `WATCHTOWER_LABEL_ENABLE=true` — solo actualiza containers con label `posvendelo`
 - `WATCHTOWER_POLL_INTERVAL=3600` — check cada hora (no cada 5 min)
 
 #### Supply Chain
@@ -178,8 +178,8 @@ services:
     image: prodrigestivill/postgres-backup-local:15
     environment:
       - POSTGRES_HOST=db
-      - POSTGRES_DB=titan_pos
-      - POSTGRES_USER=titan_user
+      - POSTGRES_DB=posvendelo
+      - POSTGRES_USER=posvendelo_user
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - SCHEDULE=0 */6 * * *       # cada 6 horas
       - BACKUP_KEEP_DAYS=7

@@ -467,7 +467,7 @@ if __name__ == "__main__":
         # SECURITY: This test block should only run in development
         import sys
     
-        if os.getenv("TITAN_ENVIRONMENT", "development") == "production":
+        if os.getenv("POSVENDELO_ENVIRONMENT", "development") == "production":
             print("❌ ERROR: Cannot run CSD Vault tests in production environment")
             sys.exit(1)
     

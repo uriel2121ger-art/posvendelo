@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process'
 
-const frontendBaseUrl = process.env.E2E_BASE_URL?.trim() || process.env.TITAN_BROWSER_URL?.trim()
-const apiBaseUrl = process.env.E2E_API_URL?.trim() || process.env.TITAN_API_URL?.trim()
+const frontendBaseUrl = process.env.E2E_BASE_URL?.trim() || process.env.POSVENDELO_BROWSER_URL?.trim()
+const apiBaseUrl = process.env.E2E_API_URL?.trim() || process.env.POSVENDELO_API_URL?.trim()
 
 if (!frontendBaseUrl) {
-  throw new Error('E2E_BASE_URL o TITAN_BROWSER_URL es requerido para arrancar preview de E2E.')
+  throw new Error('E2E_BASE_URL o POSVENDELO_BROWSER_URL es requerido para arrancar preview de E2E.')
 }
 
 const parsed = new URL(frontendBaseUrl)
@@ -12,9 +12,9 @@ const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80')
 
 const sharedEnv = {
   ...process.env,
-  TITAN_BROWSER_PORT: port,
-  TITAN_BROWSER_URL: frontendBaseUrl,
-  ...(apiBaseUrl ? { TITAN_API_URL: apiBaseUrl } : {})
+  POSVENDELO_BROWSER_PORT: port,
+  POSVENDELO_BROWSER_URL: frontendBaseUrl,
+  ...(apiBaseUrl ? { POSVENDELO_API_URL: apiBaseUrl } : {})
 }
 
 const build = spawn('npm', ['run', 'build:browser'], {

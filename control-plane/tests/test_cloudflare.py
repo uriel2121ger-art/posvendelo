@@ -2,11 +2,11 @@ from modules.tunnel.cloudflare import build_tunnel_url, cloudflare_enabled
 
 
 def test_build_tunnel_url_uses_public_base_domain(monkeypatch) -> None:
-    monkeypatch.setenv("CF_PUBLIC_BASE_DOMAIN", "demo.titan.local")
+    monkeypatch.setenv("CF_PUBLIC_BASE_DOMAIN", "demo.posvendelo.local")
 
     url = build_tunnel_url("sucursal-centro")
 
-    assert url == "https://sucursal-centro.demo.titan.local"
+    assert url == "https://sucursal-centro.demo.posvendelo.local"
 
 
 def test_cloudflare_enabled_defaults_to_simulate(monkeypatch) -> None:

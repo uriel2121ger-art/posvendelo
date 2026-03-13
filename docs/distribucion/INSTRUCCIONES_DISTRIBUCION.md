@@ -70,7 +70,7 @@ Aquí se instala el **nodo** en una máquina (servidor o PC) que tendrá el back
 
 **Qué dar:**
 
-1. **URL del control-plane** (ej. `https://titan.ejemplo.com`).
+1. **URL del control-plane** (ej. `https://posvendelo.ejemplo.com`).
 2. **Install token** de la sucursal (generado en el control-plane para esa sucursal).
 3. **Enlace al script de instalación** (o el script en un archivo).
 
@@ -81,16 +81,16 @@ Aquí se instala el **nodo** en una máquina (servidor o PC) que tendrá el back
 
   **Linux:**
   ```bash
-  curl -fsSL -o install-titan.sh \
-    "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-titan.sh"
-  chmod +x install-titan.sh
-  bash install-titan.sh --cp-url https://tu-control-plane.ejemplo.com --install-token TOKEN_QUE_LE_DISTE
+  curl -fsSL -o install-posvendelo.sh \
+    "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-posvendelo.sh"
+  chmod +x install-posvendelo.sh
+  bash install-posvendelo.sh --cp-url https://tu-control-plane.ejemplo.com --install-token TOKEN_QUE_LE_DISTE
   ```
 
   **Windows (PowerShell):**
   ```powershell
-  Invoke-WebRequest -Uri "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Titan.ps1" -OutFile Install-Titan.ps1
-  powershell -ExecutionPolicy Bypass -File .\Install-Titan.ps1 -CpUrl https://tu-control-plane.ejemplo.com -InstallToken TOKEN_QUE_LE_DISTE
+  Invoke-WebRequest -Uri "https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Posvendelo.ps1" -OutFile Install-Posvendelo.ps1
+  powershell -ExecutionPolicy Bypass -File .\Install-Posvendelo.ps1 -CpUrl https://tu-control-plane.ejemplo.com -InstallToken TOKEN_QUE_LE_DISTE
   ```
 
 - **Opción 2 – Enviar el script por correo/Drive**  
@@ -99,7 +99,7 @@ Aquí se instala el **nodo** en una máquina (servidor o PC) que tendrá el back
 - **Opción 3 – Clonar el repo solo para tener el script**  
   Si prefieren tener el repo: `git clone`, entrar en la carpeta, ejecutar el script desde `installers/linux/` o `installers/windows/`. Luego pueden borrar el clon.
 
-Tras la instalación, en la máquina del nodo quedan `.env`, `docker-compose.yml`, `titan-agent.json` e `INSTALL_SUMMARY.txt`. Las **terminales de caja** (instaladores del punto A) se configuran para apuntar a la IP/puerto de ese nodo (según tu red y cómo expongas el API).
+Tras la instalación, en la máquina del nodo quedan `.env`, `docker-compose.yml`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`. Las **terminales de caja** (instaladores del punto A) se configuran para apuntar a la IP/puerto de ese nodo (según tu red y cómo expongas el API).
 
 ---
 
@@ -116,7 +116,7 @@ Tras la instalación, en la máquina del nodo quedan `.env`, `docker-compose.yml
 ## 5. Enlaces útiles (sustituir ORG y REPO)
 
 - **Releases:** `https://github.com/<ORG>/<REPO>/releases`
-- **Script Linux (raw):** `https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-titan.sh`
-- **Script Windows (raw):** `https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Titan.ps1`
+- **Script Linux (raw):** `https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/linux/install-posvendelo.sh`
+- **Script Windows (raw):** `https://raw.githubusercontent.com/<ORG>/<REPO>/master/installers/windows/Install-Posvendelo.ps1`
 
 Para más detalle para quien **recibe** la distribución (instalación en equipo nuevo), ver **`docs/distribucion/INSTALACION_EQUIPOS.md`**.

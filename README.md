@@ -15,7 +15,7 @@ cp .env.example .env
 
 | Variable | Obligatoria | Uso |
 | -------- | ----------- | --- |
-| `DATABASE_URL` | Sí | Conexión PostgreSQL (ej. `postgresql+asyncpg://user:pass@host:5432/titan_pos`) |
+| `DATABASE_URL` | Sí | Conexión PostgreSQL (ej. `postgresql+asyncpg://user:pass@host:5432/posvendelo`) |
 | `JWT_SECRET` o `SECRET_KEY` | Sí (recomendado) | Firma de tokens JWT; si falta, se genera uno aleatorio (tokens no persisten al reiniciar) |
 | `CORS_ALLOWED_ORIGINS` | No | Orígenes permitidos separados por coma; si está vacío, se usan localhost/127.0.0.1 por defecto |
 | `DEBUG` | No | `true` = Swagger en `/docs` y rate-limit relajado |
@@ -44,7 +44,7 @@ make health
 Para dejar el backend productivo actualizado:
 
 ```bash
-export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/titan-pos/titan-pos:latest}"
+export BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/uriel2121ger-art/posvendelo:latest}"
 docker build -t "$BACKEND_IMAGE" backend
 docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api
 curl http://127.0.0.1:8000/health
@@ -77,7 +77,7 @@ Objetivo operativo:
 Flujo esperado:
 
 1. El `control-plane` entrega `bootstrap-config` y `compose-template`.
-2. El instalador genera `.env`, `docker-compose.yml`, `titan-agent.json` e `INSTALL_SUMMARY.txt`.
+2. El instalador genera `.env`, `docker-compose.yml`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
 3. La app desktop detecta el nodo local, licencia, companion y acceso del dueño desde el agente.
 4. Soporte valida salud local, branch, manifest y companion sin reconstruir rutas a mano.
 
@@ -135,7 +135,7 @@ _archive/         # Código legacy (rollback)
 | [CHANGELOG.md](CHANGELOG.md) | Changelog del proyecto (releases y cambios notables) |
 | [docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md](docs/distribucion/INSTRUCCIONES_DISTRIBUCION.md) | Cómo publicar una release y distribuir (cajeros, sucursales) |
 | [docs/distribucion/INSTALACION_EQUIPOS.md](docs/distribucion/INSTALACION_EQUIPOS.md) | Instalación en equipos nuevos (Release, script, clonado) |
-| [docs/distribucion/PLAN_NUBE_TITAN.md](docs/distribucion/PLAN_NUBE_TITAN.md) | Plan Nube PosVendelo: cuenta opcional, app dueño, sync, comandos remotos |
+| [docs/distribucion/PLAN_NUBE_POSVENDELO.md](docs/distribucion/PLAN_NUBE_POSVENDELO.md) | Plan Nube PosVendelo: cuenta opcional, app dueño, sync, comandos remotos |
 | [installers/README.md](installers/README.md) | Instalación Windows/Linux, contrato bootstrap y soporte plug-and-play |
 | [docs/operacion/SECURITY_CHECKLIST.md](docs/operacion/SECURITY_CHECKLIST.md) | Checklist de seguridad, pip-audit y controles implementados |
 | [docs/referencia/INGESTORES_CSV_XML.md](docs/referencia/INGESTORES_CSV_XML.md) | Ingestores CSV/XML: productos, clientes, inventario, historial |

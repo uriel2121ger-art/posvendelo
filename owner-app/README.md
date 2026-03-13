@@ -9,7 +9,7 @@ npm run build:android
 cd android && ./gradlew assembleDebug
 ```
 
-Requiere Android SDK (`ANDROID_HOME` o `android/local.properties` con `sdk.dir`). El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Para publicar en la landing: copiarlo a `control-plane/downloads/titan-owner.apk`.
+Requiere Android SDK (`ANDROID_HOME` o `android/local.properties` con `sdk.dir`). El APK queda en `android/app/build/outputs/apk/debug/app-debug.apk`. Para publicar en la landing: copiarlo a `control-plane/downloads/posvendelo-owner.apk`.
 
 ---
 

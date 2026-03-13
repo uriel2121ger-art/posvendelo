@@ -55,7 +55,7 @@ die() {
 banner
 
 AGENT_DIR="${HOME}/.posvendelo"
-AGENT_JSON_PATH="${AGENT_DIR}/titan-agent.json"
+AGENT_JSON_PATH="${AGENT_DIR}/posvendelo-agent.json"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FASE 1: Verificar Docker
@@ -172,10 +172,10 @@ else
     sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://posvendelo_user:${PG_PASS}@postgres:5432/posvendelo|" .env
 
     # Standalone mode: ensure license enforcement is disabled (no control plane)
-    if grep -q "^TITAN_LICENSE_ENFORCEMENT=" .env; then
-        sed -i "s|^TITAN_LICENSE_ENFORCEMENT=.*|TITAN_LICENSE_ENFORCEMENT=false|" .env
+    if grep -q "^POSVENDELO_LICENSE_ENFORCEMENT=" .env; then
+        sed -i "s|^POSVENDELO_LICENSE_ENFORCEMENT=.*|POSVENDELO_LICENSE_ENFORCEMENT=false|" .env
     else
-        echo "TITAN_LICENSE_ENFORCEMENT=false" >> .env
+        echo "POSVENDELO_LICENSE_ENFORCEMENT=false" >> .env
     fi
 
     ok "Archivo .env generado con secretos aleatorios"
@@ -227,7 +227,7 @@ ok "Contenedor postgres iniciado"
 
 echo -n "    Esperando a que la base de datos esté lista"
 for i in $(seq 1 60); do
-    if docker compose exec -T postgres pg_isready -U titan_user -d titan_pos &>/dev/null; then
+    if docker compose exec -T postgres pg_isready -U posvendelo_user -d posvendelo &>/dev/null; then
         echo ""
         ok "Base de datos lista"
         break
@@ -254,7 +254,7 @@ trap 'rm -f "$PSQL_ERR"' EXIT
 # ON_ERROR_STOP=1 makes psql exit on first ERROR (NOTICEs like "already exists" are fine)
 run_psql() {
     local label="$1"
-    if docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U titan_user -d titan_pos 2>"$PSQL_ERR"; then
+    if docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U posvendelo_user -d posvendelo 2>"$PSQL_ERR"; then
         return 0
     else
         # Check if errors are only benign "already exists" notices
@@ -320,7 +320,7 @@ fi
 # Verificar tablas criticas existen
 MISSING_TABLES=""
 for tbl in products users sales schema_version; do
-    COUNT=$(docker compose exec -T postgres psql -U titan_user -d titan_pos -tAc \
+    COUNT=$(docker compose exec -T postgres psql -U posvendelo_user -d posvendelo -tAc \
         "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$tbl';" 2>/dev/null)
     if [ "$COUNT" != "1" ]; then
         MISSING_TABLES="$MISSING_TABLES $tbl"

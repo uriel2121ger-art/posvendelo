@@ -27,7 +27,7 @@ def _write_license_file(tmp_path, *, license_type: str, valid_until: datetime | 
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     signature = private_key.sign(canonical, padding.PKCS1v15(), hashes.SHA256())
-    agent_path = tmp_path / "titan-agent.json"
+    agent_path = tmp_path / "posvendelo-agent.json"
     agent_path.write_text(
         json.dumps(
             {
@@ -49,8 +49,8 @@ def test_get_license_state_active(tmp_path, monkeypatch) -> None:
         license_type="trial",
         valid_until=datetime.now(UTC).replace(microsecond=0, tzinfo=None) + timedelta(days=30),
     )
-    monkeypatch.setenv("TITAN_AGENT_CONFIG_PATH", str(agent_path))
-    monkeypatch.setenv("TITAN_LICENSE_ENFORCEMENT", "true")
+    monkeypatch.setenv("POSVENDELO_AGENT_CONFIG_PATH", str(agent_path))
+    monkeypatch.setenv("POSVENDELO_LICENSE_ENFORCEMENT", "true")
 
     state = get_license_state()
 
@@ -67,8 +67,8 @@ def test_should_block_request_for_expired_monthly_write(tmp_path, monkeypatch) -
         valid_until=datetime.now(UTC).replace(microsecond=0, tzinfo=None) - timedelta(days=10),
         grace_days=3,
     )
-    monkeypatch.setenv("TITAN_AGENT_CONFIG_PATH", str(agent_path))
-    monkeypatch.setenv("TITAN_LICENSE_ENFORCEMENT", "true")
+    monkeypatch.setenv("POSVENDELO_AGENT_CONFIG_PATH", str(agent_path))
+    monkeypatch.setenv("POSVENDELO_LICENSE_ENFORCEMENT", "true")
 
     blocked, state = should_block_request("/api/v1/sales", "POST")
 

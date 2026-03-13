@@ -32,7 +32,7 @@ def _csv_env(name: str) -> list[str]:
 
 
 def _get_last_backup_at() -> str | None:
-    backup_dir = Path(os.getenv("TITAN_BACKUP_DIR", "/backups"))
+    backup_dir = Path(os.getenv("POSVENDELO_BACKUP_DIR", "/backups"))
     if not backup_dir.exists() or not backup_dir.is_dir():
         return None
 
@@ -73,14 +73,14 @@ async def _get_sales_today() -> float:
 
 async def _build_heartbeat_payload() -> dict | None:
     control_plane_url = os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/")
-    branch_id_raw = os.getenv("TITAN_BRANCH_ID", "").strip()
+    branch_id_raw = os.getenv("POSVENDELO_BRANCH_ID", "").strip()
     if not control_plane_url or not branch_id_raw:
         return None
 
     try:
         branch_id = int(branch_id_raw)
     except ValueError:
-        logger.warning("Invalid TITAN_BRANCH_ID for heartbeat: %s", branch_id_raw)
+        logger.warning("Invalid POSVENDELO_BRANCH_ID for heartbeat: %s", branch_id_raw)
         return None
 
     return {
@@ -88,7 +88,7 @@ async def _build_heartbeat_payload() -> dict | None:
         "payload": {
             "branch_id": branch_id,
             "pos_version": runtime_version,
-            "app_version": os.getenv("TITAN_APP_VERSION", runtime_version),
+            "app_version": os.getenv("POSVENDELO_APP_VERSION", runtime_version),
             "disk_used_pct": round(psutil.disk_usage("/").percent, 2),
             "sales_today": await _get_sales_today(),
             "last_backup_at": _get_last_backup_at(),
@@ -99,7 +99,7 @@ async def _build_heartbeat_payload() -> dict | None:
 
 def _load_agent_install_context() -> tuple[str | None, str | None]:
     control_plane_url = os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/") or None
-    config_path_raw = os.getenv("TITAN_AGENT_CONFIG_PATH", "").strip()
+    config_path_raw = os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "").strip()
     if not config_path_raw:
         return control_plane_url, None
     config_path = Path(config_path_raw).expanduser()
@@ -360,8 +360,8 @@ async def lifespan(application):
 # ---------------------------------------------------------------------------
 
 debug = os.getenv("DEBUG", "false").lower() == "true"
-runtime_version = os.getenv("TITAN_VERSION", "2.0.0")
-runtime_branch_id = os.getenv("TITAN_BRANCH_ID", "").strip()
+runtime_version = os.getenv("POSVENDELO_VERSION", "2.0.0")
+runtime_branch_id = os.getenv("POSVENDELO_BRANCH_ID", "").strip()
 
 app = FastAPI(
     title="POSVENDELO",
@@ -383,8 +383,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # CORS
 origins = _csv_env("CORS_ALLOWED_ORIGINS")
 if not origins:
-    cors_hosts = _csv_env("TITAN_DEV_ALLOWED_ORIGIN_HOSTS") or ["localhost", "127.0.0.1"]
-    cors_ports = _csv_env("TITAN_DEV_ALLOWED_ORIGIN_PORTS") or ["3000", "5173", "5174", "8080"]
+    cors_hosts = _csv_env("POSVENDELO_DEV_ALLOWED_ORIGIN_HOSTS") or ["localhost", "127.0.0.1"]
+    cors_ports = _csv_env("POSVENDELO_DEV_ALLOWED_ORIGIN_PORTS") or ["3000", "5173", "5174", "8080"]
     origins = [f"http://{host}:{port}" for host in cors_hosts for port in cors_ports]
 
 # SECURITY: "null" origin removed — it allows sandboxed/file:// pages to bypass CORS.
@@ -395,7 +395,7 @@ try:
     import socket
     _lan_ip = socket.gethostbyname(socket.gethostname())
     if not _lan_ip.startswith("127."):
-        for _p in _csv_env("TITAN_DEV_ALLOWED_ORIGIN_PORTS") or ["3000", "5173", "5174", "8080"]:
+        for _p in _csv_env("POSVENDELO_DEV_ALLOWED_ORIGIN_PORTS") or ["3000", "5173", "5174", "8080"]:
             _o = f"http://{_lan_ip}:{_p}"
             if _o not in origins:
                 origins.append(_o)
@@ -491,7 +491,7 @@ class LicenseEnforcementMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         if state.get("present"):
-            response.headers["X-Titan-License-Status"] = str(state.get("effective_status") or "unknown")
+            response.headers["X-PosVendelo-License-Status"] = str(state.get("effective_status") or "unknown")
         return response
 
 

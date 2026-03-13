@@ -59,12 +59,12 @@ class DummyCloudDb:
 
 @pytest.mark.asyncio
 async def test_cloud_discover_returns_public_urls(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CP_PUBLIC_URL", "https://titancloud.example.com")
-    monkeypatch.setenv("CP_DISCOVER_URL", "https://api.titanpos.mx/discover")
+    monkeypatch.setenv("CP_PUBLIC_URL", "https://posvendelo.example.com")
+    monkeypatch.setenv("CP_DISCOVER_URL", "https://api.posvendelo.com/discover")
     response = await cloud_discover()
 
-    assert response["data"]["cp_url"] == "https://titancloud.example.com"
-    assert response["data"]["discover_url"] == "https://api.titanpos.mx/discover"
+    assert response["data"]["cp_url"] == "https://posvendelo.example.com"
+    assert response["data"]["discover_url"] == "https://api.posvendelo.com/discover"
 
 
 @pytest.mark.asyncio

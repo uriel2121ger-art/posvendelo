@@ -31,8 +31,8 @@ function parseDotEnv(filePath) {
 const envFile = parseDotEnv(path.join(repoRoot, '.env'))
 const apiUrl =
   process.env.E2E_API_URL ||
-  process.env.TITAN_API_URL ||
-  envFile.TITAN_API_URL ||
+  process.env.POSVENDELO_API_URL ||
+  envFile.POSVENDELO_API_URL ||
   'http://127.0.0.1:8000'
 const adminUser = process.env.E2E_USER || envFile.ADMIN_API_USER || ''
 const adminPass = process.env.E2E_PASS || envFile.ADMIN_API_PASSWORD || ''
@@ -43,7 +43,7 @@ const discoverPorts = (process.env.E2E_DISCOVER_PORTS || '8000,8080')
   .map((value) => Number.parseInt(value.trim(), 10))
   .filter((value) => Number.isFinite(value))
 
-const profileRoot = path.join(os.tmpdir(), `titan-pos-debug-terminal-${terminalId}`)
+const profileRoot = path.join(os.tmpdir(), `posvendelo-debug-terminal-${terminalId}`)
 
 async function closeShiftModalIfPresent(page) {
   const continuar = page.getByRole('button', { name: /continuar turno/i })
@@ -80,9 +80,9 @@ async function main() {
   await page.waitForLoadState('domcontentloaded')
   await page.evaluate(
     ({ nextApiUrl, nextTerminalId, nextPorts }) => {
-      localStorage.setItem('titan.baseUrl', nextApiUrl)
-      localStorage.setItem('titan.terminalId', String(nextTerminalId))
-      localStorage.setItem('titan.discoverPorts', JSON.stringify(nextPorts))
+      localStorage.setItem('pos.baseUrl', nextApiUrl)
+      localStorage.setItem('pos.terminalId', String(nextTerminalId))
+      localStorage.setItem('pos.discoverPorts', JSON.stringify(nextPorts))
     },
     {
       nextApiUrl: apiUrl,

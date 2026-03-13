@@ -25,7 +25,7 @@ def _cp_url() -> str:
 
 
 def _install_token() -> str:
-    token = os.getenv("TITAN_LICENSE_KEY", "").strip()
+    token = os.getenv("POSVENDELO_LICENSE_KEY", "").strip()
     if not token:
         raise HTTPException(status_code=503, detail="Token de instalación no configurado")
     return token

@@ -53,7 +53,7 @@ Confirmar que la respuesta incluye:
 En un nodo ya instalado, validar además:
 
 - `INSTALL_SUMMARY.txt` presente y legible
-- `titan-agent.json` presente
+- `posvendelo-agent.json` presente
 - pantalla de login mostrando nodo local saludable
 - companion/acceso del dueño visible sin configuración manual adicional
 

@@ -13,6 +13,6 @@ alwaysApply: false
 - Validar RFC contra patrón SAT antes de usar en fiscal
 - Precios: siempre leer de DB en ventas; nunca confiar en payload del cliente
 
-## TITAN POS específico
+## POSVENDELO específico
 - Cancelación de venta: siempre exigir `manager_pin` en el payload
 - NullByteSanitizer middleware debe estar activo en main.py

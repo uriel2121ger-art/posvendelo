@@ -89,7 +89,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: ghcr.io/uriel2121ger-art/posvendelo:latest
+    image: ${BACKEND_IMAGE}
     env_file:
       - .env
     environment:
@@ -166,6 +166,7 @@ JWT_SECRET=$JWT_SECRET
 ADMIN_API_USER=
 ADMIN_API_PASSWORD=
 DEBUG=false
+BACKEND_IMAGE=ghcr.io/uriel2121ger-art/posvendelo:latest
 ENVEOF
     chmod 600 "$ENV_FILE"
     log ".env generado con credenciales seguras."
@@ -235,7 +236,53 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. Write INSTALL_SUMMARY
+# 9. Generate posvendelo-agent.json for auto-update
+#    The agent needs controlPlaneUrl to poll for updates.
+#    installToken gets set later during pre-registration.
+# ---------------------------------------------------------------------------
+AGENT_CONFIG_DIR="$HOME/.config/posvendelo"
+AGENT_CONFIG="$AGENT_CONFIG_DIR/posvendelo-agent.json"
+# Also generate for the real user (not root)
+if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
+    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    AGENT_CONFIG_DIR="$REAL_HOME/.config/posvendelo"
+    AGENT_CONFIG="$AGENT_CONFIG_DIR/posvendelo-agent.json"
+fi
+
+# Read CONTROL_PLANE_URL from .env if set
+CP_URL=""
+if [ -f "$ENV_FILE" ]; then
+    CP_URL=$(grep -oP 'CONTROL_PLANE_URL=\K.*' "$ENV_FILE" 2>/dev/null | tr -d '[:space:]' || true)
+fi
+
+if [ ! -f "$AGENT_CONFIG" ]; then
+    mkdir -p "$AGENT_CONFIG_DIR"
+    cat > "$AGENT_CONFIG" << AGENTEOF
+{
+  "installDir": "/opt/posvendelo",
+  "controlPlaneUrl": "$CP_URL",
+  "localApiUrl": "http://127.0.0.1:8000",
+  "backendHealthUrl": "http://127.0.0.1:8000/health",
+  "appArtifact": "electron-linux",
+  "backendArtifact": "backend",
+  "releaseChannel": "stable",
+  "pollIntervals": {
+    "healthSeconds": 30,
+    "manifestSeconds": 300,
+    "licenseSeconds": 3600
+  }
+}
+AGENTEOF
+    if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
+        chown -R "$REAL_USER:$REAL_USER" "$AGENT_CONFIG_DIR" 2>/dev/null || true
+    fi
+    log "posvendelo-agent.json generado."
+else
+    log "posvendelo-agent.json existente conservado."
+fi
+
+# ---------------------------------------------------------------------------
+# 10. Write INSTALL_SUMMARY
 # ---------------------------------------------------------------------------
 cat > "$INSTALL_DIR/INSTALL_SUMMARY.txt" << 'SUMEOF'
 ╔══════════════════════════════════════════════╗

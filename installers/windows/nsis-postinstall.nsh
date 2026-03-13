@@ -15,22 +15,25 @@
   ; --------------------------------------------------------------------------
   ; Variables locales
   ; --------------------------------------------------------------------------
-  Var /GLOBAL TITAN_DATA_DIR
-  Var /GLOBAL TITAN_COMPOSE
-  Var /GLOBAL TITAN_ENV
-  Var /GLOBAL TITAN_SUMMARY
+  Var /GLOBAL POS_DATA_DIR
+  Var /GLOBAL POS_COMPOSE
+  Var /GLOBAL POS_ENV
+  Var /GLOBAL POS_SUMMARY
   Var /GLOBAL DOCKER_EXIT
   Var /GLOBAL HEALTH_ATTEMPTS
   Var /GLOBAL HEALTH_RESULT
+  Var /GLOBAL POS_AGENT_DIR
+  Var /GLOBAL POS_AGENT_FILE
+  Var /GLOBAL POS_CP_URL
 
   ; NSIS no tiene $PROGRAMDATA built-in — leer de variable de entorno
-  ReadEnvStr $TITAN_DATA_DIR PROGRAMDATA
-  StrCmp $TITAN_DATA_DIR "" 0 +2
-    StrCpy $TITAN_DATA_DIR "C:\ProgramData"
-  StrCpy $TITAN_DATA_DIR "$TITAN_DATA_DIR\POSVENDELO"
-  StrCpy $TITAN_COMPOSE  "$TITAN_DATA_DIR\docker-compose.yml"
-  StrCpy $TITAN_ENV      "$TITAN_DATA_DIR\.env"
-  StrCpy $TITAN_SUMMARY  "$TITAN_DATA_DIR\INSTALL_SUMMARY.txt"
+  ReadEnvStr $POS_DATA_DIR PROGRAMDATA
+  StrCmp $POS_DATA_DIR "" 0 +2
+    StrCpy $POS_DATA_DIR "C:\ProgramData"
+  StrCpy $POS_DATA_DIR "$POS_DATA_DIR\POSVENDELO"
+  StrCpy $POS_COMPOSE  "$POS_DATA_DIR\docker-compose.yml"
+  StrCpy $POS_ENV      "$POS_DATA_DIR\.env"
+  StrCpy $POS_SUMMARY  "$POS_DATA_DIR\INSTALL_SUMMARY.txt"
 
   ; --------------------------------------------------------------------------
   ; 1. Detectar Docker Desktop
@@ -88,14 +91,14 @@
   ; --------------------------------------------------------------------------
   ; 2. Crear directorio de datos
   ; --------------------------------------------------------------------------
-  DetailPrint "Creando directorio de datos: $TITAN_DATA_DIR"
-  CreateDirectory "$TITAN_DATA_DIR"
-  CreateDirectory "$TITAN_DATA_DIR\backups"
+  DetailPrint "Creando directorio de datos: $POS_DATA_DIR"
+  CreateDirectory "$POS_DATA_DIR"
+  CreateDirectory "$POS_DATA_DIR\backups"
 
   ; --------------------------------------------------------------------------
   ; 3. Generar .env (solo si no existe — nunca sobreescribir secretos)
   ; --------------------------------------------------------------------------
-  ${If} ${FileExists} "$TITAN_ENV"
+  ${If} ${FileExists} "$POS_ENV"
     DetailPrint ".env existente conservado."
   ${Else}
     DetailPrint "Generando .env con credenciales seguras..."
@@ -110,22 +113,24 @@
     FileWrite $1 '  "JWT_SECRET=$$jwtSecret",$\r$\n'
     FileWrite $1 '  "ADMIN_API_USER=",$\r$\n'
     FileWrite $1 '  "ADMIN_API_PASSWORD=",$\r$\n'
-    FileWrite $1 '  "DEBUG=false"$\r$\n'
+    FileWrite $1 '  "DEBUG=false",$\r$\n'
+    FileWrite $1 '  "BACKEND_IMAGE=ghcr.io/uriel2121ger-art/posvendelo:latest"$\r$\n'
     FileWrite $1 ')$\r$\n'
     FileWrite $1 '$$lines -join [Environment]::NewLine | Set-Content -Encoding UTF8 -Path $$envPath$\r$\n'
     FileClose $1
-    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$TEMP\posvendelo-genenv.ps1" "$TITAN_ENV"'
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$TEMP\posvendelo-genenv.ps1" "$POS_ENV"'
     Pop $0
     ${If} $0 != 0
       DetailPrint "ADVERTENCIA: Fallo generación de .env via PowerShell. Usando fallback básico..."
       ; Fallback: escribir .env con placeholder (el wizard pedirá configuración)
-      FileOpen $1 "$TITAN_ENV" w
+      FileOpen $1 "$POS_ENV" w
       FileWrite $1 "POSTGRES_PASSWORD=changeme_on_first_run$\r$\n"
       FileWrite $1 "DATABASE_URL=postgresql+asyncpg://posvendelo_user:changeme_on_first_run@postgres:5432/posvendelo$\r$\n"
       FileWrite $1 "JWT_SECRET=changeme_jwt_secret_please_set_a_strong_value$\r$\n"
       FileWrite $1 "ADMIN_API_USER=$\r$\n"
       FileWrite $1 "ADMIN_API_PASSWORD=$\r$\n"
       FileWrite $1 "DEBUG=false$\r$\n"
+      FileWrite $1 "BACKEND_IMAGE=ghcr.io/uriel2121ger-art/posvendelo:latest$\r$\n"
       FileClose $1
     ${EndIf}
     DetailPrint ".env generado."
@@ -135,7 +140,7 @@
   ; 4. Escribir docker-compose.yml (siempre — para recoger actualizaciones)
   ; --------------------------------------------------------------------------
   DetailPrint "Escribiendo docker-compose.yml..."
-  FileOpen $1 "$TITAN_COMPOSE" w
+  FileOpen $1 "$POS_COMPOSE" w
   FileWrite $1 "services:$\r$\n"
   FileWrite $1 "  postgres:$\r$\n"
   FileWrite $1 "    image: postgres:15-alpine$\r$\n"
@@ -153,7 +158,7 @@
   FileWrite $1 "    restart: unless-stopped$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "  api:$\r$\n"
-  FileWrite $1 "    image: ghcr.io/uriel2121ger-art/posvendelo:latest$\r$\n"
+  FileWrite $1 "    image: $${BACKEND_IMAGE}$\r$\n"
   FileWrite $1 "    env_file:$\r$\n"
   FileWrite $1 "      - .env$\r$\n"
   FileWrite $1 "    environment:$\r$\n"
@@ -179,7 +184,7 @@
   ; 5. Pull de imagen e inicio de contenedores
   ; --------------------------------------------------------------------------
   DetailPrint "Descargando imagen del backend (puede tardar varios minutos la primera vez)..."
-  nsExec::ExecToLog 'cmd /c cd /d "$TITAN_DATA_DIR" && docker compose pull'
+  nsExec::ExecToLog 'cmd /c cd /d "$POS_DATA_DIR" && docker compose pull'
   Pop $0
   ${If} $0 != 0
     DetailPrint "ADVERTENCIA: No se pudo descargar la imagen. El servicio iniciará cuando haya internet."
@@ -187,7 +192,7 @@
   ${EndIf}
 
   DetailPrint "Iniciando contenedores..."
-  nsExec::ExecToLog 'cmd /c cd /d "$TITAN_DATA_DIR" && docker compose up -d'
+  nsExec::ExecToLog 'cmd /c cd /d "$POS_DATA_DIR" && docker compose up -d'
   Pop $0
   ${If} $0 != 0
     DetailPrint "ADVERTENCIA: docker compose up falló. Revisa Docker Desktop."
@@ -220,10 +225,45 @@
   skipComposeUp:
 
   ; --------------------------------------------------------------------------
-  ; 7. Escribir INSTALL_SUMMARY.txt
+  ; 7. Generar posvendelo-agent.json para auto-update
+  ;    localAgent.ts busca en %LOCALAPPDATA%\POSVENDELO\
+  ; --------------------------------------------------------------------------
+  StrCpy $POS_AGENT_DIR "$LOCALAPPDATA\POSVENDELO"
+  StrCpy $POS_AGENT_FILE "$POS_AGENT_DIR\posvendelo-agent.json"
+
+  ${IfNot} ${FileExists} "$POS_AGENT_FILE"
+    DetailPrint "Generando posvendelo-agent.json..."
+    CreateDirectory "$POS_AGENT_DIR"
+
+    ; controlPlaneUrl vacío por default — se configura via bootstrap o manualmente
+    FileOpen $1 "$POS_AGENT_FILE" w
+    FileWrite $1 "{$\r$\n"
+    FileWrite $1 '  "installDir": "'
+    FileWrite $1 "$POS_DATA_DIR"
+    FileWrite $1 '",$\r$\n'
+    FileWrite $1 '  "controlPlaneUrl": "",$\r$\n'
+    FileWrite $1 '  "localApiUrl": "http://127.0.0.1:8000",$\r$\n'
+    FileWrite $1 '  "backendHealthUrl": "http://127.0.0.1:8000/health",$\r$\n'
+    FileWrite $1 '  "appArtifact": "electron-windows",$\r$\n'
+    FileWrite $1 '  "backendArtifact": "backend",$\r$\n'
+    FileWrite $1 '  "releaseChannel": "stable",$\r$\n'
+    FileWrite $1 '  "pollIntervals": {$\r$\n'
+    FileWrite $1 '    "healthSeconds": 30,$\r$\n'
+    FileWrite $1 '    "manifestSeconds": 300,$\r$\n'
+    FileWrite $1 '    "licenseSeconds": 3600$\r$\n'
+    FileWrite $1 "  }$\r$\n"
+    FileWrite $1 "}$\r$\n"
+    FileClose $1
+    DetailPrint "posvendelo-agent.json generado."
+  ${Else}
+    DetailPrint "posvendelo-agent.json existente conservado."
+  ${EndIf}
+
+  ; --------------------------------------------------------------------------
+  ; 8. Escribir INSTALL_SUMMARY.txt
   ; --------------------------------------------------------------------------
   DetailPrint "Escribiendo resumen de instalación..."
-  FileOpen $1 "$TITAN_SUMMARY" w
+  FileOpen $1 "$POS_SUMMARY" w
   FileWrite $1 "POSVENDELO - Instalado OK$\r$\n"
   FileWrite $1 "============================================$\r$\n"
   FileWrite $1 "$\r$\n"
@@ -234,10 +274,10 @@
   FileWrite $1 "por primera vez.$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "Backend: http://127.0.0.1:8000$\r$\n"
-  FileWrite $1 "Datos en: $TITAN_DATA_DIR$\r$\n"
+  FileWrite $1 "Datos en: $POS_DATA_DIR$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "Para detener los servicios:$\r$\n"
-  FileWrite $1 "  cd $TITAN_DATA_DIR$\r$\n"
+  FileWrite $1 "  cd $POS_DATA_DIR$\r$\n"
   FileWrite $1 "  docker compose down$\r$\n"
   FileWrite $1 "$\r$\n"
   FileWrite $1 "Los datos de la base de datos se conservan en el$\r$\n"

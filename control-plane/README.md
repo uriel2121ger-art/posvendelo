@@ -7,7 +7,7 @@ Servicio central para gestionar flota de sucursales POSVENDELO.
 - registro de tenants y sucursales
 - bootstrap config por token de instalacion
 - compose template para nodos cliente
-- contrato de bootstrap para agente local (`titan-agent.json`)
+- contrato de bootstrap para agente local (`posvendelo-agent.json`)
 - heartbeats de sucursales
 - dashboard HTML simple
 - releases y asignaciones por sucursal
@@ -74,7 +74,7 @@ Esos campos permiten que el instalador y el agente local compartan el mismo cont
 
 Flujo recomendado:
 
-1. El instalador consume `bootstrap-config` y guarda `titan-agent.json`.
+1. El instalador consume `bootstrap-config` y guarda `posvendelo-agent.json`.
 2. El agente local usa `install_token` para pedir `POST /api/v1/owner/session`.
 3. La app desktop consume al agente local, no al `install_token` crudo.
 4. El companion usa las rutas ya publicadas por `companion_entry_url` y `quick_links`.
@@ -116,7 +116,7 @@ curl -X POST http://localhost:9090/api/v1/licenses/issue \
 
 Este endpoint requiere el header administrativo configurado para el entorno.
 
-Exportar `titan-license.json` para un cliente offline:
+Exportar `posvendelo-license.json` para un cliente offline:
 
 ```bash
 python3 scripts/license_admin.py \
@@ -124,7 +124,7 @@ python3 scripts/license_admin.py \
   export-file \
   --install-token TOKEN \
   --machine-id EQUIPO-001 \
-  --output titan-license.json
+  --output posvendelo-license.json
 ```
 
 1. Descargar compose:
@@ -146,7 +146,7 @@ curl -X POST http://localhost:9090/api/v1/heartbeat/ \
 ```bash
 curl -X POST http://localhost:9090/api/v1/releases/publish \
   -H "Content-Type: application/json" \
-  -d '{"platform":"desktop","artifact":"electron-linux","version":"2.0.0","channel":"stable","target_ref":"https://github.com/ORG/REPO/releases/download/v2.0.0/titan-pos-2.0.0.AppImage","source":"manual"}'
+  -d '{"platform":"desktop","artifact":"electron-linux","version":"2.0.0","channel":"stable","target_ref":"https://github.com/ORG/REPO/releases/download/v2.0.0/posvendelo-2.0.0.AppImage","source":"manual"}'
 ```
 
 Este endpoint requiere el header de publicación de releases configurado para el entorno.

@@ -51,7 +51,7 @@ function requireSetting(name, fallback = '') {
 
 const API_URL =
   readSetting('E2E_API_URL') ||
-  readSetting('TITAN_API_URL') ||
+  readSetting('POSVENDELO_API_URL') ||
   readSetting('ELECTRON_E2E_BASE_URL') ||
   'http://127.0.0.1:8000'
 const ADMIN_USER = requireSetting('E2E_USER', readSetting('ADMIN_API_USER'))
@@ -353,7 +353,7 @@ async function loginAndPrepare(page, terminalId) {
 }
 
 async function launchTerminal(terminalId, runId) {
-  const profileRoot = path.join(os.tmpdir(), `titan-pos-lan-${runId}-terminal-${terminalId}`)
+  const profileRoot = path.join(os.tmpdir(), `posvendelo-lan-${runId}-terminal-${terminalId}`)
   fs.rmSync(profileRoot, { recursive: true, force: true })
 
   const app = await electron.launch({
@@ -393,9 +393,9 @@ async function launchTerminal(terminalId, runId) {
   await page.evaluate(
     ({ nextApiUrl, nextTerminalId, nextPorts }) => {
       localStorage.clear()
-      localStorage.setItem('titan.baseUrl', nextApiUrl)
-      localStorage.setItem('titan.terminalId', String(nextTerminalId))
-      localStorage.setItem('titan.discoverPorts', JSON.stringify(nextPorts))
+      localStorage.setItem('pos.baseUrl', nextApiUrl)
+      localStorage.setItem('pos.terminalId', String(nextTerminalId))
+      localStorage.setItem('pos.discoverPorts', JSON.stringify(nextPorts))
     },
     {
       nextApiUrl: API_URL,
@@ -506,7 +506,7 @@ async function addProductToCart(page, sku, expectedName) {
     }
 
     await page.evaluate(() => {
-      window.dispatchEvent(new CustomEvent('titan-products-changed'))
+      window.dispatchEvent(new CustomEvent('pos-products-changed'))
       window.dispatchEvent(new Event('focus'))
     })
     await page.waitForTimeout(1200)
@@ -687,7 +687,7 @@ async function main() {
       await Promise.all(
         contexts.map(async ({ page }) => {
           await page.evaluate(() => {
-            window.dispatchEvent(new CustomEvent('titan-products-changed'))
+            window.dispatchEvent(new CustomEvent('pos-products-changed'))
             window.dispatchEvent(new Event('focus'))
           })
         })

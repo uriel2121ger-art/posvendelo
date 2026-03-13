@@ -56,8 +56,8 @@ echo ""
 echo -e "${YELLOW}[2/4] Configurando base de datos...${NC}"
 echo ""
 
-read -p "Usuario PostgreSQL [titan_user]: " DB_USER
-DB_USER=${DB_USER:-titan_user}
+read -p "Usuario PostgreSQL [posvendelo_user]: " DB_USER
+DB_USER=${DB_USER:-posvendelo_user}
 
 read -sp "Contraseña: " DB_PASS
 echo ""
@@ -67,7 +67,7 @@ if [ -z "$DB_PASS" ]; then
     exit 1
 fi
 
-DB_NAME="titan_pos"
+DB_NAME="posvendelo"
 DB_HOST="localhost"
 DB_PORT="5432"
 
@@ -157,9 +157,9 @@ echo -e "${GREEN}║   ✅ INSTALACIÓN COMPLETADA                      ║${NC}
 echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "Para iniciar POSVENDELO:"
-echo "  ./titan_pos.sh"
+echo "  ./posvendelo.sh"
 echo ""
-echo "O doble click en TITAN_POS.desktop"
+echo "O doble click en POSVENDELO.desktop"
 echo ""
 
 read -p "¿Iniciar POSVENDELO ahora? [S/n]: " START_NOW

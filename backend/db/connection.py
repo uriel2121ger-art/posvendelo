@@ -31,7 +31,7 @@ if not _raw_url:
     raise RuntimeError(
         "DATABASE_URL no está configurada. "
         "Exporta la variable de entorno antes de iniciar el servidor. "
-        "Ejemplo: export DATABASE_URL='postgresql://user:pass@localhost:5432/titan_pos'"
+        "Ejemplo: export DATABASE_URL='postgresql://user:pass@localhost:5432/posvendelo'"
     )
 DATABASE_URL = _raw_url.replace("postgresql+asyncpg://", "postgresql://")
 

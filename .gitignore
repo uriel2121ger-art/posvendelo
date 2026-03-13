@@ -27,7 +27,7 @@ Thumbs.db
 # Logs
 *.log
 gateway.log
-titan_gateway.log
+posvendelo_gateway.log
 
 # Environment
 .env
@@ -75,8 +75,8 @@ redisdata/
 # Distribution packages (prebuilt)
 CLIENTE/
 SERVIDOR/
-titan-server/
-titan-client/
+posvendelo-server/
+posvendelo-client/
 
 # Control-plane: instaladores grandes (GitHub limita 100 MB; usar LFS o servir desde Releases)
 control-plane/downloads/*.exe
