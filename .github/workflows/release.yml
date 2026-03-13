@@ -108,14 +108,6 @@ jobs:
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
 
-      - name: Instalar dependencias
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build Linux (AppImage + deb + flatpak)
-        working-directory: frontend
-        run: npm run build:linux
-
       - name: Extraer version del tag
         id: ver
         run: |
@@ -125,6 +117,20 @@ jobs:
             exit 1
           fi
           echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: frontend
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Build Linux (AppImage + deb + flatpak)
+        working-directory: frontend
+        run: npm run build:linux
 
       - name: Subir AppImage al control-plane
         continue-on-error: true
@@ -211,14 +217,6 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Instalar dependencias
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build Windows (NSIS)
-        working-directory: frontend
-        run: npm run build:win
-
       - name: Extraer version del tag
         id: ver
         shell: bash
@@ -229,6 +227,20 @@ jobs:
             exit 1
           fi
           echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: frontend
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Build Windows (NSIS)
+        working-directory: frontend
+        run: npm run build:win
 
       - name: Subir .exe al control-plane
         continue-on-error: true
@@ -281,10 +293,6 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Instalar dependencias
-        working-directory: frontend
-        run: npm ci
-
       - name: Extraer version del tag
         id: ver
         run: |
@@ -299,6 +307,16 @@ jobs:
           VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: frontend
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
 
       - name: Build web para Android
         working-directory: frontend
@@ -359,14 +377,6 @@ jobs:
           cache: npm
           cache-dependency-path: owner-app/package-lock.json
 
-      - name: Instalar dependencias
-        working-directory: owner-app
-        run: npm ci
-
-      - name: Build Linux (AppImage + deb)
-        working-directory: owner-app
-        run: npm run build:linux
-
       - name: Extraer version del tag
         id: ver
         run: |
@@ -376,6 +386,20 @@ jobs:
             exit 1
           fi
           echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: owner-app
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: owner-app
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Build Linux (AppImage + deb)
+        working-directory: owner-app
+        run: npm run build:linux
 
       - name: Subir AppImage al control-plane
         continue-on-error: true
@@ -440,14 +464,6 @@ jobs:
           cache: npm
           cache-dependency-path: owner-app/package-lock.json
 
-      - name: Instalar dependencias
-        working-directory: owner-app
-        run: npm ci
-
-      - name: Build Windows (NSIS)
-        working-directory: owner-app
-        run: npm run build:win
-
       - name: Extraer version del tag
         id: ver
         shell: bash
@@ -458,6 +474,20 @@ jobs:
             exit 1
           fi
           echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: owner-app
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: owner-app
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Build Windows (NSIS)
+        working-directory: owner-app
+        run: npm run build:win
 
       - name: Subir .exe al control-plane
         continue-on-error: true
@@ -510,18 +540,29 @@ jobs:
           cache: npm
           cache-dependency-path: owner-app/package-lock.json
 
-      - name: Instalar dependencias
-        working-directory: owner-app
-        run: npm ci
-
       - name: Extraer version del tag
         id: ver
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          VERSION=${REF#v}
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           VERSION_CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar dependencias
+        working-directory: owner-app
+        run: npm ci
+
+      - name: Inyectar version del tag
+        working-directory: owner-app
+        env:
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: npm version "$VERSION" --no-git-tag-version
 
       - name: Build web para Android
         working-directory: owner-app

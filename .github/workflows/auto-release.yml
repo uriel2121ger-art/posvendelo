@@ -21,7 +21,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Detectar tipo de bump desde commits
         id: bump
@@ -78,41 +77,13 @@ jobs:
         env:
           BUMP_TYPE: ${{ steps.bump.outputs.bump }}
 
-      - name: Setup Node 22
-        if: steps.bump.outputs.skip != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Bump version en package.json
-        if: steps.bump.outputs.skip != 'true'
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          cd frontend
-          npm version "$VERSION" --no-git-tag-version
-          cd ..
-
-          cd owner-app
-          npm version "$VERSION" --no-git-tag-version
-          cd ..
-
-      - name: Commit version bump
-        if: steps.bump.outputs.skip != 'true'
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add frontend/package.json frontend/package-lock.json owner-app/package.json owner-app/package-lock.json
-          git commit -m "chore: bump version to ${VERSION} [skip ci]" || echo "No changes to commit"
-          git push origin master
-
       - name: Crear tag y push
         if: steps.bump.outputs.skip != 'true'
         env:
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
 
