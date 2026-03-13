@@ -11,10 +11,14 @@ import {
   getLicenseStatus,
   loadRuntimeConfig,
   saveRuntimeConfig,
+  getCloudStatus,
+  activateCloud,
   type RuntimeConfig,
   type HardwareConfig,
   type CupsPrinter,
+  type CloudStatus,
   getHardwareConfig,
+  saveHwConfigToCache,
   updateHardwareConfig,
   discoverPrinters,
   testPrint,
@@ -69,14 +73,6 @@ type ConfigProfile = {
 const CONFIG_PROFILES_KEY = 'pos.configProfiles'
 const HW_CACHE_KEY = 'pos.hwConfig'
 const UPDATES_AUTO_KEY = 'pos.updates.autoCheck'
-
-function saveToCache(cfg: HardwareConfig): void {
-  try {
-    localStorage.setItem(HW_CACHE_KEY, JSON.stringify(cfg))
-  } catch {
-    /* quota exceeded */
-  }
-}
 
 function parseTerminalId(value: string): number {
   const parsed = Number(value)
@@ -201,6 +197,12 @@ export default function SettingsTab({
     branchName: string | null
     expiresAt: string | null
   } | null>(null)
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null)
+  const [cloudRegEmail, setCloudRegEmail] = useState('')
+  const [cloudRegPassword, setCloudRegPassword] = useState('')
+  const [cloudRegPasswordConfirm, setCloudRegPasswordConfirm] = useState('')
+  const [cloudRegBusy, setCloudRegBusy] = useState(false)
+  const [cloudRegError, setCloudRegError] = useState('')
 
   // -- Profiles State --
   const [profileName, setProfileName] = useState('')
@@ -254,7 +256,7 @@ export default function SettingsTab({
       const data = await getHardwareConfig(hwConfig)
       setHw(data)
       setSavedHw(data)
-      saveToCache(data)
+      saveHwConfigToCache(data)
     } catch {
       // Ignored initially
     }
@@ -290,6 +292,54 @@ export default function SettingsTab({
   useEffect(() => {
     void loadAgentStatus()
   }, [loadAgentStatus])
+
+  useEffect(() => {
+    if (activeTab !== 'server') return
+    let cancelled = false
+    getCloudStatus(hwConfig)
+      .then((status) => {
+        if (!cancelled) setCloudStatus(status)
+      })
+      .catch(() => {
+        if (!cancelled) setCloudStatus(null)
+      })
+    return () => { cancelled = true }
+  }, [activeTab, hwConfig])
+
+  const handleActivateCloud = useCallback(async () => {
+    setCloudRegError('')
+    const email = cloudRegEmail.trim().toLowerCase()
+    if (!email || !email.includes('@')) {
+      setCloudRegError('Indica un correo válido.')
+      return
+    }
+    if (cloudRegPassword.length < 8) {
+      setCloudRegError('La contraseña debe tener al menos 8 caracteres.')
+      return
+    }
+    if (cloudRegPassword !== cloudRegPasswordConfirm) {
+      setCloudRegError('La contraseña y la confirmación no coinciden.')
+      return
+    }
+    setCloudRegBusy(true)
+    try {
+      await activateCloud(hwConfig, {
+        email,
+        password: cloudRegPassword,
+        business_name: hw?.business?.name?.trim() || undefined
+      })
+      const status = await getCloudStatus(hwConfig)
+      setCloudStatus(status)
+      setCloudRegEmail('')
+      setCloudRegPassword('')
+      setCloudRegPasswordConfirm('')
+      showMessage('Cuenta vinculada para monitoreo.')
+    } catch (err) {
+      setCloudRegError((err as Error).message)
+    } finally {
+      setCloudRegBusy(false)
+    }
+  }, [hwConfig, cloudRegEmail, cloudRegPassword, cloudRegPasswordConfirm, hw?.business?.name])
 
   const handleCheckUpdates = useCallback(async () => {
     const agent = window.api?.agent
@@ -850,6 +900,69 @@ export default function SettingsTab({
                         <p className="text-xs text-zinc-400">
                           Expira: {cloudLinkCode.expiresAt ?? 'sin dato'}
                         </p>
+                      </div>
+                    )}
+
+                    {/* Registro para monitoreo: vincular cuenta desde Configuración */}
+                    {cloudStatus !== null && cloudStatus.control_plane_connected && (
+                      <div className="mt-6 pt-6 border-t border-zinc-800">
+                        <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">
+                          Registro para monitoreo
+                        </h3>
+                        {cloudStatus.cloud_activated ? (
+                          <p className="text-sm text-emerald-400">
+                            Cuenta vinculada; inicia sesión en la app del dueño con tu correo.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-sm text-zinc-500 mb-4">
+                              Vincula esta sucursal con una cuenta (correo y contraseña) para verla desde la app del dueño.
+                            </p>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <label className="text-sm">
+                                Correo electrónico
+                                <input
+                                  type="email"
+                                  className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2"
+                                  value={cloudRegEmail}
+                                  onChange={(e) => setCloudRegEmail(e.target.value)}
+                                  autoComplete="email"
+                                />
+                              </label>
+                              <label className="text-sm md:col-span-2">
+                                Contraseña (mínimo 8 caracteres)
+                                <input
+                                  type="password"
+                                  className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2"
+                                  value={cloudRegPassword}
+                                  onChange={(e) => setCloudRegPassword(e.target.value)}
+                                  autoComplete="new-password"
+                                />
+                              </label>
+                              <label className="text-sm md:col-span-2">
+                                Confirmar contraseña
+                                <input
+                                  type="password"
+                                  className="mt-1 w-full rounded border border-zinc-700 bg-zinc-900 px-3 py-2"
+                                  value={cloudRegPasswordConfirm}
+                                  onChange={(e) => setCloudRegPasswordConfirm(e.target.value)}
+                                  autoComplete="new-password"
+                                />
+                              </label>
+                            </div>
+                            {cloudRegError ? (
+                              <p className="mt-2 text-sm text-rose-400">{cloudRegError}</p>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => void handleActivateCloud()}
+                              disabled={cloudRegBusy}
+                              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-500 disabled:opacity-50"
+                            >
+                              {cloudRegBusy ? 'Vinculando...' : 'Vincular cuenta para monitoreo'}
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

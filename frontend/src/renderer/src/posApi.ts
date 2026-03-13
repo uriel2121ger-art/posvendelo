@@ -2469,9 +2469,11 @@ export type InitialSetupPayload = {
   business_footer?: string
   receipt_printer_name?: string
   receipt_printer_enabled: boolean
+  receipt_paper_width?: 58 | 80
   receipt_auto_print: boolean
   scanner_enabled: boolean
   cash_drawer_enabled: boolean
+  cash_drawer_auto_open_cash?: boolean
 }
 
 export async function getInitialSetupStatus(cfg: RuntimeConfig): Promise<InitialSetupStatus> {
@@ -2495,6 +2497,51 @@ export async function completeInitialSetup(
   })
   if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error guardando setup inicial'))
   return (await res.json()) as Record<string, unknown>
+}
+
+export type CloudStatus = {
+  cloud_activated: boolean
+  control_plane_connected: boolean
+}
+
+export async function getCloudStatus(cfg: RuntimeConfig): Promise<CloudStatus> {
+  const res = await apiFetch(`${cfg.baseUrl}/api/v1/cloud/status`, {
+    headers: headers(cfg)
+  })
+  if (!res.ok) throw new Error(parseErrorDetail(await res.text(), 'Error consultando estado de nube'))
+  const json = (await res.json()) as { data?: CloudStatus }
+  if (!json?.data) throw new Error('Respuesta inesperada del servidor en cloud/status')
+  return json.data
+}
+
+export type ActivateCloudPayload = {
+  email: string
+  password: string
+  full_name?: string
+  business_name?: string
+}
+
+export async function activateCloud(
+  cfg: RuntimeConfig,
+  payload: ActivateCloudPayload
+): Promise<Record<string, unknown>> {
+  const res = await apiFetchLong(`${cfg.baseUrl}/api/v1/cloud/activate`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify(payload)
+  })
+  const text = await res.text()
+  if (res.status === 409) {
+    throw new Error('Ese correo ya está registrado; inicia sesión en la app del dueño con ese correo.')
+  }
+  if (!res.ok) {
+    throw new Error(parseErrorDetail(text, 'Servidor central no disponible; inténtalo más tarde o en Configuración.'))
+  }
+  try {
+    return JSON.parse(text) as Record<string, unknown>
+  } catch {
+    return {}
+  }
 }
 
 export type CupsPrinter = {
@@ -2538,6 +2585,34 @@ export type HardwareConfig = {
     auto_open_card: boolean
     auto_open_transfer: boolean
   }
+}
+
+/** True if running inside Electron desktop (reliable at any render phase). */
+export function isElectron(): boolean {
+  if (typeof window === 'undefined') return false
+  return navigator.userAgent.includes('Electron')
+}
+
+const HW_CACHE_KEY = 'pos.hwConfig'
+
+/** Read cached HardwareConfig from localStorage (null if missing/corrupt). */
+export function loadHwConfigFromCache(): HardwareConfig | null {
+  try {
+    const raw = localStorage.getItem(HW_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    return parsed as HardwareConfig
+  } catch {
+    return null
+  }
+}
+
+/** Save HardwareConfig to localStorage cache. */
+export function saveHwConfigToCache(cfg: HardwareConfig): void {
+  try {
+    localStorage.setItem(HW_CACHE_KEY, JSON.stringify(cfg))
+  } catch { /* quota exceeded */ }
 }
 
 export async function getHardwareConfig(cfg: RuntimeConfig): Promise<HardwareConfig> {

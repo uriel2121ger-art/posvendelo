@@ -21,8 +21,8 @@ import {
 import {
   type RuntimeConfig,
   type SaleItemPayload,
-  type HardwareConfig,
   loadRuntimeConfig,
+  loadHwConfigFromCache,
   pullTable,
   createSale,
   printReceipt,
@@ -778,23 +778,15 @@ export default function Terminal(): ReactElement {
       let scannerPrefix = ''
       let scannerSuffix = ''
       let isScanner = false
-      try {
-        const hwRaw = localStorage.getItem('pos.hwConfig')
-        if (hwRaw) {
-          const hwCfg = JSON.parse(hwRaw) as HardwareConfig
-          if (!hwCfg || typeof hwCfg !== 'object') throw new Error('invalid hwConfig')
-          if (hwCfg.scanner?.enabled) {
-            scannerMinSpeed = hwCfg.scanner.min_speed_ms || 50
-            scannerPrefix = hwCfg.scanner.prefix || ''
-            scannerSuffix = hwCfg.scanner.suffix || ''
-            const elapsed = now - lastKeystrokeRef.current
-            if (elapsed < scannerMinSpeed && normalizedInput.length > 2) {
-              isScanner = true
-            }
-          }
+      const hwCfgScan = loadHwConfigFromCache()
+      if (hwCfgScan?.scanner?.enabled) {
+        scannerMinSpeed = hwCfgScan.scanner.min_speed_ms || 50
+        scannerPrefix = hwCfgScan.scanner.prefix || ''
+        scannerSuffix = hwCfgScan.scanner.suffix || ''
+        const elapsed = now - lastKeystrokeRef.current
+        if (elapsed < scannerMinSpeed && normalizedInput.length > 2) {
+          isScanner = true
         }
-      } catch {
-        /* parse error */
       }
 
       let searchTerm = normalizedInput
@@ -1253,28 +1245,21 @@ export default function Terminal(): ReactElement {
       )
 
       // Auto-print receipt + auto-open drawer (fire-and-forget)
-      try {
-        const hwRaw = localStorage.getItem('pos.hwConfig')
-        if (hwRaw) {
-          const parsed = JSON.parse(hwRaw)
-          if (!parsed || typeof parsed !== 'object') throw new Error('invalid hwConfig')
-          const hwCfg: HardwareConfig = parsed
-          const saleId = saleData.id ?? saleData.sale_id
-          if (hwCfg.printer?.enabled && hwCfg.printer?.auto_print && saleId) {
-            printReceipt(config, Number(saleId)).catch(() => {})
-          }
-          if (hwCfg.drawer?.enabled) {
-            const shouldOpen =
-              (paymentMethod === 'cash' && hwCfg.drawer.auto_open_cash) ||
-              (paymentMethod === 'card' && hwCfg.drawer.auto_open_card) ||
-              (paymentMethod === 'transfer' && hwCfg.drawer.auto_open_transfer)
-            if (shouldOpen) {
-              openDrawerForSale(config).catch(() => {})
-            }
+      const hwCfg = loadHwConfigFromCache()
+      if (hwCfg) {
+        const saleId = saleData.id ?? saleData.sale_id
+        if (hwCfg.printer?.enabled && hwCfg.printer?.auto_print && saleId) {
+          printReceipt(config, Number(saleId)).catch(() => {})
+        }
+        if (hwCfg.drawer?.enabled) {
+          const shouldOpen =
+            (paymentMethod === 'cash' && hwCfg.drawer.auto_open_cash) ||
+            (paymentMethod === 'card' && hwCfg.drawer.auto_open_card) ||
+            (paymentMethod === 'transfer' && hwCfg.drawer.auto_open_transfer)
+          if (shouldOpen) {
+            openDrawerForSale(config).catch(() => {})
           }
         }
-      } catch {
-        /* hw config parse error — non-fatal */
       }
     } catch (error) {
       const raw = (error as Error).message

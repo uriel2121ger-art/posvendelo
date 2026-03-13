@@ -16,6 +16,9 @@ import {
   createCashMovement,
   openDrawerForSale,
   getHardwareConfig,
+  isElectron,
+  loadHwConfigFromCache,
+  saveHwConfigToCache,
   pullTable,
   getInitialSetupStatus,
   checkNeedsFirstUser,
@@ -153,14 +156,9 @@ function _isTokenStructureValid(token: string): boolean {
   }
 }
 
-/** True si la app corre en Electron desktop. */
-function isElectron(): boolean {
-  if (typeof window === 'undefined') return false
-  return navigator.userAgent.includes('Electron')
-}
-
-/** Si no hay token, decidir si mostrar primero Configurar servidor (APK/primera vez) en vez de Login. */
-function needServerConfigFirst(): boolean {
+/** Si no hay token, decidir si mostrar primero Configurar servidor (APK/primera vez) en vez de Login.
+ *  installMode: en Electron, 'client' = caja secundaria (no asumir localhost); 'principal' o null = PC con backend local. */
+function needServerConfigFirst(installMode: 'principal' | 'client' | null): boolean {
   let token: string | null = null
   let saved: string | null = null
   try {
@@ -170,7 +168,17 @@ function needServerConfigFirst(): boolean {
     return true
   }
   if (token && _isTokenStructureValid(token)) return false
-  // Solo Electron desktop puede asumir localhost:8000 (backend local Docker).
+  // Electron: modo caja secundaria (client) → no asumir localhost; pedir Conectar al servidor.
+  if (isElectron() && installMode === 'client') {
+    if (!saved || !saved.trim()) return true
+    return false
+  }
+  // Electron: aún no sabemos el modo → no asumir localhost hasta conocerlo.
+  if (isElectron() && installMode === null) {
+    if (!saved || !saved.trim()) return true
+    return false
+  }
+  // Electron PC principal: asumir localhost:8000 si no hay URL guardada.
   if (isElectron()) {
     if (!saved || !saved.trim()) {
       const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
@@ -184,7 +192,13 @@ function needServerConfigFirst(): boolean {
   return false
 }
 
-function RequireAuth({ children }: { children: ReactElement }): ReactElement {
+function RequireAuth({
+  children,
+  installMode
+}: {
+  children: ReactElement
+  installMode: 'principal' | 'client' | null
+}): ReactElement {
   let token: string | null = null
   try {
     token = localStorage.getItem('pos.token')
@@ -198,7 +212,7 @@ function RequireAuth({ children }: { children: ReactElement }): ReactElement {
     } catch {
       /* ignore */
     }
-    if (needServerConfigFirst()) {
+    if (needServerConfigFirst(installMode)) {
       return <Navigate to="/configurar-servidor" replace />
     }
     return <Navigate to="/login" replace />
@@ -290,16 +304,9 @@ function CashMovementModal({
           reason: reason.trim() || (mode === 'in' ? 'Entrada de efectivo' : 'Retiro de efectivo')
         })
         // Auto-open cash drawer (fire-and-forget)
-        try {
-          const hwRaw = localStorage.getItem('pos.hwConfig')
-          if (hwRaw) {
-            const hwCfg = JSON.parse(hwRaw) as { drawer?: { enabled?: boolean } }
-            if (hwCfg.drawer?.enabled) {
-              openDrawerForSale(cfg).catch(() => {})
-            }
-          }
-        } catch {
-          /* hw config parse error — non-fatal */
+        const hwCfg = loadHwConfigFromCache()
+        if (hwCfg?.drawer?.enabled) {
+          openDrawerForSale(cfg).catch(() => {})
         }
         // Show success briefly before closing
         setSuccess(true)
@@ -522,20 +529,50 @@ function RoutedApp(): ReactElement {
   const [setupChecked, setSetupChecked] = useState(false)
   const [firstUserChecked, setFirstUserChecked] = useState(false)
   const [firstUserNeeded, setFirstUserNeeded] = useState(false)
+  const [installMode, setInstallMode] = useState<'principal' | 'client' | null>(null)
   // hasToken como estado React — no como IIFE local que se vuelve obsoleta
   const [hasToken, setHasToken] = useState<boolean>(() => {
     try { return Boolean(localStorage.getItem('pos.token')) } catch { return false }
   })
 
+  // Electron: detectar modo instalación (principal = backend local, client = caja secundaria).
+  useEffect(() => {
+    if (!isElectron() || typeof window.api?.getInstallMode !== 'function') {
+      setInstallMode('principal')
+      return
+    }
+    window.api
+      .getInstallMode()
+      .then((mode: 'principal' | 'client') => setInstallMode(mode))
+      .catch(() => setInstallMode('principal'))
+  }, [])
+
   // Wizard inicial obligatorio: si no hay servidor configurado, ir a Configurar servidor.
-  // En Electron desktop, needServerConfigFirst() ya auto-asigna localhost:8000.
-  // En APK/PWA, siempre mostrar configurar servidor si no hay URL útil.
+  // En Electron desktop (principal), auto-asignar localhost:8000 y ir a login.
+  // En Electron (client) o APK/PWA, mostrar configurar servidor si no hay URL útil.
   useLayoutEffect(() => {
-    if (location.pathname === '/configurar-servidor') return
     try {
       const saved = localStorage.getItem('pos.baseUrl')
       const token = localStorage.getItem('pos.token')
-      // No-Electron (APK/PWA): si no hay token válido y no hay URL útil, pedir config
+      if (isElectron() && installMode === null) return // esperar a conocer modo antes de redirigir
+      if (isElectron() && installMode === 'principal') {
+        if (!saved || !saved.trim()) {
+          const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
+          localStorage.setItem('pos.baseUrl', defaultUrl)
+        }
+        if (location.pathname === '/configurar-servidor') {
+          navigate('/login', { replace: true })
+        }
+        return
+      }
+      if (isElectron() && installMode === 'client') {
+        if (location.pathname === '/configurar-servidor') return
+        if (!saved || !saved.trim()) {
+          navigate('/configurar-servidor', { replace: true })
+        }
+        return
+      }
+      if (location.pathname === '/configurar-servidor') return
       if (!isElectron() && (!token || !token.trim())) {
         if (!saved || !saved.trim() || saved.includes('localhost') || saved.includes('127.0.0.1')) {
           navigate('/configurar-servidor', { replace: true })
@@ -547,7 +584,7 @@ function RoutedApp(): ReactElement {
     } catch {
       navigate('/configurar-servidor', { replace: true })
     }
-  }, [location.pathname, navigate])
+  }, [location.pathname, navigate, installMode])
 
   // Si no hay token, verificar si necesita crear el primer usuario ANTES de mostrar login.
   // Reintenta con backoff porque el backend puede estar arrancando post-install.
@@ -649,15 +686,10 @@ function RoutedApp(): ReactElement {
   // Esto asegura que el cajón/impresora funcionen sin visitar Configuración primero
   useEffect(() => {
     if (!hasToken) return
-    try {
-      const cached = localStorage.getItem('pos.hwConfig')
-      if (cached) return // ya existe
-    } catch { /* ignore */ }
+    if (loadHwConfigFromCache()) return // ya existe
     const cfg = loadRuntimeConfig()
     getHardwareConfig(cfg)
-      .then((data) => {
-        try { localStorage.setItem('pos.hwConfig', JSON.stringify(data)) } catch { /* quota */ }
-      })
+      .then((data) => { saveHwConfigToCache(data) })
       .catch(() => { /* backend not ready yet — non-fatal */ })
   }, [hasToken])
 
@@ -833,7 +865,7 @@ function RoutedApp(): ReactElement {
         <Route path="/setup-inicial-usuario" element={<FirstUserSetup onUserCreated={handleFirstUserCreated} />} />
         <Route
           element={
-            <RequireAuth>
+            <RequireAuth installMode={installMode}>
               <Layout>
                 <Outlet />
               </Layout>

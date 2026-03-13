@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, User, LogIn, Settings, Wifi } from 'lucide-react'
-import { autoDiscoverBackend, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
+import { autoDiscoverBackend, isElectron, loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 import { POS_APP_LABEL, POS_RELEASE_LABEL } from './runtimeEnv'
 
 export default function Login(): ReactElement {
@@ -23,7 +23,7 @@ export default function Login(): ReactElement {
     try {
       const saved = localStorage.getItem('pos.baseUrl')
       if (saved != null && saved.trim() !== '') return
-      if (navigator.userAgent.includes('Electron')) {
+      if (isElectron()) {
         localStorage.setItem('pos.baseUrl', 'http://127.0.0.1:8000')
         return
       }
