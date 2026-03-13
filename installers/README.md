@@ -27,9 +27,9 @@ bash installers/linux/install-posvendelo.sh --cp-url http://localhost:9090 --ins
 Desinstalacion (quita el nodo, el icono del escritorio y la entrada del menú):
 
 ```bash
-bash installers/linux/uninstall-titan.sh
+bash installers/linux/uninstall-posvendelo.sh
 # Si instalaste en otro directorio:
-bash installers/linux/uninstall-titan.sh /ruta/instalacion
+bash installers/linux/uninstall-posvendelo.sh /ruta/instalacion
 ```
 
 Reinstalación limpia en esta PC (desinstala y vuelve a instalar; no toca el repo ni el entorno de desarrollo):
@@ -84,9 +84,9 @@ powershell -ExecutionPolicy Bypass -File .\installers\windows\Continue-Install.p
 Desinstalacion (quita el nodo y el acceso directo del escritorio):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps1
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Posvendelo.ps1
 # Si instalaste en otro directorio:
-powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Titan.ps1 -InstallDir "C:\Ruta\Personalizada"
+powershell -ExecutionPolicy Bypass -File .\installers\windows\Uninstall-Posvendelo.ps1 -InstallDir "C:\Ruta\Personalizada"
 ```
 
 Actualizar el backend: en el directorio de instalación (por defecto `%LOCALAPPDATA%\POSVENDELO`), ejecutar `docker compose pull api` y `docker compose up -d api`, o usar la misma secuencia desde PowerShell con `--env-file .env`.
@@ -162,7 +162,7 @@ Si no hay CI para instaladores, este checklist debe ejecutarse de forma manual a
 |--------|-----|
 | `linux/install-posvendelo.sh` | Instalar nodo (Docker, backend, compose). Crea icono escritorio + menú. |
 | `linux/actualizar.sh` | Actualizar backend (pull + restart). Copiado a `INSTALL_DIR` al instalar. |
-| `linux/uninstall-titan.sh` | Desinstalar nodo y quitar iconos. |
+| `linux/uninstall-posvendelo.sh` | Desinstalar nodo y quitar iconos. |
 | `windows/Install-Posvendelo.ps1` | Instalar nodo. Crea acceso directo en escritorio. |
 | `windows/Continue-Install.ps1` | Continuar instalación tras instalar Docker Desktop. |
-| `windows/Uninstall-Titan.ps1` | Desinstalar nodo y quitar acceso directo. |
+| `windows/Uninstall-Posvendelo.ps1` | Desinstalar nodo y quitar acceso directo. |

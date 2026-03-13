@@ -121,9 +121,9 @@ export default function ReportsTab(): ReactElement {
       const normalized = rows.map(normalizeSale)
       setSales(normalized)
       // setMessage(`Reporte cargado con ${normalized.length} ventas.`)
-    } catch {
+    } catch (err) {
       if (requestIdRef.current !== reqId) return
-      // setMessage((error as Error).message)
+      console.error('Error cargando reporte:', err)
     } finally {
       if (requestIdRef.current === reqId) setBusy(false)
     }
@@ -174,9 +174,9 @@ export default function ReportsTab(): ReactElement {
       const data = (raw.data ?? raw.summaries ?? []) as Record<string, unknown>[]
       setDailyData(Array.isArray(data) ? data : [])
       // setMessage(`Resumen diario: ${(Array.isArray(data) ? data : []).length} registros.`)
-    } catch {
+    } catch (err) {
       if (requestIdRef.current !== reqId) return
-      // setMessage((error as Error).message)
+      console.error('Error cargando reporte:', err)
     } finally {
       if (requestIdRef.current === reqId) setBusy(false)
     }
@@ -192,9 +192,9 @@ export default function ReportsTab(): ReactElement {
       const data = (raw.data ?? raw.ranking ?? []) as Record<string, unknown>[]
       setRankingData(Array.isArray(data) ? data : [])
       // setMessage(`Ranking: ${(Array.isArray(data) ? data : []).length} productos.`)
-    } catch {
+    } catch (err) {
       if (requestIdRef.current !== reqId) return
-      // setMessage((error as Error).message)
+      console.error('Error cargando reporte:', err)
     } finally {
       if (requestIdRef.current === reqId) setBusy(false)
     }
@@ -210,9 +210,9 @@ export default function ReportsTab(): ReactElement {
       const data = (raw.data ?? raw.heatmap ?? []) as Record<string, unknown>[]
       setHeatmapData(Array.isArray(data) ? data : [])
       // setMessage(`Heatmap: ${(Array.isArray(data) ? data : []).length} registros.`)
-    } catch {
+    } catch (err) {
       if (requestIdRef.current !== reqId) return
-      // setMessage((error as Error).message)
+      console.error('Error cargando reporte:', err)
     } finally {
       if (requestIdRef.current === reqId) setBusy(false)
     }

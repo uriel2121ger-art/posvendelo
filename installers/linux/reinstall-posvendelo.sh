@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "[POSVENDELO] Desinstalando nodo en: $INSTALL_DIR"
-bash "$INSTALLER_DIR/uninstall-titan.sh" "$INSTALL_DIR"
+bash "$INSTALLER_DIR/uninstall-posvendelo.sh" "$INSTALL_DIR"
 
 echo "[POSVENDELO] Instalando de nuevo..."
 bash "$INSTALLER_DIR/install-posvendelo.sh" "${ARGS[@]}"
