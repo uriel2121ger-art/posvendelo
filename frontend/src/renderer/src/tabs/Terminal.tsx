@@ -27,7 +27,8 @@ import {
   createSale,
   printReceipt,
   openDrawerForSale,
-  getTurnSummary
+  getTurnSummary,
+  searchSatCodes
 } from '../posApi'
 
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -341,6 +342,154 @@ async function syncSale(
   return data
 }
 
+/* ── Common Product Modal (single form instead of 5 sequential prompts) ── */
+
+type CommonProductResult = {
+  name: string
+  price: number
+  qty: number
+  note: string
+  satCode: string
+}
+
+function CommonProductModal({
+  defaultQty,
+  onSubmit,
+  onClose
+}: {
+  defaultQty: number
+  onSubmit: (result: CommonProductResult) => void
+  onClose: () => void
+}): ReactElement {
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+  const [cQty, setCQty] = useState(String(Math.max(1, defaultQty)))
+  const [note, setNote] = useState('')
+  const [satCode, setSatCode] = useState('01010101')
+  const [satQuery, setSatQuery] = useState('')
+  const [satResults, setSatResults] = useState<{ code: string; description: string }[]>([])
+  const [showSatDrop, setShowSatDrop] = useState(false)
+  const [error, setError] = useState('')
+  const nameRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLFormElement>(null)
+  const satTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useFocusTrap(modalRef, true)
+  useEffect(() => { nameRef.current?.focus() }, [])
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent): void => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
+    window.addEventListener('keydown', onEsc, true)
+    return () => window.removeEventListener('keydown', onEsc, true)
+  }, [onClose])
+
+  const handleSatSearch = (q: string): void => {
+    setSatQuery(q)
+    if (satTimer.current) clearTimeout(satTimer.current)
+    if (q.trim().length >= 2) {
+      satTimer.current = setTimeout(() => {
+        void (async () => {
+          try {
+            const cfg = loadRuntimeConfig()
+            if (!cfg.token) return
+            const results = await searchSatCodes(cfg, q.trim())
+            setSatResults(results)
+            setShowSatDrop(results.length > 0)
+          } catch {
+            setSatResults([])
+          }
+        })()
+      }, 300)
+    } else {
+      setSatResults([])
+      setShowSatDrop(false)
+    }
+  }
+
+  const handleSubmit = (e: React.FormEvent): void => {
+    e.preventDefault()
+    const trimName = name.trim()
+    if (!trimName) { setError('Ingresa un nombre.'); return }
+    const numPrice = Number(price)
+    if (!Number.isFinite(numPrice) || numPrice <= 0) { setError('Ingresa un precio válido.'); return }
+    const numQty = Math.max(1, Math.floor(Number(cQty)))
+    if (!Number.isFinite(numQty) || numQty <= 0) { setError('Ingresa una cantidad válida.'); return }
+    onSubmit({ name: trimName, price: numPrice, qty: numQty, note: note.trim(), satCode })
+  }
+
+  const inputCls = 'w-full bg-zinc-950 border border-zinc-700 rounded-lg py-2.5 px-3 text-sm font-semibold focus:border-blue-500 focus:outline-none'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <form ref={modalRef} onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}
+        className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+        <h2 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+          Producto común
+          <kbd className="ml-auto rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 font-mono text-xs text-zinc-400">
+            Ctrl+P
+          </kbd>
+        </h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Nombre</label>
+            <input ref={nameRef} className={inputCls} value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="Ej: Servicio de reparación" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Precio</label>
+              <input className={inputCls} type="number" min={0.01} step="0.01" value={price}
+                onChange={(e) => setPrice(e.target.value)} placeholder="$0.00" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Cantidad</label>
+              <input className={inputCls} type="number" min={1} step="1" value={cQty}
+                onChange={(e) => setCQty(e.target.value)} placeholder="1" />
+            </div>
+          </div>
+          <div className="relative">
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Clave SAT</label>
+            <input className={inputCls} value={satQuery} placeholder="Buscar: bebidas, cremas, 50161800..."
+              onChange={(e) => handleSatSearch(e.target.value)}
+              onFocus={() => { if (satResults.length > 0) setShowSatDrop(true) }}
+              onBlur={() => { setTimeout(() => setShowSatDrop(false), 200) }} />
+            {satCode && satCode !== '01010101' && (
+              <span className="absolute right-3 top-7 text-xs text-blue-400 font-mono">{satCode}</span>
+            )}
+            {showSatDrop && satResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl max-h-36 overflow-y-auto shadow-xl">
+                {satResults.map((r) => (
+                  <button key={r.code} type="button"
+                    onClick={() => { setSatCode(r.code); setSatQuery(`${r.code} - ${r.description}`); setShowSatDrop(false) }}
+                    className="w-full text-left px-3 py-2 hover:bg-zinc-800 text-sm transition-colors border-b border-zinc-800 last:border-0">
+                    <span className="font-mono text-blue-400">{r.code}</span>
+                    <span className="text-zinc-400 ml-2">{r.description}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">Nota (opcional)</label>
+            <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="Descripción adicional..." />
+          </div>
+        </div>
+        {error && <p className="text-rose-400 text-sm mt-2">{error}</p>}
+        <div className="flex gap-3 mt-4">
+          <button type="button" onClick={onClose}
+            className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 font-bold text-zinc-300 hover:bg-zinc-700 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit"
+            className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white hover:bg-blue-500 transition-colors">
+            Agregar
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function Terminal(): ReactElement {
   const confirm = useConfirm()
   const prompt = usePrompt()
@@ -402,7 +551,7 @@ export default function Terminal(): ReactElement {
   const chargingRef = useRef(false)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
   const isDiscountModalOpen = false
-  const isCommonModalOpen = false
+  const [isCommonModalOpen, setIsCommonModalOpen] = useState(false)
   const isNoteModalOpen = false
   const shouldClearSearchAfterAddRef = useRef(false)
 
@@ -987,73 +1136,28 @@ export default function Terminal(): ReactElement {
     [qty, wholesaleMode]
   )
 
-  const addCommonProduct = useCallback(async (): Promise<void> => {
-    const nameRaw = await prompt('Nombre del producto común:', {
-      title: 'Producto común',
-      placeholder: 'Ej: Servicio de reparación'
-    })
-    if (!nameRaw) return
-    const name = nameRaw.trim()
-    if (!name) {
-      setMessage('Nombre inválido para producto común.')
-      return
-    }
+  const addCommonProduct = useCallback((): void => {
+    setIsCommonModalOpen(true)
+  }, [])
 
-    const priceRaw = await prompt('Precio unitario del producto común:', {
-      title: 'Precio',
-      defaultValue: '0',
-      inputType: 'number',
-      placeholder: '$0.00'
-    })
-    if (priceRaw == null) return
-    const price = Number(priceRaw)
-    if (!Number.isFinite(price) || price <= 0) {
-      setMessage('Precio inválido para producto común.')
-      return
-    }
-
-    const qtyRaw = await prompt('Cantidad del producto común:', {
-      title: 'Cantidad',
-      defaultValue: String(Math.max(1, qty)),
-      inputType: 'number',
-      placeholder: '1'
-    })
-    if (qtyRaw == null) return
-    const commonQty = Math.max(1, Math.floor(Number(qtyRaw)))
-    if (!Number.isFinite(commonQty) || commonQty <= 0) {
-      setMessage('Cantidad inválida para producto común.')
-      return
-    }
-    const commonNote =
-      (await prompt('Nota opcional del producto común:', {
-        title: 'Nota (opcional)',
-        defaultValue: '',
-        placeholder: 'Descripción adicional...'
-      })) ?? ''
-
-    const satRaw = await prompt('Clave SAT del producto (opcional, Enter para omitir):', {
-      title: 'Clave SAT',
-      defaultValue: '01010101'
-    })
-    const satCode = satRaw?.trim() || '01010101'
-
+  const handleCommonProductSubmit = useCallback((result: CommonProductResult): void => {
     const sku = `COMUN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     const item: CartItem = {
       sku,
-      name,
-      price,
-      qty: commonQty,
+      name: result.name,
+      price: result.price,
+      qty: result.qty,
       discountPct: 0,
       isCommon: true,
-      commonNote: commonNote.trim(),
-      satClaveProdServ: satCode,
-      subtotal: calculateLineSubtotal(price, commonQty, 0)
+      commonNote: result.note,
+      satClaveProdServ: result.satCode,
+      subtotal: calculateLineSubtotal(result.price, result.qty, 0)
     }
-
     setCart((prev) => [...prev, item])
     setSelectedCartSku(sku)
-    setMessage(`Producto común agregado: ${name}`)
-  }, [qty, prompt])
+    setMessage(`Producto común agregado: ${result.name}`)
+    setIsCommonModalOpen(false)
+  }, [])
 
   const removeItem = useCallback((sku: string): void => {
     setCart((prev) => prev.filter((item) => item.sku !== sku))
@@ -2172,6 +2276,14 @@ export default function Terminal(): ReactElement {
             </div>
           </div>
         </div>
+      )}
+
+      {isCommonModalOpen && (
+        <CommonProductModal
+          defaultQty={qty}
+          onSubmit={handleCommonProductSubmit}
+          onClose={() => setIsCommonModalOpen(false)}
+        />
       )}
     </div>
   )

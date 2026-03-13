@@ -1,6 +1,17 @@
-/** Parse unknown value to finite number, default 0 */
+/** Parse unknown value to finite number, default 0.
+ *  Strips currency symbols ($), thousands separators (,), and whitespace
+ *  so Excel-formatted values like "$1,500.50" parse correctly.
+ */
 export function toNumber(value: unknown): number {
-  const parsed = Number(value)
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (value == null) return 0
+  const raw = String(value).trim()
+  // Fast path: already a clean number
+  const fast = Number(raw)
+  if (Number.isFinite(fast)) return fast
+  // Strip currency symbols, spaces, and thousands separators
+  const cleaned = raw.replace(/[$\s,]/g, '')
+  const parsed = Number(cleaned)
   return Number.isFinite(parsed) ? parsed : 0
 }
 

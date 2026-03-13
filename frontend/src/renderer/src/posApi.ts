@@ -196,6 +196,9 @@ export function saveRuntimeConfig(cfg: RuntimeConfig): void {
   safeSetItem('pos.baseUrl', cfg.baseUrl)
   safeSetItem('pos.token', cfg.token)
   safeSetItem('pos.terminalId', String(cfg.terminalId))
+  // A new token means the session is valid again — clear the expired flag
+  // so API calls work without requiring a full page reload.
+  if (cfg.token) _sessionExpired = false
 }
 
 function headers(cfg: RuntimeConfig): HeadersInit {
@@ -228,6 +231,11 @@ function inDateRange(row: Record<string, unknown>, dateFrom?: string, dateTo?: s
 }
 
 let _sessionExpired = false
+
+/** Reset the expired flag so API calls work again after re-login. */
+export function resetSessionExpired(): void {
+  _sessionExpired = false
+}
 
 function handleExpiredSession(): never {
   _sessionExpired = true

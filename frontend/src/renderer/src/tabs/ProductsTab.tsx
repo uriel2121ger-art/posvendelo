@@ -93,7 +93,11 @@ const IMPORT_FIELDS: { key: keyof Product | 'barcode'; label: string; required: 
   { key: 'satDescripcion', label: 'Descripción SAT', required: false }
 ]
 
-/** Sugiere mapeo: nombre de columna del archivo → key de IMPORT_FIELDS. */
+/** Sugiere mapeo: nombre de columna del archivo → key de IMPORT_FIELDS.
+ *  Priority pass: exact matches and SAT-specific columns first (longer aliases).
+ *  Fallback pass: substring match (header contains alias) — only n.includes(k),
+ *  never k.includes(n) which causes false positives with short headers.
+ */
 function suggestMapping(fileHeaders: string[]): Record<string, string> {
   const normal = (s: string): string =>
     s
@@ -101,27 +105,62 @@ function suggestMapping(fileHeaders: string[]): Record<string, string> {
       .normalize('NFD')
       .replace(/\p{Diacritic}/gu, '')
       .replace(/[^a-z0-9]/g, '')
+  // Aliases ordered most-specific first; SAT aliases are long enough to avoid collisions
   const aliases: Record<string, string[]> = {
-    sku: ['sku', 'codigo', 'code', 'clave'],
-    name: ['nombre', 'name', 'producto', 'descripcion'],
-    price: ['precio', 'price', 'precioventa'],
-    stock: ['stock', 'existencia', 'cantidad'],
-    category: ['categoria', 'category', 'categoría'],
-    barcode: ['barcode', 'codigobarras', 'ean'],
-    satClaveProdServ: ['clavesat', 'claveprodserv', 'clavesatprodserv', 'satproducto', 'satprod'],
-    satClaveUnidad: ['claveunidad', 'satunidad', 'clavesatunidad'],
-    satDescripcion: ['descripcionsat', 'satdesc', 'satdescripcion']
+    satClaveProdServ: [
+      'clavesatproducto', 'clavesatprodserv', 'satclaveprodserv', 'claveprodserv',
+      'clavesat', 'satproducto', 'satprod', 'codigosat'
+    ],
+    satClaveUnidad: [
+      'clavesatunidad', 'satclaveunidad', 'satunidad', 'claveunidad', 'unidadsat'
+    ],
+    satDescripcion: [
+      'descripcionsat', 'satdescripcion', 'satdesc'
+    ],
+    sku: ['sku', 'codigoproducto', 'codigosku', 'codigo', 'code', 'clave'],
+    name: ['nombreproducto', 'nombredelproducto', 'nombre', 'name', 'producto'],
+    price: ['precioventa', 'precioproducto', 'preciounitario', 'precio', 'price'],
+    stock: ['stock', 'existencia', 'cantidad', 'inventario'],
+    category: ['categoria', 'category', 'departamento'],
+    barcode: ['codigobarras', 'codigodebarras', 'barcode', 'ean', 'upc']
   }
   const mapping: Record<string, string> = {}
   const used = new Set<string>()
+
+  // Pass 1: exact match on normalized label
   for (const header of fileHeaders) {
     const n = normal(header)
     for (const f of IMPORT_FIELDS) {
       if (used.has(f.key)) continue
-      const fn = normal(f.label)
+      if (n === normal(f.label)) {
+        mapping[header] = f.key
+        used.add(f.key)
+        break
+      }
+    }
+  }
+  // Pass 2: exact alias match
+  for (const header of fileHeaders) {
+    if (mapping[header]) continue
+    const n = normal(header)
+    for (const f of IMPORT_FIELDS) {
+      if (used.has(f.key)) continue
       const keys = aliases[f.key] ?? [f.key]
-      const match = n === fn || keys.some((k) => n.includes(k) || k.includes(n))
-      if (match) {
+      if (keys.some((k) => n === k)) {
+        mapping[header] = f.key
+        used.add(f.key)
+        break
+      }
+    }
+  }
+  // Pass 3: substring — header contains alias (NOT alias contains header)
+  for (const header of fileHeaders) {
+    if (mapping[header]) continue
+    const n = normal(header)
+    for (const f of IMPORT_FIELDS) {
+      if (used.has(f.key)) continue
+      const keys = aliases[f.key] ?? [f.key]
+      if (keys.some((k) => k.length >= 4 && n.includes(k))) {
         mapping[header] = f.key
         used.add(f.key)
         break
@@ -1092,10 +1131,15 @@ export default function ProductsTab(): ReactElement {
                         void (async () => {
                           try {
                             const cfg = loadRuntimeConfig()
+                            if (!cfg.token) {
+                              console.warn('[SAT search] No token, skipping')
+                              return
+                            }
                             const results = await searchSatCodes(cfg, q.trim())
                             setSatResults(results)
                             setShowSatDropdown(results.length > 0)
-                          } catch {
+                          } catch (err) {
+                            console.warn('[SAT search] Error:', err)
                             setSatResults([])
                           }
                         })()
