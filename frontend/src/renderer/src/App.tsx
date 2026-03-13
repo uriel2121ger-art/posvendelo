@@ -529,8 +529,16 @@ function RoutedApp(): ReactElement {
     if (location.pathname === '/configurar-servidor') return
     try {
       const saved = localStorage.getItem('pos.baseUrl')
+      const token = localStorage.getItem('pos.token')
+      // En APK/nativo: si no hay token Y no hay URL (o URL es localhost que no sirve en móvil),
+      // siempre mostrar configurar servidor para que el usuario ingrese la IP del servidor LAN.
+      if (isNativePlatform() && (!token || !token.trim())) {
+        if (!saved || !saved.trim() || saved.includes('localhost') || saved.includes('127.0.0.1')) {
+          navigate('/configurar-servidor', { replace: true })
+          return
+        }
+      }
       if (saved != null && saved.trim() !== '') return
-      // Solo redirigir en nativo (APK). Desktop se auto-configura en needServerConfigFirst().
       navigate('/configurar-servidor', { replace: true })
     } catch {
       navigate('/configurar-servidor', { replace: true })

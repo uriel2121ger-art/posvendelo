@@ -203,7 +203,7 @@ function Get-FreeTcpPort([int]$PreferredPort) {
   throw "No se encontro un puerto libre a partir de $PreferredPort"
 }
 
-function Invoke-PosvendoloCompose {
+function Invoke-PosvendeloCompose {
   param(
     [Parameter(Mandatory = $true)][string[]]$Arguments,
     [Parameter(Mandatory = $true)][string]$WorkingDirectory,
@@ -446,8 +446,8 @@ $PublisherCertPath
     }
   }
 
-  Invoke-PosvendoloCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("pull")
-  Invoke-PosvendoloCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("up", "-d")
+  Invoke-PosvendeloCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("pull")
+  Invoke-PosvendeloCompose -WorkingDirectory $InstallDir -EnvFilePath $envPath -Arguments @("up", "-d")
 
   Write-Step "Esperando health local..."
   for ($i = 0; $i -lt 60; $i++) {

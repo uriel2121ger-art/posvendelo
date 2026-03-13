@@ -25,6 +25,7 @@
   Var /GLOBAL POS_AGENT_DIR
   Var /GLOBAL POS_AGENT_FILE
   Var /GLOBAL POS_CP_URL
+  Var /GLOBAL POS_LOCAL_APPDATA
 
   ; NSIS no tiene $PROGRAMDATA built-in — leer de variable de entorno
   ReadEnvStr $POS_DATA_DIR PROGRAMDATA
@@ -228,7 +229,11 @@
   ; 7. Generar posvendelo-agent.json para auto-update
   ;    localAgent.ts busca en %LOCALAPPDATA%\POSVENDELO\
   ; --------------------------------------------------------------------------
-  StrCpy $POS_AGENT_DIR "$LOCALAPPDATA\POSVENDELO"
+  ; NSIS no tiene $LOCALAPPDATA built-in — leer de variable de entorno
+  ReadEnvStr $POS_LOCAL_APPDATA LOCALAPPDATA
+  StrCmp $POS_LOCAL_APPDATA "" 0 +2
+    StrCpy $POS_LOCAL_APPDATA "$PROFILE\AppData\Local"
+  StrCpy $POS_AGENT_DIR "$POS_LOCAL_APPDATA\POSVENDELO"
   StrCpy $POS_AGENT_FILE "$POS_AGENT_DIR\posvendelo-agent.json"
 
   ${IfNot} ${FileExists} "$POS_AGENT_FILE"

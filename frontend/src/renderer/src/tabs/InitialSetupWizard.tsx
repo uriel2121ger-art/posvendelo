@@ -125,7 +125,14 @@ export default function InitialSetupWizard({ onSetupCompleted }: InitialSetupWiz
   }
 
   if (checking) {
-    return <div className="p-6 text-zinc-300">Verificando instalación inicial...</div>
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-400 text-sm">Preparando configuración...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
