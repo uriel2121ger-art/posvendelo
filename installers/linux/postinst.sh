@@ -74,13 +74,13 @@ if [ "$INSTALL_MODE" = "client" ] || [ "$INSTALL_MODE" = "secundaria" ]; then
   exit 0
 fi
 
-COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
-ENV_FILE="$INSTALL_DIR/.env"
-SERVICE_FILE="/etc/systemd/system/posvendelo.service"
-
 log() {
     echo "[POSVENDELO] $*"
 }
+
+COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
+ENV_FILE="$INSTALL_DIR/.env"
+SERVICE_FILE="/etc/systemd/system/posvendelo.service"
 
 # ---------------------------------------------------------------------------
 # Ensure CUPS is available for printer discovery/printing

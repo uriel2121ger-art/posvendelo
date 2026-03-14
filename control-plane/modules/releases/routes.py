@@ -105,7 +105,7 @@ def _enrich_release_row(row: dict | None) -> dict | None:
         return None
     target_ref = row.get("target_ref")
     artifact = row.get("artifact")
-    is_desktop_app = isinstance(artifact, str) and artifact.startswith("electron-")
+    is_desktop_app = isinstance(artifact, str) and (artifact.startswith("electron-") or artifact.startswith("owner-electron-"))
     checksums_manifest_url = _build_checksums_manifest_url(target_ref) if is_desktop_app else None
     return {
         **row,
@@ -370,14 +370,18 @@ async def upload_release_artifact(
     version: str = Form(...),
     channel: str = Form(default="stable"),
     notes: str | None = Form(default=None),
+    target_ref: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
     _: dict = Depends(verify_release_publisher),
     db=Depends(get_db),
 ):
     """Upload a build artifact and register it as an active release.
 
-    For the 'backend' artifact (Docker image) no file is required — pass only the
-    form fields and the version string is used as the Docker image tag.
+    Three modes:
+    - Backend (Docker image): no file needed, version becomes Docker tag.
+    - URL registration: pass target_ref without file to register an external URL
+      (e.g. GitHub Release). Useful for large artifacts that exceed proxy limits.
+    - File upload: upload the binary and store it on the control-plane.
     """
     if artifact not in ARTIFACT_FILENAME_MAP:
         raise HTTPException(status_code=400, detail=f"Artifact desconocido: {artifact}")
@@ -392,7 +396,7 @@ async def upload_release_artifact(
 
     # --- Backend (Docker image only) — no file upload ---
     if artifact == "backend":
-        target_ref = f"ghcr.io/uriel2121ger-art/posvendelo:{version}"
+        resolved_target_ref = f"ghcr.io/uriel2121ger-art/posvendelo:{version}"
         row = await db.fetchrow(
             """
             INSERT INTO releases (platform, artifact, version, channel, target_ref, notes)
@@ -408,7 +412,7 @@ async def upload_release_artifact(
                 "artifact": artifact,
                 "version": version,
                 "channel": channel,
-                "target_ref": target_ref,
+                "target_ref": resolved_target_ref,
                 "notes": notes,
             },
         )
@@ -422,14 +426,52 @@ async def upload_release_artifact(
                 "platform": platform,
                 "artifact": artifact,
                 "version": version,
-                "target_ref": target_ref,
+                "target_ref": resolved_target_ref,
+            },
+        )
+        return {"success": True, "data": _enrich_release_row(row)}
+
+    # --- URL-only registration (no file upload) ---
+    if file is None and target_ref and target_ref.strip():
+        resolved_target_ref = target_ref.strip()
+        row = await db.fetchrow(
+            """
+            INSERT INTO releases (platform, artifact, version, channel, target_ref, notes)
+            VALUES (:platform, :artifact, :version, :channel, :target_ref, :notes)
+            ON CONFLICT (platform, artifact, version, channel) DO UPDATE SET
+                target_ref = EXCLUDED.target_ref,
+                notes = EXCLUDED.notes,
+                is_active = 1
+            RETURNING id, platform, artifact, version, channel, target_ref, notes, created_at
+            """,
+            {
+                "platform": platform,
+                "artifact": artifact,
+                "version": version,
+                "channel": channel,
+                "target_ref": resolved_target_ref,
+                "notes": notes,
+            },
+        )
+        await log_audit_event(
+            db,
+            actor="release-publisher",
+            action="release.upload",
+            entity_type="release",
+            entity_id=row["id"],
+            payload={
+                "platform": platform,
+                "artifact": artifact,
+                "version": version,
+                "target_ref": resolved_target_ref,
+                "mode": "url-registration",
             },
         )
         return {"success": True, "data": _enrich_release_row(row)}
 
     # --- File-based artifact ---
     if file is None:
-        raise HTTPException(status_code=422, detail="Se requiere el archivo para este artifact")
+        raise HTTPException(status_code=422, detail="Se requiere archivo o target_ref para este artifact")
 
     target_filename = ARTIFACT_FILENAME_MAP[artifact]
     download_path = ARTIFACT_DOWNLOAD_PATH.get(artifact, "")

@@ -133,60 +133,8 @@ jobs:
         working-directory: frontend
         run: npm run build:linux
 
-      - name: Subir AppImage al control-plane
-        continue-on-error: true
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          APPIMAGE=$(find frontend/dist -name "*.AppImage" | head -1)
-          echo "AppImage encontrado: $APPIMAGE"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=electron-linux" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${APPIMAGE}" \
-            "${CP_URL}/api/v1/releases/upload"
-
-      - name: Subir .deb al control-plane
-        continue-on-error: true
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          DEB=$(find frontend/dist -name "*.deb" | head -1)
-          echo ".deb encontrado: $DEB"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=electron-linux-deb" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${DEB}" \
-            "${CP_URL}/api/v1/releases/upload"
-
-      - name: Subir .flatpak al control-plane
-        continue-on-error: true
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          FLATPAK=$(find frontend/dist -name "*.flatpak" | head -1)
-          if [ -n "$FLATPAK" ]; then
-            echo ".flatpak encontrado: $FLATPAK"
-            curl --fail-with-body --max-time 300 \
-              -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-              -F "platform=desktop" \
-              -F "artifact=electron-linux-flatpak" \
-              -F "version=${VERSION}" \
-              -F "channel=stable" \
-              -F "file=@${FLATPAK}" \
-              "${CP_URL}/api/v1/releases/upload"
-          else
-            echo "No .flatpak found, skipping upload"
-          fi
+      # Desktop artifacts (>100MB) are registered via GitHub Release URLs
+      # in the publish-github-release job — no direct upload needed here.
 
       - name: Guardar artifacts para GitHub Release
         uses: actions/upload-artifact@v4
@@ -241,23 +189,7 @@ jobs:
         working-directory: frontend
         run: npm run build:linux:arm64
 
-      - name: Subir .deb arm64 al control-plane
-        continue-on-error: true
-        env:
-          CP_URL: "https://posvendelo.com"
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          DEB=$(find frontend/dist -name "*arm64.deb" | head -1)
-          echo ".deb arm64 encontrado: $DEB"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=electron-deb-arm64" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${DEB}" \
-            "${CP_URL}/api/v1/releases/upload"
+      # Desktop artifacts registered via GitHub Release URLs in publish job.
 
       - name: Guardar artifact para GitHub Release
         uses: actions/upload-artifact@v4
@@ -312,23 +244,7 @@ jobs:
         working-directory: frontend
         run: npm run build:win
 
-      - name: Subir .exe al control-plane
-        continue-on-error: true
-        shell: bash
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          EXE=$(find frontend/dist -name "*setup.exe" | head -1)
-          echo "Instalador encontrado: $EXE"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=electron-windows" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${EXE}" \
-            "${CP_URL}/api/v1/releases/upload"
+      # Desktop artifacts registered via GitHub Release URLs in publish job.
 
       - name: Guardar artifact para GitHub Release
         uses: actions/upload-artifact@v4
@@ -478,39 +394,7 @@ jobs:
         working-directory: owner-app
         run: npm run build:linux
 
-      - name: Subir AppImage al control-plane
-        continue-on-error: true
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          APPIMAGE=$(find owner-app/dist -name "*.AppImage" | head -1)
-          echo "AppImage encontrado: $APPIMAGE"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=owner-linux" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${APPIMAGE}" \
-            "${CP_URL}/api/v1/releases/upload"
-
-      - name: Subir .deb al control-plane
-        continue-on-error: true
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          DEB=$(find owner-app/dist -name "*.deb" | head -1)
-          echo ".deb encontrado: $DEB"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=owner-linux-deb" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${DEB}" \
-            "${CP_URL}/api/v1/releases/upload"
+      # Desktop artifacts registered via GitHub Release URLs in publish job.
 
       - name: Guardar artifacts para GitHub Release
         uses: actions/upload-artifact@v4
@@ -567,23 +451,7 @@ jobs:
         working-directory: owner-app
         run: npm run build:win
 
-      - name: Subir .exe al control-plane
-        continue-on-error: true
-        shell: bash
-        env:
-          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
-          VERSION: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          EXE=$(find owner-app/dist -name "*setup.exe" | head -1)
-          echo "Instalador encontrado: $EXE"
-          curl --fail-with-body --max-time 300 \
-            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -F "platform=desktop" \
-            -F "artifact=owner-windows" \
-            -F "version=${VERSION}" \
-            -F "channel=stable" \
-            -F "file=@${EXE}" \
-            "${CP_URL}/api/v1/releases/upload"
+      # Desktop artifacts registered via GitHub Release URLs in publish job.
 
       - name: Guardar artifact para GitHub Release
         uses: actions/upload-artifact@v4
@@ -794,3 +662,44 @@ jobs:
             release-artifacts/owner-windows/*setup.exe
             release-artifacts/owner-android/*.apk
             release-artifacts/SHA256SUMS.txt
+
+      - name: Registrar desktop artifacts grandes en control-plane (via GitHub Release URL)
+        continue-on-error: true
+        env:
+          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
+          GH_BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+
+          register() {
+            local artifact="$1" platform="$2" filename="$3"
+            local url="${GH_BASE}/${filename}"
+            echo "Registrando ${artifact} → ${url}"
+            curl --fail-with-body --max-time 30 \
+              -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
+              -F "platform=${platform}" \
+              -F "artifact=${artifact}" \
+              -F "version=${VERSION}" \
+              -F "channel=stable" \
+              -F "target_ref=${url}" \
+              "${CP_URL}/api/v1/releases/upload" || echo "  WARN: falló registro de ${artifact}"
+          }
+
+          # Frontend desktop (>100MB — exceden Cloudflare Tunnel free limit)
+          register "electron-linux"     "desktop" "posvendelo-${VERSION}.AppImage"
+          register "electron-linux-deb" "desktop" "posvendelo_${VERSION}_amd64.deb"
+          register "electron-windows"   "desktop" "posvendelo-${VERSION}-setup.exe"
+
+          # Owner desktop (>100MB)
+          register "owner-linux"     "desktop" "posvendelo-owner-${VERSION}.AppImage"
+          register "owner-linux-deb" "desktop" "posvendelo-owner-${VERSION}.deb"
+          register "owner-windows"   "desktop" "posvendelo-owner-${VERSION}-setup.exe"
+
+          # ARM64 deb
+          register "electron-linux-deb-arm64" "desktop" "posvendelo_${VERSION}_arm64.deb"
+
+          # Flatpak (if exists)
+          if [ -f "release-artifacts/linux/posvendelo-${VERSION}.flatpak" ]; then
+            register "electron-linux-flatpak" "desktop" "posvendelo-${VERSION}.flatpak"
+          fi
