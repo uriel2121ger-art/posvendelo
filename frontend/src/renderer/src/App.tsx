@@ -571,7 +571,7 @@ function RoutedApp(): ReactElement {
           const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
           localStorage.setItem('pos.baseUrl', defaultUrl)
         }
-        if (location.pathname === '/configurar-servidor') {
+        if (location.pathname === '/configurar-servidor' || location.pathname === '/seleccionar-modo') {
           navigate('/login', { replace: true })
         }
         return
@@ -653,7 +653,7 @@ function RoutedApp(): ReactElement {
     }
     tryCheck()
     return () => { cancelled = true }
-  }, [serverConfigVersion]) // eslint-disable-line react-hooks/exhaustive-deps -- re-check when server URL is configured
+  }, [serverConfigVersion, installMode]) // eslint-disable-line react-hooks/exhaustive-deps -- re-check when server URL or install mode changes
 
   // Callback para cuando FirstUserSetup crea el usuario exitosamente
   const handleFirstUserCreated = useCallback(() => {
@@ -871,7 +871,7 @@ function RoutedApp(): ReactElement {
 
   return (
     <>
-      {hasToken && !shiftResolved && !isCompanionRoute && setupChecked && !setupRequired && (
+      {hasToken && !shiftResolved && !isCompanionRoute && setupChecked && !setupRequired && installMode !== null && installMode !== 'unset' && (
         <ShiftStartupModal
           onComplete={() => setShiftResolved(true)}
           onExit={() => {

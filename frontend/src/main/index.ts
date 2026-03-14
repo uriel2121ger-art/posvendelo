@@ -72,6 +72,20 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // CORS: Electron production loads from file:// which backends reject.
+  // Rewrite the Origin header to an allowed value for local API requests.
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['http://localhost:*/*', 'http://127.0.0.1:*/*'] },
+    (details, callback) => {
+      const headers = { ...details.requestHeaders }
+      // Replace file:// or null origin with one the backend CORS accepts
+      if (!headers['Origin'] || headers['Origin'] === 'null' || headers['Origin'].startsWith('file://')) {
+        headers['Origin'] = 'http://127.0.0.1:8000'
+      }
+      callback({ requestHeaders: headers })
+    }
+  )
+
   // CSP: In production, enforce strict Content-Security-Policy via response headers
   if (!is.dev) {
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
