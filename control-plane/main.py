@@ -39,6 +39,9 @@ OWNER_DEB = "posvendelo-owner_amd64.deb"
 OWNER_WEB_ZIP = "posvendelo-owner-web.zip"
 OWNER_APK = "posvendelo-owner.apk"
 
+STUB_CAJERO_WINDOWS = "PosvendeloSetup.exe"
+STUB_CAJERO_LINUX = "instalar-posvendelo.sh"
+
 
 def _file_size_mb(filename: str) -> str:
     """Return human-readable file size or empty string if missing."""
@@ -428,6 +431,11 @@ async def landing_page() -> str:
           <a class="btn btn-outline" href="/download/cajero/deb/arm64">Raspberry Pi</a>
           <a class="btn btn-outline" href="/download/cajero/apk">Android</a>
         </div>
+        <p class="card-label" style="margin-top:1rem;margin-bottom:0.5rem;">Instalador ligero (~3 MB) — descarga la versión más reciente</p>
+        <div class="download-links">
+          <a class="btn btn-outline" href="/download/cajero/stub/windows">Windows ligero</a>
+          <a class="btn btn-outline" href="/download/cajero/stub/linux">Linux ligero</a>
+        </div>
       </article>
       <article class="download-card">
         <p class="card-label">Para administrar tu negocio</p>
@@ -537,6 +545,8 @@ async def downloads_page() -> str:
         "owner_deb": _file_size_mb(OWNER_DEB),
         "owner_appimage": _file_size_mb(OWNER_APPIMAGE),
         "owner_exe": _file_size_mb(OWNER_WINDOWS_INSTALLER),
+        "stub_exe": _file_size_mb(STUB_CAJERO_WINDOWS),
+        "stub_sh": _file_size_mb(STUB_CAJERO_LINUX),
     }
 
     def sz(key: str, fallback: str = "") -> str:
@@ -585,6 +595,8 @@ async def downloads_page() -> str:
         <li><a href="/download/cajero/appimage">Linux (AppImage)<br><span class="size">Cualquier distro{sz("appimage")}</span></a></li>
         <li><a href="/download/cajero/windows">Windows (.exe)<br><span class="size">Windows 10/11{sz("exe", "instalador")}</span></a></li>
         <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb)<br><span class="size">ARM64{sz("arm64")}</span></a></li>
+        <li><a href="/download/cajero/stub/windows">Instalador ligero (Windows)<br><span class="size">Descarga la versión más reciente{sz("stub_exe", "~3 MB")}</span></a></li>
+        <li><a href="/download/cajero/stub/linux">Instalador ligero (Linux)<br><span class="size">Script bash{sz("stub_sh", "~3 KB")}</span></a></li>
       </ul>
     </div>
 
@@ -717,6 +729,17 @@ async def download_nodo_linux():
 @app.api_route("/download/nodo/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
 async def download_nodo_windows():
     return _serve_download("Install-Posvendelo.ps1", "application/octet-stream", "Instalador nodo Windows (PowerShell)")
+
+
+@app.api_route("/download/cajero/stub/windows", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_stub_windows():
+    return _serve_download(STUB_CAJERO_WINDOWS, "application/octet-stream", "Instalador ligero cajero Windows")
+
+
+@app.api_route("/download/cajero/stub/linux", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_stub_linux():
+    return _serve_download(STUB_CAJERO_LINUX, "application/x-sh", "Instalador ligero cajero Linux")
+
 
 
 @app.get("/health", tags=["system"])

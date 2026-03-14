@@ -166,6 +166,27 @@ Antes de distribuir una release, ejecutar al menos una vez una instalación limp
 
 Si no hay CI para instaladores, este checklist debe ejecutarse de forma manual antes de cada distribución.
 
+## Stub installers (instaladores ligeros)
+
+Archivos en `stubs/`. Pesan ~3-5 MB (Go) o ~6 KB (Bash) y descargan el instalador completo más reciente desde el manifest API.
+
+- **Windows**: `PosvendeloSetup.exe` / `PosvendeloOwnerSetup.exe` — Go, GUI nativa Win32 con barra de progreso.
+- **Linux**: `instalar-posvendelo.sh` / `instalar-posvendelo-owner.sh` — Bash puro, requiere `curl` y `python3`.
+
+Flujo: preguntan PC Principal vs Caja secundaria (solo cajero) → consultan manifest → descargan .deb/.exe → instalan pasando `INSTALL_MODE=client` si es caja secundaria.
+
+Para compilar los stubs localmente:
+
+```bash
+cd installers/stubs
+# Linux
+GOOS=linux CGO_ENABLED=0 go build -o /tmp/posvendelo-stub .
+# Windows (cross-compile)
+GOOS=windows CGO_ENABLED=0 go build -ldflags="-H windowsgui -s -w -X main.DefaultAppType=cajero" -o /tmp/PosvendeloSetup.exe .
+```
+
+En CI se compilan automáticamente en el job `build-stubs` y se incluyen en el GitHub Release.
+
 ## Resumen de scripts
 
 | Script | Uso |
@@ -176,3 +197,6 @@ Si no hay CI para instaladores, este checklist debe ejecutarse de forma manual a
 | `windows/Install-Posvendelo.ps1` | Instalar nodo. Crea acceso directo en escritorio. |
 | `windows/Continue-Install.ps1` | Continuar instalación tras instalar Docker Desktop. |
 | `windows/Uninstall-Posvendelo.ps1` | Desinstalar nodo y quitar acceso directo. |
+| `stubs/instalar-posvendelo.sh` | Stub ligero cajero Linux (~6 KB). Descarga e instala la versión más reciente. |
+| `stubs/instalar-posvendelo-owner.sh` | Stub ligero owner Linux (~6 KB). Idéntico, auto-detecta por nombre. |
+| `stubs/` (Go module) | Stub ligero Windows (~5 MB). Se compila a `PosvendeloSetup.exe` / `PosvendeloOwnerSetup.exe`. |

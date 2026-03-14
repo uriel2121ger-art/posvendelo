@@ -5,7 +5,7 @@ import { ArrowLeft, Server } from 'lucide-react'
 import { loadRuntimeConfig, saveRuntimeConfig } from './posApi'
 import { POS_API_URL } from './runtimeEnv'
 
-export default function ConfigurarServidor(): ReactElement {
+export default function ConfigurarServidor({ onServerConfigured }: { onServerConfigured?: () => void } = {}): ReactElement {
   const navigate = useNavigate()
   const cfg = loadRuntimeConfig()
   const [baseUrl, setBaseUrl] = useState(cfg.baseUrl || '')
@@ -36,8 +36,11 @@ export default function ConfigurarServidor(): ReactElement {
       return
     }
     saveRuntimeConfig({ ...cfg, baseUrl: url, terminalId })
-    setMessage('Guardado. Volviendo al inicio de sesión.')
-    setTimeout(() => navigate('/login', { replace: true }), 800)
+    setMessage('Guardado. Volviendo...')
+    setTimeout(() => {
+      onServerConfigured?.()
+      navigate('/login', { replace: true })
+    }, 600)
   }
 
   return (

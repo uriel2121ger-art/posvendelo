@@ -186,7 +186,7 @@ function needServerConfigFirst(installMode: 'principal' | 'client' | null): bool
     }
     return false
   }
-  // APK/nativo/PWA: siempre requerir configurar servidor si no hay URL útil guardada
+  // APK/nativo/PWA: requerir configurar servidor si no hay URL útil guardada.
   if (!saved || !saved.trim()) return true
   if (saved.includes('localhost') || saved.includes('127.0.0.1')) return true
   return false
@@ -529,6 +529,8 @@ function RoutedApp(): ReactElement {
   const [setupChecked, setSetupChecked] = useState(false)
   const [firstUserChecked, setFirstUserChecked] = useState(false)
   const [firstUserNeeded, setFirstUserNeeded] = useState(false)
+  // Bumped when user saves a new server URL in /configurar-servidor to re-trigger first-user check.
+  const [serverConfigVersion, setServerConfigVersion] = useState(0)
   const [installMode, setInstallMode] = useState<'principal' | 'client' | null>(null)
   // hasToken como estado React — no como IIFE local que se vuelve obsoleta
   const [hasToken, setHasToken] = useState<boolean>(() => {
@@ -573,6 +575,7 @@ function RoutedApp(): ReactElement {
         return
       }
       if (location.pathname === '/configurar-servidor') return
+      // APK/nativo/PWA sin token → requerir configurar servidor si no hay URL útil.
       if (!isElectron() && (!token || !token.trim())) {
         if (!saved || !saved.trim() || saved.includes('localhost') || saved.includes('127.0.0.1')) {
           navigate('/configurar-servidor', { replace: true })
@@ -602,11 +605,14 @@ function RoutedApp(): ReactElement {
       setFirstUserChecked(true)
       return
     }
+    // Re-read config each run — serverConfigVersion bumps after /configurar-servidor save.
     const cfg = loadRuntimeConfig()
     if (!cfg.baseUrl) {
       setFirstUserChecked(true)
       return
     }
+    // Reset so splash shows while verifying.
+    setFirstUserChecked(false)
     const MAX_RETRIES = 30
     const RETRY_DELAY_MS = 2000
     let attempt = 0
@@ -617,9 +623,7 @@ function RoutedApp(): ReactElement {
           if (cancelled) return
           setFirstUserNeeded(needed)
           setFirstUserChecked(true)
-          // Navegar directamente aqui — evita un render intermedio donde el splash
-          // desaparece pero la ruta aun no cambió (causa flicker).
-          if (needed && location.pathname !== '/setup-inicial-usuario') {
+          if (needed) {
             navigate('/setup-inicial-usuario', { replace: true })
           }
         })
@@ -634,15 +638,13 @@ function RoutedApp(): ReactElement {
             // porque si no hay usuarios el login no tiene sentido.
             setFirstUserNeeded(true)
             setFirstUserChecked(true)
-            if (location.pathname !== '/setup-inicial-usuario') {
-              navigate('/setup-inicial-usuario', { replace: true })
-            }
+            navigate('/setup-inicial-usuario', { replace: true })
           }
         })
     }
     tryCheck()
     return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- solo al montar
+  }, [serverConfigVersion]) // eslint-disable-line react-hooks/exhaustive-deps -- re-check when server URL is configured
 
   // Callback para cuando FirstUserSetup crea el usuario exitosamente
   const handleFirstUserCreated = useCallback(() => {
@@ -865,7 +867,7 @@ function RoutedApp(): ReactElement {
       )}
       <Routes>
         <Route path="/login" element={firstUserNeeded && !hasToken ? <Navigate to="/setup-inicial-usuario" replace /> : <Login />} />
-        <Route path="/configurar-servidor" element={<ConfigurarServidor />} />
+        <Route path="/configurar-servidor" element={<ConfigurarServidor onServerConfigured={() => setServerConfigVersion(v => v + 1)} />} />
         <Route path="/setup-inicial-usuario" element={<FirstUserSetup onUserCreated={handleFirstUserCreated} />} />
         <Route
           element={

@@ -556,9 +556,51 @@ jobs:
           path: owner-app/android/app/build/outputs/apk/release/*.apk
 
 # ─────────────────────────────────────────────────────────────────────────────
+# JOB 8: Stub Installers — Go (Windows) + Bash (Linux)
+# ─────────────────────────────────────────────────────────────────────────────
+  build-stubs:
+    name: "Stub Installers — Go + Bash"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Extraer version del tag
+        id: ver
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::GITHUB_REF_NAME='$REF' is not a valid version tag (expected vX.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compilar stub Windows cajero
+        working-directory: installers/stubs
+        run: |
+          mkdir -p ../../release-stubs
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-H windowsgui -s -w -X main.DefaultAppType=cajero -X main.AppVersion=${{ steps.ver.outputs.VERSION }}" -o ../../release-stubs/PosvendeloSetup.exe .
+
+      - name: Copiar stub Bash
+        run: cp installers/stubs/instalar-posvendelo.sh release-stubs/
+
+      - name: Guardar stubs
+        uses: actions/upload-artifact@v4
+        with:
+          name: posvendelo-stubs
+          path: release-stubs/
+
+# ─────────────────────────────────────────────────────────────────────────────
 # JOB FINAL: GitHub Release con todos los artifacts + checksums
 # ─────────────────────────────────────────────────────────────────────────────
   publish-github-release:
+
     name: "Publicar GitHub Release"
     if: always()
     needs:
@@ -570,6 +612,7 @@ jobs:
       - build-owner-linux
       - build-owner-windows
       - build-owner-android
+      - build-stubs
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -624,6 +667,13 @@ jobs:
           name: posvendelo-owner-apk
           path: release-artifacts/owner-android
 
+      - name: Descargar stubs
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: posvendelo-stubs
+          path: release-artifacts/stubs
+
       - name: Renombrar APKs para evitar conflicto de nombres
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -639,7 +689,7 @@ jobs:
       - name: Generar checksums SHA256
         run: |
           cd release-artifacts
-          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" -o -name "*setup.exe" -o -name "*.apk" \) \
+          find . -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.flatpak" -o -name "*setup.exe" -o -name "*Setup.exe" -o -name "*.apk" -o -name "*.sh" \) \
             -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
           echo "=== SHA256SUMS ==="
           cat SHA256SUMS.txt
@@ -661,6 +711,8 @@ jobs:
             release-artifacts/owner-linux/*.deb
             release-artifacts/owner-windows/*setup.exe
             release-artifacts/owner-android/*.apk
+            release-artifacts/stubs/PosvendeloSetup.exe
+            release-artifacts/stubs/instalar-posvendelo.sh
             release-artifacts/SHA256SUMS.txt
 
       - name: Registrar desktop artifacts grandes en control-plane (via GitHub Release URL)
