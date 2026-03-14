@@ -434,6 +434,23 @@ async def lifespan(application):
     except Exception as e:
         logger.warning("Auto-register failed (non-fatal): %s", e)
 
+    # Re-read branch_id and CP URL from agent.json if env vars are empty
+    # (auto-register writes to agent.json but can't update Docker .env)
+    if not runtime_branch_id or not os.getenv("CONTROL_PLANE_URL", "").strip():
+        _cp_url, _install_token = _load_agent_install_context()
+        config_path_raw = os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "").strip()
+        if config_path_raw:
+            try:
+                _agent = json.loads(Path(config_path_raw).read_text(encoding="utf-8"))
+                _bid = _agent.get("branchId")
+                if _bid and not runtime_branch_id:
+                    runtime_branch_id = str(_bid)
+                    os.environ["POSVENDELO_BRANCH_ID"] = runtime_branch_id
+                if _cp_url and not os.getenv("CONTROL_PLANE_URL", "").strip():
+                    os.environ["CONTROL_PLANE_URL"] = _cp_url
+            except Exception:
+                pass
+
     if os.getenv("CONTROL_PLANE_URL", "").strip() and runtime_branch_id:
         heartbeat_task = asyncio.create_task(_heartbeat_loop())
         remote_requests_task = asyncio.create_task(_remote_requests_poll_loop())

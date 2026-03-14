@@ -255,6 +255,8 @@ DATABASE_URL=postgresql+asyncpg://posvendelo_user:\$DB_PASSWORD@postgres:5432/po
 JWT_SECRET=\$JWT_SECRET
 ADMIN_API_USER=
 ADMIN_API_PASSWORD=
+CONTROL_PLANE_URL=https://posvendelo.com
+BACKEND_IMAGE=ghcr.io/uriel2121ger-art/posvendelo:latest
 DEBUG=false
 ENVEOF
   chmod 600 "\$ENV_FILE"
@@ -292,6 +294,7 @@ services:
       ADMIN_API_PASSWORD: \${ADMIN_API_PASSWORD:-}
       CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
       CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+      CONTROL_PLANE_URL: \${CONTROL_PLANE_URL:-https://posvendelo.com}
       POSVENDELO_AGENT_CONFIG_PATH: /runtime/posvendelo-agent.json
     ports:
       - "127.0.0.1:8000:8000"
