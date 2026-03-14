@@ -20,8 +20,7 @@ import {
   Settings,
   LogOut,
   MoreHorizontal,
-  Receipt,
-  MonitorDot
+  Receipt
 } from 'lucide-react'
 
 type NavItem = { path: string; label: string; icon: typeof ShoppingCart }
@@ -47,7 +46,6 @@ const navGroups: NavItem[][] = [
     { path: '/empleados', label: 'Empleados', icon: UserCog },
     { path: '/remoto', label: 'Remoto', icon: Radio },
     { path: '/fiscal', label: 'Fiscal', icon: Landmark },
-    { path: '/hardware', label: 'Dispositivos', icon: MonitorDot },
     { path: '/configuraciones', label: 'Ajustes', icon: Settings }
   ]
 ]
