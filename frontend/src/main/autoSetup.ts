@@ -361,7 +361,7 @@ log "Contenedores iniciados."
 # Wait for health (up to 60 s)
 log "Esperando que el servidor este listo..."
 for i in \$(seq 1 30); do
-  if curl -sf http://127.0.0.1:8000/health >/dev/null 2>&1; then
+  if curl -sSf http://127.0.0.1:8000/health >/dev/null 2>&1; then
     log "Servidor listo."
     break
   fi

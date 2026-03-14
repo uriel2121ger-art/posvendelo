@@ -53,7 +53,7 @@ def _get_last_backup_at() -> str | None:
     return datetime.fromtimestamp(newest_file.stat().st_mtime, tz=timezone.utc).isoformat()
 
 
-async def _get_sales_today() -> float:
+async def _get_sales_today() -> str:
     try:
         from db.connection import get_pool
 
@@ -262,6 +262,7 @@ async def _remote_requests_poll_loop() -> None:
             except Exception as exc:
                 logger.warning("Remote requests poll failed (non-fatal): %s", exc)
             await asyncio.sleep(_command_poll_interval_seconds)
+
 
 async def _auto_register_if_needed() -> None:
     """Pre-register with control-plane on first boot if no installToken.
