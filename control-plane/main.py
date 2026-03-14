@@ -431,11 +431,6 @@ async def landing_page() -> str:
           <a class="btn btn-outline" href="/download/cajero/deb/arm64">Raspberry Pi</a>
           <a class="btn btn-outline" href="/download/cajero/apk">Android</a>
         </div>
-        <p class="card-label" style="margin-top:1rem;margin-bottom:0.5rem;">Instalador ligero (~3 MB) — descarga la versión más reciente</p>
-        <div class="download-links">
-          <a class="btn btn-outline" href="/download/cajero/stub/windows">Windows ligero</a>
-          <a class="btn btn-outline" href="/download/cajero/stub/linux">Linux ligero</a>
-        </div>
       </article>
       <article class="download-card">
         <p class="card-label">Para administrar tu negocio</p>
@@ -595,8 +590,9 @@ async def downloads_page() -> str:
         <li><a href="/download/cajero/appimage">Linux (AppImage)<br><span class="size">Cualquier distro{sz("appimage")}</span></a></li>
         <li><a href="/download/cajero/windows">Windows (.exe)<br><span class="size">Windows 10/11{sz("exe", "instalador")}</span></a></li>
         <li><a href="/download/cajero/deb/arm64">Raspberry Pi (.deb)<br><span class="size">ARM64{sz("arm64")}</span></a></li>
-        <li><a href="/download/cajero/stub/windows">Instalador ligero (Windows)<br><span class="size">Descarga la versión más reciente{sz("stub_exe", "~3 MB")}</span></a></li>
-        <li><a href="/download/cajero/stub/linux">Instalador ligero (Linux)<br><span class="size">Script bash{sz("stub_sh", "~3 KB")}</span></a></li>
+{"".join(f'''
+        <li><a href="/download/cajero/stub/windows">Instalador rápido (Windows)<br><span class="size">Descarga e instala automáticamente{sz("stub_exe", "~3 MB")}</span></a></li>''' if s.get("stub_exe") else "")}
+        <li><a href="/download/cajero/stub/linux">Instalador rápido (Linux)<br><span class="size">Descarga e instala automáticamente{sz("stub_sh", "~3 KB")}</span></a></li>
       </ul>
     </div>
 
