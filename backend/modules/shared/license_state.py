@@ -203,9 +203,15 @@ def should_block_request(path: str, method: str) -> tuple[bool, dict[str, Any]]:
     if not state["enforcement_enabled"]:
         return False, state
 
+    # OPTIONS is always exempt — it's a CORS preflight, never block it
+    if method.upper() == "OPTIONS":
+        return False, state
+
     exempt_paths = {
         "/health",
         "/api/v1/auth/login",
+        "/api/v1/auth/needs-setup",
+        "/api/v1/auth/setup-owner",
         "/api/v1/auth/verify",
         "/api/v1/license/status",
         "/docs",

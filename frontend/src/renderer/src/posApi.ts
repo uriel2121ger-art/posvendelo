@@ -160,9 +160,11 @@ function migrateStorageKeys(): void {
 
 const DEFAULT_BASE_URL = POS_API_URL
 
-/** En modo navegador (Vite dev puerto 5173) usar '' para que las peticiones pasen por el proxy a 8000. */
+/** En modo navegador puro (Vite dev puerto 5173, NO Electron) usar '' para que las peticiones pasen por el proxy a 8000. */
 function getEffectiveBaseUrl(saved: string): string {
   if (typeof window === 'undefined') return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
+  // Electron dev carga desde Vite HMR pero NO tiene proxy — siempre usar URL completa
+  if (isElectron()) return _isValidBaseUrl(saved) ? saved : DEFAULT_BASE_URL
   const origin = window.location.origin
   const isViteDev =
     window.location.port === POS_BROWSER_PORT &&
