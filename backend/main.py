@@ -449,8 +449,8 @@ async def lifespan(application):
                     os.environ["POSVENDELO_BRANCH_ID"] = runtime_branch_id
                 if _cp_url and not os.getenv("CONTROL_PLANE_URL", "").strip():
                     os.environ["CONTROL_PLANE_URL"] = _cp_url
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Re-read agent.json for branch_id failed: %s", exc)
 
     if os.getenv("CONTROL_PLANE_URL", "").strip() and runtime_branch_id:
         heartbeat_task = asyncio.create_task(_heartbeat_loop())
