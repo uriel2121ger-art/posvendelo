@@ -62,6 +62,10 @@ fi
 POSVENDELO_CONFIG_DIR="${REAL_HOME}/.config/posvendelo"
 INSTALL_MODE_FILE="$POSVENDELO_CONFIG_DIR/install-mode"
 
+log() {
+    echo "[POSVENDELO] $*"
+}
+
 if [ "$INSTALL_MODE" = "client" ] || [ "$INSTALL_MODE" = "secundaria" ]; then
   log "Modo caja secundaria: no se instala backend ni base de datos."
   mkdir -p "$POSVENDELO_CONFIG_DIR"
@@ -73,10 +77,6 @@ if [ "$INSTALL_MODE" = "client" ] || [ "$INSTALL_MODE" = "secundaria" ]; then
   log "Al abrir la app, configura la dirección del servidor de la sucursal (Conectar al servidor)."
   exit 0
 fi
-
-log() {
-    echo "[POSVENDELO] $*"
-}
 
 COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
 ENV_FILE="$INSTALL_DIR/.env"
