@@ -5,35 +5,34 @@ Reads DMI info from /sys/class/dmi/id (Linux) — inside Docker requires
 bind mount of the host's /sys/class/dmi/id directory.
 """
 
-import logging
 import platform
 import uuid
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+_INVALID_DMI = {
+    "", "to be filled by o.e.m.", "default string", "none", "0",
+    "n/a", "not applicable", "not specified", "system serial number",
+    "chassis serial number", "base board serial number",
+}
+
+_DMI_FIELDS = [
+    ("board_serial", "/sys/class/dmi/id/board_serial"),
+    ("board_name", "/sys/class/dmi/id/board_name"),
+    ("board_vendor", "/sys/class/dmi/id/board_vendor"),
+    ("product_name", "/sys/class/dmi/id/product_name"),
+    ("product_serial", "/sys/class/dmi/id/product_serial"),
+]
 
 
-def collect_hw_info() -> dict:
+def collect_hw_info() -> dict[str, str]:
     """Collect hardware fingerprint matching control-plane pre-register schema."""
-    info: dict = {}
+    info: dict[str, str] = {}
 
     # DMI paths (Linux — inside Docker needs bind mount of /sys/class/dmi/id)
-    _invalid_dmi = {
-        "", "to be filled by o.e.m.", "default string", "none", "0",
-        "n/a", "not applicable", "not specified", "system serial number",
-        "chassis serial number", "base board serial number",
-    }
-    dmi_fields = [
-        ("board_serial", "/sys/class/dmi/id/board_serial"),
-        ("board_name", "/sys/class/dmi/id/board_name"),
-        ("board_vendor", "/sys/class/dmi/id/board_vendor"),
-        ("product_name", "/sys/class/dmi/id/product_name"),
-        ("product_serial", "/sys/class/dmi/id/product_serial"),
-    ]
-    for key, path in dmi_fields:
+    for key, path in _DMI_FIELDS:
         try:
             value = Path(path).read_text().strip()
-            if value and value.lower() not in _invalid_dmi:
+            if value and value.lower() not in _INVALID_DMI:
                 info[key] = value
         except (OSError, PermissionError):
             pass
@@ -41,7 +40,6 @@ def collect_hw_info() -> dict:
     # CPU model
     cpu = platform.processor()
     if not cpu:
-        # Fallback: read from /proc/cpuinfo
         try:
             for line in Path("/proc/cpuinfo").read_text().splitlines():
                 if line.startswith("model name"):
@@ -60,7 +58,7 @@ def collect_hw_info() -> dict:
             info["mac_primary"] = ":".join(
                 f"{(mac_int >> i) & 0xFF:02x}" for i in range(40, -1, -8)
             )
-    except Exception:
+    except (OSError, ValueError, TypeError):
         pass
 
     return info
