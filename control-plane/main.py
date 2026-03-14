@@ -31,6 +31,7 @@ CAJERO_WINDOWS_INSTALLER = "posvendelo-setup.exe"
 CAJERO_APPIMAGE = "posvendelo.AppImage"
 CAJERO_DEB = "posvendelo_amd64.deb"
 CAJERO_DEB_ARM64 = "posvendelo_arm64.deb"
+CAJERO_FLATPAK = "posvendelo.flatpak"
 CAJERO_APK = "posvendelo.apk"
 OWNER_WINDOWS_INSTALLER = "posvendelo-owner-setup.exe"
 OWNER_APPIMAGE = "posvendelo-owner.AppImage"
@@ -164,16 +165,20 @@ async def landing_page() -> str:
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* Paleta PosVendelo (frontend base.css + main.css) */
     :root {
       color-scheme: dark;
-      --bg: #0a0a0f;
-      --bg-hero: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
+      --bg: #1b1b1f;
+      --bg-soft: #222222;
+      --bg-mute: #282828;
+      --gray-3: #32363f;
+      --text: rgba(255,255,245,0.86);
+      --text-secondary: rgba(235,235,245,0.6);
+      --text-muted: rgba(235,235,245,0.38);
       --accent: #3b82f6;
       --accent-hover: #60a5fa;
-      --card: #14141f;
-      --border: #2d2d3d;
+      --card: #222222;
+      --border: #32363f;
       --radius: 16px;
       --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
       --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.45);
@@ -185,7 +190,7 @@ async def landing_page() -> str:
       position: sticky; top: 0; z-index: 100;
       display: block; width: 100vw; max-width: none; box-sizing: border-box;
       margin-left: calc(-50vw + 50%);
-      border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(20, 20, 31, 0.95); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border); background: rgba(27,27,31,0.9); backdrop-filter: saturate(180%) blur(20px);
       transition: background 0.2s, border-color 0.2s;
     }
     .nav-inner {
@@ -199,11 +204,10 @@ async def landing_page() -> str:
     .nav-links a:hover { color: var(--accent); }
     .nav-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
     .hero {
-      position: relative; color: #f1f5f9; text-align: center; padding: 5rem 1.5rem 6rem;
+      position: relative; color: var(--text); text-align: center; padding: 5rem 1.5rem 6rem;
       overflow: hidden;
-      border-bottom: 1px solid rgba(59, 130, 246, 0.08);
-      background: #0b0f1a;
-      background-image: linear-gradient(180deg, #0f172a 0%, #0b0f1a 50%, #080b12 100%);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
     }
     .hero-shapes {
       position: absolute; inset: 0; pointer-events: none; z-index: 0;
@@ -225,11 +229,11 @@ async def landing_page() -> str:
       color: var(--accent); margin-bottom: 1rem; padding: 0.35rem 0.85rem; border: 1px solid rgba(59, 130, 246, 0.4);
       border-radius: 999px; background: rgba(59, 130, 246, 0.08);
     }
-    .hero h1 { margin: 0 0 1rem; font-size: clamp(2.1rem, 5.2vw, 3.5rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.03em; max-width: 720px; margin-left: auto; margin-right: auto; color: #fff; }
-    .hero p { margin: 0 0 1.5rem; font-size: 1.125rem; color: #94a3b8; max-width: 560px; margin-left: auto; margin-right: auto; line-height: 1.65; font-weight: 500; }
+    .hero h1 { margin: 0 0 1rem; font-size: clamp(2.1rem, 5.2vw, 3.5rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.03em; max-width: 720px; margin-left: auto; margin-right: auto; color: var(--text); }
+    .hero p { margin: 0 0 1.5rem; font-size: 1.125rem; color: var(--text-secondary); max-width: 560px; margin-left: auto; margin-right: auto; line-height: 1.65; font-weight: 500; }
     .hero-trust { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem 1.25rem; margin-bottom: 2rem; }
     .hero-trust span {
-      display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; font-weight: 600; color: #94a3b8;
+      display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);
       padding: 0.35rem 0.75rem; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
     }
     .hero-trust span::before { content: ""; width: 5px; height: 5px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
@@ -268,7 +272,7 @@ async def landing_page() -> str:
       box-shadow: var(--shadow); transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
       border-left: 3px solid transparent;
     }
-    .benefit-card:hover { box-shadow: var(--shadow-lg); border-color: #3d3d52; border-left-color: var(--accent); transform: translateY(-2px); }
+    .benefit-card:hover { box-shadow: var(--shadow-lg); border-color: var(--gray-3); border-left-color: var(--accent); transform: translateY(-2px); }
     .benefit-icon { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #1e3a5f, #2563eb33); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #cbd5e1; }
     .benefit-icon svg { width: 24px; height: 24px; flex-shrink: 0; }
     .benefit-card h3 { margin: 0 0 0.5rem; font-size: 1.125rem; font-weight: 700; color: var(--text); }
@@ -288,7 +292,7 @@ async def landing_page() -> str:
       background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem;
       box-shadow: var(--shadow); transition: box-shadow 0.2s, border-color 0.2s;
     }
-    .download-card:hover { border-color: #3d3d52; box-shadow: var(--shadow-lg); }
+    .download-card:hover { border-color: var(--gray-3); box-shadow: var(--shadow-lg); }
     .download-card h3 { font-size: 1.125rem; font-weight: 700; color: var(--text); margin: 0 0 0.25rem; }
     .download-card .card-desc { font-size: 0.875rem; color: var(--text-muted); margin: 0 0 1rem; line-height: 1.4; }
     .download-card .card-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-bottom: 0.5rem; }
@@ -311,14 +315,14 @@ async def landing_page() -> str:
     .cta-band h2 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text); }
     .cta-band p { color: var(--text-muted); margin: 0 0 1.5rem; font-size: 0.9375rem; }
     .cta-band .btn { padding: 0.875rem 1.75rem; font-size: 1rem; }
-    .footer { background: #0a0a0f; border-top: 1px solid rgba(255,255,255,0.06); color: #94a3b8; padding: 2.5rem 1.5rem; margin-top: 0; }
+    .footer { background: var(--bg-soft); border-top: 1px solid var(--border); color: var(--text-muted); padding: 2.5rem 1.5rem; margin-top: 0; }
     .footer-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center; }
     .footer-links { display: flex; flex-wrap: wrap; gap: 1rem; }
-    .footer a { color: #cbd5e1; text-decoration: none; font-size: 0.875rem; transition: color 0.15s; }
-    .footer a:hover { color: #fff; }
+    .footer a { color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; transition: color 0.15s; }
+    .footer a:hover { color: var(--text); }
     .footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
     .footer code { background: rgba(255,255,255,0.1); padding: 0.2em 0.5em; border-radius: 6px; font-size: 0.8125rem; }
-    .footer-note { font-size: 0.8125rem; color: #64748b; margin-top: 0.5rem; }
+    .footer-note { font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -643,6 +647,11 @@ async def download_cajero_deb():
 @app.api_route("/download/cajero/deb/arm64", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
 async def download_cajero_deb_arm64():
     return _serve_download(CAJERO_DEB_ARM64, "application/vnd.debian.binary-package", "App cajero Raspberry Pi (.deb arm64)")
+
+
+@app.api_route("/download/cajero/flatpak", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
+async def download_cajero_flatpak():
+    return _serve_download(CAJERO_FLATPAK, "application/vnd.flatpak", "App cajero Linux (Flatpak)")
 
 
 @app.api_route("/download/cajero/apk", methods=["GET", "HEAD"], include_in_schema=False, response_model=None)
