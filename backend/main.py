@@ -379,6 +379,7 @@ async def _auto_register_if_needed() -> None:
 
 @asynccontextmanager
 async def lifespan(application):
+    global runtime_branch_id
     heartbeat_task: asyncio.Task | None = None
     remote_requests_task: asyncio.Task | None = None
     discovery_task: asyncio.Task | None = None
