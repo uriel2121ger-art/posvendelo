@@ -60,7 +60,7 @@ services:
       - "127.0.0.1:${LOCAL_API_PORT:-8000}:8000"
     volumes:
       # Mount only the agent config — do NOT mount the entire install dir (.env, CREDENCIALES.txt)
-      - ./posvendelo-agent.json:/runtime/posvendelo-agent.json:ro
+      - ./posvendelo-agent.json:/runtime/posvendelo-agent.json  # rw: backend escribe installToken en auto-registro
       - ./backups:/backups
       # CUPS socket for host printer access (discovery + printing)
       - /var/run/cups/cups.sock:/var/run/cups/cups.sock

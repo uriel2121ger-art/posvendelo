@@ -33,6 +33,7 @@ import ExpensesTab from './tabs/ExpensesTab'
 import HistoryTab from './tabs/HistoryTab'
 import InventoryTab from './tabs/InventoryTab'
 import ConfigurarServidor from './ConfigurarServidor'
+import SeleccionarModo from './SeleccionarModo'
 import Login from './Login'
 import MermasTab from './tabs/MermasTab'
 import ProductsTab from './tabs/ProductsTab'
@@ -158,7 +159,7 @@ function _isTokenStructureValid(token: string): boolean {
 
 /** Si no hay token, decidir si mostrar primero Configurar servidor (APK/primera vez) en vez de Login.
  *  installMode: en Electron, 'client' = caja secundaria (no asumir localhost); 'principal' o null = PC con backend local. */
-function needServerConfigFirst(installMode: 'principal' | 'client' | null): boolean {
+function needServerConfigFirst(installMode: 'principal' | 'client' | 'unset' | null): boolean {
   let token: string | null = null
   let saved: string | null = null
   try {
@@ -168,6 +169,8 @@ function needServerConfigFirst(installMode: 'principal' | 'client' | null): bool
     return true
   }
   if (token && _isTokenStructureValid(token)) return false
+  // Electron: modo 'unset' (primer boot) → no asumir nada, la pantalla de seleccion se encarga.
+  if (isElectron() && installMode === 'unset') return true
   // Electron: modo caja secundaria (client) → no asumir localhost; pedir Conectar al servidor.
   if (isElectron() && installMode === 'client') {
     if (!saved || !saved.trim()) return true
@@ -197,7 +200,7 @@ function RequireAuth({
   installMode
 }: {
   children: ReactElement
-  installMode: 'principal' | 'client' | null
+  installMode: 'principal' | 'client' | 'unset' | null
 }): ReactElement {
   let token: string | null = null
   try {
@@ -531,13 +534,13 @@ function RoutedApp(): ReactElement {
   const [firstUserNeeded, setFirstUserNeeded] = useState(false)
   // Bumped when user saves a new server URL in /configurar-servidor to re-trigger first-user check.
   const [serverConfigVersion, setServerConfigVersion] = useState(0)
-  const [installMode, setInstallMode] = useState<'principal' | 'client' | null>(null)
+  const [installMode, setInstallMode] = useState<'principal' | 'client' | 'unset' | null>(null)
   // hasToken como estado React — no como IIFE local que se vuelve obsoleta
   const [hasToken, setHasToken] = useState<boolean>(() => {
     try { return Boolean(localStorage.getItem('pos.token')) } catch { return false }
   })
 
-  // Electron: detectar modo instalación (principal = backend local, client = caja secundaria).
+  // Electron: detectar modo instalación (principal = backend local, client = caja secundaria, unset = primera ejecucion).
   useEffect(() => {
     if (!isElectron() || typeof window.api?.getInstallMode !== 'function') {
       setInstallMode('principal')
@@ -545,7 +548,7 @@ function RoutedApp(): ReactElement {
     }
     window.api
       .getInstallMode()
-      .then((mode: 'principal' | 'client') => setInstallMode(mode))
+      .then((mode: 'principal' | 'client' | 'unset') => setInstallMode(mode))
       .catch(() => setInstallMode('principal'))
   }, [])
 
@@ -557,6 +560,12 @@ function RoutedApp(): ReactElement {
       const saved = localStorage.getItem('pos.baseUrl')
       const token = localStorage.getItem('pos.token')
       if (isElectron() && installMode === null) return // esperar a conocer modo antes de redirigir
+      if (isElectron() && installMode === 'unset') {
+        if (location.pathname !== '/seleccionar-modo') {
+          navigate('/seleccionar-modo', { replace: true })
+        }
+        return
+      }
       if (isElectron() && installMode === 'principal') {
         if (!saved || !saved.trim()) {
           const defaultUrl = POS_API_URL ?? 'http://127.0.0.1:8000'
@@ -656,6 +665,36 @@ function RoutedApp(): ReactElement {
   const handleSetupCompleted = useCallback(() => {
     setSetupRequired(false)
   }, [])
+
+  // Callback para cuando el usuario selecciona el modo de instalacion en primera ejecucion.
+  // Handles IPC file write + ensureBackend. Throws on failure so SeleccionarModo can reset busy state.
+  const handleModeSelected = useCallback(async (mode: 'principal' | 'client'): Promise<void> => {
+    if (mode === 'principal') {
+      // Trigger backend setup from renderer since main process skipped it during 'unset' mode
+      if (typeof window.api?.ensureBackend === 'function') {
+        const ok = await window.api.ensureBackend()
+        if (!ok) {
+          // Backend setup failed — main process already showed dialog.
+          // Don't persist mode; on next launch getInstallMode() returns 'unset' again.
+          throw new Error('Backend setup failed')
+        }
+      }
+      // Backend ready — persist the mode to disk and update React state
+      if (typeof window.api?.setInstallMode === 'function') {
+        await window.api.setInstallMode(mode)
+      }
+      setInstallMode(mode)
+      // Re-trigger first-user check now that baseUrl will be set by useLayoutEffect
+      setServerConfigVersion(v => v + 1)
+    } else {
+      // Client mode — persist immediately and navigate
+      if (typeof window.api?.setInstallMode === 'function') {
+        await window.api.setInstallMode(mode)
+      }
+      setInstallMode(mode)
+      navigate('/configurar-servidor', { replace: true })
+    }
+  }, [navigate])
 
   // Idle timeout — auto-logout after 30 min of inactivity
   useEffect((): (() => void) => {
@@ -855,7 +894,7 @@ function RoutedApp(): ReactElement {
       {priceCheckModal && <PriceCheckerModal onClose={() => setPriceCheckModal(false)} />}
       {/* Splash: visible mientras verificamos first-user Y mientras el redirect esta pendiente.
           Cubre el gap entre "respuesta recibida" y "ruta actualizada" para evitar flash. */}
-      {!hasToken && (!firstUserChecked || (firstUserNeeded && location.pathname !== '/setup-inicial-usuario')) && (
+      {!hasToken && installMode !== 'unset' && (!firstUserChecked || (firstUserNeeded && location.pathname !== '/setup-inicial-usuario')) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950">
           <div className="text-center">
             <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent mb-4">
@@ -868,6 +907,7 @@ function RoutedApp(): ReactElement {
       <Routes>
         <Route path="/login" element={firstUserNeeded && !hasToken ? <Navigate to="/setup-inicial-usuario" replace /> : <Login />} />
         <Route path="/configurar-servidor" element={<ConfigurarServidor onServerConfigured={() => setServerConfigVersion(v => v + 1)} />} />
+        <Route path="/seleccionar-modo" element={<SeleccionarModo onModeSelected={handleModeSelected} />} />
         <Route path="/setup-inicial-usuario" element={<FirstUserSetup onUserCreated={handleFirstUserCreated} />} />
         <Route
           element={

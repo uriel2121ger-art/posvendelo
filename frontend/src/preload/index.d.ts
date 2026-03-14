@@ -146,7 +146,9 @@ declare global {
     electron: ElectronAPI
     api: {
       closeApp: () => Promise<void>
-      getInstallMode: () => Promise<'principal' | 'client'>
+      getInstallMode: () => Promise<'principal' | 'client' | 'unset'>
+      setInstallMode: (mode: 'principal' | 'client') => Promise<string>
+      ensureBackend: () => Promise<boolean>
       hardware: {
         listPrinters: () => Promise<ElectronPrinterInfo[]>
       }

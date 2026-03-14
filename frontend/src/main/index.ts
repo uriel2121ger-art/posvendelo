@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain, type PrinterInfo } from 'electron'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -12,19 +12,25 @@ const defaultConnectSrc =
 
 const localAgent = new LocalNodeAgent()
 
-/** Returns 'client' if this install is a secondary terminal (no local backend); otherwise 'principal'. */
-function getInstallMode(): 'principal' | 'client' {
+/** Returns 'client' if this install is a secondary terminal, 'unset' if no mode file exists yet, or 'principal'. */
+function getInstallMode(): 'principal' | 'client' | 'unset' {
   const path =
     process.platform === 'win32'
       ? join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'POSVENDELO', 'install-mode')
       : join(homedir(), '.config', 'posvendelo', 'install-mode')
-  if (!existsSync(path)) return 'principal'
+  if (!existsSync(path)) return 'unset'
   try {
     const content = readFileSync(path, 'utf8').trim().toLowerCase()
     return content === 'client' ? 'client' : 'principal'
   } catch {
     return 'principal'
   }
+}
+
+function getInstallModeDir(): string {
+  return process.platform === 'win32'
+    ? join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'POSVENDELO')
+    : join(homedir(), '.config', 'posvendelo')
 }
 
 function isSafeExternalUrl(rawUrl: string): boolean {
@@ -110,9 +116,10 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Modo caja secundaria: no hay backend local; la app conecta a un servidor en LAN.
+  // Modo instalacion: solo arrancar backend si es explicitamente 'principal'.
+  // 'unset' y 'client' omiten el backend — el renderer gestiona el flujo.
   const installMode = getInstallMode()
-  if (installMode !== 'client') {
+  if (installMode === 'principal') {
     // Ensure backend is running before loading the renderer.
     // In dev mode the backend is started separately so this is a fast no-op.
     const backendReady = await ensureBackend()
@@ -121,6 +128,7 @@ app.whenReady().then(async () => {
       return
     }
   }
+  // 'unset' and 'client' modes: skip backend, let renderer handle
 
   createWindow()
 
@@ -132,6 +140,24 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('app:get-install-mode', () => getInstallMode())
+
+  ipcMain.handle('app:set-install-mode', (_event, mode: unknown) => {
+    const validModes = ['principal', 'client']
+    const safeMode = typeof mode === 'string' && validModes.includes(mode) ? mode : 'principal'
+    const dir = getInstallModeDir()
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'install-mode'), safeMode, 'utf8')
+    return safeMode
+  })
+
+  let ensureBackendInFlight: Promise<boolean> | null = null
+  ipcMain.handle('app:ensure-backend', async () => {
+    if (ensureBackendInFlight) return ensureBackendInFlight
+    ensureBackendInFlight = ensureBackend().finally(() => {
+      ensureBackendInFlight = null
+    })
+    return ensureBackendInFlight
+  })
 
   ipcMain.handle('agent:get-status', async () => localAgent.getStatus())
   ipcMain.handle('agent:refresh', async () => localAgent.refreshNow())

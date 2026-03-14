@@ -292,8 +292,13 @@ services:
       ADMIN_API_PASSWORD: \${ADMIN_API_PASSWORD:-}
       CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
       CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+      POSVENDELO_AGENT_CONFIG_PATH: /runtime/posvendelo-agent.json
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - ./posvendelo-agent.json:/runtime/posvendelo-agent.json
+      - /var/run/cups/cups.sock:/var/run/cups/cups.sock
+      - /sys/class/dmi/id:/sys/class/dmi/id:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -325,6 +330,19 @@ SVCEOF
 systemctl daemon-reload
 systemctl enable posvendelo.service
 log "Servicio systemd registrado."
+
+# Copy agent config for Docker bind mount (auto-registration needs it)
+AGENT_SRC="\$HOME/.config/posvendelo/posvendelo-agent.json"
+if [ -f "\$AGENT_SRC" ]; then
+  cp "\$AGENT_SRC" "\$INSTALL_DIR/posvendelo-agent.json"
+  chmod 644 "\$INSTALL_DIR/posvendelo-agent.json"
+elif [ -n "\$REAL_USER" ] && [ "\$REAL_USER" != "root" ]; then
+  REAL_AGENT_SRC="\$(getent passwd "\$REAL_USER" | cut -d: -f6)/.config/posvendelo/posvendelo-agent.json"
+  if [ -f "\$REAL_AGENT_SRC" ]; then
+    cp "\$REAL_AGENT_SRC" "\$INSTALL_DIR/posvendelo-agent.json"
+    chmod 644 "\$INSTALL_DIR/posvendelo-agent.json"
+  fi
+fi
 
 # Pull image and start
 log "Descargando backend (puede tardar varios minutos en la primera instalacion)..."

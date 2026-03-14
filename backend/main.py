@@ -10,7 +10,9 @@ import asyncio
 import json
 import logging
 import os
+import platform
 import sys
+import tempfile
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
@@ -261,6 +263,115 @@ async def _remote_requests_poll_loop() -> None:
                 logger.warning("Remote requests poll failed (non-fatal): %s", exc)
             await asyncio.sleep(_command_poll_interval_seconds)
 
+async def _auto_register_if_needed() -> None:
+    """Pre-register with control-plane on first boot if no installToken.
+
+    Non-fatal: if this fails (no internet, CP down), the POS works offline.
+    Will retry on next boot.
+    """
+    global runtime_branch_id
+    config_path_raw = os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "").strip()
+    if not config_path_raw:
+        return
+
+    config_path = Path(config_path_raw).expanduser()
+    if not config_path.is_file():
+        logger.info("Auto-register: agent config not found at %s, skipping", config_path)
+        return
+
+    try:
+        agent_config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        logger.warning("Auto-register: cannot read agent config: %s", e)
+        return
+
+    # Already registered?
+    if agent_config.get("installToken"):
+        return
+
+    cp_url = str(agent_config.get("controlPlaneUrl", "")).strip().rstrip("/")
+    if not cp_url:
+        cp_url = os.getenv("CONTROL_PLANE_URL", "").strip().rstrip("/")
+    if not cp_url:
+        logger.info("Auto-register: no controlPlaneUrl configured, skipping")
+        return
+
+    from modules.registration import collect_hw_info
+    hw_info = collect_hw_info()
+
+    logger.info("Auto-register: attempting pre-registration with %s", cp_url)
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # 1. Pre-register with hardware fingerprint
+            resp = await client.post(
+                f"{cp_url}/api/v1/branches/pre-register",
+                json={
+                    "hw_info": hw_info,
+                    "os_platform": platform.system().lower(),
+                    "branch_name": "Sucursal Principal",
+                },
+            )
+            if resp.status_code >= 400:
+                logger.warning(
+                    "Auto-register: pre-register rejected %s: %s",
+                    resp.status_code,
+                    resp.text[:200],
+                )
+                return
+
+            data = resp.json().get("data", {})
+            install_token = data.get("install_token")
+            branch_id = data.get("branch_id")
+
+            if not install_token:
+                logger.warning("Auto-register: no install_token in response")
+                return
+
+            # 2. Get bootstrap config (includes signed license)
+            bootstrap_resp = await client.get(
+                f"{cp_url}/api/v1/branches/bootstrap-config",
+                params={"install_token": install_token},
+            )
+            bootstrap_data = {}
+            if bootstrap_resp.status_code < 400:
+                bootstrap_data = bootstrap_resp.json().get("data", {})
+
+            # 3. Update agent config
+            agent_config["installToken"] = install_token
+            if branch_id:
+                agent_config["branchId"] = branch_id
+            if bootstrap_data.get("license"):
+                agent_config["license"] = bootstrap_data["license"]
+
+            # Write back — atomic via tmp + rename (prevents corruption on crash)
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                dir=str(config_path.parent), suffix=".tmp"
+            )
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                    json.dump(agent_config, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, str(config_path))
+            except BaseException:
+                with suppress(OSError):
+                    os.unlink(tmp_path)
+                raise
+
+            # 4. Set env var so heartbeat starts working this session
+            if branch_id:
+                os.environ["POSVENDELO_BRANCH_ID"] = str(branch_id)
+                # Also update module-level var used by heartbeat
+                runtime_branch_id = str(branch_id)
+
+            logger.info(
+                "Auto-register: success — branch_id=%s, token=%s...",
+                branch_id,
+                install_token[:8] if install_token else "?",
+            )
+    except Exception as e:
+        logger.warning("Auto-register failed (will retry next boot): %s", e)
+
+
 # ---------------------------------------------------------------------------
 # Lifespan (event system + auto-migrations)
 # ---------------------------------------------------------------------------
@@ -316,6 +427,12 @@ async def lifespan(application):
                 logger.warning("Periodic JTI cleanup failed (non-fatal)")
 
     jti_cleanup_task = asyncio.create_task(_jti_cleanup_loop())
+
+    # Auto-register with control-plane if not yet registered
+    try:
+        await _auto_register_if_needed()
+    except Exception as e:
+        logger.warning("Auto-register failed (non-fatal): %s", e)
 
     if os.getenv("CONTROL_PLANE_URL", "").strip() and runtime_branch_id:
         heartbeat_task = asyncio.create_task(_heartbeat_loop())
