@@ -305,7 +305,7 @@ export default function TopNavbar(): ReactElement {
             T
           </Link>
 
-          {/* Nav: principales + "Más" */}
+          {/* Nav: principales */}
           <nav className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto overflow-y-hidden hide-scrollbar">
             {primaryItems.map((item) => {
               const isActive = location.pathname === item.path
@@ -328,60 +328,61 @@ export default function TopNavbar(): ReactElement {
                 </Link>
               )
             })}
-            <div className="relative shrink-0" ref={moreRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setMoreOpenPath(location.pathname)
-                  setMoreOpen((open) => !open)
-                }}
-                title="Más opciones"
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
-                  isMoreMenuOpen ||
-                  allItems.some((i) => !PRIMARY_PATHS.has(i.path) && location.pathname === i.path)
-                    ? 'bg-blue-600/10 text-blue-400 shadow-[inset_0_-2px_0_0_rgb(59,130,246)]'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'
-                }`}
-              >
-                <MoreHorizontal className="w-4 h-4 shrink-0" strokeWidth={2} />
-                <span className="hidden sm:inline">Más</span>
-              </button>
-              {isMoreMenuOpen && (
-                <div
-                  className="absolute top-full left-0 mt-1 min-w-[200px] py-2 rounded-xl border border-zinc-800 bg-zinc-900 shadow-xl z-[100]"
-                  role="menu"
-                >
-                  {moreItemsByGroup.map((group, gi) => (
-                    <div key={gi} className="contents">
-                      {group.map((item) => {
-                        const isActive = location.pathname === item.path
-                        return (
-                          <Link
-                            key={item.path}
-                            to={item.path}
-                            role="menuitem"
-                            title={item.label}
-                            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                              isActive
-                                ? 'bg-blue-600/20 text-blue-400'
-                                : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
-                            }`}
-                            onClick={() => setMoreOpen(false)}
-                          >
-                            <item.icon className="w-4 h-4 shrink-0" strokeWidth={2} />
-                            {item.label}
-                          </Link>
-                        )
-                      })}
-                      {gi < moreItemsByGroup.length - 1 && (
-                        <div key={`sep-${gi}`} className="my-1 border-t border-zinc-800" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </nav>
+          {/* "Más" — fuera del nav scrollable para que el dropdown no se recorte */}
+          <div className="relative shrink-0" ref={moreRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setMoreOpenPath(location.pathname)
+                setMoreOpen((open) => !open)
+              }}
+              title="Más opciones"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                isMoreMenuOpen ||
+                allItems.some((i) => !PRIMARY_PATHS.has(i.path) && location.pathname === i.path)
+                  ? 'bg-blue-600/10 text-blue-400 shadow-[inset_0_-2px_0_0_rgb(59,130,246)]'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'
+              }`}
+            >
+              <MoreHorizontal className="w-4 h-4 shrink-0" strokeWidth={2} />
+              <span className="hidden sm:inline">Más</span>
+            </button>
+            {isMoreMenuOpen && (
+              <div
+                className="absolute top-full right-0 mt-1 min-w-[200px] py-2 rounded-xl border border-zinc-800 bg-zinc-900 shadow-xl z-[100]"
+                role="menu"
+              >
+                {moreItemsByGroup.map((group, gi) => (
+                  <div key={gi} className="contents">
+                    {group.map((item) => {
+                      const isActive = location.pathname === item.path
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          role="menuitem"
+                          title={item.label}
+                          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-blue-600/20 text-blue-400'
+                              : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                          }`}
+                          onClick={() => setMoreOpen(false)}
+                        >
+                          <item.icon className="w-4 h-4 shrink-0" strokeWidth={2} />
+                          {item.label}
+                        </Link>
+                      )
+                    })}
+                    {gi < moreItemsByGroup.length - 1 && (
+                      <div key={`sep-${gi}`} className="my-1 border-t border-zinc-800" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Usuario + Cerrar sesión */}
           <div className="flex items-center gap-2 shrink-0 pl-1">
