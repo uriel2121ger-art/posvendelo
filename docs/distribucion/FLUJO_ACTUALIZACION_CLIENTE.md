@@ -76,7 +76,7 @@ En el momento de **instalar** la actualización descargada, el sistema puede ped
 |----------|--------------------|
 | Tener el **fix del backend** (que vea `posvendelo-agent.json` y licencia del nodo) | Instalar el **nuevo .deb** en el nodo: desde **Configuración → Actualizaciones** usar "Comprobar ahora" y "Descargar" / "Instalar ahora", o descargar el .deb desde la página de descargas e instalar (sin comandos si usan la app). |
 | Tener la **app desktop** nueva (con mejoras de UI, etc.) | Si usa .deb: con el mismo `dpkg -i` del .deb nuevo ya queda la app actualizada. Si usa solo AppImage: descargar el nuevo AppImage y sustituir / ejecutar. |
-| Que el **backend** use la imagen más reciente (mensaje “posvendelo-agent.json” en vez de “titan-agent.json”) | El postinst ya hace `docker compose pull` y `up -d`; con el .deb nuevo el nodo usa la imagen actual. Si no instalan .deb, pueden hacer a mano: `cd /opt/posvendelo && docker compose pull && docker compose up -d`. |
+| Que el **backend** use la imagen más reciente | El postinst ya hace `docker compose pull` y `up -d`; con el .deb nuevo el nodo usa la imagen actual. Si no instalan .deb, pueden hacer a mano: `cd /opt/posvendelo && docker compose pull && docker compose up -d`. |
 
 En la práctica: **“Descargar el .deb nuevo desde la página de descargas e instalarlo con `sudo dpkg -i` en el equipo del nodo.”** Con eso el cliente obtiene el fix del compose, la copia del agente y la actualización de la app y del backend.
 
