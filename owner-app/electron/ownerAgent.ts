@@ -373,7 +373,8 @@ export class OwnerUpdateAgent {
     if (token) {
       return `${base}/api/v1/releases/manifest?install_token=${encodeURIComponent(token)}`
     }
-    return `${base}/api/v1/releases/manifest`
+    const os = process.platform === 'win32' ? 'windows' : 'linux'
+    return `${base}/api/v1/releases/manifest?os=${os}`
   }
 
   private assertTrustedUrl(url: string): void {

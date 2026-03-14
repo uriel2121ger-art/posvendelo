@@ -72,20 +72,14 @@ jobs:
         env:
           CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
           VERSION: ${{ steps.ver.outputs.VERSION }}
-          GHCR_IMAGE: ${{ env.GHCR_IMAGE }}
         run: |
-          curl -sf --max-time 60 \
+          curl --fail-with-body --max-time 60 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -X POST "${CP_URL}/api/v1/releases/upload" \
-            -d "{
-              \"platform\": \"desktop\",
-              \"artifact\": \"backend\",
-              \"version\": \"${VERSION}\",
-              \"channel\": \"stable\",
-              \"target_ref\": \"${GHCR_IMAGE}:${VERSION}\",
-              \"source\": \"github-actions\"
-            }"
+            -F "platform=desktop" \
+            -F "artifact=backend" \
+            -F "version=${VERSION}" \
+            -F "channel=stable" \
+            "${CP_URL}/api/v1/releases/upload"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 2: Frontend Linux — AppImage + .deb
@@ -147,7 +141,7 @@ jobs:
         run: |
           APPIMAGE=$(find frontend/dist -name "*.AppImage" | head -1)
           echo "AppImage encontrado: $APPIMAGE"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=desktop" \
             -F "artifact=electron-linux" \
@@ -164,7 +158,7 @@ jobs:
         run: |
           DEB=$(find frontend/dist -name "*.deb" | head -1)
           echo ".deb encontrado: $DEB"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=desktop" \
             -F "artifact=electron-linux-deb" \
@@ -182,7 +176,7 @@ jobs:
           FLATPAK=$(find frontend/dist -name "*.flatpak" | head -1)
           if [ -n "$FLATPAK" ]; then
             echo ".flatpak encontrado: $FLATPAK"
-            curl -sf --max-time 300 \
+            curl --fail-with-body --max-time 300 \
               -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
               -F "platform=desktop" \
               -F "artifact=electron-linux-flatpak" \
@@ -247,6 +241,24 @@ jobs:
         working-directory: frontend
         run: npm run build:linux:arm64
 
+      - name: Subir .deb arm64 al control-plane
+        continue-on-error: true
+        env:
+          CP_URL: "https://posvendelo.com"
+          CP_RELEASES_TOKEN: ${{ secrets.CP_RELEASES_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          DEB=$(find frontend/dist -name "*arm64.deb" | head -1)
+          echo ".deb arm64 encontrado: $DEB"
+          curl --fail-with-body --max-time 300 \
+            -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
+            -F "platform=desktop" \
+            -F "artifact=electron-deb-arm64" \
+            -F "version=${VERSION}" \
+            -F "channel=stable" \
+            -F "file=@${DEB}" \
+            "${CP_URL}/api/v1/releases/upload"
+
       - name: Guardar artifact para GitHub Release
         uses: actions/upload-artifact@v4
         with:
@@ -309,7 +321,7 @@ jobs:
         run: |
           EXE=$(find frontend/dist -name "*setup.exe" | head -1)
           echo "Instalador encontrado: $EXE"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=desktop" \
             -F "artifact=electron-windows" \
@@ -406,7 +418,7 @@ jobs:
         run: |
           APK="frontend/android/app/build/outputs/apk/release/app-release.apk"
           echo "APK encontrado: $APK"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=android" \
             -F "artifact=android-cajero" \
@@ -474,7 +486,7 @@ jobs:
         run: |
           APPIMAGE=$(find owner-app/dist -name "*.AppImage" | head -1)
           echo "AppImage encontrado: $APPIMAGE"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=desktop" \
             -F "artifact=owner-linux" \
@@ -491,7 +503,7 @@ jobs:
         run: |
           DEB=$(find owner-app/dist -name "*.deb" | head -1)
           echo ".deb encontrado: $DEB"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=desktop" \
             -F "artifact=owner-linux-deb" \
@@ -564,7 +576,7 @@ jobs:
         run: |
           EXE=$(find owner-app/dist -name "*setup.exe" | head -1)
           echo "Instalador encontrado: $EXE"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=desktop" \
             -F "artifact=owner-windows" \
@@ -660,7 +672,7 @@ jobs:
         run: |
           APK="owner-app/android/app/build/outputs/apk/release/app-release.apk"
           echo "APK encontrado: $APK"
-          curl -sf --max-time 300 \
+          curl --fail-with-body --max-time 300 \
             -H "X-Release-Token: ${CP_RELEASES_TOKEN}" \
             -F "platform=android" \
             -F "artifact=owner-android" \

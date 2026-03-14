@@ -52,8 +52,9 @@ def _load_blob() -> tuple[dict[str, Any] | None, str | None]:
         except json.JSONDecodeError:
             return None, "POSVENDELO_LICENSE_BLOB inválido"
 
-    config_path = Path(os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "/runtime/posvendelo-agent.json"))
-    if not config_path.exists():
+    _config_path_raw = os.getenv("POSVENDELO_AGENT_CONFIG_PATH", "/runtime/posvendelo-agent.json").strip()
+    config_path = Path(_config_path_raw)
+    if not config_path.exists() or not config_path.is_file():
         return None, "Archivo posvendelo-agent.json no encontrado"
     try:
         override_path = Path(os.getenv("POSVENDELO_LICENSE_FILE_PATH", str(config_path.with_name("posvendelo-license.json"))))

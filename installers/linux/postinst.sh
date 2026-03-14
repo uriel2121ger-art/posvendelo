@@ -275,10 +275,11 @@ if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
     AGENT_CONFIG="$AGENT_CONFIG_DIR/posvendelo-agent.json"
 fi
 
-# Read CONTROL_PLANE_URL from .env if set
-CP_URL=""
+# Read CONTROL_PLANE_URL from .env if set, default to posvendelo.com
+CP_URL="https://posvendelo.com"
 if [ -f "$ENV_FILE" ]; then
-    CP_URL=$(grep -oP 'CONTROL_PLANE_URL=\K.*' "$ENV_FILE" 2>/dev/null | tr -d '[:space:]' || true)
+    env_cp=$(grep -oP 'CONTROL_PLANE_URL=\K.*' "$ENV_FILE" 2>/dev/null | tr -d '[:space:]' || true)
+    [ -n "$env_cp" ] && CP_URL="$env_cp"
 fi
 
 if [ ! -f "$AGENT_CONFIG" ]; then

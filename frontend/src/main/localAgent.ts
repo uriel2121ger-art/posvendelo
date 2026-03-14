@@ -1,6 +1,6 @@
 import { app, shell } from 'electron'
 import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createHash, createVerify } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -445,7 +445,9 @@ function buildManifestUrl(config: AgentConfig): string | null {
   if (config.branchId) {
     return `${cp}/api/v1/releases/manifest?branch_id=${config.branchId}`
   }
-  return null
+  // No token/branchId — use public manifest (returns latest global releases)
+  const os = process.platform === 'win32' ? 'windows' : 'linux'
+  return `${cp}/api/v1/releases/manifest?os=${os}`
 }
 
 function buildControlPlaneHeaders(installToken: string | null): HeadersInit | undefined {
@@ -619,6 +621,9 @@ export class LocalNodeAgent {
     const previousInstallToken = this.config?.installToken?.trim() || null
     for (const candidate of this.configCandidates()) {
       if (!existsSync(candidate)) continue
+      try {
+        if (!statSync(candidate).isFile()) continue
+      } catch { continue }
       const next = parseJsonFile<AgentConfig>(candidate)
       if (!next) continue
       const configDir = candidate.replace(/posvendelo-agent\.json$/i, '')

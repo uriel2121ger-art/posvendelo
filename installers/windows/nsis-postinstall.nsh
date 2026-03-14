@@ -239,13 +239,13 @@
     DetailPrint "Generando posvendelo-agent.json..."
     CreateDirectory "$POS_AGENT_DIR"
 
-    ; controlPlaneUrl vacío por default — se configura via bootstrap o manualmente
+    ; controlPlaneUrl default posvendelo.com — se sobreescribe via bootstrap si aplica
     FileOpen $1 "$POS_AGENT_FILE" w
     FileWrite $1 "{$\r$\n"
     FileWrite $1 '  "installDir": "'
     FileWrite $1 "$POS_DATA_DIR"
     FileWrite $1 '",$\r$\n'
-    FileWrite $1 '  "controlPlaneUrl": "",$\r$\n'
+    FileWrite $1 '  "controlPlaneUrl": "https://posvendelo.com",$\r$\n'
     FileWrite $1 '  "localApiUrl": "http://127.0.0.1:8000",$\r$\n'
     FileWrite $1 '  "backendHealthUrl": "http://127.0.0.1:8000/health",$\r$\n'
     FileWrite $1 '  "appArtifact": "electron-windows",$\r$\n'

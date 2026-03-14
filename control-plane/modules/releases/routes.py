@@ -20,15 +20,22 @@ _default_downloads = Path(__file__).resolve().parent.parent.parent / "downloads"
 DOWNLOADS_DIR = Path(os.getenv("CP_DOWNLOADS_DIR", str(_default_downloads)))
 
 # Maps artifact identifier → canonical filename saved under DOWNLOADS_DIR.
+# Accepts both canonical names (electron-deb) and CI names (electron-linux-deb).
 ARTIFACT_FILENAME_MAP: dict[str, str] = {
     "electron-linux": "posvendelo.AppImage",
     "electron-windows": "posvendelo-setup.exe",
     "electron-deb": "posvendelo_amd64.deb",
+    "electron-linux-deb": "posvendelo_amd64.deb",
     "electron-deb-arm64": "posvendelo_arm64.deb",
+    "electron-linux-deb-arm64": "posvendelo_arm64.deb",
+    "electron-linux-flatpak": "posvendelo.flatpak",
     "android-cajero": "posvendelo.apk",
     "owner-electron-linux": "posvendelo-owner.AppImage",
+    "owner-linux": "posvendelo-owner.AppImage",
     "owner-electron-windows": "posvendelo-owner-setup.exe",
+    "owner-windows": "posvendelo-owner-setup.exe",
     "owner-electron-deb": "posvendelo-owner_amd64.deb",
+    "owner-linux-deb": "posvendelo-owner_amd64.deb",
     "owner-android": "posvendelo-owner.apk",
     "owner-web": "posvendelo-owner-web.zip",
     # backend is a Docker image — no file is uploaded, only the release record is registered.
@@ -40,13 +47,31 @@ ARTIFACT_DOWNLOAD_PATH: dict[str, str] = {
     "electron-linux": "/download/cajero/appimage",
     "electron-windows": "/download/cajero/windows",
     "electron-deb": "/download/cajero/deb",
+    "electron-linux-deb": "/download/cajero/deb",
     "electron-deb-arm64": "/download/cajero/deb/arm64",
+    "electron-linux-deb-arm64": "/download/cajero/deb/arm64",
+    "electron-linux-flatpak": "/download/cajero/flatpak",
     "android-cajero": "/download/cajero/apk",
     "owner-electron-linux": "/download/owner/appimage",
+    "owner-linux": "/download/owner/appimage",
     "owner-electron-windows": "/download/owner/windows",
+    "owner-windows": "/download/owner/windows",
     "owner-electron-deb": "/download/owner/deb",
+    "owner-linux-deb": "/download/owner/deb",
     "owner-android": "/download/owner/apk",
     "owner-web": "/download/owner/web",
+}
+
+
+# Normalize CI artifact aliases → canonical names stored in DB.
+# The manifest queries use canonical names, so storing aliases would cause mismatches.
+# Note: omit identity mappings — ARTIFACT_CANONICAL.get(k, k) already returns k when not found.
+ARTIFACT_CANONICAL: dict[str, str] = {
+    "owner-linux": "owner-electron-linux",
+    "owner-windows": "owner-electron-windows",
+    "owner-linux-deb": "owner-electron-deb",
+    "electron-linux-deb": "electron-deb",
+    "electron-linux-deb-arm64": "electron-deb-arm64",
 }
 
 
@@ -357,6 +382,9 @@ async def upload_release_artifact(
     if artifact not in ARTIFACT_FILENAME_MAP:
         raise HTTPException(status_code=400, detail=f"Artifact desconocido: {artifact}")
 
+    # Normalize CI aliases to canonical DB names
+    artifact = ARTIFACT_CANONICAL.get(artifact, artifact)
+
     # Resolve base URL for target_ref construction.
     cp_public_url = os.getenv("CP_PUBLIC_URL", "").strip().rstrip("/")
     if not cp_public_url:
@@ -495,11 +523,54 @@ async def release_manifest(
     branch_id: int | None = Query(default=None, ge=1),
     install_token: str | None = Query(default=None, min_length=8),
     x_install_token: str | None = Header(default=None, alias="X-Install-Token"),
+    os: str | None = Query(default=None),
     db=Depends(get_db),
 ):
     install_token = install_token or (x_install_token.strip() if isinstance(x_install_token, str) and x_install_token.strip() else None)
+
+    # Public mode: no token/branch — return latest global releases
     if branch_id is None and not install_token:
-        raise HTTPException(status_code=400, detail="branch_id o install_token requerido")
+        os_platform = (os or "linux").strip().lower()
+        app_artifact = "electron-windows" if os_platform.startswith("win") else "electron-linux"
+        owner_artifact = "owner-electron-windows" if os_platform.startswith("win") else "owner-electron-linux"
+        channel = "stable"
+
+        async def _latest(platform: str, artifact: str):
+            return await db.fetchrow(
+                """
+                SELECT id, platform, artifact, version, channel, target_ref, notes, created_at
+                FROM releases
+                WHERE platform = :platform AND artifact = :artifact AND channel = :channel AND is_active = 1
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                {"platform": platform, "artifact": artifact, "channel": channel},
+            )
+
+        backend_release = await _latest("desktop", "backend")
+        app_release = await _latest("desktop", app_artifact)
+        owner_app_release = await _latest("desktop", owner_artifact)
+        android_cajero_release = await _latest("android", "android-cajero")
+        owner_android_release = await _latest("android", "owner-android")
+
+        app_payload = _enrich_release_row(app_release)
+        owner_app_payload = _enrich_release_row(owner_app_release)
+
+        return {
+            "success": True,
+            "data": {
+                "branch_id": None,
+                "branch_slug": None,
+                "release_channel": channel,
+                "os_platform": os_platform,
+                "artifacts": {
+                    "backend": _enrich_release_row(backend_release),
+                    "app": app_payload,
+                    "owner_app": owner_app_payload,
+                    "android_cajero": _enrich_release_row(android_cajero_release),
+                    "owner_android": _enrich_release_row(owner_android_release),
+                },
+            },
+        }
 
     branch = await _branch_release_context(db, branch_id=branch_id, install_token=install_token)
     if not branch:
