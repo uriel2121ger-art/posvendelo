@@ -109,7 +109,7 @@ describe('App Routing', () => {
       configurable: true
     })
     // Simular installMode 'principal' para que needServerConfigFirst no redirija a configurar-servidor
-    ;(window as Window & { api?: { getInstallMode?: () => Promise<'principal' | 'client'> } }).api = {
+    ;(window as Window & { api?: { getInstallMode?: () => Promise<'principal' | 'client' | 'unset'> } }).api = {
       ...(window as Window & { api?: unknown }).api,
       getInstallMode: () => Promise.resolve('principal')
     }

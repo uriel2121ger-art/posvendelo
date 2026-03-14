@@ -59,6 +59,8 @@ services:
       # API exposed only on loopback — Cloudflare tunnel provides external access
       - "127.0.0.1:${LOCAL_API_PORT:-8000}:8000"
     volumes:
+      # DMI info for hardware fingerprint (auto-registration)
+      - /sys/class/dmi/id:/sys/class/dmi/id:ro
       # Mount only the agent config — do NOT mount the entire install dir (.env, CREDENCIALES.txt)
       - ./posvendelo-agent.json:/runtime/posvendelo-agent.json  # rw: backend escribe installToken en auto-registro
       - ./backups:/backups
