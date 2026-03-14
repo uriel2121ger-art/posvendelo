@@ -345,18 +345,24 @@ async def _auto_register_if_needed() -> None:
             if bootstrap_data.get("license"):
                 agent_config["license"] = bootstrap_data["license"]
 
-            # Write back — atomic via tmp + rename (prevents corruption on crash)
-            tmp_fd, tmp_path = tempfile.mkstemp(
-                dir=str(config_path.parent), suffix=".tmp"
-            )
+            # Write back — try atomic (tmp+rename), fall back to direct write
+            # Docker bind mounts of single files may not allow creating temp
+            # files in the parent directory (/runtime/ owned by root).
+            new_content = json.dumps(agent_config, indent=2, ensure_ascii=False)
             try:
-                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                    json.dump(agent_config, f, indent=2, ensure_ascii=False)
-                os.replace(tmp_path, str(config_path))
-            except BaseException:
-                with suppress(OSError):
-                    os.unlink(tmp_path)
-                raise
+                tmp_fd, tmp_path = tempfile.mkstemp(suffix=".tmp")
+                try:
+                    with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    os.replace(tmp_path, str(config_path))
+                except OSError:
+                    # Cross-device or permission error — direct write fallback
+                    with suppress(OSError):
+                        os.unlink(tmp_path)
+                    config_path.write_text(new_content, encoding="utf-8")
+            except OSError:
+                # mkstemp itself failed — direct write
+                config_path.write_text(new_content, encoding="utf-8")
 
             # 4. Set env var so heartbeat starts working this session
             if branch_id:
