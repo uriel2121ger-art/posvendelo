@@ -380,7 +380,7 @@ Primer acceso:
 Configura tu usuario al abrir el POS por primera vez.
 El asistente de configuracion te pedira crear un usuario administrador.
 
-Período de prueba: 120 días desde el primer registro
+Período de prueba: 40 días desde el primer registro
 Activar Nube: Desde la app, Configuración > Nube PosVendelo
 
 Archivos clave:

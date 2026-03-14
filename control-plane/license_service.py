@@ -350,7 +350,7 @@ async def ensure_trial_license(db, *, tenant_id: int) -> dict[str, Any]:
     if existing:
         return existing
 
-    trial_days = max(1, int(os.getenv("CP_TRIAL_DAYS", "90")))
+    trial_days = max(1, int(os.getenv("CP_TRIAL_DAYS", "40")))
     now = _utc_now()
     return await create_license_record(
         db,

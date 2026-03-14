@@ -193,7 +193,7 @@ async def pre_register_branch(
         },
     )
 
-    # Create trial license (120 days)
+    # Create trial license (CP_TRIAL_DAYS env, default 40 days)
     await ensure_trial_license(db, tenant_id=tenant["id"])
     license_row = await db.fetchrow(
         """

@@ -39,7 +39,7 @@ dpkg -i → postinst (Docker + backend) → abrir app → splash
 
 - `control-plane` publica `bootstrap-config` y `compose-template`.
 - El instalador genera `.env`, `docker-compose.yml`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
-- Pre-registro por fingerprint de hardware (sin cuenta); trial 120 dias vinculado al hardware.
+- Pre-registro por fingerprint de hardware (sin cuenta); periodo de prueba 40 dias vinculado al hardware.
 - Nube opcional: se activa desde UI, tunel CF solo al activar nube.
 - Discovery LAN: UDP broadcast `:41520` cada 2s (`backend/modules/discovery/broadcast.py`).
 - Agente local (`localAgent.ts`): health, licencia, manifest, companion, owner access, Docker manage.

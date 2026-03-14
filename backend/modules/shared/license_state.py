@@ -185,7 +185,7 @@ def _build_message(
     if effective_status == "expired" and license_type == "monthly":
         return "Licencia mensual vencida. Operación comercial restringida."
     if effective_status == "expired" and license_type == "trial":
-        return "Trial vencido. Activa una licencia para continuar operando."
+        return "Periodo de prueba vencido. Activa una licencia para continuar operando."
     if effective_status == "support_expired":
         support_label = support_until.date().isoformat() if support_until else "fecha no disponible"
         return f"Soporte vencido desde {support_label}. El sistema sigue operando sin updates."
