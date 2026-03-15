@@ -1089,7 +1089,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
         availableVersion: release?.version ?? null,
         artifact: release?.artifact ?? this.config?.backendArtifact ?? null,
         targetRef: release?.target_ref ?? null,
-        message: 'No hay artefacto de backend publicado para este nodo.',
+        message: 'No hay artefacto del servidor publicado para este nodo.',
         lastError: 'backend artifact missing'
       }
       this.saveBackendUpdateState()
@@ -1129,7 +1129,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
         availableVersion: release.version,
         artifact: release.artifact ?? this.config?.backendArtifact ?? null,
         targetRef: release.target_ref,
-        message: 'No se encontró la instalación local del backend para aplicar la actualización.',
+        message: 'No se encontró la instalación local del servidor para aplicar la actualización.',
         lastError: 'install dir missing'
       }
       this.saveBackendUpdateState()
@@ -1232,7 +1232,7 @@ nohup "$TARGET" >/dev/null 2>&1 &
         status: 'error',
         rollbackAvailable: false,
         rollbackMessage: null,
-        message: 'No hay reversión del backend disponible en este nodo.',
+        message: 'No hay reversión del servidor disponible en este nodo.',
         lastError: 'backend rollback unavailable'
       }
       this.saveBackendUpdateState()

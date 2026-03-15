@@ -148,7 +148,7 @@ Testigo 1 (Personal):     {data.get('witness_name', 'N/A')}
 Testigo 2 (Supervisor):   {data.get('supervisor_name', 'N/A')}
 
 Autorizado por:           {data.get('authorized_by', 'Pendiente')}
-Fecha Autorizacion:       {data.get('authorized_at', 'Pendiente')}
+Fecha Autorización:       {data.get('authorized_at', 'Pendiente')}
 
 ___________________________          ___________________________
     Responsable del Area                  Testigo Presencial
@@ -257,7 +257,7 @@ Estado del Producto: {data.get('product_condition', 'integro')}
 
         if requires_cfdi:
             doc_content += f"""
-    ACCION FISCAL REQUERIDA:
+    ACCIÓN FISCAL REQUERIDA:
     Generar CFDI de Egreso (Nota de Credito) relacionado al UUID:
     {data.get('original_uuid', 'PENDIENTE')}
 
@@ -265,7 +265,7 @@ Estado del Producto: {data.get('product_condition', 'integro')}
 """
         else:
             doc_content += """
-    ACCION INTERNA:
+    ACCIÓN INTERNA:
     El stock ha sido reintegrado al inventario fisico.
     No se requiere documento fiscal adicional.
 """

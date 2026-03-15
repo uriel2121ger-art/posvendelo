@@ -330,7 +330,7 @@ export default function HistoryTab(): ReactElement {
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
                   <tr>
-                    <th className="px-4 py-2 w-40">Folio Transacción</th>
+                    <th className="px-4 py-2 w-40">Folio transacción</th>
                     <th className="px-4 py-2 w-48">Fecha y hora</th>
                     <th className="px-4 py-2">Cliente</th>
                     <th className="px-4 py-2 w-32">Método</th>
@@ -439,7 +439,7 @@ export default function HistoryTab(): ReactElement {
                     <div className="flex justify-between items-start mb-6 relative">
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold mb-1">
-                          Folio Oficial
+                          Folio oficial
                         </p>
                         <p className="text-2xl font-mono text-white tracking-tight">
                           {selectedSale.folio}
@@ -551,7 +551,7 @@ export default function HistoryTab(): ReactElement {
                         className="w-full flex items-center justify-between gap-2 px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 hover:bg-zinc-800/50 transition-colors"
                       >
                         <span className="flex items-center gap-2">
-                          <FileText className="w-4 h-4" /> Datos técnicos (JSON)
+                          <FileText className="w-4 h-4" /> Datos de diagnóstico
                         </span>
                         {showTechnical ? (
                           <ChevronDown className="w-4 h-4" />

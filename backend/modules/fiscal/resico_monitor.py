@@ -105,28 +105,28 @@ class RESICOMonitor:
                 'semaforo': 'NEGRO',
                 'codigo': 'EXCEDIDO',
                 'mensaje': 'LIMITE EXCEDIDO! Consulta a tu contador inmediatamente.',
-                'accion': 'URGENTE: Suspender facturacion Serie A',
+                'acción': 'URGENTE: Suspender facturación Serie A',
             }
         elif actual >= self.ALERTA_ROJA or proyeccion >= self.LIMITE_ANUAL:
             return {
                 'semaforo': 'ROJO',
                 'codigo': 'CRITICO',
-                'mensaje': 'Zona critica. Al ritmo actual excederas el limite.',
-                'accion': 'Recomendar: Pausar metodos de pago tarjeta/transferencia',
+                'mensaje': 'Zona crítica. Al ritmo actual excederás el límite.',
+                'acción': 'Recomendar: Pausar métodos de pago tarjeta/transferencia',
             }
         elif actual >= self.ALERTA_AMARILLA:
             return {
                 'semaforo': 'AMARILLO',
                 'codigo': 'PRECAUCION',
-                'mensaje': 'Precaucion. Estas al 85%+ del limite anual.',
-                'accion': 'Monitorear diariamente. Considerar estrategia de cierre.',
+                'mensaje': 'Precaución. Estás al 85%+ del límite anual.',
+                'acción': 'Monitorear diariamente. Considerar estrategia de cierre.',
             }
         else:
             return {
                 'semaforo': 'VERDE',
                 'codigo': 'SALUDABLE',
-                'mensaje': 'Situacion fiscal saludable.',
-                'accion': 'Continuar operacion normal',
+                'mensaje': 'Situación fiscal saludable.',
+                'acción': 'Continuar operación normal',
             }
 
     def _generar_recomendaciones(
@@ -144,9 +144,9 @@ class RESICOMonitor:
             recs.append(f"A este ritmo, llegaras al limite en {dias} dias")
         elif estado['codigo'] == 'PRECAUCION':
             recs.append(f"Te quedan ${money(restante)} de capacidad")
-            recs.append("Revisa tu estrategia de facturacion global")
+            recs.append("Revisa tu estrategia de facturación global")
         else:
-            recs.append("Continua con tu operacion normal")
+            recs.append("Continúa con tu operación normal")
             recs.append(f"Capacidad restante: ${money(restante)}")
 
         return recs
@@ -160,7 +160,7 @@ class RESICOMonitor:
 
     async def should_pause_fiscal(self) -> Dict[str, Any]:
         """
-        Determina si se debe pausar facturacion fiscal.
+        Determina si se debe pausar facturación fiscal.
         Retorna estado y mensaje para mostrar a cajeras.
         """
         status = await self.get_health_status()

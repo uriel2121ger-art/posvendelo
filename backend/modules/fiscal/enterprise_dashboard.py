@@ -198,17 +198,17 @@ class FederationDashboard:
             'totals': {
                 'total_facturado': money(total_facturado),
                 'capacidad_total': money(self.RESICO_LIMIT * len(emitters)),
-                'capacidad_usada': money((total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100) if emitters else 0
+                'capacidad_usada': money((total_facturado / (self.RESICO_LIMIT * len(emitters))) * 100) if emitters else money(Decimal('0'))
             },
             'recommendation': self._generate_fiscal_recommendation(rfc_data)
         }
         
     def _generate_fiscal_recommendation(self, rfc_data: List[Dict]) -> Dict:
-        if not rfc_data: return {'action': 'none', 'message': 'No RFCs'}
+        if not rfc_data: return {'action': 'none', 'message': 'Sin RFCs configurados'}
         most = max(rfc_data, key=lambda x: x['porcentaje'])
         least = min(rfc_data, key=lambda x: x['porcentaje'])
         if most['status'] == 'RED': return {'action': 'urgent_redirect', 'from_rfc': most['rfc'][:4]+'***', 'to_rfc': least['rfc'][:4]+'***', 'message': 'URGENTE desviar facturación.'}
-        if most['status'] == 'YELLOW' and most['porcentaje'] - least['porcentaje'] > 20: return {'action': 'balance', 'message': 'Balance recomendado.'}
+        if most['status'] == 'YELLOW' and most['porcentaje'] - least['porcentaje'] > 20: return {'action': 'balance', 'message': 'Se recomienda redistribuir la facturación.'}
         return {'action': 'maintain', 'message': 'Distribución equilibrada.'}
 
     # ==========================================================================
@@ -263,11 +263,11 @@ class FederationDashboard:
     
     async def remote_lockdown(self, branch_id: int) -> Dict[str, Any]:
         await self.db.execute("UPDATE branches SET lockdown_active = true WHERE id = :bid", bid=branch_id)
-        return {'success': True, 'branch_id': branch_id, 'message': 'Lockdown remote applied.'}
+        return {'success': True, 'branch_id': branch_id, 'message': 'Bloqueo remoto activado en la sucursal.'}
     
     async def release_lockdown(self, branch_id: int, auth_code: str) -> Dict[str, Any]:
         expected = _get_federation_auth_code()
         if not expected or not secrets.compare_digest(auth_code.encode(), expected.encode()):
-            return {'success': False, 'error': 'Invalid code'}
+            return {'success': False, 'error': 'Código de autorización inválido.'}
         await self.db.execute("UPDATE branches SET lockdown_active = false WHERE id = :bid", bid=branch_id)
-        return {'success': True, 'message': 'Lockdown released.'}
+        return {'success': True, 'message': 'Bloqueo remoto liberado correctamente.'}

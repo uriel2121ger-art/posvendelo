@@ -254,7 +254,7 @@ export default function InventoryTab(): ReactElement {
           <div className="min-w-0 shrink">
             <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
               <Package className="w-6 h-6 text-indigo-500 shrink-0" />
-              <span className="truncate">Gestión de Inventario</span>
+              <span className="truncate">Gestión de inventario</span>
             </h1>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-nowrap">
@@ -316,7 +316,7 @@ export default function InventoryTab(): ReactElement {
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${showAlerts ? 'bg-amber-500/20 text-amber-500' : 'hover:bg-zinc-800 text-zinc-400'}`}
             >
               <AlertCircle className="w-3.5 h-3.5" />
-              Alertas de Stock
+              Alertas de stock
             </button>
             <div className="w-px bg-zinc-800 my-1 mx-1" aria-hidden />
             <button
@@ -470,7 +470,7 @@ export default function InventoryTab(): ReactElement {
                 <tr>
                   <th className="px-4 py-2 w-40">SKU / CÓDIGO</th>
                   <th className="px-4 py-2">Producto</th>
-                  <th className="px-4 py-2 text-right w-32">Stock Actual</th>
+                  <th className="px-4 py-2 text-right w-32">Stock actual</th>
                   <th className="px-4 py-2 w-16"></th>
                 </tr>
               </thead>
@@ -624,7 +624,7 @@ export default function InventoryTab(): ReactElement {
                         {match.name}
                       </div>
                       <div className="mt-2 text-xs font-mono text-indigo-300">
-                        Stock Actual:{' '}
+                        Stock actual:{' '}
                         <span className="font-bold text-lg ml-1 text-white">{match.stock}</span>
                       </div>
                     </div>

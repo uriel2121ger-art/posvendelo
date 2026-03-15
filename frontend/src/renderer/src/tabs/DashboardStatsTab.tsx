@@ -42,7 +42,7 @@ function DashboardPanel({
       setData((raw.data ?? raw) as Record<string, unknown>)
     } catch (err) {
       if (loadIdRef.current !== reqId) return
-      setPanelError(err instanceof Error ? err.message : 'Error')
+      setPanelError(err instanceof Error ? err.message : 'Ocurrió un error inesperado.')
     } finally {
       if (loadIdRef.current === reqId) setPanelLoading(false)
     }

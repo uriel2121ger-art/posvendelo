@@ -329,7 +329,7 @@ async function apiFetchOnce(url: string, init: RequestInit, timeoutMs: number): 
       err instanceof TypeError
     ) {
       throw new Error(
-        `No se pudo conectar al servidor. Comprueba que el backend esté en marcha. Si ya está disponible, actualiza la URL del API en Configuración. URL esperada por defecto: ${DEFAULT_BASE_URL}.`
+        `No se pudo conectar al servidor. Comprueba que el servidor esté en marcha. Si ya está disponible, actualiza la URL del API en Configuración. URL esperada por defecto: ${DEFAULT_BASE_URL}.`
       )
     }
     throw err

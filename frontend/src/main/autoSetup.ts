@@ -28,7 +28,7 @@ export async function ensureBackend(): Promise<boolean> {
 
     const { response } = await dialog.showMessageBox({
       type: 'warning',
-      title: 'POSVENDELO — Backend no responde',
+      title: 'POSVENDELO — Servidor no responde',
       message:
         'El servidor está instalado pero no responde.\n\n' +
         '¿Deseas intentar reiniciarlo ahora?',
@@ -51,7 +51,7 @@ export async function ensureBackend(): Promise<boolean> {
     title: 'POSVENDELO — Primera instalación',
     message:
       'Se necesita configurar el servidor del punto de venta.\n\n' +
-      'Esto incluye instalar Docker y descargar el backend.\n' +
+      'Esto incluye instalar Docker y descargar el servidor.\n' +
       'Se solicitará tu contraseña de administrador.',
     buttons: ['Configurar ahora', 'Cancelar'],
     defaultId: 0,
@@ -349,7 +349,7 @@ elif [ -n "\$REAL_USER" ] && [ "\$REAL_USER" != "root" ]; then
 fi
 
 # Pull image and start
-log "Descargando backend (puede tardar varios minutos en la primera instalacion)..."
+log "Descargando servidor (puede tardar varios minutos en la primera instalacion)..."
 cd "\$INSTALL_DIR"
 docker compose pull 2>&1 | tail -5 || {
   log "ADVERTENCIA: No se pudo descargar la imagen. El servicio iniciara cuando haya internet."
@@ -494,7 +494,7 @@ function generateWindowsScript(): string {
     '    Copy-Item $AgentSrc "$INSTALL_DIR\\posvendelo-agent.json" -Force',
     '}',
     '',
-    'Write-Step "Descargando backend..."',
+    'Write-Step "Descargando servidor..."',
     'docker compose pull',
     'docker compose up -d',
     '',

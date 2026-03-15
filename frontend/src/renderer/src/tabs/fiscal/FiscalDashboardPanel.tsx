@@ -14,7 +14,7 @@ export default function FiscalDashboardPanel({ cfg, busy, wrap }: FiscalPanelPro
   return (
     <div className="space-y-6">
       <div className={cardCls}>
-        <h3 className={labelCls}>Dashboard fiscal</h3>
+        <h3 className={labelCls}>Panel fiscal</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <input
             className={inputCls}

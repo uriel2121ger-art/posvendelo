@@ -61,7 +61,7 @@ export default function OwnerPortfolioTab(): ReactElement {
           branches: [],
           alerts: [],
           lastError:
-            'El portfolio remoto requiere el agente local del desktop. En navegador puro solo está disponible el companion conectado al backend.'
+            'El portfolio remoto requiere el agente local del escritorio. En navegador puro solo está disponible el companion conectado al servidor local.'
         })
         return
       }
@@ -262,8 +262,8 @@ export default function OwnerPortfolioTab(): ReactElement {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {[
               ['Sucursales', String(data?.branchesTotal ?? 0)],
-              ['Online', String(data?.online ?? 0)],
-              ['Offline', String(data?.offline ?? 0)],
+              ['En línea', String(data?.online ?? 0)],
+              ['Sin conexión', String(data?.offline ?? 0)],
               [
                 'Ventas hoy',
                 `$${(data?.salesTodayTotal ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
@@ -399,7 +399,7 @@ export default function OwnerPortfolioTab(): ReactElement {
                         <td
                           className={`px-4 py-2 font-semibold ${online ? 'text-emerald-400' : 'text-rose-400'}`}
                         >
-                          {online ? 'Online' : 'Offline'}
+                          {online ? 'En línea' : 'Sin conexión'}
                         </td>
                         <td className="px-4 py-2 text-zinc-300">
                           {String(branch.release_channel ?? '-')}

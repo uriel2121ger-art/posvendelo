@@ -2058,7 +2058,7 @@ export default function Terminal(): ReactElement {
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-                <ShoppingCartIcon className="w-6 h-6 text-blue-500" /> Confirmar Cobro
+                <ShoppingCartIcon className="w-6 h-6 text-blue-500" /> Confirmar cobro
               </h2>
               <button
                 type="button"

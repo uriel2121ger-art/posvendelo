@@ -413,7 +413,7 @@ export default function SettingsTab({
     }
     saveRuntimeConfig({ ...form, baseUrl: url })
     setSavedForm({ ...form, baseUrl: url })
-    showMessage('Configuración de Servidor guardada en localStorage.')
+    showMessage('Configuración guardada.')
   }
 
   function persistProfiles(next: ConfigProfile[]): void {
@@ -450,7 +450,7 @@ export default function SettingsTab({
     if (!found) return
     setForm({ baseUrl: found.baseUrl, token: found.token, terminalId: found.terminalId })
     setProfileName(found.name)
-    showMessage(`Perfil cargado: ${found.name}${!found.token ? ' (Token vacío)' : ''}`)
+    showMessage(`Perfil cargado: ${found.name}${!found.token ? ' (Sin credenciales)' : ''}`)
   }
 
   async function deleteProfile(): Promise<void> {
@@ -478,7 +478,7 @@ export default function SettingsTab({
       const syncStatus = await getSyncStatus(testCfg)
       setSystemInfo(info)
       setLastStatus(syncStatus)
-      showMessage('Conexión correcta con backend y estado de sync obtenido.')
+      showMessage('Conexión correcta con el servidor.')
     } catch (error) {
       showMessage((error as Error).message, true)
       setSystemInfo(null)
@@ -520,7 +520,7 @@ export default function SettingsTab({
       const cfg = loadRuntimeConfig()
       const body = await buildRestorePlan(cfg, selectedBackup)
       setRestorePlan((body.data ?? body) as Record<string, unknown>)
-      showMessage('Plan de recuperación preparado. Revísalo antes de ejecutar restore manual.')
+      showMessage('Plan de recuperación preparado. Revísalo antes de continuar.')
     } catch (error) {
       showMessage((error as Error).message, true)
       setRestorePlan(null)
@@ -586,7 +586,7 @@ export default function SettingsTab({
   const handleGenerateCloudLinkCode = async (): Promise<void> => {
     const agent = window.api?.agent
     if (!agent?.generateLinkCode) {
-      showMessage('La vinculación con Nube PosVendelo requiere el agente local del desktop.', true)
+      showMessage('La vinculación con Nube POSVENDELO requiere el agente local del desktop.', true)
       return
     }
     setBusy(true)
@@ -600,7 +600,7 @@ export default function SettingsTab({
         branchName: result.branchName,
         expiresAt: result.expiresAt
       })
-      showMessage('Código de vinculación Nube PosVendelo generado.')
+      showMessage('Código de vinculación Nube POSVENDELO generado.')
     } catch (error) {
       showMessage((error as Error).message, true)
     } finally {
@@ -870,7 +870,7 @@ export default function SettingsTab({
 
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                     <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-                      <Link2 className="w-4 h-4 text-cyan-500" /> Nube PosVendelo
+                      <Link2 className="w-4 h-4 text-cyan-500" /> Nube POSVENDELO
                     </h2>
                     <p className="text-sm text-zinc-500 mb-4">
                       Genera un código temporal para vincular esta sucursal con la cuenta del dueño
@@ -1143,7 +1143,7 @@ export default function SettingsTab({
                                     </div>
                                     <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
                                       <div className="text-[11px] uppercase tracking-wider text-zinc-500">
-                                        Restore soportado
+                                        Recuperación disponible
                                       </div>
                                       <div className="mt-1 text-sm font-bold text-zinc-100">
                                         {backupStatus.restore_supported ? 'Sí' : 'No'}
@@ -1262,7 +1262,7 @@ export default function SettingsTab({
                 <div className="animate-fade-in-up space-y-6">
                   <Card title="Datos del negocio en ticket">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Field label="Nombre del negocio / Sucursal">
+                      <Field label="Nombre del negocio / sucursal">
                         <input
                           className="w-full rounded-xl border border-zinc-700 bg-zinc-950/80 py-3 px-4 text-sm focus:border-blue-500 focus:outline-none transition-all"
                           value={hw.business.name}

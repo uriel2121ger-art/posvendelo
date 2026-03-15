@@ -710,7 +710,7 @@ export default function ProductsTab(): ReactElement {
           <div className="min-w-0 shrink">
             <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
               <PackageOpen className="w-6 h-6 text-blue-500 shrink-0" />
-              <span className="truncate">Catálogo de Productos</span>
+              <span className="truncate">Catálogo de productos</span>
             </h1>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-nowrap">

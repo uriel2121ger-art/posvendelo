@@ -146,7 +146,7 @@ export default function ShiftStartupModal({
         const data = result.data as Record<string, unknown>
         const backendId = Number(data?.id ?? data?.turn_id ?? 0)
         if (!backendId) {
-          setError('Turno abierto pero sin ID de backend. Revisa la conexión.')
+          setError('Turno abierto pero no confirmado por el servidor. Revisa la conexión.')
           setBusy(false)
           return
         }
@@ -264,7 +264,7 @@ export default function ShiftStartupModal({
     async (e: FormEvent): Promise<void> => {
       e.preventDefault()
       if (!existingShift?.backendTurnId) {
-        setError('Turno sin ID de backend.')
+        setError('No se encontró turno activo en el servidor.')
         return
       }
       const cash = parseFloat(closingCash)
@@ -573,7 +573,7 @@ export default function ShiftStartupModal({
             {summary && (
               <div className="border-t border-zinc-800 pt-2 mt-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold mb-1">
-                  Resumen del servidor
+                  Resumen del sistema
                 </p>
                 <div className="text-xs text-zinc-400 space-y-0.5">
                   {summary.total_sales != null && (

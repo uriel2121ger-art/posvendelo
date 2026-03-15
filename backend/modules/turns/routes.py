@@ -329,7 +329,7 @@ async def create_cash_movement(
         if not turn:
             raise HTTPException(status_code=404, detail="Turno no encontrado")
         if turn["status"] != "open":
-            raise HTTPException(status_code=400, detail="El turno esta cerrado")
+            raise HTTPException(status_code=400, detail="El turno está cerrado")
 
         # Ownership check: only the turn owner or privileged roles can add movements
         if turn["user_id"] != user_id and role not in PRIVILEGED_ROLES:

@@ -135,7 +135,7 @@ class CFDIService:
                 if not customer_zip:
                     return {
                         "success": False,
-                        "error": "Codigo postal del receptor o lugar de expedicion no configurado",
+                        "error": "Código postal del receptor o lugar de expedición no configurado",
                     }
 
             items = []
@@ -313,7 +313,7 @@ class CFDIService:
         )
         if not folio_row:
             raise ValueError(
-                f"No se encontro configuracion fiscal para la sucursal {self.branch_id}"
+                f"No se encontró configuración fiscal para la sucursal {self.branch_id}"
             )
         reserved = folio_row.get("reserved_folio")
         logger.debug(f"Folio reservado: {reserved} (proximo sera {reserved + 1})")
@@ -340,11 +340,11 @@ class CFDIService:
 
             fiscal_config = await self._get_fiscal_config()
             if not fiscal_config or not fiscal_config.get("rfc_emisor"):
-                return {"success": False, "error": "Configuracion fiscal no encontrada"}
+                return {"success": False, "error": "Configuración fiscal no encontrada"}
 
             resolved_customer_zip = self._resolve_customer_zip(customer_zip, fiscal_config)
             if not resolved_customer_zip:
-                return {"success": False, "error": "Codigo postal del receptor o lugar de expedicion no configurado"}
+                return {"success": False, "error": "Código postal del receptor o lugar de expedición no configurado"}
 
             if fiscal_config.get("facturapi_enabled") and fiscal_config.get("facturapi_api_key"):
                 return await self.generate_cfdi_via_facturapi(
@@ -557,7 +557,7 @@ class CFDIService:
             fiscal_config = await self._get_fiscal_config()
             resolved_customer_zip = self._resolve_customer_zip(original.get("lugar_expedicion"), fiscal_config)
             if not resolved_customer_zip:
-                return {"success": False, "error": "Codigo postal del receptor o lugar de expedicion no configurado"}
+                return {"success": False, "error": "Código postal del receptor o lugar de expedición no configurado"}
 
             if items is None and original_sale_id:
                 sale_data = await self._get_sale_details(original_sale_id)

@@ -99,7 +99,7 @@ export default function FiscalExtraccionesPanel({
             disabled={busy}
             onClick={() => void wrap(() => getSerieBBalance(cfg()))}
           >
-            Balance Serie B
+            Balance serie B
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">

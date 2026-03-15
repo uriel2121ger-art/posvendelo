@@ -533,8 +533,8 @@ export default function ReportsTab(): ReactElement {
                     <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
                       <tr>
                         <th className="px-4 py-2">Fecha operativa</th>
-                        <th className="px-4 py-2 text-right">Cant. Ventas</th>
-                        <th className="px-4 py-2 text-right">Monto Procesado</th>
+                        <th className="px-4 py-2 text-right">Cant. ventas</th>
+                        <th className="px-4 py-2 text-right">Monto procesado</th>
                         <th className="px-4 py-2 text-right">Ticket promedio</th>
                       </tr>
                     </thead>

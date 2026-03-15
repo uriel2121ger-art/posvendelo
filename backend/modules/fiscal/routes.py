@@ -86,7 +86,7 @@ async def generate_cfdi(
 
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail="Error al procesar CFDI")
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al procesar CFDI"))
 
     except HTTPException:
         raise
@@ -214,7 +214,7 @@ async def process_return(
 
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail="Error al procesar devolución")
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al procesar devolución"))
 
     except HTTPException:
         raise
@@ -278,7 +278,7 @@ async def parse_cfdi_xml(
             if "defusedxml" in str(e).lower():
                 raise HTTPException(
                     status_code=503,
-                    detail="Requisito no cumplido: instalar defusedxml. Ejecuta en backend: pip install -r requirements.txt (ver docs/referencia/PARSEAR_XML_FISCAL.md)",
+                    detail="Requisito no cumplido: instalar defusedxml. Ejecuta en el servidor: pip install -r requirements.txt",
                 ) from e
             raise
 
@@ -350,7 +350,7 @@ async def create_ghost_wallet(
 
     except Exception as e:
         logger.error(f"Error creating Ghost Wallet: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error creando monedero")
+        raise HTTPException(status_code=500, detail="Error al crear monedero.")
 
 @router.post("/wallet/add")
 async def ghost_wallet_add_points(
@@ -368,13 +368,13 @@ async def ghost_wallet_add_points(
         result = await wallet.add_points(request.hash_id, request.sale_amount, request.sale_id)
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al agregar fondos a la billetera."))
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error adding to Ghost Wallet: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error sumando puntos")
+        raise HTTPException(status_code=500, detail="Error al sumar puntos.")
 
 @router.post("/wallet/redeem")
 async def ghost_wallet_redeem(
@@ -392,13 +392,13 @@ async def ghost_wallet_redeem(
         result = await wallet.redeem_points(request.hash_id, request.amount)
         if result.get("success"):
             return result
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al canjear fondos de la billetera."))
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error redeeming Ghost Wallet: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error canjeando puntos")
+        raise HTTPException(status_code=500, detail="Error al canjear puntos.")
 
 @router.get("/wallet/stats")
 async def get_ghost_wallet_stats(
@@ -417,7 +417,7 @@ async def get_ghost_wallet_stats(
 
     except Exception as e:
         logger.error(f"Error fetching Ghost Wallet stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error obteniendo stats de monedero")
+        raise HTTPException(status_code=500, detail="Error al obtener estadísticas del monedero.")
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +438,7 @@ async def get_operational_dashboard(
         return {"success": True, "data": await fd.get_operational_dashboard()}
     except Exception as e:
         logger.error(f"Error operational dashboard: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error dashboard operativo")
+        raise HTTPException(status_code=500, detail="Error al obtener dashboard operativo.")
 
 @router.get("/federation/fiscal")
 async def get_fiscal_intelligence(
@@ -454,7 +454,7 @@ async def get_fiscal_intelligence(
         return {"success": True, "data": await fd.get_fiscal_intelligence()}
     except Exception as e:
         logger.error(f"Error fiscal intelligence: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error inteligencia fiscal")
+        raise HTTPException(status_code=500, detail="Error al obtener inteligencia fiscal.")
 
 @router.get("/federation/wealth")
 async def get_wealth_dashboard(
@@ -470,7 +470,7 @@ async def get_wealth_dashboard(
         return {"success": True, "data": await fd.get_wealth_dashboard()}
     except Exception as e:
         logger.error(f"Error wealth dashboard: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error dashboard riqueza")
+        raise HTTPException(status_code=500, detail="Error al obtener dashboard de riqueza.")
 
 @router.post("/federation/lockdown")
 async def remote_lockdown(
@@ -488,7 +488,7 @@ async def remote_lockdown(
         return result
     except Exception as e:
         logger.error(f"Error lockdown: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error lockdown")
+        raise HTTPException(status_code=500, detail="Error al ejecutar lockdown.")
 
 @router.post("/federation/release")
 async def release_lockdown(
@@ -504,11 +504,11 @@ async def release_lockdown(
         fd = FederationDashboard(db)
         result = await fd.release_lockdown(request.branch_id, request.auth_code)
         if result.get("success"): return result
-        raise HTTPException(status_code=403, detail=result.get("error"))
+        raise HTTPException(status_code=403, detail=result.get("error", "Error al liberar lockdown de federación."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error release lockdown: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error release lockdown")
+        raise HTTPException(status_code=500, detail="Error al liberar lockdown.")
 
 
 # ---------------------------------------------------------------------------
@@ -536,7 +536,7 @@ async def verify_stealth_pin(
         raise
     except Exception as e:
         logger.error(f"Error verify PIN: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error verificando PIN")
+        raise HTTPException(status_code=500, detail="Error al verificar PIN.")
 
 @router.post("/stealth/configure-pins")
 async def configure_stealth_pins(
@@ -552,11 +552,11 @@ async def configure_stealth_pins(
         layer = StealthLayer(db)
         result = await layer.configure_pins(request.normal_pin, request.duress_pin, request.wipe_pin)
         if result.get("success"): return result
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al configurar PINs de seguridad."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error configuring PINs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error configurando PINs")
+        raise HTTPException(status_code=500, detail="Error al configurar PINs.")
 
 @router.post("/stealth/surgical-delete")
 async def surgical_delete(
@@ -572,11 +572,11 @@ async def surgical_delete(
         layer = StealthLayer(db)
         result = await layer.surgical_delete(request.sale_ids, request.confirm_phrase)
         if result.get("success"): return result
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al eliminar registros seleccionados."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error surgical delete: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error eliminación quirúrgica")
+        raise HTTPException(status_code=500, detail="Error al ejecutar eliminación de registros.")
 
 
 # ---------------------------------------------------------------------------
@@ -603,7 +603,7 @@ async def analyze_supplier_purchase(
         return {"success": True, "data": result}
     except Exception as e:
         logger.error(f"Error supplier analysis: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error análisis proveedor")
+        raise HTTPException(status_code=500, detail="Error al analizar proveedor.")
 
 
 # ---------------------------------------------------------------------------
@@ -624,7 +624,7 @@ async def get_extraction_available(
         return {"success": True, "data": await pe.analyze_available()}
     except Exception as e:
         logger.error(f"Error extraction available: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error análisis extracción")
+        raise HTTPException(status_code=500, detail="Error al analizar extracción.")
 
 @router.post("/extraction/plan")
 async def generate_extraction_plan(
@@ -640,11 +640,11 @@ async def generate_extraction_plan(
         pe = PredictiveExtraction(db)
         result = await pe.generate_extraction_plan(request.target_amount)
         if result.get("success"): return result
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al generar plan de extracción."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error extraction plan: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error plan extracción")
+        raise HTTPException(status_code=500, detail="Error al generar plan de extracción.")
 
 @router.get("/extraction/optimal")
 async def get_optimal_daily_extraction(
@@ -660,7 +660,7 @@ async def get_optimal_daily_extraction(
         return {"success": True, "data": await pe.get_optimal_daily_amount()}
     except Exception as e:
         logger.error(f"Error optimal extraction: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error cálculo óptimo")
+        raise HTTPException(status_code=500, detail="Error al calcular óptimo.")
 
 
 # ---------------------------------------------------------------------------
@@ -681,7 +681,7 @@ async def get_crypto_available(
         return {"success": True, "data": await bridge.get_available_for_conversion()}
     except Exception as e:
         logger.error(f"Error crypto available: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error disponibilidad crypto")
+        raise HTTPException(status_code=500, detail="Error al consultar disponibilidad cripto.")
 
 @router.post("/crypto/convert")
 async def create_crypto_conversion(
@@ -700,11 +700,11 @@ async def create_crypto_conversion(
             wallet_address=request.wallet_address, cover_description=request.cover_description
         )
         if result.get("success"): return result
-        raise HTTPException(status_code=400, detail=result.get("error"))
+        raise HTTPException(status_code=400, detail=result.get("error", "Error al convertir a criptomoneda."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error crypto conversion: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error conversión crypto")
+        raise HTTPException(status_code=500, detail="Error al convertir cripto.")
 
 @router.get("/crypto/wealth")
 async def get_crypto_wealth(
@@ -720,7 +720,7 @@ async def get_crypto_wealth(
         return {"success": True, "data": await bridge.get_crypto_wealth()}
     except Exception as e:
         logger.error(f"Error crypto wealth: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error riqueza crypto")
+        raise HTTPException(status_code=500, detail="Error al obtener riqueza cripto.")
 
 
 # ---------------------------------------------------------------------------
@@ -743,7 +743,7 @@ async def trigger_panic(
         return result
     except Exception as e:
         logger.error(f"Error panic: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al ejecutar modo pánico. Intente de nuevo.")
 
 @router.post("/evasion/fake-screen")
 async def trigger_fake_screen(
@@ -759,7 +759,7 @@ async def trigger_fake_screen(
         return em.trigger_screen_with_protection(request.screen_type)
     except Exception as e:
         logger.error(f"Error fake screen: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al activar pantalla de protección.")
 
 @router.post("/evasion/dead-drive")
 async def simulate_dead_drive(
@@ -774,11 +774,11 @@ async def simulate_dead_drive(
         em = EvasionMaster(db)
         result = em.simulate_dead_drive(request.device, request.confirm)
         if result.get('success'): return result
-        raise HTTPException(status_code=400, detail=result.get('error'))
+        raise HTTPException(status_code=400, detail=result.get('error', "Error al simular fallo de disco."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error dead drive: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al simular fallo de disco.")
 
 
 # ---------------------------------------------------------------------------
@@ -798,11 +798,11 @@ async def create_ghost_transfer(
         gc = GhostCarrier(db)
         result = await gc.create_transfer(request.origin, request.destination, request.items, get_user_id(auth), request.notes)
         if result.get('success'): return result
-        raise HTTPException(status_code=400, detail=result.get('error'))
+        raise HTTPException(status_code=400, detail=result.get('error', "Error al crear traspaso."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error ghost transfer: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error traspaso")
+        raise HTTPException(status_code=500, detail="Error al procesar traspaso.")
 
 @router.post("/ghost/transfer/receive")
 async def receive_ghost_transfer(
@@ -817,11 +817,11 @@ async def receive_ghost_transfer(
         gc = GhostCarrier(db)
         result = await gc.receive_transfer(request.transfer_code, get_user_id(auth))
         if result.get('success'): return result
-        raise HTTPException(status_code=400, detail=result.get('error'))
+        raise HTTPException(status_code=400, detail=result.get('error', "Error al recibir traspaso."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error receive: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error recepción")
+        raise HTTPException(status_code=500, detail="Error al procesar recepción.")
 
 @router.get("/ghost/transfer/pending")
 async def get_pending_ghost_transfers(
@@ -837,7 +837,7 @@ async def get_pending_ghost_transfers(
         return {"success": True, "data": await gc.get_pending_transfers(branch)}
     except Exception as e:
         logger.error(f"Error pending: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al obtener traspasos pendientes.")
 
 @router.get("/ghost/transfer/slip/{transfer_code}")
 async def get_warehouse_slip(
@@ -856,7 +856,7 @@ async def get_warehouse_slip(
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error slip: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al generar remisión de almacén.")
 
 
 # ---------------------------------------------------------------------------
@@ -877,7 +877,7 @@ async def get_dual_stock(
         return await si.get_dual_stock(product_id)
     except Exception as e:
         logger.error(f"Error dual stock: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al consultar inventario dual del producto.")
 
 @router.post("/shadow/add")
 async def add_shadow_stock(
@@ -892,11 +892,11 @@ async def add_shadow_stock(
         si = ShadowInventory(db)
         result = await si.add_shadow_stock(request.product_id, request.quantity, request.source, request.notes)
         if result.get('success'): return result
-        raise HTTPException(status_code=400, detail=result.get('error'))
+        raise HTTPException(status_code=400, detail=result.get('error', "Error al agregar stock shadow."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error add shadow: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al agregar stock shadow.")
 
 @router.post("/shadow/sell")
 async def shadow_sell(
@@ -911,11 +911,11 @@ async def shadow_sell(
         si = ShadowInventory(db)
         result = await si.sell_with_attribution(request.product_id, request.quantity, request.serie)
         if result.get('success'): return result
-        raise HTTPException(status_code=400, detail=result.get('error'))
+        raise HTTPException(status_code=400, detail=result.get('error', "Error al registrar venta shadow."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error shadow sell: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al registrar venta shadow.")
 
 @router.get("/shadow/audit-view")
 async def get_audit_view(
@@ -930,7 +930,7 @@ async def get_audit_view(
         return {"success": True, "data": await si.get_audit_view()}
     except Exception as e:
         logger.error(f"Error audit view: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al obtener vista de auditoría.")
 
 @router.get("/shadow/real-view")
 async def get_real_view(
@@ -945,7 +945,7 @@ async def get_real_view(
         return {"success": True, "data": await si.get_real_view()}
     except Exception as e:
         logger.error(f"Error real view: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al obtener vista real del inventario.")
 
 @router.get("/shadow/discrepancy")
 async def get_discrepancy_report(
@@ -960,7 +960,7 @@ async def get_discrepancy_report(
         return {"success": True, "data": await si.get_discrepancy_report()}
     except Exception as e:
         logger.error(f"Error discrepancy: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al generar reporte de discrepancias.")
 
 @router.post("/shadow/reconcile")
 async def reconcile_fiscal(
@@ -975,11 +975,11 @@ async def reconcile_fiscal(
         si = ShadowInventory(db)
         result = await si.reconcile_fiscal(request.product_id, request.fiscal_stock)
         if result.get('success'): return result
-        raise HTTPException(status_code=400, detail=result.get('error'))
+        raise HTTPException(status_code=400, detail=result.get('error', "Error al reconciliar inventario fiscal."))
     except HTTPException: raise
     except Exception as e:
         logger.error(f"Error reconcile: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error")
+        raise HTTPException(status_code=500, detail="Error al reconciliar inventario fiscal.")
 
 
 # ---------------------------------------------------------------------------

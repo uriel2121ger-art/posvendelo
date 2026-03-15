@@ -99,7 +99,7 @@ export default function CompanionDevicesTab(): ReactElement {
 
           {!canPair && (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-              Tu rol no puede generar tokens de vinculación.
+              Tu rol no puede generar códigos de vinculación.
             </div>
           )}
 

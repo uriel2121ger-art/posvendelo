@@ -19,7 +19,7 @@ export default function SeleccionarModo({ onModeSelected }: Props): ReactElement
       // For 'client': mode persisted immediately, then navigates.
       await onModeSelected(mode)
     } catch {
-      setError('No se pudo configurar el servidor. Verifica tu conexion a internet e intenta de nuevo.')
+      setError('No se pudo configurar el servidor. Verifica tu conexión a internet e intenta de nuevo.')
     } finally {
       setBusy(false)
     }
@@ -44,7 +44,7 @@ export default function SeleccionarModo({ onModeSelected }: Props): ReactElement
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 group-hover:bg-blue-600/30">
               <Monitor className="h-7 w-7" />
             </div>
-            <h3 className="text-lg font-bold text-zinc-100 mb-2">PC Principal</h3>
+            <h3 className="text-lg font-bold text-zinc-100 mb-2">PC principal</h3>
             <p className="text-sm text-zinc-400 leading-relaxed">
               Esta PC será el servidor de la sucursal. Instala la base de datos y el sistema completo.
             </p>

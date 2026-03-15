@@ -707,7 +707,7 @@ async def health_check():
     except Exception as e:
         if debug:
             logger.warning("Health check failed: %s", e)
-        raise HTTPException(status_code=503, detail="Service unavailable")
+        raise HTTPException(status_code=503, detail="Servicio no disponible")
 
 
 # ---------------------------------------------------------------------------

@@ -44,7 +44,7 @@ dpkg -i → postinst (Electron + agent.json) → abrir app
 ## Contrato plug-and-play
 
 - `control-plane` publica `bootstrap-config` y `compose-template`.
-- La app Electron genera `.env`, `docker-compose.yml` al elegir PC Principal, ademas de `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
+- La app Electron genera `.env`, `docker-compose.yml` al elegir PC Principal, ademas de `posvendelo-agent.json`. Los instaladores (`postinst.sh`, `Install-Posvendelo.ps1`) generan `INSTALL_SUMMARY.txt`.
 - Pre-registro por fingerprint de hardware (sin cuenta); periodo de prueba 40 dias vinculado al hardware.
 - Nube opcional: se activa desde UI, tunel CF solo al activar nube.
 - Discovery LAN: UDP broadcast `:41520` cada 2s (`backend/modules/discovery/broadcast.py`).
@@ -66,7 +66,7 @@ dpkg -i → postinst (Electron + agent.json) → abrir app
 - Respuestas API: `{"success": true, "data": {...}}`.
 - Errores: `HTTPException(detail="espanol")`.
 - SQL: `:nombre` con wrapper `DB`; `$N` con asyncpg directo en transacciones.
-- Lock ordering: `TURNS -> SALES -> PRODUCTS -> CUSTOMERS`.
+- Lock ordering: `TURNS -> PRODUCTS -> CUSTOMERS`.
 - Timestamps en DB: `NOW()` en SQL, no `datetime` desde Python.
 - Serializacion: `sanitize_row()`/`sanitize_rows()` para Records asyncpg a dict (Decimal a str).
 - Auth: `auth: dict = Depends(verify_token)` → `get_user_id(auth)` para ID, `auth["role"]` para rol.

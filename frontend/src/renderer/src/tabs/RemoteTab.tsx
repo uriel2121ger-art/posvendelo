@@ -195,13 +195,13 @@ export default function RemoteTab(): ReactElement {
         }
         setQueuedActions(removeQueuedRemoteAction(action.id))
       }
-      setMessage('Cola offline sincronizada correctamente.')
+      setMessage('Acciones enviadas al servidor correctamente.')
       void loadNotifications()
     } catch (error) {
       setQueuedActions(loadQueuedRemoteActions())
       setMessage(
         isConnectivityError(error)
-          ? 'La sincronización sigue pendiente por falta de conectividad.'
+          ? 'Sin conexión: las acciones se enviarán cuando haya red.'
           : (error as Error).message
       )
     } finally {
@@ -437,7 +437,7 @@ export default function RemoteTab(): ReactElement {
             <div className="min-w-0 shrink flex items-center gap-2">
               <Radio className="w-6 h-6 text-emerald-500 shrink-0" />
               <h1 className="text-xl font-bold text-white truncate">
-                Monitoreo y Control Satelital
+                Monitoreo y control satelital
               </h1>
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-nowrap relative z-10">
@@ -445,51 +445,6 @@ export default function RemoteTab(): ReactElement {
                 <span className={busy ? 'text-amber-500' : 'text-emerald-500'}>
                   {busy ? 'TRABAJANDO' : 'ESTABLE'}
                 </span>
-              </div>
-
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
-                <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
-                  <Target className="w-4 h-4 text-emerald-500" /> Ajuste remoto de stock
-                </h2>
-                <div className="space-y-3">
-                  <input
-                    className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
-                    placeholder="SKU o código"
-                    value={stockSku}
-                    onChange={(e) => setStockSku(e.target.value)}
-                  />
-                  <div className="flex gap-3">
-                    <input
-                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
-                      placeholder="Cantidad"
-                      type="number"
-                      value={stockQty}
-                      onChange={(e) => setStockQty(e.target.value)}
-                    />
-                    <select
-                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider focus:border-emerald-500 focus:outline-none transition-all"
-                      value={stockOperation}
-                      onChange={(e) => setStockOperation(e.target.value)}
-                    >
-                      <option value="add">Agregar</option>
-                      <option value="subtract">Restar</option>
-                      <option value="set">Fijar</option>
-                    </select>
-                    <input
-                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
-                      placeholder="Motivo"
-                      value={stockReason}
-                      onChange={(e) => setStockReason(e.target.value)}
-                    />
-                  </div>
-                  <button
-                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
-                    onClick={() => void handleStockUpdate()}
-                    disabled={busy || !canAdmin}
-                  >
-                    Aplicar ajuste de stock
-                  </button>
-                </div>
               </div>
               <button
                 onClick={() => {
@@ -522,8 +477,8 @@ export default function RemoteTab(): ReactElement {
               {/* Turn Status KPI */}
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6 relative overflow-hidden flex flex-col justify-center">
                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
-                  <Target className="w-4 h-4 text-emerald-500" /> Operador Actual (Terminal
-                  Principal)
+                  <Target className="w-4 h-4 text-emerald-500" /> Operador actual (terminal
+                  principal)
                 </h2>
                 {turnStatus ? (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -553,7 +508,7 @@ export default function RemoteTab(): ReactElement {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">
-                        Arqueo Local
+                        Arqueo local
                       </p>
                       <p className="text-lg font-mono font-bold text-blue-400">
                         ${toNumber(turnStatus.total_sales).toFixed(2)}
@@ -585,7 +540,7 @@ export default function RemoteTab(): ReactElement {
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-zinc-900/80 border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500 font-bold z-10">
                       <tr>
-                        <th className="px-4 py-2">Folio Tx</th>
+                        <th className="px-4 py-2">Folio tx</th>
                         <th className="px-4 py-2">Hora local</th>
                         <th className="px-4 py-2">Forma de pago</th>
                         <th className="px-4 py-2 text-right">Monto</th>
@@ -676,6 +631,52 @@ export default function RemoteTab(): ReactElement {
                 </div>
               </div>
 
+              {/* Stock Adjustment */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
+                <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
+                  <Target className="w-4 h-4 text-emerald-500" /> Ajuste remoto de stock
+                </h2>
+                <div className="space-y-3">
+                  <input
+                    className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                    placeholder="SKU o código"
+                    value={stockSku}
+                    onChange={(e) => setStockSku(e.target.value)}
+                  />
+                  <div className="flex gap-3">
+                    <input
+                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 font-mono text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                      placeholder="Cantidad"
+                      type="number"
+                      value={stockQty}
+                      onChange={(e) => setStockQty(e.target.value)}
+                    />
+                    <select
+                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-xs font-bold uppercase tracking-wider focus:border-emerald-500 focus:outline-none transition-all"
+                      value={stockOperation}
+                      onChange={(e) => setStockOperation(e.target.value)}
+                    >
+                      <option value="add">Agregar</option>
+                      <option value="subtract">Restar</option>
+                      <option value="set">Fijar</option>
+                    </select>
+                    <input
+                      className="w-1/3 bg-zinc-950/80 border border-zinc-800 rounded-xl py-3 px-4 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-all placeholder:text-zinc-600"
+                      placeholder="Motivo"
+                      value={stockReason}
+                      onChange={(e) => setStockReason(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                    onClick={() => void handleStockUpdate()}
+                    disabled={busy || !canAdmin}
+                  >
+                    Aplicar ajuste de stock
+                  </button>
+                </div>
+              </div>
+
               {/* Price Change Component */}
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
@@ -717,7 +718,7 @@ export default function RemoteTab(): ReactElement {
               {/* Operations Broadcast */}
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                 <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-6">
-                  <Send className="w-4 h-4 text-purple-500" /> Mensajería a Caja
+                  <Send className="w-4 h-4 text-purple-500" /> Mensajería a caja
                 </h2>
                 <div className="space-y-3">
                   <input
@@ -762,7 +763,7 @@ export default function RemoteTab(): ReactElement {
                 {notifications.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-zinc-800">
                     <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <BellRing className="w-3 h-3" /> Entregas Pendientes
+                      <BellRing className="w-3 h-3" /> Entregas pendientes
                     </h3>
                     <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                       {notifications.map((n, i) => (
@@ -818,8 +819,7 @@ export default function RemoteTab(): ReactElement {
                 </div>
                 {pendingRequestsStatus === 'unsupported' ? (
                   <p className="text-sm text-zinc-500">
-                    El backend actual no soporta esta bandeja local. La pantalla principal sigue
-                    operativa.
+                    Este equipo aún no tiene esta función activa. La pantalla principal sigue operativa.
                   </p>
                 ) : pendingRequestsStatus === 'idle' ? (
                   <p className="text-sm text-zinc-500">
@@ -897,7 +897,7 @@ export default function RemoteTab(): ReactElement {
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 lg:p-6">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider">
-                    Cola offline
+                    Acciones pendientes
                   </h2>
                   <button
                     type="button"

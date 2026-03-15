@@ -210,7 +210,7 @@ export default function FiscalTab(): ReactElement {
     { key: 'documentos', label: 'Documentos' },
     { key: 'auditoria', label: 'Auditoría' },
     { key: 'analytics', label: 'Analítica' },
-    { key: 'wallet', label: 'Billetera' },
+    { key: 'wallet', label: 'Monedero' },
     { key: 'crypto', label: 'Cripto' },
     { key: 'operaciones', label: 'Operaciones' },
     { key: 'seguridad', label: 'Seguridad' }
@@ -387,7 +387,7 @@ export default function FiscalTab(): ReactElement {
             />
             <input
               className={inputCls}
-              placeholder='Items JSON [{"sku":"X","qty":1}]'
+              placeholder='Artículos JSON [{"sku":"X","qty":1}]'
               value={retItems}
               onChange={(e) => setRetItems(e.target.value)}
             />
@@ -479,7 +479,7 @@ export default function FiscalTab(): ReactElement {
             disabled={busy}
             onClick={() => void wrap(() => getShadowRealView(cfg()))}
           >
-            Vista Real
+            Vista real
           </button>
           <button
             className={btnSecondary}
@@ -641,7 +641,7 @@ export default function FiscalTab(): ReactElement {
             />
             <input
               className={inputCls}
-              placeholder='Items JSON [{"sku":"X","qty":1}]'
+              placeholder='Artículos JSON [{"sku":"X","qty":1}]'
               value={ghostItems}
               onChange={(e) => setGhostItems(e.target.value)}
             />
@@ -771,7 +771,7 @@ export default function FiscalTab(): ReactElement {
             disabled={busy}
             onClick={() => void wrap(() => getFederationFiscal(cfg()))}
           >
-            Inteligencia Fiscal
+            Inteligencia fiscal
           </button>
           {canAdmin && (
             <button
@@ -853,14 +853,14 @@ export default function FiscalTab(): ReactElement {
             disabled={busy || !canAdmin}
             onClick={() => void wrap(() => runAudit(cfg()))}
           >
-            Ejecutar Auditoría
+            Ejecutar auditoría
           </button>
           <button
             className={btnSecondary}
             disabled={busy || !canAdmin}
             onClick={() => void wrap(() => runShaper(cfg()))}
           >
-            Ejecutar Shaper
+            Ejecutar optimizador
           </button>
         </div>
         <div className={cardCls}>
@@ -920,7 +920,7 @@ export default function FiscalTab(): ReactElement {
       <div className="space-y-6">
         {/* Wallet */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Billetera fantasma</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">Monedero de puntos</h3>
           <div className="flex gap-2 mb-3">
             <input
               className={inputCls}
@@ -935,7 +935,7 @@ export default function FiscalTab(): ReactElement {
                 void wrap(() => createGhostWallet(cfg(), walletSeed.trim() || undefined))
               }
             >
-              Crear billetera
+              Crear monedero
             </button>
             <button
               className={btnSecondary}
@@ -1039,7 +1039,7 @@ export default function FiscalTab(): ReactElement {
                 void wrap(() => createExtractionPlan(cfg(), { target_amount: toNumber(extTarget) }))
               }
             >
-              Crear Plan
+              Crear plan
             </button>
           </div>
         </div>
@@ -1136,9 +1136,9 @@ export default function FiscalTab(): ReactElement {
           </div>
         )}
 
-        {/* Stealth PIN */}
+        {/* PINs de seguridad */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-zinc-400">PIN sigiloso</h3>
+          <h3 className="text-sm font-semibold mb-3 text-zinc-400">PINs de seguridad</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
             <input
               className={inputCls}
@@ -1202,9 +1202,9 @@ export default function FiscalTab(): ReactElement {
           </div>
         </div>
 
-        {/* Surgical Delete */}
+        {/* Eliminación de registros */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-rose-400">Eliminación quirúrgica</h3>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Eliminación de registros</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
@@ -1225,7 +1225,7 @@ export default function FiscalTab(): ReactElement {
                 if (
                   !(await confirm(
                     'ADVERTENCIA: Esta acción elimina ventas permanentemente. ¿Continuar?',
-                    { variant: 'danger', title: 'Eliminación quirúrgica' }
+                    { variant: 'danger', title: 'Eliminación de registros' }
                   ))
                 )
                   return
@@ -1250,32 +1250,32 @@ export default function FiscalTab(): ReactElement {
           </div>
         </div>
 
-        {/* Evasion */}
+        {/* Emergency protocols */}
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-rose-400">Evasión</h3>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Protocolos de emergencia</h3>
           <div className="flex gap-2 flex-wrap">
             <button
               className={btnDanger}
               disabled={busy || !canAdmin}
               onClick={async () => {
                 if (
-                  !(await confirm('PANIC: ¿Activar modo de emergencia?', {
+                  !(await confirm('¿Activar modo de emergencia?', {
                     variant: 'danger',
-                    title: 'PANIC'
+                    title: 'Modo emergencia'
                   }))
                 )
                   return
                 if (
-                  !(await confirm('CONFIRMAR PANIC: Esta acción es irreversible.', {
+                  !(await confirm('CONFIRMAR: Esta acción es irreversible.', {
                     variant: 'danger',
-                    title: 'Confirmar PANIC'
+                    title: 'Confirmar modo emergencia'
                   }))
                 )
                   return
                 void wrap(() => triggerPanic(cfg(), { immediate: true }))
               }}
             >
-              PANIC
+              Modo emergencia
             </button>
             <select
               className={inputCls + ' max-w-[200px]'}
@@ -1284,7 +1284,7 @@ export default function FiscalTab(): ReactElement {
             >
               <option value="maintenance">Mantenimiento</option>
               <option value="update">Actualización</option>
-              <option value="error">Error</option>
+              <option value="error">Fallo del sistema</option>
             </select>
             <button
               className={btnDanger}
@@ -1305,7 +1305,7 @@ export default function FiscalTab(): ReactElement {
           </div>
         </div>
         <div className={cardCls}>
-          <h3 className="text-sm font-semibold mb-3 text-rose-400">Unidad muerta</h3>
+          <h3 className="text-sm font-semibold mb-3 text-rose-400">Borrado seguro de dispositivo</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               className={inputCls}
@@ -1324,9 +1324,9 @@ export default function FiscalTab(): ReactElement {
               disabled={busy || !deadDriveDevice.trim() || !deadDriveConfirm.trim() || !canAdmin}
               onClick={async () => {
                 if (
-                  !(await confirm('¿Ejecutar unidad muerta? Esta acción es irreversible.', {
+                  !(await confirm('¿Ejecutar borrado seguro? Esta acción es irreversible.', {
                     variant: 'danger',
-                    title: 'Unidad muerta'
+                    title: 'Borrado seguro de dispositivo'
                   }))
                 )
                   return
@@ -1338,7 +1338,7 @@ export default function FiscalTab(): ReactElement {
                 )
               }}
             >
-              Unidad muerta
+              Borrado seguro
             </button>
           </div>
         </div>

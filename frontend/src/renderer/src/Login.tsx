@@ -111,7 +111,7 @@ export default function Login(): ReactElement {
       const token = body.token || body.access_token || ''
 
       if (!token) {
-        setError('Respuesta del servidor sin token. Contacta al administrador.')
+        setError('Error de autenticación. Contacta al administrador.')
         return
       }
 

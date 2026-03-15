@@ -51,7 +51,7 @@ export default function ConfigurarServidor({ onServerConfigured }: { onServerCon
           <h1 className="text-xl font-bold text-zinc-100">Configurar servidor</h1>
         </div>
         <p className="text-sm text-zinc-400 mb-6">
-          Indica la dirección de la PC donde está instalado el nodo (backend) de la sucursal. En app
+          Indica la dirección de la PC donde está instalado el servidor de la sucursal. En app
           móvil no hay detección automática; debes poner la IP o nombre de la máquina y el puerto.
         </p>
         <div className="space-y-4">

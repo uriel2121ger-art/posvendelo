@@ -251,7 +251,7 @@ export default function EmployeesTab(): ReactElement {
             <div className="min-w-0 shrink flex-1 flex items-center gap-2">
               <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
                 <Users className="w-6 h-6 text-indigo-500 shrink-0" />
-                <span className="truncate">Directorio de Personal</span>
+                <span className="truncate">Directorio de personal</span>
               </h1>
               <div className="relative flex-1 min-w-0 max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
@@ -346,7 +346,7 @@ export default function EmployeesTab(): ReactElement {
 
                       <div className="mt-4 pt-3 border-t border-zinc-800 flex justify-between items-center relative z-10">
                         <div className="text-xs">
-                          <span className="text-zinc-500 block">Salario Base</span>
+                          <span className="text-zinc-500 block">Salario base</span>
                           <span className="font-mono font-bold text-white">
                             ${emp.base_salary.toFixed(2)}
                           </span>
@@ -429,7 +429,7 @@ export default function EmployeesTab(): ReactElement {
                 <UserCog className="w-4 h-4" />
               </div>
               <h2 className="text-lg font-bold text-white truncate">
-                {selectedId ? 'Editar Perfil' : 'Nuevo Empleado'}
+                {selectedId ? 'Editar perfil' : 'Nuevo empleado'}
               </h2>
             </div>
             <button
@@ -516,7 +516,7 @@ export default function EmployeesTab(): ReactElement {
                     </div>
                     <input
                       className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3 pl-10 pr-4 font-mono font-bold text-emerald-400 focus:border-indigo-500 focus:outline-none transition-all placeholder:text-zinc-600"
-                      placeholder="Salario Base"
+                      placeholder="Salario base"
                       type="number"
                       min={0}
                       value={salary}

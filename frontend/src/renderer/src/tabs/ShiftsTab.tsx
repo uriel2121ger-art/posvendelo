@@ -177,7 +177,7 @@ export default function ShiftsTab(): ReactElement {
       const data = result.data as Record<string, unknown>
       const backendId = Number(data?.id ?? data?.turn_id ?? 0)
       if (!backendId) {
-        setMessage('Turno abierto pero sin ID de backend. Revisa la conexión.')
+        setMessage('Turno abierto pero el servidor no lo confirmó. Revisa la conexión.')
         setBusy(false)
         return
       }
@@ -198,7 +198,7 @@ export default function ShiftsTab(): ReactElement {
       }
       setCurrentShift(shift)
       saveCurrentShift(shift, cfg.terminalId)
-      setMessage(`Turno abierto en backend (ID: ${backendId}): ${shift.openedBy}`)
+      setMessage(`Turno abierto (ID: ${backendId}): ${shift.openedBy}`)
     } catch (error) {
       setMessage((error as Error).message)
     } finally {
@@ -212,7 +212,7 @@ export default function ShiftsTab(): ReactElement {
       return
     }
     if (!currentShift.backendTurnId) {
-      setMessage('Error: turno sin ID de backend. Abre un turno nuevo.')
+      setMessage('Error: el turno no tiene ID del servidor. Abre un turno nuevo.')
       return
     }
     const closing = Math.max(0, toNumber(closingCash))
@@ -251,7 +251,7 @@ export default function ShiftsTab(): ReactElement {
       setClosingCash('0')
       setNotes('')
       setSelectedShiftId(closed.id)
-      setMessage(`Turno cerrado en backend. Diferencia: $${differenceFromBackend.toFixed(2)}`)
+      setMessage(`Turno cerrado. Diferencia: $${differenceFromBackend.toFixed(2)}`)
 
       // Open cash drawer on turn close (fire-and-forget)
       const hwCfg = loadHwConfigFromCache()
@@ -389,7 +389,7 @@ export default function ShiftsTab(): ReactElement {
       if (Number.isFinite(exp)) {
         setExpectedCash(Math.round(exp * 100) / 100)
         setClosingCash(exp.toFixed(2))
-        setMessage(`Efectivo esperado: $${exp.toFixed(2)} (calculado por backend)`)
+        setMessage(`Efectivo esperado: $${exp.toFixed(2)} (calculado por el sistema)`)
       }
     } catch {
       // Fallback to local calculation
@@ -399,7 +399,7 @@ export default function ShiftsTab(): ReactElement {
         currentShift.openingCash +
         (scopedReconciliation ? scopedReconciliation.cashSales : (currentShift.cashSales ?? 0))
       setClosingCash(base.toFixed(2))
-      setMessage('Esperado ajustado con datos locales (backend no disponible).')
+      setMessage('Esperado ajustado con datos locales (servidor no disponible).')
     } finally {
       setBusy(false)
     }
@@ -408,7 +408,7 @@ export default function ShiftsTab(): ReactElement {
   async function loadBackendSummary(): Promise<void> {
     const shift = selectedShift
     if (!shift?.backendTurnId) {
-      setMessage('Sin ID de backend para este turno.')
+      setMessage('Este turno no tiene ID del servidor.')
       return
     }
     setBusy(true)
@@ -464,7 +464,7 @@ export default function ShiftsTab(): ReactElement {
 
   async function printShiftCut(shift: ShiftRecord): Promise<void> {
     if (!shift.backendTurnId) {
-      setMessage('Sin ID de backend — no se puede imprimir.')
+      setMessage('Sin ID del servidor — no se puede imprimir.')
       return
     }
     setBusy(true)
@@ -500,13 +500,13 @@ export default function ShiftsTab(): ReactElement {
       ['Ventas locales', String(shift.salesCount ?? 0)],
       ['Total local', money(shift.totalSales ?? 0)],
       ['Efectivo local', money(shift.cashSales ?? 0)],
-      ['Efectivo backend', scopedReconciliation ? money(backendCash) : '-'],
-      ['Total backend', scopedReconciliation ? money(backendTotal) : '-'],
+      ['Efectivo sistema', scopedReconciliation ? money(backendCash) : '-'],
+      ['Total sistema', scopedReconciliation ? money(backendTotal) : '-'],
       ['Esperado local', money(expectedByLocal)],
-      ['Esperado backend', scopedReconciliation ? money(expectedByBackend) : '-'],
+      ['Esperado sistema', scopedReconciliation ? money(expectedByBackend) : '-'],
       ['Cierre capturado', money(shift.closingCash ?? 0)],
       ['Diferencia caja', money(shift.cashDifference ?? 0)],
-      ['Diff backend vs local', scopedReconciliation ? money(scopedReconciliation.diffCash) : '-']
+      ['Diferencia sistema vs local', scopedReconciliation ? money(scopedReconciliation.diffCash) : '-']
     ]
     const rowsHtml = detail
       .map(
@@ -553,7 +553,7 @@ export default function ShiftsTab(): ReactElement {
           <div className="min-w-0 shrink">
             <h1 className="text-xl font-bold text-white flex items-center gap-2 truncate">
               <Clock className="w-6 h-6 text-amber-500 shrink-0" />
-              <span className="truncate">Gestión de Turnos</span>
+              <span className="truncate">Gestión de turnos</span>
             </h1>
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-nowrap">
@@ -630,7 +630,7 @@ export default function ShiftsTab(): ReactElement {
                       </div>
                       <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800">
                         <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                          Efectivo acum.
+                          Efectivo acumulado
                         </p>
                         <p className="text-xl font-bold text-emerald-400 tabular-nums">
                           ${(currentShift.cashSales ?? 0).toFixed(2)}

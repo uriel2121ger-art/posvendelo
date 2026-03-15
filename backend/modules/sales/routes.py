@@ -859,7 +859,7 @@ async def perform_sale_cancellation(
 
                 movements_data = [
                     (pid, "IN", "cancellation", stock_restorations[pid],
-                     f"Cancelacion venta ID:{sale_id}", "sale", sale_id, user_id, branch_id)
+                     f"Cancelación venta ID:{sale_id}", "sale", sale_id, user_id, branch_id)
                     for pid in pids
                 ]
                 await conn.executemany(
@@ -895,7 +895,7 @@ async def perform_sale_cancellation(
                         "amount": total_val,
                         "before": balance_before,
                         "after": balance_after,
-                        "notes": f"Cancelacion venta ID:{sale_id}",
+                        "notes": f"Cancelación venta ID:{sale_id}",
                         "uid": user_id,
                     },
                 )
@@ -913,7 +913,7 @@ async def perform_sale_cancellation(
                     {"id": sale["customer_id"]},
                 )
                 if not wallet_row:
-                    raise HTTPException(status_code=404, detail="Cliente no encontrado para reversion de monedero")
+                    raise HTTPException(status_code=404, detail="Cliente no encontrado para reversión de monedero")
                 await db.execute(
                     "UPDATE customers SET wallet_balance = wallet_balance + :amount, synced = 0, updated_at = NOW() "
                     "WHERE id = :id",

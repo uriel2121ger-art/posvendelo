@@ -181,7 +181,7 @@ async def update_printer_config(
     sets = ", ".join(f"{k} = :{k}" for k in updates)
     updates["_row_id"] = row_id
     await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
-    return {"success": True, "data": {"message": "Configuracion de impresora actualizada"}}
+    return {"success": True, "data": {"message": "Configuración de impresora actualizada"}}
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +227,7 @@ async def update_scanner_config(
     sets = ", ".join(f"{k} = :{k}" for k in updates)
     updates["_row_id"] = row_id
     await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
-    return {"success": True, "data": {"message": "Configuracion de scanner actualizada"}}
+    return {"success": True, "data": {"message": "Configuración de scanner actualizada"}}
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ async def update_drawer_config(
     sets = ", ".join(f"{k} = :{k}" for k in updates)
     updates["_row_id"] = row_id
     await db.execute(f"UPDATE app_config SET {sets} WHERE id = :_row_id", updates)
-    return {"success": True, "data": {"message": "Configuracion de cajon actualizada"}}
+    return {"success": True, "data": {"message": "Configuración de cajón actualizada"}}
 
 
 @router.get("/setup-status")
@@ -322,7 +322,7 @@ async def complete_initial_setup(
     return {
         "success": True,
         "data": {
-            "message": "Configuracion inicial guardada",
+            "message": "Configuración inicial guardada",
             "completed": True,
         },
     }
@@ -476,7 +476,7 @@ async def open_drawer_for_sale(
         await printer_svc.open_drawer(drawer_printer, pulse)
     except Exception as e:
         logger.warning("Non-fatal drawer open error: %s", e)
-        return {"success": True, "data": {"message": "Error abriendo cajon. Verifique la conexion.", "opened": False}}
+        return {"success": True, "data": {"message": "Error abriendo cajón. Verifique la conexión.", "opened": False}}
 
     try:
         await db.execute(
