@@ -125,7 +125,7 @@ mkdir -p "$INSTALL_DIR"
 
 # Copy to INSTALL_DIR for Docker container bind mount
 if [ -f "$AGENT_CONFIG" ]; then
-    cp "$AGENT_CONFIG" "$INSTALL_DIR/posvendelo-agent.json" 2>/dev/null && chmod 644 "$INSTALL_DIR/posvendelo-agent.json" || true
+    cp "$AGENT_CONFIG" "$INSTALL_DIR/posvendelo-agent.json" 2>/dev/null && chmod 666 "$INSTALL_DIR/posvendelo-agent.json" || true
 fi
 
 # Upgrade path: if Docker backend is already running, auto-set mode to 'principal'

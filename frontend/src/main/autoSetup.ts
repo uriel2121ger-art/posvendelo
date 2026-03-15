@@ -339,12 +339,12 @@ log "Servicio systemd registrado."
 AGENT_SRC="\$HOME/.config/posvendelo/posvendelo-agent.json"
 if [ -f "\$AGENT_SRC" ]; then
   cp "\$AGENT_SRC" "\$INSTALL_DIR/posvendelo-agent.json"
-  chmod 644 "\$INSTALL_DIR/posvendelo-agent.json"
+  chmod 666 "\$INSTALL_DIR/posvendelo-agent.json"
 elif [ -n "\$REAL_USER" ] && [ "\$REAL_USER" != "root" ]; then
   REAL_AGENT_SRC="\$(getent passwd "\$REAL_USER" | cut -d: -f6)/.config/posvendelo/posvendelo-agent.json"
   if [ -f "\$REAL_AGENT_SRC" ]; then
     cp "\$REAL_AGENT_SRC" "\$INSTALL_DIR/posvendelo-agent.json"
-    chmod 644 "\$INSTALL_DIR/posvendelo-agent.json"
+    chmod 666 "\$INSTALL_DIR/posvendelo-agent.json"
   fi
 fi
 
