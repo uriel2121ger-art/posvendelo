@@ -14,7 +14,7 @@ En Linux y Windows puede instalarse la misma app como **PC principal** (con base
 
 | Modo        | Comportamiento |
 |-------------|----------------|
-| **Principal** | Instalador crea Docker + backend + PostgreSQL; la app usa `127.0.0.1:8000`. Wizard de negocio y opcional registro para monitoreo. |
+| **Principal** | postinst registra Electron; al abrir la app `ensureBackend()` instala Docker + PostgreSQL. La app usa `127.0.0.1:8000`. Wizard de negocio y opcional registro para monitoreo. |
 | **Secundaria** | No se instala backend. Se escribe un marcador (`install-mode` = client). Al abrir la app se muestra "Configurar servidor" para indicar la IP del nodo en LAN. |
 
 - **Linux (.deb):** ejecutar con `sudo INSTALL_MODE=client dpkg -i posvendelo*.deb` para modo caja secundaria.
@@ -28,17 +28,21 @@ En Linux y Windows puede instalarse la misma app como **PC principal** (con base
 ```
 posvendelo.com → descarga instalador → ejecuta
     │
-    ├── Recolecta fingerprint de hardware
-    │   (board_serial, board_name, cpu_model, mac_primary, disk_serial)
+    ├── postinst (Sección 0): instala Electron, genera posvendelo-agent.json
     │
-    ├── POST /api/v1/branches/pre-register
-    │   └── Fingerprint nuevo → tenant anónimo + branch + trial 120 días
-    │   └── Fingerprint conocido → devuelve install_token existente
-    │
-    ├── GET /api/v1/branches/bootstrap-config
-    ├── GET /api/v1/branches/compose-template (sin cloudflared)
-    ├── docker compose up -d
-    └── POS funciona local
+    └── abrir app → /seleccionar-modo
+          → [PC Principal] → ensureBackend()
+                ├── Instala Docker si no está presente
+                ├── Recolecta fingerprint de hardware
+                │   (board_serial, board_name, cpu_model, mac_primary, disk_serial)
+                ├── POST /api/v1/branches/pre-register
+                │   └── Fingerprint nuevo → tenant anónimo + branch + trial 40 días
+                │   └── Fingerprint conocido → devuelve install_token existente
+                ├── GET /api/v1/branches/bootstrap-config
+                ├── GET /api/v1/branches/compose-template (sin cloudflared)
+                ├── Genera .env y docker-compose.yml
+                ├── docker compose up -d
+                └── POS funciona local
 ```
 
 ### Fase 2: Dispositivos LAN
@@ -82,7 +86,7 @@ Desde POS → Configuración > Nube  (o wizard de primera vez)
 - Matching por puntaje: si score ≥ 5 de 10, se considera la misma máquina
 - Reinstalar no reinicia el período de prueba
 
-## Post-trial (día 121+)
+## Post-trial (día 41+)
 
 | Feature      | Estado       |
 |--------------|-------------|
@@ -164,6 +168,9 @@ backend/
 └── modules/discovery/broadcast.py           # UDP broadcast
 
 installers/
-├── linux/postinst.sh                        # Electron + Docker + agent config
-└── windows/nsis-postinstall.nsh             # Docker Desktop + agent config
+├── linux/postinst.sh                        # Electron registration + agent.json (NO Docker)
+└── windows/nsis-postinstall.nsh             # Electron registration + agent.json (NO Docker)
+
+frontend/
+└── src/main/autoSetup.ts                    # ensureBackend(): Docker + PostgreSQL al elegir PC Principal
 ```

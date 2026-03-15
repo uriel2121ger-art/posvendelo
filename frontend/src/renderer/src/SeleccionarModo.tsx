@@ -31,8 +31,8 @@ export default function SeleccionarModo({ onModeSelected }: Props): ReactElement
         <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent mb-2">
           POSVENDELO
         </h1>
-        <h2 className="text-xl font-bold text-zinc-300 mb-2">¿Como se usara esta PC?</h2>
-        <p className="text-zinc-500 mb-8">Selecciona el modo de operacion para esta terminal</p>
+        <h2 className="text-xl font-bold text-zinc-300 mb-2">¿Cómo se usará esta PC?</h2>
+        <p className="text-zinc-500 mb-8">Selecciona el modo de operación para esta terminal</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* PC Principal */}
@@ -46,10 +46,10 @@ export default function SeleccionarModo({ onModeSelected }: Props): ReactElement
             </div>
             <h3 className="text-lg font-bold text-zinc-100 mb-2">PC Principal</h3>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Esta PC sera el servidor de la sucursal. Instala la base de datos y el sistema completo.
+              Esta PC será el servidor de la sucursal. Instala la base de datos y el sistema completo.
             </p>
             <div className="mt-4 text-xs text-zinc-600">
-              Requiere conexion a internet para la primera configuracion
+              Requiere conexión a internet para la primera configuración
             </div>
           </button>
 
@@ -67,7 +67,7 @@ export default function SeleccionarModo({ onModeSelected }: Props): ReactElement
               Esta PC se conecta a otro servidor en la red. No necesita base de datos.
             </p>
             <div className="mt-4 text-xs text-zinc-600">
-              Necesitas la direccion IP del servidor principal
+              Necesitas la dirección IP del servidor principal
             </div>
           </button>
         </div>

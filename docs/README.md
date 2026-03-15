@@ -26,7 +26,7 @@ Indice por categoria. Documentos activos en subcarpetas. Archivos supersedidos e
 | [ROLLOUT_UPDATES_Y_ROLLBACK.md](operacion/ROLLOUT_UPDATES_Y_ROLLBACK.md) | Publicacion de fixes, rollout y rollback. |
 | [DESPUES_DE_DEPLOY.md](operacion/DESPUES_DE_DEPLOY.md) | Reinicio de servicios y limpieza de cache tras deploy. |
 | [SECURITY_CHECKLIST.md](operacion/SECURITY_CHECKLIST.md) | Checklist de seguridad y controles. |
-| [CHECKLIST_SALIDA_MERCADO_GA.md](operacion/CHECKLIST_SALIDA_MERCADO_GA.md) | Checklist salida a mercado (trial 120 dias). |
+| [CHECKLIST_SALIDA_MERCADO_GA.md](operacion/CHECKLIST_SALIDA_MERCADO_GA.md) | Checklist salida a mercado (trial 40 dias). |
 | [HOMELAB.md](operacion/HOMELAB.md) | Homelab (servidor central 192.168.10.90): control-plane, Watchtower, downloads, SSH `prod`, despliegue. |
 | [AUDITORIA_HOMELAB.md](operacion/AUDITORIA_HOMELAB.md) | Auditoria del servidor central: Docker, health, puertos, disco, seguridad, logs; checklist y comandos. |
 

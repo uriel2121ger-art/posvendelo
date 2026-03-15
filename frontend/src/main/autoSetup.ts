@@ -196,8 +196,8 @@ function getBundledScriptPath(): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Inline setup scripts (mirrors postinst.sh / Install-Posvendelo.ps1 but without
-// control-plane calls — pure offline-first first-run setup)
+// Full Docker + backend setup (postinst only does Electron registration)
+// Inline setup scripts without control-plane calls — pure offline-first first-run setup
 // ---------------------------------------------------------------------------
 function generateSetupScript(): string {
   return process.platform === 'win32' ? generateWindowsScript() : generateLinuxScript()
@@ -432,6 +432,8 @@ function generateWindowsScript(): string {
     'JWT_SECRET=$jwt',
     'ADMIN_API_USER=',
     'ADMIN_API_PASSWORD=',
+    'CONTROL_PLANE_URL=https://posvendelo.com',
+    'BACKEND_IMAGE=ghcr.io/uriel2121ger-art/posvendelo:latest',
     'DEBUG=false',
     '"@ | Set-Content -Encoding UTF8 $ENV_FILE',
     '  Write-Step ".env generado."',
@@ -468,8 +470,13 @@ function generateWindowsScript(): string {
     '      ADMIN_API_PASSWORD: `${ADMIN_API_PASSWORD:-}',
     '      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"',
     '      CORS_ALLOWED_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"',
+    '      CONTROL_PLANE_URL: `${CONTROL_PLANE_URL:-https://posvendelo.com}',
+    '      POSVENDELO_AGENT_CONFIG_PATH: /runtime/posvendelo-agent.json',
+    '      POSVENDELO_LICENSE_ENFORCEMENT: "true"',
     '    ports:',
     '      - "127.0.0.1:8000:8000"',
+    '    volumes:',
+    '      - ./posvendelo-agent.json:/runtime/posvendelo-agent.json',
     '    depends_on:',
     '      postgres:',
     '        condition: service_healthy',
@@ -480,6 +487,13 @@ function generateWindowsScript(): string {
     '"@ | Set-Content -Encoding UTF8 $COMPOSE_FILE',
     '',
     'Set-Location $INSTALL_DIR',
+    '',
+    '# Copy agent config for Docker bind mount',
+    '$AgentSrc = "$env:APPDATA\\posvendelo\\posvendelo-agent.json"',
+    'if (Test-Path $AgentSrc) {',
+    '    Copy-Item $AgentSrc "$INSTALL_DIR\\posvendelo-agent.json" -Force',
+    '}',
+    '',
     'Write-Step "Descargando backend..."',
     'docker compose pull',
     'docker compose up -d',

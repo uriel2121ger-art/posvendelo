@@ -300,7 +300,7 @@ export default function TopNavbar(): ReactElement {
             title="Inicio"
             className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-[0_0_12px_rgba(79,70,229,0.4)] hover:scale-105 transition-transform active:scale-95 shrink-0"
           >
-            T
+            P
           </Link>
 
           {/* Nav: principales */}

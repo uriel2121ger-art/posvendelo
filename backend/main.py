@@ -380,7 +380,7 @@ async def _auto_register_if_needed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Lifespan (event system + auto-migrations)
+# Lifespan (event system + background tasks)
 # ---------------------------------------------------------------------------
 
 

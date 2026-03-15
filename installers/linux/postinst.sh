@@ -73,7 +73,7 @@ if [ "$INSTALL_MODE" = "client" ] || [ "$INSTALL_MODE" = "secundaria" ]; then
     chown "$REAL_USER:$REAL_USER" "$INSTALL_MODE_FILE" 2>/dev/null || true
     chown "$REAL_USER:$REAL_USER" "$POSVENDELO_CONFIG_DIR" 2>/dev/null || true
   fi
-  log "Al abrir la app, configura la direccion del servidor de la sucursal."
+  log "Al abrir la app, configura la dirección del servidor de la sucursal."
   exit 0
 fi
 

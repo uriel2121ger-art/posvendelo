@@ -23,7 +23,7 @@
 
 ## Comercial
 
-- Trial de 120 dias activo.
+- Trial de 40 dias activo.
 - Licencias mensual y perpetua emitibles.
 - Renovacion operativa por script o endpoint.
 - Checklist de onboarding para nueva sucursal documentado.

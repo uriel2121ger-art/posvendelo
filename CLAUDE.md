@@ -26,19 +26,25 @@ POS retail multi-sucursal para Mexico. Offline-first, CFDI 4.0, inventario, turn
 ## Flujo primera ejecucion (desktop)
 
 ```
-dpkg -i → postinst (Docker + backend) → abrir app → splash
-→ /setup-inicial-usuario (wizard first-user) → auto-login
-→ /setup-inicial (wizard negocio) → /terminal
+dpkg -i → postinst (Electron + agent.json) → abrir app
+→ /seleccionar-modo ("¿Como se usara esta PC?")
+  → [PC Principal] → ensureBackend (Docker + PostgreSQL)
+    → auto-registro con control-plane (hw fingerprint, prueba 40 dias)
+    → /setup-inicial-usuario (wizard first-user) → auto-login
+    → /setup-inicial (wizard negocio) → /terminal
+  → [Caja secundaria] → /configurar-servidor (IP del principal LAN)
+    → /login → /terminal
 ```
 
 - Desktop auto-configura la URL base = `127.0.0.1:8000` (no muestra "configurar servidor").
 - Mobile (APK) muestra `/configurar-servidor` para IP del servidor LAN.
 - `checkNeedsFirstUser()` decide si mostrar wizard o login.
+- postinst NO instala Docker — lo hace `ensureBackend()` al elegir "PC Principal".
 
 ## Contrato plug-and-play
 
 - `control-plane` publica `bootstrap-config` y `compose-template`.
-- El instalador genera `.env`, `docker-compose.yml`, `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
+- La app Electron genera `.env`, `docker-compose.yml` al elegir PC Principal, ademas de `posvendelo-agent.json` e `INSTALL_SUMMARY.txt`.
 - Pre-registro por fingerprint de hardware (sin cuenta); periodo de prueba 40 dias vinculado al hardware.
 - Nube opcional: se activa desde UI, tunel CF solo al activar nube.
 - Discovery LAN: UDP broadcast `:41520` cada 2s (`backend/modules/discovery/broadcast.py`).
